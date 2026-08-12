@@ -1,0 +1,9 @@
+I reviewed it manually — this sandbox has no psql, postgres, or docker available, so I couldn't actually execute it against a live server. Based on syntax/semantics review, it's valid PostgreSQL/PL-pgSQL:
+
+CREATE TYPE ... AS ENUM, JSONB, UUID, TIMESTAMPTZ, inline and table-level CHECK constraints, REFERENCES ... ON DELETE CASCADE — all standard, valid Postgres DDL.
+gen_random_uuid() — available via the pgcrypto extension (and built into core since PG13+, which Supabase uses), so the CREATE EXTENSION call is safe either way.
+The trigger function's WITH ... SELECT ... INTO target FROM ... pattern is valid PL/pgSQL: a CTE is allowed to precede a SELECT ... INTO statement inside a function body, and the scalar subquery (SELECT count(*) FROM active_reservations) referencing the CTE from the outer SELECT list is legal.
+EXECUTE FUNCTION (not the older EXECUTE PROCEDURE) is correct modern Postgres trigger syntax (PG11+).
+One subtlety worth knowing, not a bug: since this is a BEFORE INSERT trigger, if slot_id referenced a non-existent slot, the capacity JOIN would find no row, leaving slot_capacity/active_count NULL, and the IF active_count >= slot_capacity check would silently evaluate to false (skip). The insert still gets rejected afterward by the FOREIGN KEY constraint on slot_id, so correctness holds — it just doesn't fail at the point you might expect.
+
+Also worth confirming: Postgres applies column DEFAULTs (like id's gen_random_uuid()) before a BEFORE INSERT row trigger runs, so NEW.id is already populated when the id IS DISTINCT FROM NEW.id exclusion runs — that's relied on for the UPDATE case and is correct.
