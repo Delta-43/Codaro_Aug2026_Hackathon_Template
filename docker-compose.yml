@@ -1,0 +1,26 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - backend/.env
+    working_dir: /workspace/backend
+    # whole repo is mounted (not just backend/) so app/config.py and
+    # app/schema_setup.py can walk up to domain.config.json / supabase/
+    # at the repo root, exactly as they do when run natively.
+    volumes:
+      - .:/workspace
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    env_file:
+      - frontend/.env.local
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend

@@ -156,4 +156,4 @@ with 5 upcoming slots sized by `slotDurationMinutes` / `maxBookingsPerSlot`.
 - [x] Booking and Confirmation — `POST /bookings`, `confirmTitle`
 - [x] Change and Cancellation — `/bookings/{id}/reschedule`, `/bookings/{id}/cancel`
 - [x] Availability View — `slot_occupancy` view + `/slots/occupancy` + UI grid
-- [x] Status and History — `status` + append-only `history` json
+- [x] Status and History — `status` + append-only `history` jsonb

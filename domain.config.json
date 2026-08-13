@@ -1,0 +1,35 @@
+{
+  "domain": "generic",
+  "terms": {
+    "resource": "Resource",
+    "resources": "Resources",
+    "slot": "Slot",
+    "slots": "Slots",
+    "booking": "Booking",
+    "bookings": "Bookings",
+    "client": "Client",
+    "admin": "Owner"
+  },
+  "rules": {
+    "cancellationWindowHours": 24,
+    "maxBookingsPerSlot": 1,
+    "slotDurationMinutes": 30,
+    "advanceBookingWindowDays": 30,
+    "bufferMinutes": 0
+  },
+  "copy": {
+    "landingTitle": "Book a Resource",
+    "landingSubtitle": "Pick a resource, find an open slot, book it.",
+    "confirmTitle": "Booking confirmed",
+    "emptyStateSlots": "No slots available yet.",
+    "emptyStateBookings": "You have no bookings yet."
+  },
+  "theme": {
+    "primaryColor": "#4f46e5",
+    "radius": "0.5rem"
+  },
+  "metaFields": {
+    "resources": [],
+    "bookings": []
+  }
+}

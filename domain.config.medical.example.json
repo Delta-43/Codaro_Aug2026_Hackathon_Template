@@ -1,0 +1,39 @@
+{
+  "domain": "medical",
+  "terms": {
+    "resource": "Doctor",
+    "resources": "Doctors",
+    "slot": "Appointment",
+    "slots": "Appointments",
+    "booking": "Booking",
+    "bookings": "Bookings",
+    "client": "Patient",
+    "admin": "Owner"
+  },
+  "rules": {
+    "cancellationWindowHours": 12,
+    "maxBookingsPerSlot": 1,
+    "slotDurationMinutes": 20,
+    "advanceBookingWindowDays": 14,
+    "bufferMinutes": 5
+  },
+  "copy": {
+    "landingTitle": "Book a Doctor",
+    "landingSubtitle": "Pick a doctor, find an open appointment, book it.",
+    "confirmTitle": "Appointment confirmed",
+    "emptyStateSlots": "No appointments available yet.",
+    "emptyStateBookings": "You have no appointments yet."
+  },
+  "theme": {
+    "primaryColor": "#0ea5e9",
+    "radius": "0.5rem"
+  },
+  "metaFields": {
+    "resources": [
+      { "key": "specialty", "label": "Specialty", "type": "string" }
+    ],
+    "bookings": [
+      { "key": "reason", "label": "Reason for visit", "type": "string" }
+    ]
+  }
+}
