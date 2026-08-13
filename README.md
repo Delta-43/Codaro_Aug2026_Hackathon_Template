@@ -150,6 +150,14 @@ with 5 upcoming slots sized by `slotDurationMinutes` / `maxBookingsPerSlot`.
   existing data** — run it only when you want a clean demo for the new domain. If
   you'd rather keep real data you entered, skip it and just add rows normally.
 
+## Contributing
+
+All work lands through pull requests: an issue becomes a branch, the branch is
+PR'd into `develop` (staging), and `develop` is PR'd into `main` (production).
+Every PR runs backend tests, a frontend typecheck + build, and a
+`domain.config.json` validation. See **[CONTRIBUTING.md](CONTRIBUTING.md)** for
+the exact commands and branch naming.
+
 ## Track B checklist (what the base covers)
 
 - [x] Resource and Slot — `resources`, `slots`
