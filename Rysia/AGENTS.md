@@ -1,6 +1,8 @@
 # AGENTS.md — Codaro Hackathon, Track B (Resource Booking & Scheduling)
 
 > **Read this file first, every time.** This is the shared memory for the project — for every teammate and every AI agent/session that touches this repo. Before doing any work, read this whole file. After finishing any meaningful chunk of work, append a dated entry to the **Decisions & Progress Log** at the bottom. Keep entries short — a few lines, not a essay.
+>
+> For the raw, action-by-action sequence of everything done so far (not just the curated summary below), see **`HISTORY.md`** in this same folder.
 
 ---
 
@@ -8,7 +10,7 @@
 
 - **Event:** Codaro Hackathon, Warsaw, August 2026 (codaro.dev/hackathon)
 - **Track:** B — Resource & Slot Booking / Scheduling
-- **Team members / roles:** _fill in — names + what each person owns_
+- **Team members / roles:** Alban (stack research), Delta (project brief/coordination), Ola (database — see `Ola/supabase`), Philip (frontend, "pretty UI, liquid glass"), Peter (TBD), Rysia/Aryna (building a full independent stack solo, this folder, for a deep understanding of the whole app before the event)
 - **Repo:** _fill in GitHub URL_
 - **Key constraint:** mid-event, the organizers will announce a **pivot** — the app's purpose, look, and usage may need to change substantially with only ~2 hours to adapt. Every decision below is made with that in mind. See §6.
 
@@ -53,33 +55,31 @@ The organizers can change the app's *purpose* mid-hackathon. The underlying mode
 4. **No premature abstraction.** Don't build a plugin system or generic framework "just in case" — that adds complexity without buying speed. Straightforward, small, readable files beat clever architecture here.
 5. **Every non-obvious decision gets logged** (§7) so a teammate — or a fresh AI session with zero memory of this conversation — can get up to speed in under a minute.
 
-## 6. Repo / File Map
-
-_Fill in and keep current as the project is scaffolded. Example shape:_
+## 6. Repo / File Map (this folder — `Rysia/`)
 
 ```
-/frontend
-  /app                 — Next.js routes/pages
-  /components          — UI components (shadcn/ui based)
-  /config              — app.config.ts: labels, theme, feature flags (pivot lever)
-  /lib                 — API client, helpers
-/backend
-  /app
-    main.py            — FastAPI app entrypoint
-    routes/            — resources.py, slots.py, bookings.py
-    rules.py           — business rules (cancellation window, capacity, buffer time)
-    schemas.py         — Pydantic models
-    db.py              — Supabase/Postgres client
-/supabase
-  schema.sql           — resources, slots, bookings tables + constraints
-AGENTS.md              — this file
+Rysia/
+  AGENTS.md            — this file (curated decisions log)
+  HISTORY.md           — raw chronological action log (every step, in order)
+  KICKOFF_PROMPT.md     — reusable prompt template
+  supabase/
+    schema.sql          — resources, slots, clients, bookings + capacity trigger + availability view (done)
+    DECISIONS.md         — why each schema/enforcement choice was made (done)
+  backend/              — FastAPI app (next up)
+  frontend/             — Next.js app (after backend)
 ```
+
+Note: `Ola/` has a parallel, independently-built version of the same schema (with an added audit-trail table). Worth comparing the two before the team merges on one for the real submission.
 
 ## 7. Decisions & Progress Log
 
 _Newest entries on top. Format: `YYYY-MM-DD — who — what/why`._
 
-- **2026-08-13 — Aryna (with Claude) — kickoff.** Confirmed Track B scope, stack (Next.js/Tailwind/shadcn + FastAPI + Supabase), and pivot-readiness principles. Created this file and the kickoff prompt (`KICKOFF_PROMPT.md`). Nothing built yet — next step is scaffolding the repo.
+- **2026-08-13 — Aryna (with Claude) — FastAPI backend scaffolded (`Rysia/backend/`).** Minimal app with one `/health` endpoint, tested locally in the build sandbox before delivery (real request, real `{"status":"ok"}` response — not just written and assumed correct). Next: connect it to Supabase (need project URL + API key from Aryna) and build the first real endpoint, `GET /availability`.
+- **2026-08-13 — Aryna — schema live-tested on a real Supabase project, capacity rule confirmed.** `schema.sql` ran cleanly via the Supabase SQL Editor (couldn't connect via `psql` from the build sandbox — its network blocks direct Postgres connections, both the IPv6-only direct host and the IPv4 pooler on port 5432 — so the SQL Editor is the working path for running SQL against Supabase from here on). Smoke test: one resource (capacity 1) + one slot + two clients; first booking succeeded, second was correctly rejected by the capacity trigger. Still open: a true concurrent-request test (two bookings at the exact same instant) — needs a real API endpoint to hit, deferred to the FastAPI task. Full step-by-step in `HISTORY.md`.
+- **2026-08-13 — Aryna (with Claude) — research pass, fixed a real concurrency bug.** Researched booking-platform business rules, REST API security, Supabase RLS, and FastAPI security (sources in `Rysia/supabase/DECISIONS.md`). Found and fixed a genuine race condition in the capacity trigger: it counted bookings without locking the slot row first, so two simultaneous bookings on the last open spot could both succeed (silent overbooking). Fixed with `SELECT ... FOR UPDATE` to serialize concurrent bookings on the same slot. Also planned (not yet built): idempotency keys on the booking endpoint, RLS policies once Supabase auth exists, and a FastAPI security checklist (input validation, rate limiting, CORS, JWT auth, `/docs` disabled in prod) — all tracked for the backend task.
+- **2026-08-13 — Aryna (with Claude) — database schema built solo (`Rysia/supabase/schema.sql`).** Built `resources -> slots -> clients -> bookings` from scratch (independently of Ola's version — see `Ola/supabase` for comparison; both converged on the same core shape, which is a good sign it's the right model). Key decision: capacity is enforced with a DB trigger (race-condition risk on simultaneous bookings), while buffer time and cancellation window are enforced in FastAPI instead (no concurrency risk, better error messages, easier to change during a pivot). Full reasoning in `Rysia/supabase/DECISIONS.md`. No audit/history table yet — not in Track B's minimum requirements, added as a stretch goal if time allows. Next: FastAPI backend implementing booking, confirmation, cancellation (with the window check), and availability query.
+- **2026-08-13 — Aryna (with Claude) — kickoff.** Confirmed Track B scope, stack (Next.js/Tailwind/shadcn + FastAPI + Supabase), and pivot-readiness principles. Created this file and the kickoff prompt (`KICKOFF_PROMPT.md`).
 
 ## 8. Pivot Playbook
 
