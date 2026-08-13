@@ -76,11 +76,12 @@ git push -u origin feat/42-close-a-slot
 ```
 
 GitHub will offer to open a PR. **Set the base branch to `develop`**, not
-`main` — GitHub defaults to `main` and CI will reject it.
+`main` — GitHub defaults to `main`, so this is the one step that is easy to
+get wrong. If you notice after opening it, use the **Edit** button next to the
+title to retarget; you do not need to close the PR.
 
-Fill in the template, and make sure the first line reads `Closes #42`. That
-keyword auto-closes the issue on merge, and CI fails the PR if no issue is
-referenced.
+Fill in the template, and make sure the first line reads `Closes #42` — that
+keyword auto-closes the issue when the PR merges.
 
 Then: get a review, get CI green, merge. Use **Squash and merge** so `develop`
 keeps one commit per issue.
@@ -112,16 +113,15 @@ git checkout develop && git pull origin develop
 git merge main && git push origin develop
 ```
 
-(Merge locally — do not open a `main` → `develop` PR. CI blocks that, because
-it produces a merge that is painful to untangle later.)
+(Merge locally rather than opening a `main` → `develop` PR — the PR route
+produces a merge that is painful to untangle later.)
 
 ---
 
 ## What CI checks
 
-Every PR into `develop` or `main` runs two workflows:
-
-**`CI`** ([.github/workflows/ci.yml](.github/workflows/ci.yml)) — three parallel jobs:
+Every PR into `develop` or `main` runs
+[.github/workflows/ci.yml](.github/workflows/ci.yml) — three parallel jobs:
 
 | Job | What it does |
 |---|---|
@@ -129,22 +129,21 @@ Every PR into `develop` or `main` runs two workflows:
 | `Backend tests (pytest)` | `test/backend` against a fake in-memory Supabase — no credentials, no network. `test/e2e` is collected but skipped (it needs a running stack; set `E2E_BASE_URL` to run it locally) |
 | `Frontend typecheck + build` | `npm ci`, `tsc --noEmit`, `next build` |
 
-**`Branch policy`** ([.github/workflows/branch-policy.yml](.github/workflows/branch-policy.yml)) —
-confirms the PR targets the right branch and references an issue. If it fails,
-read the message in the job summary: it tells you exactly what to retarget.
+Which branch a PR targets is *not* machine-checked — it is on you and your
+reviewer to catch. See step 5 above.
 
 ## Recommended repo settings
 
-These are set once by a maintainer under **Settings → Branches**, and are what
-actually make the flow non-optional. Add a protection rule for both `main` and
-`develop`:
+These are set once by a maintainer under **Settings → Rules → Rulesets**, and
+are what actually make the flow non-optional. Add a ruleset for both `main`
+and `develop`:
 
 - Require a pull request before merging (1 approval)
 - Require status checks to pass: `Backend tests (pytest)`,
-  `Frontend typecheck + build`, `domain.config.json is valid`,
-  `PR targets the right branch`
-- Require branches to be up to date before merging
-- Block force pushes and deletions
+  `Frontend typecheck + build`, `domain.config.json is valid`
+- Block force pushes and restrict deletions
+- Leave **Require linear history** off — it blocks the merge commits that the
+  `develop` → `main` release and the hotfix back-merge both depend on
 
 Without these rules the workflows still report failures, but nothing stops
 someone from merging anyway.

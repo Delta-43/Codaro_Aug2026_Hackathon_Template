@@ -1,6 +1,7 @@
 <!--
-  Feature branches target `develop`. Only `develop` (or a `hotfix/*` branch)
-  targets `main`. CI enforces this — see CONTRIBUTING.md.
+  Check the base branch before you submit. Feature branches target `develop`,
+  never `main` — GitHub defaults to `main`, so this is easy to get wrong.
+  Only `develop` (or a `hotfix/*` branch) targets `main`. See CONTRIBUTING.md.
 -->
 
 Closes #
@@ -19,6 +20,7 @@ make start
 
 ## Checklist
 
+- [ ] Base branch is `develop` (not `main`)
 - [ ] This PR references its issue above (`Closes #<number>`)
 - [ ] `python -m pytest test -q` passes locally
 - [ ] No hard-coded domain word — vocabulary comes from `terms` via `<Term>`
