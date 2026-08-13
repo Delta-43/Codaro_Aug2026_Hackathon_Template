@@ -23,6 +23,10 @@ def create_tables_if_configured() -> None:
         with psycopg.connect(db_url) as conn:
             with conn.cursor() as cur:
                 cur.execute(sql)
+                # Freshly created tables stay invisible to PostgREST — and so
+                # to the Supabase client the seeder uses — until it reloads
+                # its schema cache.
+                cur.execute("NOTIFY pgrst, 'reload schema'")
             conn.commit()
         logger.info("Schema applied (idempotent).")
     except Exception:

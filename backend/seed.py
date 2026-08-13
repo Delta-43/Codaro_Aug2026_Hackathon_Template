@@ -2,7 +2,10 @@
 domain.config.json (e.g. medical config -> "Doctor 1..3"). Run directly to
 force-insert another batch; `seed_if_empty` is what startup calls
 automatically, and only when the DB has zero resources."""
+import time
 from datetime import datetime, timedelta, timezone
+
+from postgrest.exceptions import APIError
 
 from app.config import get_config
 from app.db import get_supabase
@@ -38,10 +41,23 @@ def seed() -> None:
 
 def seed_if_empty() -> None:
     db = get_supabase()
-    existing = db.table("resources").select("id").limit(1).execute().data
+    existing = _existing_resources(db)
     if existing:
         return
     seed()
+
+
+def _existing_resources(db, attempts: int = 5):
+    """First boot creates the tables microseconds earlier, so PostgREST may
+    still be serving a schema cache that predates them. Give the reload
+    NOTIFY sent by schema_setup a moment to land before giving up."""
+    for attempt in range(attempts):
+        try:
+            return db.table("resources").select("id").limit(1).execute().data
+        except APIError as exc:
+            if exc.code != "PGRST205" or attempt == attempts - 1:
+                raise
+            time.sleep(1)
 
 
 if __name__ == "__main__":
