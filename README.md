@@ -1,1 +1,1 @@
-test   
+An example of a conflict happens when the same file.
