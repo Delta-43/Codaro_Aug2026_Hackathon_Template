@@ -2,7 +2,7 @@
 
 A **generic booking engine** (resource → slot → booking) built so that **it can be changed very fast based on a surprise pivot using a config edit rather than a rewrite**. The tech stack: Next.js 14 + Tailwind
 frontend, FastAPI backend, Supabase (Postgres). Demo data is **seeded
-automatically** on first backend start. The general features to be expected are a landing page to showcase the resources offered and a side board to login to a dashboard with either a customer view or the resource owner view. This dashboard should allow an user to view available slots, book/rent them, change/cancel it. The business owner should be able to edit slots or add new items, confirm/cancel bookings, view all bookings and analytics per item. The database need not implement passwords but identify users based on email or userid.
+automatically** on first backend start. The general features to be expected are a landing page to showcase the resources offered and a side board to login to a dashboard with either a customer view or the resource owner view. This dashboard should allow an user to view available slots, book/rent them, change/cancel it. The business owner should be able to edit slots or add new items, confirm/cancel bookings, view all bookings and analytics per item. The database need not implement passwords but identify and track users based on email or userid. 
 
 ## The whole idea: one pivot file
 
@@ -11,9 +11,9 @@ based on repurpose needs:
 
 | Axis | Where | Example pivot |
 |------|-------|---------------|
-| **Terminology** | `terms` | resource→Doctor, slot→Appointment, client→Patient |
-| **Business rules** | `rules` | cancellation window, capacity, buffer, advance window |
-| **Copy** | `copy` | CTAs, confirmation text, empty states |
+| **Terminology** | `terms` | resource→Doctor, slot→Appointment, client→Patient, admins→Owner|
+| **Business rules** | `rules` | cancellation window, capacity, buffer, advance window, info, |
+| **Copy** | `copy` | CTAs, confirmation text, empty states|
 | **Theme** | `theme` | colors, radius |
 | **Custom fields** | `metaFields` + `metadata` jsonb | specialty, reason — **no migration** |
 
