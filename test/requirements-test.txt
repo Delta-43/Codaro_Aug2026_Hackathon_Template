@@ -1,0 +1,8 @@
+# Test-only dependencies. The backend's own runtime deps come from
+# backend/requirements.txt and are installed separately (CI installs both).
+#
+#   python -m pip install -r backend/requirements.txt -r test/requirements-test.txt
+pytest>=8.0,<10
+# starlette's TestClient is an httpx.Client under the hood
+httpx>=0.27,<0.29
+anyio>=4.0,<5

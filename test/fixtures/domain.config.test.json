@@ -1,0 +1,35 @@
+{
+  "domain": "test-domain",
+  "terms": {
+    "resource": "Widget",
+    "resources": "Widgets",
+    "slot": "Window",
+    "slots": "Windows",
+    "booking": "Reservation",
+    "bookings": "Reservations",
+    "client": "Guest",
+    "admin": "Manager"
+  },
+  "rules": {
+    "cancellationWindowHours": 24,
+    "maxBookingsPerSlot": 1,
+    "slotDurationMinutes": 30,
+    "advanceBookingWindowDays": 30,
+    "bufferMinutes": 0
+  },
+  "copy": {
+    "landingTitle": "Book a Widget",
+    "landingSubtitle": "Test fixture copy.",
+    "confirmTitle": "Reservation confirmed",
+    "emptyStateSlots": "No windows available yet.",
+    "emptyStateBookings": "You have no reservations yet."
+  },
+  "theme": {
+    "primaryColor": "#123456",
+    "radius": "0.25rem"
+  },
+  "metaFields": {
+    "resources": [{ "key": "room", "label": "Room", "type": "text" }],
+    "bookings": [{ "key": "note", "label": "Note", "type": "text" }]
+  }
+}

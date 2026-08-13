@@ -1,0 +1,74 @@
+name: Branch policy
+
+# Guards the two rules of our flow so nobody has to remember them:
+#   feature branch -> develop (staging)
+#   develop        -> main    (production)
+# It fails fast with an explanation rather than silently letting a bad
+# merge through, since the team is mostly new contributors.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+    branches: [develop, main]
+
+jobs:
+  policy:
+    name: PR targets the right branch
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check base/head and issue link
+        # Everything from the PR (title/body/branch name) is passed through
+        # `env`, never interpolated into the script body — an interpolated
+        # PR title is a shell-injection hole.
+        env:
+          BASE: ${{ github.base_ref }}
+          HEAD: ${{ github.head_ref }}
+          BODY: ${{ github.event.pull_request.body }}
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          fail=0
+
+          note() { echo "::error::$1"; echo "- ❌ $1" >> "$GITHUB_STEP_SUMMARY"; fail=1; }
+          ok()   { echo "- ✅ $1" >> "$GITHUB_STEP_SUMMARY"; }
+
+          echo "## Branch policy" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`$HEAD\` → \`$BASE\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$BASE" = "main" ]; then
+            # Production only ever receives the staging branch, or an
+            # emergency fix that deliberately skips staging.
+            case "$HEAD" in
+              develop|hotfix/*)
+                ok "\`$HEAD\` is allowed to merge into \`main\`." ;;
+              *)
+                note "Only \`develop\` (or a \`hotfix/*\` branch) may be merged into \`main\`. Retarget this PR at \`develop\` — it reaches \`main\` in the next release PR." ;;
+            esac
+          fi
+
+          if [ "$BASE" = "develop" ]; then
+            if [ "$HEAD" = "main" ]; then
+              note "Do not merge \`main\` back into \`develop\` through a PR. Sync it locally instead: \`git checkout develop && git merge main\`."
+            else
+              ok "\`$HEAD\` may merge into \`develop\`."
+            fi
+
+            # Every change starts life as an issue, so every PR should point
+            # back at one. Release PRs (develop -> main) are exempt above.
+            if printf '%s %s %s' "$TITLE" "$BODY" "$HEAD" | grep -qE '#[0-9]+'; then
+              ok "PR references an issue."
+            else
+              note "This PR does not reference an issue. Add \`Closes #<number>\` to the description (see the PR template)."
+            fi
+          fi
+
+          # Naming is a nudge, not a gate — a wrong prefix never blocks a merge.
+          case "$HEAD" in
+            feat/*|fix/*|chore/*|docs/*|refactor/*|test/*|hotfix/*|develop)
+              ok "Branch name follows the convention." ;;
+            *)
+              echo "::warning::Branch \`$HEAD\` does not use a \`feat/ fix/ chore/ docs/ refactor/ test/ hotfix/\` prefix."
+              echo "- ⚠️ Branch \`$HEAD\` has no conventional prefix (not blocking)." >> "$GITHUB_STEP_SUMMARY" ;;
+          esac
+
+          exit $fail
