@@ -13,12 +13,12 @@ routers. See root [CLAUDE.md](../CLAUDE.md) for the overall architecture and
 |------|-----------------|
 | `app/main.py` | App wiring, startup (schema setup + seed), `GET /health`, `GET /config` |
 | `app/config.py` | Loads + `lru_cache`s `domain.config.json` |
-| `app/db.py` | Supabase client + optional direct Postgres URL for schema/seed scripts |
+| `app/db.py` | Supabase client + optional direct Postgres URL for schema/seed scripts; `maybe_row()` not-found guard for single-row lookups |
 | `app/schema_setup.py` | Idempotently applies `supabase/schema.sql` on startup (guarded — never crashes the server) |
 | `app/rules.py` | Data-driven rules engine — event-keyed registry of validators (see below) |
-| `app/models.py` | Pydantic models for the neutral request envelope (to create — see Validation) |
-| `app/meta.py` | Config-driven `metaFields` validator (to create — see Validation) |
-| `app/routers/resources.py`, `slots.py`, `bookings.py` | REST endpoints |
+| `app/models.py` | Pydantic models for the neutral request envelope (see Validation) |
+| `app/meta.py` | Config-driven `metaFields` validator (see Validation) |
+| `app/routers/resources.py`, `slots.py`, `bookings.py` | REST endpoints (client + owner API) |
 | `seed.py` | Domain-aware demo data; `seed_if_empty()` runs on startup only when `resources` is empty |
 | `reseed.py` | Truncates + reseeds — destructive, run manually after a pivot |
 
@@ -35,9 +35,11 @@ routers. See root [CLAUDE.md](../CLAUDE.md) for the overall architecture and
   `client_id` only.
 - **`bookings.history` is append-only** — every status change appends an
   entry, never overwrites the array.
-- **Prefer `.maybe_single()` over `.single()`** on Supabase lookups —
-  `.single()` raises on zero rows against real PostgREST, so 404 branches
-  are never reached.
+- **Single-row lookups go through `db.maybe_row()`,** not a bare
+  `.single()`/`.maybe_single()`: real PostgREST is inconsistent on zero rows
+  (raises `PGRST116`, returns a null-data response, or returns `None`
+  outright depending on version), and `maybe_row` normalises all three to
+  `None` so the `404` branch is actually reachable.
 - **Rule-violation messages interpolate config `terms`** (e.g.
   `f"This {terms['slot'].lower()} is fully booked."`) so error copy pivots
   with the domain. The frontend renders `detail` verbatim.
@@ -79,10 +81,11 @@ def apply_rules(event: str, ctx: dict) -> None:
 - Parse all timestamps through a shared `parse_ts()` helper:
   `datetime.fromisoformat`, apply UTC when the string is naive. Never
   compare naive to aware datetimes.
-- Keys declared in config but not yet wired: `advanceBookingWindowDays`
-  (enforce on booking create — slot must start within N days),
-  `bufferMinutes` (enforce on slot create — reject a slot that overlaps
-  another slot of the same resource when padded by the buffer).
+- All five rule keys are wired: `maxBookingsPerSlot` / `cancellationWindowHours`
+  (capacity + window), `advanceBookingWindowDays` (booking.create — slot must
+  start within N days), `bufferMinutes` (slot.create — reject a slot
+  overlapping another of the same resource once padded by the buffer), and
+  `slotDurationMinutes` (derives a slot's `ends_at`).
 
 ## Validation
 
@@ -140,27 +143,31 @@ backend takes an `actor` flag, never credentials:
   `slot_occupancy` view only counts `confirmed`, so pending bookings would
   not hold capacity. Documented stretch goal only.
 
-## Current state / what's stubbed
+## Current state
 
-The routers currently do direct Supabase calls with minimal validation.
-Known gaps to close (check `TODO` comments in the router files, and prefer
-regenerating `TODO.md` at repo root via the 3-agent pipeline for a current
-list rather than trusting this paragraph):
+The engine is complete and covered by `test/backend` (128 passing — run via
+the 3-agent pipeline in the root `CLAUDE.md`; regenerate `TODO.md` there for
+the authoritative gap list). What's implemented:
 
-- `advanceBookingWindowDays` / `bufferMinutes` are declared in config but
-  never enforced (`rules.py` TODO); `rules.py` is not yet the registry
-  described above.
-- No Pydantic models (`models.py` doesn't exist) — POST endpoints spread
-  raw `**payload` dicts into inserts.
-- No `metaFields` validation (`meta.py` doesn't exist).
-- `POST /slots` doesn't derive `ends_at` from `slotDurationMinutes`.
-- None of the Owner API endpoints above exist yet (no PATCH/DELETE, no
-  confirm, no analytics); bookings are born `confirmed`.
-- Lookups use `.single()`, so 404 branches are unreachable; startup still
-  uses deprecated `@app.on_event`; no `POST /config/reload`.
-- 13 tests in `test/backend/` are `xfail`-marked pinning exactly these
-  gaps — closing them should flip xfail → xpass (test-writer removes the
-  markers, not you).
+- **Validation:** `models.py` (Pydantic envelopes) + `meta.py` (config-driven
+  `metaFields`). POST endpoints build inserts explicitly and reject bad
+  payloads with `422` instead of DB 500s.
+- **Rules engine:** the event-keyed registry above, with `parse_ts()` and all
+  five rule keys wired (capacity, cancellation window, advance window,
+  buffer; `slotDurationMinutes` derives `ends_at`).
+- **Not-found handling:** `db.maybe_row()` makes every `404` branch reachable
+  against real PostgREST.
+- **Owner API:** `PATCH /resources/{id}`, `GET /resources/{id}/analytics`,
+  `PATCH`/`DELETE /slots/{id}`, `POST /bookings/{id}/confirm`, a `status`
+  filter on `GET /bookings`, and the `{"actor":"owner"}` cancel override —
+  all no-auth (`actor` flag only).
+- **Infra:** startup via FastAPI lifespan; `POST /config/reload` for the
+  instant pivot.
+
+Verified live against a real Supabase project (schema setup, `slot_occupancy`
+view, cascade delete) in addition to the offline suite. The 13 formerly
+`xfail`-marked tests now pass; the `test-writer` agent has since removed those
+markers and added owner-endpoint coverage.
 
 ## Testing
 

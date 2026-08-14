@@ -151,17 +151,12 @@ def test_occupancy_updates_after_booking_through_the_api(client, db):
     assert row["available_count"] == 1
 
 
-@pytest.mark.xfail(
-    reason="POST /slots does not derive ends_at from "
-    "rules.slotDurationMinutes yet (TODO in routers/slots.py); the row is "
-    "inserted without ends_at and the NOT NULL column rejects it.",
-)
-def test_create_slot_derives_ends_at_from_slot_duration(raw_client, db, domain_config):
+def test_create_slot_derives_ends_at_from_slot_duration(client, db, domain_config):
     domain_config(rules={"slotDurationMinutes": 45})
     resource = make_resource(db)
     starts_at = iso_in(hours=48)
 
-    response = raw_client.post(
+    response = client.post(
         "/slots", json={"resource_id": resource["id"], "starts_at": starts_at}
     )
     assert response.status_code == 200
@@ -170,10 +165,70 @@ def test_create_slot_derives_ends_at_from_slot_duration(raw_client, db, domain_c
     assert datetime.fromisoformat(created["ends_at"]) == expected
 
 
-def test_create_slot_without_ends_at_current_behaviour(raw_client, db):
-    """Today the missing NOT NULL column surfaces as a 500, not a 422."""
+def test_create_slot_defaults_capacity_from_max_bookings_per_slot(client, db, domain_config):
+    """When capacity is omitted, POST /slots falls back to
+    rules.maxBookingsPerSlot (no magic literal)."""
+    domain_config(rules={"maxBookingsPerSlot": 4})
     resource = make_resource(db)
-    response = raw_client.post(
-        "/slots", json={"resource_id": resource["id"], "starts_at": iso_in(hours=48)}
+    created = client.post(
+        "/slots",
+        json={
+            "resource_id": resource["id"],
+            "starts_at": iso_in(hours=48),
+            "ends_at": iso_in(hours=48.5),
+        },
+    ).json()[0]
+    assert created["capacity"] == 4
+
+
+def test_create_slot_missing_resource_id_returns_422(raw_client):
+    response = raw_client.post("/slots", json={"starts_at": iso_in(hours=48)})
+    assert response.status_code == 422
+
+
+# --------------------------------------------------------------------
+# PATCH /slots/{id}, DELETE /slots/{id}
+# --------------------------------------------------------------------
+
+
+def test_patch_slot_partial_update(client, db):
+    slot = make_slot(db, capacity=1)
+    response = client.patch(f"/slots/{slot['id']}", json={"capacity": 5})
+    assert response.status_code == 200
+    updated = response.json()[0]
+    assert updated["capacity"] == 5
+    assert updated["starts_at"] == slot["starts_at"]  # untouched
+    assert db.get_row("slots", slot["id"])["capacity"] == 5
+
+
+def test_patch_slot_unknown_id_returns_404(client):
+    response = client.patch(
+        "/slots/00000000-0000-0000-0000-000000000000", json={"capacity": 2}
     )
-    assert response.status_code == 500
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Slot not found"
+
+
+def test_delete_slot_returns_204_and_removes_it(client, db):
+    slot = make_slot(db)
+    response = client.delete(f"/slots/{slot['id']}")
+    assert response.status_code == 204
+    assert not response.content
+    assert db.get_row("slots", slot["id"]) is None
+    assert client.get("/slots").json() == []
+
+
+def test_delete_slot_cascade_removes_dependent_bookings(client, db):
+    slot = make_slot(db)
+    make_booking(db, slot["id"], client_email="a@example.com")
+    make_booking(db, slot["id"], client_email="b@example.com")
+    assert db.count("bookings") == 2
+
+    client.delete(f"/slots/{slot['id']}")
+    assert db.count("bookings") == 0
+
+
+def test_delete_slot_unknown_id_returns_404(client):
+    response = client.delete("/slots/00000000-0000-0000-0000-000000000000")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Slot not found"

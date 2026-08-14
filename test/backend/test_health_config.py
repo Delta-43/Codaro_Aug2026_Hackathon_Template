@@ -45,6 +45,36 @@ def test_config_is_not_hardcoded_and_follows_a_pivot(client, domain_config):
     assert after["copy"]["landingTitle"] == "Book a Doctor"
 
 
+def test_config_reload_picks_up_a_file_edit_without_a_restart(client):
+    """POST /config/reload drops the cached config and returns the fresh file
+    — the instant-pivot mechanism.
+
+    Edits the file on disk *directly* (not through the `domain_config`
+    fixture, which clears the cache for us) so the GET below is genuinely
+    stale and only `/config/reload` refreshes it.
+    """
+    import json as _json
+    import os
+
+    # Prime the lru_cache.
+    assert client.get("/config").json()["terms"]["resource"] == "Widget"
+
+    path = os.environ["DOMAIN_CONFIG_PATH"]
+    config = _json.loads(open(path).read())
+    config["terms"]["resource"] = "Doctor"
+    with open(path, "w") as handle:
+        handle.write(_json.dumps(config))
+
+    # Still cached: the plain GET has not noticed the edit.
+    assert client.get("/config").json()["terms"]["resource"] == "Widget"
+
+    reloaded = client.post("/config/reload")
+    assert reloaded.status_code == 200
+    assert reloaded.json()["terms"]["resource"] == "Doctor"
+    # And the plain GET now reflects it too.
+    assert client.get("/config").json()["terms"]["resource"] == "Doctor"
+
+
 def test_config_exposes_every_section_the_frontend_consumes(client):
     """lib/domain.tsx types DomainConfig with these five sections."""
     payload = client.get("/config").json()

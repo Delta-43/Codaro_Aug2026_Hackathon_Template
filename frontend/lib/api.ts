@@ -54,16 +54,39 @@ export type Booking = {
   status: "confirmed" | "cancelled" | "rescheduled";
   history: Array<{ status: string; at: string }>;
 };
+// Owner analytics, computed by the backend from slot_occupancy + bookings
+// (GET /resources/{id}/analytics). bookings_by_status is aggregated from the
+// rows, so its keys follow whatever statuses actually exist -- never hardcoded.
+export type ResourceAnalytics = {
+  total_slots: number;
+  total_capacity: number;
+  booked_count: number;
+  available_count: number;
+  occupancy_rate: number;
+  bookings_by_status: Record<string, number>;
+};
 
 export const api = {
   listResources: () => request<Resource[]>("/resources"),
   createResource: (payload: Partial<Resource>) =>
     request<Resource[]>("/resources", { method: "POST", body: JSON.stringify(payload) }),
+  updateResource: (id: string, patch: Partial<Resource>) =>
+    request<Resource[]>(`/resources/${id}`, { method: "PATCH", body: JSON.stringify(patch) }),
+  resourceAnalytics: (id: string) => request<ResourceAnalytics>(`/resources/${id}/analytics`),
 
   listSlots: (resourceId?: string) =>
     request<Slot[]>(`/slots${resourceId ? `?resource_id=${resourceId}` : ""}`),
   slotOccupancy: (resourceId?: string) =>
     request<SlotOccupancy[]>(`/slots/occupancy${resourceId ? `?resource_id=${resourceId}` : ""}`),
+  // ends_at is derived server-side from rules.slotDurationMinutes when omitted,
+  // and capacity defaults from rules.maxBookingsPerSlot -- no magic numbers here.
+  createSlot: (payload: {
+    resource_id: string;
+    starts_at: string;
+    ends_at?: string;
+    capacity?: number;
+    metadata?: Record<string, unknown>;
+  }) => request<Slot[]>("/slots", { method: "POST", body: JSON.stringify(payload) }),
 
   listBookings: (clientEmail?: string) =>
     request<Booking[]>(`/bookings${clientEmail ? `?client_email=${clientEmail}` : ""}`),

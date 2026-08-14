@@ -127,12 +127,6 @@ def test_create_booking_unknown_slot_returns_404(client):
     assert response.json()["detail"] == "Slot not found"
 
 
-@pytest.mark.xfail(
-    reason="Against real PostgREST, .single() on zero rows raises APIError "
-    "(PGRST116) rather than returning None, so the `if slot is None -> 404` "
-    "branch in create_booking() is unreachable and the request 500s. Needs "
-    "maybe_single() or an APIError guard.",
-)
 def test_create_booking_unknown_slot_404_against_real_postgrest(strict_client):
     response = strict_client.post(
         "/bookings",
@@ -141,23 +135,11 @@ def test_create_booking_unknown_slot_404_against_real_postgrest(strict_client):
     assert response.status_code == 404
 
 
-@pytest.mark.xfail(
-    reason="POST /bookings takes a raw dict (no Pydantic model), so a payload "
-    "without slot_id raises KeyError -> 500 instead of a 422.",
-)
 def test_create_booking_missing_slot_id_should_422(raw_client):
     response = raw_client.post("/bookings", json={"client_email": "a@example.com"})
     assert response.status_code == 422
 
 
-def test_create_booking_missing_slot_id_current_behaviour(raw_client):
-    assert raw_client.post("/bookings", json={"client_email": "a@example.com"}).status_code == 500
-
-
-@pytest.mark.xfail(
-    reason="client_email is only enforced by the DB NOT NULL constraint; the "
-    "endpoint should reject the payload with 422 before writing.",
-)
 def test_create_booking_missing_client_email_should_422(raw_client, db):
     slot = make_slot(db)
     response = raw_client.post("/bookings", json={"slot_id": slot["id"]})
@@ -189,6 +171,30 @@ def test_list_bookings_filters_by_client_email(client, db):
     make_booking(db, slot["id"], client_email="someone@example.com")
 
     rows = client.get("/bookings", params={"client_email": "me@example.com"}).json()
+    assert [row["id"] for row in rows] == [mine["id"]]
+
+
+def test_list_bookings_filters_by_status(client, db):
+    slot = make_slot(db, capacity=5)
+    confirmed = make_booking(db, slot["id"], client_email="a@example.com", status="confirmed")
+    make_booking(db, slot["id"], client_email="b@example.com", status="cancelled")
+
+    rows = client.get("/bookings", params={"status": "confirmed"}).json()
+    assert [row["id"] for row in rows] == [confirmed["id"]]
+
+    cancelled = client.get("/bookings", params={"status": "cancelled"}).json()
+    assert [row["status"] for row in cancelled] == ["cancelled"]
+
+
+def test_list_bookings_status_and_email_filters_combine(client, db):
+    slot = make_slot(db, capacity=5)
+    mine = make_booking(db, slot["id"], client_email="me@example.com", status="confirmed")
+    make_booking(db, slot["id"], client_email="me@example.com", status="cancelled")
+    make_booking(db, slot["id"], client_email="other@example.com", status="confirmed")
+
+    rows = client.get(
+        "/bookings", params={"client_email": "me@example.com", "status": "confirmed"}
+    ).json()
     assert [row["id"] for row in rows] == [mine["id"]]
 
 
@@ -271,30 +277,11 @@ def test_cancel_unknown_booking_returns_404(client):
     assert response.json()["detail"] == "Booking not found"
 
 
-@pytest.mark.xfail(
-    reason="Real PostgREST raises PGRST116 from .single() on zero rows, so the "
-    "`if booking is None -> 404` branch never runs against a live Supabase.",
-)
 def test_cancel_unknown_booking_404_against_real_postgrest(strict_client):
     response = strict_client.post("/bookings/00000000-0000-0000-0000-000000000000/cancel")
     assert response.status_code == 404
 
 
-def test_cancel_twice_current_behaviour(client, db):
-    """No status guard today: a second cancel succeeds and appends again."""
-    slot = make_slot(db, hours_ahead=72)
-    booking = make_booking(db, slot["id"])
-    client.post(f"/bookings/{booking['id']}/cancel")
-
-    second = client.post(f"/bookings/{booking['id']}/cancel")
-    assert second.status_code == 200
-    assert len(second.json()[0]["history"]) == 3
-
-
-@pytest.mark.xfail(
-    reason="cancel_booking() never checks the current status, so an already "
-    "cancelled booking can be cancelled again; it should be a 409.",
-)
 def test_cancel_twice_should_409(client, db):
     slot = make_slot(db, hours_ahead=72)
     booking = make_booking(db, slot["id"])
@@ -302,16 +289,76 @@ def test_cancel_twice_should_409(client, db):
     assert client.post(f"/bookings/{booking['id']}/cancel").status_code == 409
 
 
-@pytest.mark.xfail(
-    reason="cancel_booking() does datetime.fromisoformat(slot['starts_at']) and "
-    "subtracts an aware now(); a stored timestamp without an offset yields a "
-    "naive datetime -> TypeError -> 500 instead of a clean response.",
-)
 def test_cancel_handles_a_naive_slot_timestamp(raw_client, db):
     slot = make_slot(db, starts_at="2099-01-01T10:00:00", ends_at="2099-01-01T10:30:00")
     booking = make_booking(db, slot["id"])
     response = raw_client.post(f"/bookings/{booking['id']}/cancel")
     assert response.status_code == 200
+
+
+def test_owner_cancel_skips_the_window(client, db, domain_config):
+    """The cancellation window constrains clients; an owner overrides it and
+    the override is recorded in history."""
+    domain_config(rules={"cancellationWindowHours": 24})
+    slot = make_slot(db, hours_ahead=2)  # inside the window
+    booking = make_booking(db, slot["id"])
+
+    response = client.post(f"/bookings/{booking['id']}/cancel", json={"actor": "owner"})
+    assert response.status_code == 200
+    cancelled = response.json()[0]
+    assert cancelled["status"] == "cancelled"
+    assert cancelled["history"][-1]["status"] == "cancelled"
+    assert cancelled["history"][-1]["actor"] == "owner"
+
+
+def test_client_cancel_inside_window_stays_409_while_owner_succeeds(client, db, domain_config):
+    """Same slot, two bookings: the client is blocked inside the window, the
+    owner is not."""
+    domain_config(rules={"cancellationWindowHours": 24})
+    slot = make_slot(db, hours_ahead=2, capacity=5)
+    client_booking = make_booking(db, slot["id"], client_email="client@example.com")
+    owner_booking = make_booking(db, slot["id"], client_email="owner-managed@example.com")
+
+    # No body ⇒ client behaviour ⇒ blocked.
+    assert client.post(f"/bookings/{client_booking['id']}/cancel").status_code == 409
+    # actor="client" is explicit client behaviour ⇒ still blocked.
+    assert client.post(
+        f"/bookings/{client_booking['id']}/cancel", json={"actor": "client"}
+    ).status_code == 409
+    assert db.get_row("bookings", client_booking["id"])["status"] == "confirmed"
+
+    # actor="owner" overrides the window.
+    assert client.post(
+        f"/bookings/{owner_booking['id']}/cancel", json={"actor": "owner"}
+    ).status_code == 200
+
+
+# --------------------------------------------------------------------
+# POST /bookings/{id}/confirm
+# --------------------------------------------------------------------
+
+
+def test_confirm_booking_sets_status_and_appends_owner_history(client, db):
+    slot = make_slot(db, hours_ahead=72)
+    booking = make_booking(db, slot["id"], status="cancelled")
+    original_len = len(booking["history"])
+
+    response = client.post(f"/bookings/{booking['id']}/confirm")
+    assert response.status_code == 200
+    confirmed = response.json()[0]
+    assert confirmed["status"] == "confirmed"
+    assert len(confirmed["history"]) == original_len + 1
+    assert confirmed["history"][-1]["status"] == "confirmed"
+    assert confirmed["history"][-1]["actor"] == "owner"
+    assert parse_iso(confirmed["history"][-1]["at"]).tzinfo is not None
+
+    assert db.get_row("bookings", booking["id"])["status"] == "confirmed"
+
+
+def test_confirm_unknown_booking_returns_404(client):
+    response = client.post("/bookings/00000000-0000-0000-0000-000000000000/confirm")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Booking not found"
 
 
 # --------------------------------------------------------------------
@@ -407,24 +454,6 @@ def test_reschedule_unknown_booking_returns_404(client, db):
     assert response.json()["detail"] == "Booking not found"
 
 
-def test_reschedule_onto_the_same_slot_current_behaviour(client, db, domain_config):
-    """The booking counts against its own target slot, so a capacity-1
-    self-reschedule is rejected as "fully booked"."""
-    domain_config(rules={"maxBookingsPerSlot": 1})
-    slot = make_slot(db, hours_ahead=72, capacity=1)
-    booking = make_booking(db, slot["id"])
-
-    response = client.post(
-        f"/bookings/{booking['id']}/reschedule", json={"new_slot_id": slot["id"]}
-    )
-    assert response.status_code == 409
-
-
-@pytest.mark.xfail(
-    reason="reschedule_booking() counts the booking being moved against the "
-    "target slot's occupancy, so moving a booking onto its own slot is "
-    "reported as full.",
-)
 def test_reschedule_onto_the_same_slot_should_succeed(client, db, domain_config):
     domain_config(rules={"maxBookingsPerSlot": 1})
     slot = make_slot(db, hours_ahead=72, capacity=1)
@@ -435,21 +464,11 @@ def test_reschedule_onto_the_same_slot_should_succeed(client, db, domain_config)
     assert response.status_code == 200
 
 
-@pytest.mark.xfail(
-    reason="reschedule payload is a raw dict; a missing new_slot_id raises "
-    "KeyError -> 500 instead of 422.",
-)
 def test_reschedule_missing_new_slot_id_should_422(raw_client, db):
     slot = make_slot(db, hours_ahead=72)
     booking = make_booking(db, slot["id"])
     response = raw_client.post(f"/bookings/{booking['id']}/reschedule", json={})
     assert response.status_code == 422
-
-
-def test_reschedule_missing_new_slot_id_current_behaviour(raw_client, db):
-    slot = make_slot(db, hours_ahead=72)
-    booking = make_booking(db, slot["id"])
-    assert raw_client.post(f"/bookings/{booking['id']}/reschedule", json={}).status_code == 500
 
 
 def test_reschedule_keeps_history_append_only_across_several_moves(client, db):

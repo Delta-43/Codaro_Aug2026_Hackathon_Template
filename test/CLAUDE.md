@@ -105,33 +105,39 @@ and response field the UI expects actually exists on the FastAPI app.
 
 ## Current state
 
-`python -m pytest test/backend -q` from the repo root: **97 passed,
-13 xfailed** (0 failures, exits 0). `python -m pytest test/` adds the 4
-live e2e tests, which skip without `E2E_BASE_URL`.
+`python -m pytest test/backend -q` from the repo root: **128 passed**
+(0 failures, 0 xfailed, 0 xpassed, exits 0). `python -m pytest test/` adds
+the 4 live e2e tests, which skip without `E2E_BASE_URL`.
 
-Covered: `/health`, `/config` (including a config pivot mid-test),
-`rules.py` (window boundary + `min(capacity, maxBookingsPerSlot)`),
-`/resources` list/create/get, `/slots` list/filter/create,
-`/slots/occupancy` (counts, cancelled bookings excluded, resource filter),
-`/bookings` create/409-at-capacity/404-unknown-slot, cancel (status +
-append-only history, 409 inside the window), reschedule (slot move, history
-append, 409 on full target / inside window, 404s), `client_email` filtering,
-and a full config -> resource -> slot -> book -> reschedule -> cancel flow.
+Covered: `/health`, `/config` (config pivot mid-test + `POST /config/reload`
+instant refresh), `rules.py` (window boundary incl. naive-timestamp
+coercion + `min(capacity, maxBookingsPerSlot)`), `/resources`
+list/create/get/**patch**/**analytics**, `/slots`
+list/filter/create/**patch**/**delete (204 + cascade)**, `/slots/occupancy`
+(counts, cancelled bookings excluded, resource filter), `/bookings`
+create/409-at-capacity/404-unknown-slot, cancel (status + append-only
+history, 409 inside the window, **409 on double-cancel**, **owner
+`{"actor":"owner"}` overrides the window**), **`POST .../confirm`**,
+reschedule (slot move, history append, 409 on full target / inside window,
+404s, **self-reschedule succeeds**), `client_email` **and `status`**
+filtering, config-driven `metaFields` validation (type mismatch → 422,
+`required:true` missing → 422, undeclared keys pass through), and a full
+config -> resource -> slot -> book -> reschedule -> cancel flow.
 
-The 13 `xfail`s are **real backend gaps**, not flaky tests — they are the
-prioritised input for `TODO.md`:
+The 13 previously-`xfail`ed gaps (raw-dict 500s vs Pydantic 422s, `.single()`
+vs `maybe_row` 404s, naive-timestamp `TypeError`, missing cancel/reschedule
+status guards, `POST /slots` `ends_at`/`metaFields`) are **all closed** — the
+backend now passes what were failing assertions, so those tests assert
+plainly (no markers) and their paired `*_current_behaviour` docs of the old
+buggy behaviour were removed. The one surviving `*_current_behaviour` test
+(`test_reschedule_of_a_cancelled_booking_current_behaviour`) documents a
+still-current, intentional contract: reschedule has no status guard, so
+rescheduling a cancelled booking re-confirms it.
 
-1. `.single()` on zero rows raises `PGRST116` against real PostgREST, so the
-   `if x is None: raise HTTPException(404)` branches in
-   `bookings.py` / `resources.py` are unreachable in production (needs
-   `maybe_single()` or an `APIError` guard). 3 tests.
-2. Raw `dict` payloads (no Pydantic models) turn missing required fields
-   into `KeyError`/DB 500s instead of 422s. 4 tests.
-3. `datetime.fromisoformat(slot["starts_at"])` yields a naive datetime for a
-   timestamp with no offset, and `check_cancellation_window` then raises
-   `TypeError`. 2 tests.
-4. No status guard on cancel/reschedule — an already-cancelled booking can
-   be cancelled again, and rescheduling a booking onto its own slot counts
-   the booking against itself and 409s. 2 tests.
-5. `POST /slots` doesn't derive `ends_at` from `rules.slotDurationMinutes`,
-   and `metaFields` are never validated against payloads. 2 tests.
+New coverage matches the owner API in `backend/CLAUDE.md`: `PATCH
+/resources/{id}` (partial update + 404 + metadata validation), `GET
+/resources/{id}/analytics` (`{total_slots, total_capacity, booked_count,
+available_count, occupancy_rate, bookings_by_status}` + 404), `PATCH
+/slots/{id}`, `DELETE /slots/{id}` (204, DB cascade removes dependent
+bookings — mirrored by `FakeSupabase.cascade_delete`, + 404), `POST
+/bookings/{id}/confirm`, and the `GET /bookings?status=` filter.
