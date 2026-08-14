@@ -12,12 +12,13 @@ by the config the backend serves at `GET /config`. See root
 | File | Responsibility |
 |------|-----------------|
 | `lib/domain.tsx` | `fetchConfig()`, `<DomainProvider>`, `useDomain()`, `<Term>` |
-| `lib/api.ts` | Typed client for `/resources` `/slots` `/bookings` (+ `/slots/occupancy`), plus `ApiError` |
+| `lib/api.ts` | Typed client for `/resources` `/slots` `/bookings` (+ `/slots/occupancy`, owner CRUD + `analytics`), plus `ApiError` |
 | `lib/session.ts` | Remembers the claimed email in `localStorage` (identity only, no auth) |
 | `lib/format.ts` | `formatSlotTime()` (UTC → viewer's timezone), `hoursUntil()` |
 | `app/layout.tsx` | Wraps the app in `<DomainProvider>` |
 | `app/page.tsx` | Landing page — resource showcase + email identify → `/dashboard` |
 | `app/dashboard/page.tsx` | Customer dashboard — book, reschedule, cancel |
+| `app/owner/page.tsx` | Owner dashboard — create resources/slots, per-resource analytics |
 
 ## Surfacing backend rule violations
 
@@ -51,10 +52,15 @@ the backend stays the authority.
    backed by `lib/session.ts`).
 3. **Customer dashboard** — view available slots, book, reschedule, cancel.
    *Built* (`app/dashboard/page.tsx`).
-4. **Owner dashboard** — CRUD resources/slots, confirm/cancel bookings, view
-   all bookings, per-item analytics. **Not built yet.** Note the backend is
-   also incomplete here: there is no confirm endpoint and no analytics
-   endpoint, and `status` only ever moves confirmed → cancelled/rescheduled.
+4. **Owner dashboard** — *Built* (`app/owner/page.tsx`): create
+   `<Term>`-labelled resources (with config-driven `metaFields` inputs) and
+   slots (`ends_at` derived from `slotDurationMinutes`, capacity defaulted
+   from `maxBookingsPerSlot`), plus per-resource analytics (occupancy rate,
+   bookings-by-status). Reachable from a link on the landing page. The
+   backend owner API is complete — `confirm`, `analytics`, `PATCH`/`DELETE`,
+   and the `actor` cancel override all exist. Editing/deleting existing rows
+   from the UI is the remaining stretch: those endpoints exist, but the forms
+   are create-only for now.
 
 Each of these should stay config-driven: e.g. the owner/customer split uses
 `terms.admin` / `terms.client` for labeling, not hardcoded "Owner"/"Customer"

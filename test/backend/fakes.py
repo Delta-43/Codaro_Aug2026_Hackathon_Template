@@ -205,6 +205,7 @@ class _Query:
         for row in self._db.tables[self._table]:
             (removed if self._matches(row) else kept).append(row)
         self._db.tables[self._table] = kept
+        self._db.cascade_delete(self._table, removed)
         return copy.deepcopy(removed)
 
 
@@ -267,6 +268,26 @@ class FakeSupabase:
     def assert_writable(self, name: str) -> None:
         if name in self.VIEWS:
             raise FakeAPIError(f"cannot write to view {name}", code="42809")
+
+    # -- referential integrity (mirror `on delete cascade` in schema.sql) --
+    # slots.resource_id -> resources(id); bookings.slot_id -> slots(id).
+    _CASCADES = {
+        "resources": ("slots", "id", "resource_id"),
+        "slots": ("bookings", "id", "slot_id"),
+    }
+
+    def cascade_delete(self, table: str, removed_rows: list[dict]) -> None:
+        rule = self._CASCADES.get(table)
+        if not rule or not removed_rows:
+            return
+        child_table, parent_key, child_key = rule
+        removed_ids = {row.get(parent_key) for row in removed_rows}
+        kept, orphaned = [], []
+        for row in self.tables[child_table]:
+            (orphaned if row.get(child_key) in removed_ids else kept).append(row)
+        self.tables[child_table] = kept
+        # Recurse so resources -> slots -> bookings all cascade.
+        self.cascade_delete(child_table, orphaned)
 
     # -- views (mirror supabase/schema.sql) ---------------------------
     def _slot_occupancy(self) -> list[dict]:

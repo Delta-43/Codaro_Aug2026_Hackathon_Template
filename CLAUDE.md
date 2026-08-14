@@ -15,6 +15,8 @@ every label through `<Term>` and every number from `rules`. Nothing in code
 should hard-code a domain term or a magic number. New domain-specific data
 goes in each table's `metadata jsonb` column — no migrations at pivot time.
 `supabase/schema.sql` is treated as frozen/idempotent once the event starts.
+On the backend, the pivot is enforced by an event-keyed rules registry and a
+config-driven `metaFields` validator — see [backend/CLAUDE.md](backend/CLAUDE.md).
 
 ## Repo layout
 

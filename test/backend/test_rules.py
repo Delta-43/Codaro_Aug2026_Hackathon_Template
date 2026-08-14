@@ -76,16 +76,12 @@ def test_cancellation_window_message_quotes_the_configured_value(domain_config):
     assert "48h" in str(excinfo.value)
 
 
-@pytest.mark.xfail(
-    reason="check_cancellation_window() assumes an aware datetime; a naive one "
-    "raises TypeError instead of a RuleViolation/clear error. The routers feed "
-    "it datetime.fromisoformat(slot['starts_at']), which is naive whenever the "
-    "stored timestamp carries no offset.",
-)
 def test_cancellation_window_handles_a_naive_datetime(domain_config):
+    """A naive timestamp (no offset) is coerced to UTC by parse_ts, so a
+    far-future naive slot is safely outside the window (no TypeError)."""
     domain_config(rules={"cancellationWindowHours": 24})
     naive = datetime.now() + timedelta(hours=72)
-    check_cancellation_window(naive)
+    check_cancellation_window(naive)  # 72h out, 24h window -> no raise
 
 
 # --------------------------------------------------------------------

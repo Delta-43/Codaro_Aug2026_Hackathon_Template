@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Term, useDomain } from "@/lib/domain";
 import { api, type Resource, type SlotOccupancy } from "@/lib/api";
 import { getClientEmail, setClientEmail } from "@/lib/session";
@@ -94,6 +95,13 @@ export default function LandingPage() {
           </ul>
         )}
       </section>
+
+      <p className="mt-10 text-xs text-gray-400">
+        Are you the <Term term="admin" />?{" "}
+        <Link href="/owner" className="underline hover:text-gray-600">
+          Manage <Term term="resources" /> &amp; <Term term="slot" plural />
+        </Link>
+      </p>
     </main>
   );
 }
