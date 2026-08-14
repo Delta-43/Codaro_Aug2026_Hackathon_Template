@@ -1,11 +1,36 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
+/** Thrown for any non-2xx response. `detail` carries the backend's own message
+ *  (FastAPI's HTTPException detail) so rule violations from `app/rules.py`
+ *  -- "This slot is fully booked", "Cannot cancel within 24h" -- reach the UI
+ *  verbatim instead of being flattened into a bare status code. */
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    public detail: string
+  ) {
+    super(detail);
+    this.name = "ApiError";
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
-  if (!res.ok) throw new Error(`${init?.method ?? "GET"} ${path} failed: ${res.status}`);
+  if (!res.ok) {
+    // The body is usually {"detail": "..."}, but a proxy/500 can return HTML --
+    // fall back to the status line rather than throwing inside the error path.
+    let detail = `${init?.method ?? "GET"} ${path} failed: ${res.status}`;
+    try {
+      const body = await res.json();
+      if (typeof body?.detail === "string") detail = body.detail;
+    } catch {
+      /* non-JSON body -- keep the fallback */
+    }
+    throw new ApiError(res.status, detail);
+  }
   return res.json();
 }
 
