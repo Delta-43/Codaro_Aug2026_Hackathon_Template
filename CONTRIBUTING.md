@@ -1,149 +1,49 @@
 # Contributing
 
-Everything reaches production the same way. No exceptions, no direct pushes.
+One flow for everything. No direct pushes to `develop` or `main`.
 
 ```
-issue  →  branch  →  PR into develop (staging)  →  PR develop into main (production)
+issue  →  branch  →  PR into develop  →  PR develop into main (release)
 ```
-
-`main` is what is deployed. `develop` is where finished work accumulates until
-we decide to release. You never commit to either of them directly.
-
----
 
 ## 1. Open an issue
 
-Before writing code, open an issue describing what you are doing
-([new issue](../../issues/new/choose)). This is not paperwork — the issue
-number is how your branch, your PR, and the review all stay tied together.
-
-Note the number GitHub gives it, e.g. **#42**.
+There is a single issue form ([new issue](../../issues/new/choose)) — use it
+for features, bugs, everything. Note the number GitHub gives it, e.g. **#42**.
 
 ## 2. Branch from `develop`
 
-Always branch from an up-to-date `develop`:
-
 ```bash
-git checkout develop
-git pull origin develop
-git checkout -b feat/42-close-a-slot
+git checkout develop && git pull origin develop
+git checkout -b 42-close-a-slot
 ```
 
-Name the branch `<type>/<issue-number>-<short-description>`:
+Name the branch `<issue-number>-<short-description>`.
 
-| Prefix | Use for |
-|---|---|
-| `feat/` | new functionality |
-| `fix/` | a bug fix |
-| `chore/` | tooling, CI, dependencies |
-| `docs/` | documentation only |
-| `refactor/` | restructuring with no behavior change |
-| `test/` | tests only |
-| `hotfix/` | an emergency fix that must skip staging (see below) |
+Two rules the reviewer checks every time:
 
-## 3. Do the work
+- **No hard-coded domain words.** Say `resource`, never `room` or `doctor` —
+  labels render through `<Term>` from `domain.config.json`.
+- **No magic numbers.** Business values live in `rules` in `domain.config.json`.
 
-Read the `CLAUDE.md` in whichever directory you are touching first — each of
-`backend/`, `frontend/`, `supabase/`, and `test/` has its own conventions.
+`supabase/schema.sql` is frozen; new domain data goes in `metadata jsonb`.
 
-Two rules the reviewer will check every time, because they are the point of
-this codebase:
-
-- **No hard-coded domain words.** Say `resource`, never `room` or `doctor`.
-  Every user-visible label renders through `<Term>`, which reads `terms` from
-  `domain.config.json`.
-- **No magic numbers.** A cancellation window, a slot length, a capacity cap —
-  all of it lives in `rules` in `domain.config.json` and is read at runtime.
-
-New domain-specific data goes in a table's `metadata jsonb` column.
-`supabase/schema.sql` is frozen — changing it invalidates everyone else's
-database, so it needs discussion in the issue first.
-
-## 4. Run the tests before you push
+## 3. Test, then open a PR into `develop`
 
 ```bash
-python -m pytest test -q                             # backend (e2e auto-skips)
-python .github/scripts/validate_domain_config.py     # the pivot file
+python -m pytest test -q
+python .github/scripts/validate_domain_config.py
 cd frontend && npm ci && npx tsc --noEmit && npm run build
 ```
 
-CI runs exactly these. Running them locally saves you a round trip.
+CI runs exactly these. Push your branch, open a PR, and **set the base branch
+to `develop`** (GitHub defaults to `main`). Start the description with
+`Closes #42`. Get one approval and green CI, then **Squash and merge**.
 
-## 5. Open a pull request into `develop`
+## 4. Releasing
 
-```bash
-git push -u origin feat/42-close-a-slot
-```
+When `develop` is worth shipping, open a PR from `develop` into `main` — the
+only PR allowed to target `main` — and use **Merge commit** (not squash).
 
-GitHub will offer to open a PR. **Set the base branch to `develop`**, not
-`main` — GitHub defaults to `main`, so this is the one step that is easy to
-get wrong. If you notice after opening it, use the **Edit** button next to the
-title to retarget; you do not need to close the PR.
-
-Fill in the template, and make sure the first line reads `Closes #42` — that
-keyword auto-closes the issue when the PR merges.
-
-Then: get a review, get CI green, merge. Use **Squash and merge** so `develop`
-keeps one commit per issue.
-
-## 6. Releasing: `develop` → `main`
-
-When staging is in a state worth shipping, open a PR from `develop` into
-`main`. This is the only PR allowed to target `main`. Title it with the
-release scope, e.g. `release: booking cancellation + occupancy view`.
-
-Use **Merge commit** (not squash) for this one, so `main` keeps the individual
-commits from `develop` and the two branches share history.
-
-## Hotfixes
-
-Only when production is broken and waiting for the next release is not an
-option:
-
-```bash
-git checkout main && git pull origin main
-git checkout -b hotfix/57-booking-500
-```
-
-PR it into `main`. Then immediately merge `main` back down so staging does not
-lose the fix:
-
-```bash
-git checkout develop && git pull origin develop
-git merge main && git push origin develop
-```
-
-(Merge locally rather than opening a `main` → `develop` PR — the PR route
-produces a merge that is painful to untangle later.)
-
----
-
-## What CI checks
-
-Every PR into `develop` or `main` runs
-[.github/workflows/ci.yml](.github/workflows/ci.yml) — three parallel jobs:
-
-| Job | What it does |
-|---|---|
-| `domain.config.json is valid` | Every key the engine reads exists and has a sane value |
-| `Backend tests (pytest)` | `test/backend` against a fake in-memory Supabase — no credentials, no network. `test/e2e` is collected but skipped (it needs a running stack; set `E2E_BASE_URL` to run it locally) |
-| `Frontend typecheck + build` | `npm ci`, `tsc --noEmit`, `next build` |
-
-Which branch a PR targets is *not* machine-checked — it is on you and your
-reviewer to catch. See step 5 above.
-
-## Recommended repo settings
-
-These are set once by a maintainer under **Settings → Rules → Rulesets**, and
-are what actually make the flow non-optional. Add a ruleset for both `main`
-and `develop`:
-
-- Require a pull request before merging (1 approval)
-- Require status checks to pass: `Backend tests (pytest)`,
-  `Frontend typecheck + build`, `domain.config.json is valid`
-- Block force pushes and restrict deletions
-- Leave **Require linear history** off — it blocks the merge commits that the
-  `develop` → `main` release and the hotfix back-merge both depend on
-
-Without these rules the workflows still report failures, but nothing stops
-someone from merging anyway.
+If production is broken and can't wait, branch `hotfix/<issue>-...` from
+`main`, PR it into `main`, then merge `main` back into `develop` locally.

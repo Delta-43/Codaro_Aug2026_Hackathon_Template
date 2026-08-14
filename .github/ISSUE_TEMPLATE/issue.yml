@@ -1,0 +1,18 @@
+name: Issue
+description: Anything to build, change, or fix. Every branch starts from an issue.
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What?
+      description: What should change, or what is broken? One or two sentences.
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: How do we know it's done?
+      description: What a reviewer checks to confirm this works (or, for a bug, how to reproduce it).
+    validations:
+      required: true
