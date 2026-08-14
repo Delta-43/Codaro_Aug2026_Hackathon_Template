@@ -25,7 +25,13 @@ def seed() -> None:
             .execute()
             .data[0]
         )
-        start = datetime.now(timezone.utc) + timedelta(days=1)
+        # Start clear of the cancellation window, otherwise the demo rows are
+        # born un-cancellable: at +1 day the very first slot is already inside a
+        # 24h `cancellationWindowHours`, and the rest age into it within hours.
+        # Doubling the window (and honouring it if a pivot widens it) keeps
+        # cancel/reschedule demoable for a day after seeding.
+        lead_hours = max(24, 2 * config["rules"]["cancellationWindowHours"])
+        start = datetime.now(timezone.utc) + timedelta(hours=lead_hours)
         for j in range(5):
             slot_start = start + timedelta(hours=j)
             db.table("slots").insert(
