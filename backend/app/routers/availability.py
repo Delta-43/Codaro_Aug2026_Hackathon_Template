@@ -34,6 +34,16 @@ def _viewer_tz(tz: str | None, user: AuthUser | None):
     return _tz(name)
 
 
+def _norm_ts(value: str) -> str:
+    """Canonicalise an incoming ISO timestamp. Tolerates the classic
+    unencoded-'+' footgun (a '+00:00' offset arriving as a space) so a bad query
+    string becomes a clean value rather than a Postgres 22007."""
+    try:
+        return _parse(value.replace(" ", "+")).isoformat()
+    except Exception:
+        return value
+
+
 def _resource_ids(db, service_id: str, resource_id: str | None) -> list[str]:
     rows = db.table("resources").select("id,metadata").execute().data or []
     ids = [r["id"] for r in rows if (r.get("metadata") or {}).get("service_id") == service_id]
@@ -72,8 +82,8 @@ def availability(
         db.table("slot_occupancy")
         .select("*")
         .in_("resource_id", rids)
-        .gte("starts_at", from_)
-        .lt("starts_at", to)
+        .gte("starts_at", _norm_ts(from_))
+        .lt("starts_at", _norm_ts(to))
         .execute()
         .data
         or []

@@ -11,14 +11,15 @@ from app.serialize import serialize_provider, serialize_resource, serialize_serv
 
 
 def review_aggregates(db) -> tuple[dict[str, float], dict[str, int]]:
+    """Return (rating_sum_by_provider, count_by_provider) over real reviews.
+    serialize_provider pools these with the seeded baseline in metadata."""
     rows = db.table("reviews").select("provider_id,rating").execute().data or []
     sums: dict[str, float] = defaultdict(float)
     counts: dict[str, int] = defaultdict(int)
     for r in rows:
         sums[r["provider_id"]] += float(r["rating"])
         counts[r["provider_id"]] += 1
-    rating = {p: sums[p] / counts[p] for p in counts}
-    return rating, dict(counts)
+    return dict(sums), dict(counts)
 
 
 def service_ids_by_provider(db) -> dict[str, list[str]]:
@@ -40,11 +41,11 @@ def resource_ids_by_service(db) -> dict[str, list[str]]:
     return by
 
 
-def build_provider(row, *, svc_by_prov, rating, counts) -> dict:
+def build_provider(row, *, svc_by_prov, sums, counts) -> dict:
     return serialize_provider(
         row,
         service_ids=svc_by_prov.get(row["id"], []),
-        rating=rating.get(row["id"], 0.0),
+        review_sum=sums.get(row["id"], 0.0),
         review_count=counts.get(row["id"], 0),
     )
 

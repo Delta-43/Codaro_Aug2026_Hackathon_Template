@@ -8,6 +8,7 @@ from app.config import clear_config_cache, get_config
 from app.routers import (
     availability,
     bookings,
+    demo,
     me,
     providers,
     resources,
@@ -45,6 +46,7 @@ app.include_router(slots.router)
 app.include_router(availability.router)
 app.include_router(bookings.router)
 app.include_router(me.router)
+app.include_router(demo.router)
 
 
 @app.get("/health")

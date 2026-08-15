@@ -104,11 +104,22 @@ def serialize_provider(
     row: dict,
     *,
     service_ids: Iterable[str] = (),
-    rating: float = 0.0,
+    review_sum: float = 0.0,
     review_count: int = 0,
 ) -> dict:
     md = row.get("metadata") or {}
     loc = md.get("location") or {}
+    # rating/reviewCount blend the seeded catalog baseline (metadata) with real
+    # reviews as they accrue: count = seed + real, rating = pooled average. This
+    # keeps a seeded "318 reviews @4.7" realistic while still reflecting new ones.
+    seed_rating = float(md.get("rating", 0) or 0)
+    seed_count = int(md.get("review_count", 0) or 0)
+    total_count = seed_count + int(review_count)
+    if total_count > 0:
+        eff_rating = (seed_rating * seed_count + float(review_sum)) / total_count
+    else:
+        eff_rating = 0.0
+    eff_count = total_count
     return {
         "id": row["id"],
         "name": row["name"],
@@ -123,8 +134,8 @@ def serialize_provider(
             "lat": loc.get("lat", 0),
             "lng": loc.get("lng", 0),
         },
-        "rating": round(float(rating), 1),
-        "reviewCount": int(review_count),
+        "rating": round(eff_rating, 1),
+        "reviewCount": eff_count,
         "links": md.get("links") or [],
         "publicCode": row.get("public_code") or "",
         "serviceIds": list(service_ids),

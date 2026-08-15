@@ -16,10 +16,10 @@ router = APIRouter(prefix="/providers", tags=["providers"])
 
 
 def _all_serialized(db) -> list[dict]:
-    rating, counts = discovery.review_aggregates(db)
+    sums, counts = discovery.review_aggregates(db)
     svc = discovery.service_ids_by_provider(db)
     rows = db.table("providers").select("*").execute().data or []
-    return [discovery.build_provider(r, svc_by_prov=svc, rating=rating, counts=counts) for r in rows]
+    return [discovery.build_provider(r, svc_by_prov=svc, sums=sums, counts=counts) for r in rows]
 
 
 @router.get("")
@@ -66,9 +66,9 @@ def get_provider(provider_id: str):
     row = maybe_row(db.table("providers").select("*").eq("id", provider_id))
     if row is None:
         raise api_error(NOT_FOUND, "That provider no longer exists.")
-    rating, counts = discovery.review_aggregates(db)
+    sums, counts = discovery.review_aggregates(db)
     svc = discovery.service_ids_by_provider(db)
-    return discovery.build_provider(row, svc_by_prov=svc, rating=rating, counts=counts)
+    return discovery.build_provider(row, svc_by_prov=svc, sums=sums, counts=counts)
 
 
 @router.post("/{provider_id}/follow")
