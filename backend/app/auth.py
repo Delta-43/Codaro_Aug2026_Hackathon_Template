@@ -19,10 +19,12 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
+from functools import lru_cache
 
 import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jwt import PyJWKClient
 
 from app.config import get_config
 
@@ -110,6 +112,27 @@ def _jwt_secret() -> str:
     return secret
 
 
+@lru_cache
+def _jwks_client() -> PyJWKClient:
+    """Cached client for the project's JSON Web Key Set — the public keys that
+    verify asymmetric (ES256/RS256) access tokens. Supabase's newer projects
+    sign with rotating asymmetric keys (a `kid` in the header) rather than the
+    legacy HS256 shared secret; this fetches the matching public key by `kid`."""
+    base = os.environ["SUPABASE_URL"].rstrip("/")
+    return PyJWKClient(f"{base}/auth/v1/.well-known/jwks.json")
+
+
+def _decode_token(token: str) -> dict:
+    """Verify a Supabase access token, supporting both signing schemes:
+    asymmetric (ES256/RS256 via JWKS, keyed by `kid`) and the legacy symmetric
+    HS256 (SUPABASE_JWT_SECRET). The token header's `alg` selects the path."""
+    alg = jwt.get_unverified_header(token).get("alg", "HS256")
+    if alg == "HS256":
+        return jwt.decode(token, _jwt_secret(), algorithms=["HS256"], audience=_AUDIENCE)
+    signing_key = _jwks_client().get_signing_key_from_jwt(token)
+    return jwt.decode(token, signing_key.key, algorithms=[alg], audience=_AUDIENCE)
+
+
 def require_user(
     creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
 ) -> AuthUser:
@@ -118,12 +141,9 @@ def require_user(
     if creds is None or not creds.credentials:
         raise HTTPException(401, "Missing bearer token.")
     try:
-        claims = jwt.decode(
-            creds.credentials,
-            _jwt_secret(),
-            algorithms=["HS256"],
-            audience=_AUDIENCE,
-        )
+        claims = _decode_token(creds.credentials)
+    except jwt.PyJWKClientError:
+        raise HTTPException(401, "Could not resolve the token's signing key.")
     except jwt.PyJWTError:
         raise HTTPException(401, "Invalid or expired token.")
 

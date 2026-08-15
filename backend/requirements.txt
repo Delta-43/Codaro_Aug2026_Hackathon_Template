@@ -3,4 +3,4 @@ uvicorn[standard]
 supabase
 psycopg[binary]
 python-dotenv
-pyjwt
+pyjwt[crypto]

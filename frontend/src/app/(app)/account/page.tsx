@@ -9,6 +9,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CreditCard } from "lucide-react";
 import { useApp } from "@/context/app-context";
+import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/skeleton";
 import { ProfileForm } from "@/components/account/profile-form";
@@ -19,8 +20,14 @@ const APP_VERSION = "demo build";
 
 export default function AccountPage() {
   const { ready, user, verticalId, switchVertical, reseed } = useApp();
+  const { signOut } = useAuth();
   const router = useRouter();
   const [pending, setPending] = useState<null | "switch" | "reset">(null);
+
+  async function onSignOut() {
+    await signOut();
+    router.replace("/login");
+  }
 
   async function onSwitch(id: VerticalId) {
     if (id === verticalId || pending) return;
@@ -53,7 +60,7 @@ export default function AccountPage() {
           alt=""
           className="size-14 rounded-full bg-muted object-cover"
         />
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg font-semibold tracking-tight">
             {user?.displayName ?? "…"}
             {user?.verified ? (
@@ -62,6 +69,9 @@ export default function AccountPage() {
           </h1>
           <p className="truncate text-sm text-muted-foreground">{user?.email}</p>
         </div>
+        <Button variant="outline" size="sm" onPress={onSignOut}>
+          Sign out
+        </Button>
       </header>
 
       {/* Profile */}
