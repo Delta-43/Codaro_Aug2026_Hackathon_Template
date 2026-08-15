@@ -1,14 +1,11 @@
 import type { VerticalId } from "@/types/domain";
-import type { MockStore } from "@/api/storeTypes";
-import { seedFleet } from "@/api/seed/fleet";
-import { seedOneToOne } from "@/api/seed/oneToOne";
-import { seedGroup } from "@/api/seed/group";
 
 /**
- * The pivot surface. Every vertical-specific word the UI renders comes from
- * here — components read nouns/verbs/copy from the active vertical, never a
- * hard-coded string. A pivot at 16:00 is an edit to this file (and the seeds),
- * not a refactor. Switching vertical reseeds the store and resets navigation.
+ * The pivot surface for UI *vocabulary*. Every vertical-specific word the UI
+ * renders comes from here — components read nouns/verbs/copy from the active
+ * vertical, never a hard-coded string. The demo's *data* per vertical now lives
+ * in the backend seed (POST /demo/vertical reseeds it); this file is only the
+ * labels/nouns/copy the frontend renders.
  */
 export interface VerticalConfig {
   id: VerticalId;
@@ -31,7 +28,6 @@ export interface VerticalConfig {
     /** Empty state when a calendar has no availability in range. */
     noAvailability: string;
   };
-  seed: () => MockStore;
 }
 
 export const VERTICALS: Record<VerticalId, VerticalConfig> = {
@@ -59,7 +55,6 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
       noProviderBody: "Find a company in Search to see its vehicles and availability.",
       noAvailability: "No vehicles available in this period.",
     },
-    seed: seedFleet,
   },
   oneToOne: {
     id: "oneToOne",
@@ -85,7 +80,6 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
       noProviderBody: "Find a studio in Search to see its subjects and open hours.",
       noAvailability: "No open hours in this period.",
     },
-    seed: seedOneToOne,
   },
   group: {
     id: "group",
@@ -111,7 +105,6 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
       noProviderBody: "Find a studio in Search to see its classes and session times.",
       noAvailability: "No sessions scheduled in this period.",
     },
-    seed: seedGroup,
   },
 };
 

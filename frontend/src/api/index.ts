@@ -1,18 +1,16 @@
 /**
  * ============================================================================
- * THE API SEAM — the single surface the backend team replaces.
+ * THE API SEAM — now real HTTP to the FastAPI backend.
  * ============================================================================
  *
- * No component, hook, or page imports mock data or the store directly;
- * everything goes through these functions. Each is async, returns a Promise,
- * and simulates 150–450ms of latency so real loading states are exercised and
- * the eventual swap to HTTP changes nothing visually. Results are deep-cloned:
- * callers can never mutate store state by reference (the same isolation a
- * JSON-over-HTTP boundary gives for free).
+ * Every component/hook/page goes through these functions; none touch transport
+ * details. Each returns the exact domain shape from @/types/domain and throws
+ * `ApiError` with the backend's code, so the UI's error handling (inline "slot
+ * was just taken", disabled-with-reason, retry) is unchanged from the mock era.
  *
- * To integrate the real backend, reimplement each function below as an HTTP
- * call that returns the same shape and throws the same ApiError codes. Nothing
- * else in the app needs to change.
+ * Auth: the signed-in Supabase session's access token is attached as
+ * `Authorization: Bearer <jwt>` on every call; the backend verifies it and
+ * derives identity + RLS scope from it (never from the request body).
  */
 import type {
   Booking,
@@ -26,21 +24,76 @@ import type {
   User,
   VerticalId,
 } from "@/types/domain";
-import { clone, delay } from "@/api/latency";
-import * as db from "@/api/mockStore";
+import { ApiError, type ApiErrorCode } from "@/api/errors";
+import { getAccessToken } from "@/lib/auth";
 
 export { ApiError, isApiError } from "@/api/errors";
 export type { ApiErrorCode } from "@/api/errors";
 
-async function run<T>(fn: () => T): Promise<T> {
-  await delay();
-  return clone(fn());
+const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+
+type Query = Record<string, string | number | undefined | null>;
+
+function qs(params: Query): string {
+  const sp = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && v !== "") sp.set(k, String(v));
+  }
+  const s = sp.toString();
+  return s ? `?${s}` : "";
 }
 
-async function runVoid(fn: () => void): Promise<void> {
-  await delay();
-  fn();
+/** Map an HTTP status to an ApiError code when the backend didn't send one. */
+function statusCode(status: number): ApiErrorCode {
+  if (status === 404) return "NOT_FOUND";
+  if (status === 400) return "INVALID_RANGE";
+  return "NETWORK";
 }
+
+async function toApiError(res: Response, method: string, path: string): Promise<ApiError> {
+  let code: ApiErrorCode = statusCode(res.status);
+  let message = `${method} ${path} failed (${res.status})`;
+  let details: Record<string, unknown> | undefined;
+  try {
+    const body = await res.json();
+    const d = (body as { detail?: unknown })?.detail;
+    if (d && typeof d === "object") {
+      // Backend's structured envelope: { code, message, details? }.
+      const obj = d as { code?: string; message?: string; details?: Record<string, unknown> };
+      if (typeof obj.code === "string") code = obj.code as ApiErrorCode;
+      if (typeof obj.message === "string") message = obj.message;
+      details = obj.details;
+    } else if (typeof d === "string") {
+      message = d; // FastAPI's plain HTTPException detail (401/403/etc.)
+    }
+  } catch {
+    /* non-JSON body — keep the status-derived fallback */
+  }
+  return new ApiError(code, message, details);
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = await getAccessToken();
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      ...init,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...init?.headers,
+      },
+    });
+  } catch (e) {
+    throw new ApiError("NETWORK", e instanceof Error ? e.message : "Network error.");
+  }
+  if (!res.ok) throw await toApiError(res, init?.method ?? "GET", path);
+  if (res.status === 204) return undefined as T;
+  return res.json() as Promise<T>;
+}
+
+const post = (path: string, body?: unknown) =>
+  request(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 
 // --- discovery -------------------------------------------------------------
 
@@ -49,37 +102,37 @@ export function searchProviders(q: {
   categoryId?: string;
   near?: string;
 }): Promise<Provider[]> {
-  return run(() => db.searchProviders(q));
+  return request(`/providers${qs({ text: q.text, category_id: q.categoryId, near: q.near })}`);
 }
 
 export function getProvider(id: ID): Promise<Provider> {
-  return run(() => db.getProvider(id));
+  return request(`/providers/${id}`);
 }
 
 export function getProviderByCode(code: string): Promise<Provider> {
-  return run(() => db.getProviderByCode(code));
+  return request(`/providers/by-code/${encodeURIComponent(code)}`);
 }
 
 export function followProvider(id: ID): Promise<User> {
-  return run(() => db.followProvider(id));
+  return post(`/providers/${id}/follow`) as Promise<User>;
 }
 
 export function unfollowProvider(id: ID): Promise<User> {
-  return run(() => db.unfollowProvider(id));
+  return post(`/providers/${id}/unfollow`) as Promise<User>;
 }
 
 // --- services & resources --------------------------------------------------
 
 export function getServices(providerId: ID): Promise<Service[]> {
-  return run(() => db.getServices(providerId));
+  return request(`/services${qs({ provider_id: providerId })}`);
 }
 
 export function getService(id: ID): Promise<Service> {
-  return run(() => db.getService(id));
+  return request(`/services/${id}`);
 }
 
 export function getResources(serviceId: ID): Promise<Resource[]> {
-  return run(() => db.getResources(serviceId));
+  return request(`/resources${qs({ service_id: serviceId })}`);
 }
 
 // --- availability ----------------------------------------------------------
@@ -90,7 +143,9 @@ export function getAvailability(q: {
   fromUtc: IsoUtc;
   toUtc: IsoUtc;
 }): Promise<DayAvailability[]> {
-  return run(() => db.getAvailability(q));
+  return request(
+    `/availability${qs({ service_id: q.serviceId, resource_id: q.resourceId, from: q.fromUtc, to: q.toUtc })}`,
+  );
 }
 
 export function getMonthDensity(q: {
@@ -98,7 +153,9 @@ export function getMonthDensity(q: {
   resourceId?: ID;
   month: string; // 'YYYY-MM'
 }): Promise<MonthDensityCell[]> {
-  return run(() => db.getMonthDensity(q));
+  return request(
+    `/month-density${qs({ service_id: q.serviceId, resource_id: q.resourceId, month: q.month })}`,
+  );
 }
 
 // --- bookings --------------------------------------------------------------
@@ -109,57 +166,56 @@ export function createBooking(input: {
   slotIds: ID[];
   partySize: number;
 }): Promise<Booking> {
-  return run(() => db.createBooking(input));
+  return post("/bookings", input) as Promise<Booking>;
 }
 
 export function getBookings(scope: "upcoming" | "past" | "all"): Promise<Booking[]> {
-  return run(() => db.getBookings(scope));
+  return request(`/bookings${qs({ scope })}`);
 }
 
 export function getBooking(id: ID): Promise<Booking> {
-  return run(() => db.getBooking(id));
+  return request(`/bookings/${id}`);
 }
 
 export function rescheduleBooking(id: ID, newSlotIds: ID[]): Promise<Booking> {
-  return run(() => db.rescheduleBooking(id, newSlotIds));
+  return post(`/bookings/${id}/reschedule`, { newSlotIds }) as Promise<Booking>;
 }
 
 export function cancelBooking(id: ID): Promise<Booking> {
-  return run(() => db.cancelBooking(id));
+  return post(`/bookings/${id}/cancel`) as Promise<Booking>;
 }
 
 export function leaveReview(id: ID, rating: number, text: string): Promise<Booking> {
-  return run(() => db.leaveReview(id, rating, text));
+  return post(`/bookings/${id}/review`, { rating, text }) as Promise<Booking>;
 }
 
 // --- account & demo --------------------------------------------------------
 
 export function getCurrentUser(): Promise<User> {
-  return run(() => db.getCurrentUser());
+  return request("/me");
 }
 
 export function updateUser(patch: Partial<User>): Promise<User> {
-  return run(() => db.updateUser(patch));
+  return request("/me", { method: "PATCH", body: JSON.stringify(patch) });
 }
 
-/** Current demo vertical (convenience for the demo panel; not backend state). */
-export function getActiveVertical(): Promise<VerticalId> {
-  return run(() => db.getVerticalId());
+export async function getActiveVertical(): Promise<VerticalId> {
+  const { verticalId } = await request<{ verticalId: VerticalId }>("/demo/vertical");
+  return verticalId;
 }
 
-export function setVertical(id: VerticalId): Promise<void> {
-  return runVoid(() => db.setVertical(id));
+export async function setVertical(id: VerticalId): Promise<void> {
+  await post("/demo/vertical", { id });
 }
 
-export function resetDemoData(): Promise<void> {
-  return runVoid(() => db.resetDemoData());
+export async function resetDemoData(): Promise<void> {
+  await post("/demo/reset");
 }
 
 // --- dev convenience -------------------------------------------------------
-// Makes the seams pokeable from the browser console (Phase 1 done-when:
-// "seeds callable from console"). Dev only; harmless in prod.
+// Makes the seams pokeable from the browser console. Dev only; harmless in prod.
 if (typeof window !== "undefined") {
-  const api = {
+  (window as unknown as { codaro?: unknown }).codaro = {
     searchProviders,
     getProvider,
     getProviderByCode,
@@ -179,7 +235,5 @@ if (typeof window !== "undefined") {
     getActiveVertical,
     setVertical,
     resetDemoData,
-    _store: db.getStore,
   };
-  (window as unknown as { codaro?: typeof api }).codaro = api;
 }
