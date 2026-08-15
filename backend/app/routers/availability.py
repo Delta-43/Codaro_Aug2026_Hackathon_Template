@@ -1,0 +1,153 @@
+"""Availability grouping + month density — the calendar's two read endpoints.
+
+Both group slots by *local* date in the viewer's timezone (from `?tz=`, else the
+signed-in user's `user_metadata.timezone`, else UTC). Slot status and occupancy
+are computed server-side (the UI never recomputes them). Reads use the service
+key (public); occupancy already reflects party-size + multi-slot holds.
+"""
+from __future__ import annotations
+
+import calendar as _cal
+from collections import defaultdict
+from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
+
+from fastapi import APIRouter, Depends, Query
+
+from app.auth import AuthUser, optional_user
+from app.db import get_supabase
+from app.serialize import _parse, serialize_slot
+from app.users import user_metadata
+
+router = APIRouter(tags=["availability"])
+
+
+def _tz(name: str | None) -> ZoneInfo | timezone:
+    try:
+        return ZoneInfo(name) if name else timezone.utc
+    except Exception:
+        return timezone.utc
+
+
+def _viewer_tz(tz: str | None, user: AuthUser | None):
+    name = tz or (user_metadata(user).get("timezone") if user else None) or "UTC"
+    return _tz(name)
+
+
+def _resource_ids(db, service_id: str, resource_id: str | None) -> list[str]:
+    rows = db.table("resources").select("id,metadata").execute().data or []
+    ids = [r["id"] for r in rows if (r.get("metadata") or {}).get("service_id") == service_id]
+    if resource_id:
+        ids = [rid for rid in ids if rid == resource_id]
+    return ids
+
+
+def _occ_to_slot(r: dict, service_id: str, now: datetime) -> dict:
+    slot = {
+        "id": r["slot_id"],
+        "resource_id": r["resource_id"],
+        "starts_at": r["starts_at"],
+        "ends_at": r["ends_at"],
+        "capacity": r["capacity"],
+        "metadata": {"service_id": service_id},
+    }
+    return serialize_slot(slot, booked_count=r["booked_count"], service_id=service_id, now=now)
+
+
+@router.get("/availability")
+def availability(
+    service_id: str,
+    from_: str = Query(..., alias="from"),
+    to: str = Query(...),
+    resource_id: str | None = None,
+    tz: str | None = None,
+    user: AuthUser | None = Depends(optional_user),
+):
+    db = get_supabase()
+    tzinfo = _viewer_tz(tz, user)
+    rids = _resource_ids(db, service_id, resource_id)
+    if not rids:
+        return []
+    rows = (
+        db.table("slot_occupancy")
+        .select("*")
+        .in_("resource_id", rids)
+        .gte("starts_at", from_)
+        .lt("starts_at", to)
+        .execute()
+        .data
+        or []
+    )
+    now = datetime.now(timezone.utc)
+    days: dict[str, list[dict]] = defaultdict(list)
+    for r in rows:
+        local_date = _parse(r["starts_at"]).astimezone(tzinfo).strftime("%Y-%m-%d")
+        days[local_date].append(r)
+
+    out = []
+    for date in sorted(days):
+        entries = sorted(days[date], key=lambda r: _parse(r["starts_at"]))
+        out.append(
+            {
+                "date": date,
+                "slots": [_occ_to_slot(r, service_id, now) for r in entries],
+                "totalCapacity": sum(r["capacity"] for r in entries),
+                "totalBooked": sum(r["booked_count"] for r in entries),
+            }
+        )
+    return out
+
+
+@router.get("/month-density")
+def month_density(
+    service_id: str,
+    month: str,  # 'YYYY-MM'
+    resource_id: str | None = None,
+    tz: str | None = None,
+    user: AuthUser | None = Depends(optional_user),
+):
+    db = get_supabase()
+    tzinfo = _viewer_tz(tz, user)
+    year, mon = int(month[:4]), int(month[5:7])
+    days_in = _cal.monthrange(year, mon)[1]
+
+    rids = _resource_ids(db, service_id, resource_id)
+    rows = []
+    if rids:
+        # Window the local month (± a day for tz edges) back to a UTC range.
+        start_local = datetime(year, mon, 1, tzinfo=tzinfo)
+        end_local = datetime(year, mon, days_in, 23, 59, 59, tzinfo=tzinfo)
+        lo = (start_local - timedelta(days=1)).astimezone(timezone.utc).isoformat()
+        hi = (end_local + timedelta(days=1)).astimezone(timezone.utc).isoformat()
+        rows = (
+            db.table("slot_occupancy")
+            .select("*")
+            .in_("resource_id", rids)
+            .gte("starts_at", lo)
+            .lte("starts_at", hi)
+            .execute()
+            .data
+            or []
+        )
+
+    now = datetime.now(timezone.utc)
+    total_by: dict[str, int] = defaultdict(int)
+    remaining_by: dict[str, int] = defaultdict(int)
+    for r in rows:
+        d = _parse(r["starts_at"]).astimezone(tzinfo).strftime("%Y-%m-%d")
+        total_by[d] += r["capacity"]
+        end = _parse(r["ends_at"])
+        free = max(0, r["capacity"] - r["booked_count"]) if (end > now and r["capacity"] > 0) else 0
+        remaining_by[d] += free
+
+    out = []
+    for day in range(1, days_in + 1):
+        d = f"{year:04d}-{mon:02d}-{day:02d}"
+        total, remaining = total_by.get(d, 0), remaining_by.get(d, 0)
+        if total == 0 or remaining == 0:
+            density = 0
+        else:
+            ratio = remaining / total
+            density = 1 if ratio < 0.34 else 2 if ratio < 0.67 else 3
+        out.append({"date": d, "density": density})
+    return out

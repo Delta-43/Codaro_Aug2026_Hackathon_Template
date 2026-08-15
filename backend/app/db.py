@@ -40,6 +40,11 @@ def get_db_url() -> str | None:
 
 # PostgREST error code for "JSON object requested, multiple (or no) rows".
 _NOT_FOUND_CODE = "PGRST116"
+# Postgres "invalid input syntax" — a malformed uuid passed as an id. Every id
+# column is a uuid, so a non-uuid lookup value simply matches no row: normalise
+# it to "not found" (a clean 404) rather than a 500.
+_INVALID_TEXT_CODE = "22P02"
+_NOT_FOUND_CODES = {_NOT_FOUND_CODE, _INVALID_TEXT_CODE}
 
 
 def maybe_row(query):
@@ -47,14 +52,14 @@ def maybe_row(query):
 
     Real PostgREST raises ``PGRST116`` from ``.single()`` on zero rows, and a
     strict client can surface the same from ``.maybe_single()``. Prefer
-    ``.maybe_single()`` and treat that specific error as "no row" so the
-    router's ``if x is None -> 404`` branch is actually reachable in
+    ``.maybe_single()`` and treat that (and a malformed-uuid ``22P02``) as "no
+    row" so the router's ``if x is None -> 404`` branch is actually reachable in
     production. ``query`` is the builder up to (but not including) the
     single-row terminator."""
     try:
         response = query.maybe_single().execute()
-    except Exception as exc:  # noqa: BLE001 - re-raised unless it's the not-found code
-        if getattr(exc, "code", None) == _NOT_FOUND_CODE:
+    except Exception as exc:  # noqa: BLE001 - re-raised unless it's a not-found code
+        if getattr(exc, "code", None) in _NOT_FOUND_CODES:
             return None
         raise
     # supabase-py is inconsistent across versions on "no row": it may raise

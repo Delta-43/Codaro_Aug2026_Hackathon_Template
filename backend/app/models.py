@@ -11,7 +11,46 @@ spread is deliberately avoided (arbitrary-key injection / KeyError 500s).
 """
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+from pydantic.alias_generators import to_camel
+
+
+class CamelModel(BaseModel):
+    """Request models the *new frontend* sends in camelCase. `populate_by_name`
+    keeps snake_case acceptable too, so tests and curl can use either."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+class BookingCreateReq(CamelModel):
+    """POST /bookings — the multi-slot, party-size booking envelope. Ownership
+    (userId/email) is derived from the token, never the body."""
+
+    service_id: str
+    resource_id: str
+    slot_ids: list[str]
+    party_size: int = 1
+
+
+class RescheduleReq(CamelModel):
+    """POST /bookings/{id}/reschedule — the new (possibly multi-) slot set."""
+
+    new_slot_ids: list[str]
+
+
+class ReviewReq(CamelModel):
+    rating: int
+    text: str = ""
+
+
+class UserPatch(CamelModel):
+    """PATCH /me — a partial User. Only these keys are honored; role/verified
+    are not self-editable."""
+
+    display_name: str | None = None
+    email: str | None = None
+    timezone: str | None = None
+    avatar_url: str | None = None
 
 
 class ResourceCreate(BaseModel):

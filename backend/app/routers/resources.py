@@ -6,13 +6,21 @@ from app.auth import AuthUser, enforce_rls_write, require_owner
 from app.db import get_supabase, get_user_client, maybe_row
 from app.meta import validate_metadata
 from app.models import ResourceCreate, ResourceUpdate
+from app.serialize import serialize_resource
 
 router = APIRouter(prefix="/resources", tags=["resources"])
 
 
 @router.get("")
-def list_resources():
-    return get_supabase().table("resources").select("*").execute().data
+def list_resources(service_id: str | None = None):
+    """List resources as the frontend `Resource` shape. With `?service_id`,
+    returns only that service's **active** resources (getResources); without it,
+    returns all (owner/debug listing)."""
+    rows = get_supabase().table("resources").select("*").execute().data or []
+    out = [serialize_resource(r) for r in rows]
+    if service_id:
+        out = [r for r in out if r["serviceId"] == service_id and r["active"]]
+    return out
 
 
 @router.post("")
@@ -36,7 +44,7 @@ def get_resource(resource_id: str):
     resource = maybe_row(get_supabase().table("resources").select("*").eq("id", resource_id))
     if resource is None:
         raise HTTPException(404, "Resource not found")
-    return resource
+    return serialize_resource(resource)
 
 
 @router.patch("/{resource_id}")

@@ -140,6 +140,21 @@ def require_user(
     )
 
 
+def optional_user(
+    creds: HTTPAuthorizationCredentials | None = Depends(_bearer),
+) -> AuthUser | None:
+    """Like ``require_user`` but never raises: returns the verified user when a
+    valid token is present, else ``None``. For public reads (discovery) that
+    still want to personalise when signed in — e.g. pinning followed providers
+    to the top of search."""
+    if creds is None or not creds.credentials:
+        return None
+    try:
+        return require_user(creds)
+    except HTTPException:
+        return None
+
+
 def require_owner(user: AuthUser = Depends(require_user)) -> AuthUser:
     """Gate owner-only endpoints. 403 for an authenticated non-owner."""
     if not user.is_owner:
