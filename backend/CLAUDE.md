@@ -31,11 +31,11 @@ routers. See root [CLAUDE.md](../CLAUDE.md) for the overall architecture and
   `supabase/schema.sql` is frozen at pivot time.
 - **A new business rule = one config key in `domain.config.json` + one
   small validator in `rules.py`.** Don't scatter rule logic across routers.
-- **Identity comes from Supabase Auth, not the request body.** Verify the
-  `Authorization: Bearer <jwt>` token and read the user (`sub`, `email`) from
-  the verified claims. `client_email` stays the stored booking owner, but it's
-  populated from the token rather than trusted from the payload. (Being wired
-  on this branch — see **Auth** below; until then the body is still trusted.)
+- **Identity comes from Supabase Auth, not the request body.** `app/auth.py`
+  verifies the `Authorization: Bearer <jwt>` token and reads the user (`sub`,
+  `email`, engine role) from the verified claims. `client_email` stays the
+  stored booking owner, but `create_booking` populates it from the token rather
+  than trusting the payload. (Implemented on this branch — see **Auth** below.)
 - **`bookings.history` is append-only** — every status change appends an
   entry, never overwrites the array.
 - **Single-row lookups go through `db.maybe_row()`,** not a bare
@@ -113,10 +113,10 @@ def apply_rules(event: str, ctx: dict) -> None:
 ## Owner API (term-neutral, role-gated)
 
 The owner/client split stays term-neutral (`terms.admin` / `terms.client`
-label it). Endpoints take an `actor` today; on this branch that unchecked flag
-is being replaced by the **verified role** from the Supabase Auth token, so
-owner endpoints require an authenticated owner rather than trusting a body
-value (see **Auth** below). The endpoint shapes are unchanged:
+label it). The old unchecked `actor` body flag has been **replaced by the
+verified role** from the Supabase Auth token (`require_owner`), so owner
+endpoints require an authenticated owner rather than trusting a body value (see
+**Auth** below). The endpoint shapes are otherwise unchanged:
 
 - `PATCH /resources/{id}` — partial update (`model_dump(exclude_none=True)`);
   validate `metadata` if present.
@@ -124,10 +124,11 @@ value (see **Auth** below). The endpoint shapes are unchanged:
   dependent bookings; return 204 on delete.
 - `POST /bookings/{id}/confirm` — set status + append
   `{"status": "confirmed", "at": ..., "actor": "owner"}` to `history`.
-- Owner cancel — same `POST /bookings/{id}/cancel` endpoint with optional
-  body `{"actor": "owner"}`: skips the cancellation-window rule (the window
-  constrains clients; owners override) and records the actor in `history`.
-  No body ⇒ client behavior, so the existing frontend call keeps working.
+- Owner cancel — same `POST /bookings/{id}/cancel` endpoint, now keyed on the
+  **token role** (no body): an owner skips the cancellation-window rule (the
+  window constrains clients; owners override) and is recorded as `actor: owner`
+  in `history`. A client is held to the window and may only cancel their own
+  booking (403 otherwise).
 - `GET /bookings` without `client_email` already returns all; add an
   optional `status` query filter.
 - `GET /resources/{id}/analytics` — computed in Python from
@@ -139,26 +140,51 @@ value (see **Auth** below). The endpoint shapes are unchanged:
 ## Auth (Supabase Auth)
 
 Added on branch `16-auth-system`; reverses the engine's original "no auth"
-stance. Target design:
+stance. Implemented in `app/auth.py`:
 
-- **Supabase issues the JWT** (email/password). The backend verifies the
-  `Authorization: Bearer <token>` header against Supabase's JWT secret / JWKS
-  and reads the user from the verified claims (`sub` → user id, `email`).
+- **Supabase issues the JWT** (email/password). `require_user` verifies the
+  `Authorization: Bearer <token>` header **locally** with the project's JWT
+  secret (`SUPABASE_JWT_SECRET`, HS256, `aud="authenticated"`) — no per-request
+  network call — and reads the user (`sub` → id, `email`, engine role) from the
+  verified claims. 401 on missing/invalid/expired; 500 if the secret is unset
+  (fails closed rather than accepting unverified requests).
 - **`require_user` / `require_owner` FastAPI dependencies** gate protected
-  routes: client endpoints need any authenticated user, owner endpoints need
-  the owner role. This replaces the unchecked `actor` body flag.
-- **Roles stay config-neutral:** owner vs client maps to `terms.admin` /
-  `terms.client`; store the role in Supabase user `app_metadata` or a
-  `profiles` row — never a hardcoded email allowlist.
-- **`client_email` becomes derived,** set from the verified token instead of
-  trusted from the body, so booking ownership no longer relies on the caller
-  being honest.
-- Keep the **service-key** Supabase client for schema/seed and trusted server
-  work; per-user reads that must respect RLS should carry the user's token
-  (the service key bypasses RLS). Note the tradeoff in code when you wire it.
+  routes: client endpoints (`POST/`, cancel, reschedule, `GET /bookings`) need
+  any authenticated user; owner endpoints (resource/slot writes, analytics,
+  confirm) need the owner role. Public reads stay open: `GET /config`,
+  `/health`, `/resources`, `/resources/{id}`, `/slots`, `/slots/occupancy`.
+- **Roles are trusted from `profiles`, not the token.** `_resolve_role()` reads
+  the engine role from the `profiles` table (the same source RLS's `is_owner()`
+  uses, so backend and DB agree). On first sight of a user it seeds their
+  profile from the sign-up role (`app_metadata.role` → `user_metadata.role`),
+  insert-if-missing only, so an admin's later `profiles.role` change is
+  authoritative and never clobbered. This closes the "role is self-asserted in
+  the token" gap (an admin is the control point). Resilient: if `profiles` is
+  unavailable it falls back to the token role. Roles stay config-neutral —
+  strings `"owner"`/`"client"` (`OWNER_ROLE`/`CLIENT_ROLE`), labelled via
+  `terms.admin`/`terms.client`, never a hardcoded email allowlist.
+- **`client_email` is derived,** set from the verified token in
+  `create_booking` (the body's `client_email`/`client_id` are ignored).
+- **RLS is the live enforcement layer.** Two Supabase clients (`app/db.py`):
+  `get_supabase()` (service key, **bypasses RLS**) for system/cross-user work
+  (capacity aggregation, analytics, control-flow reads, seeding, resolving the
+  role from `profiles`); and `get_user_client(token)` (anon key + the user's
+  JWT) for **user-owned reads/writes** so Postgres RLS applies. Every mutation
+  (booking create/cancel/reschedule/confirm, resource + slot writes) and the
+  `GET /bookings` list go through the user client; `enforce_rls_write()` turns
+  an RLS-denied write (empty result) into a clear 403. The in-router checks
+  (`require_owner`, own-or-owner) are kept as defense-in-depth and for precise
+  error codes. Public reads stay open and on the service key: `GET /config`,
+  `/health`, `/resources`, `/resources/{id}`, `/slots`, `/slots/occupancy`.
 
-Status on this branch: documented direction, **not yet implemented** in
-`app/`. Update this section and `## Current state` as endpoints get gated.
+Requires `SUPABASE_JWT_SECRET`, `SUPABASE_ANON_KEY`, and `SUPABASE_SERVICE_KEY`
+in the backend env (see `.env.example`) and `pyjwt` in `requirements.txt`.
+
+**Caveat:** RLS owner-writes depend on the `profiles` row existing (the backend
+seeds it, so this is normally fine) and on resources carrying
+`metadata.owner_id` — `create_resource` stamps it, but **pre-existing/seeded
+resources have no owner**, so token-scoped owner edits/slot-adds against them
+return 403. Owners should manage resources they created.
 
 ## Don't
 
@@ -190,14 +216,17 @@ the authoritative gap list). What's implemented:
 - **Not-found handling:** `db.maybe_row()` makes every `404` branch reachable
   against real PostgREST.
 - **Owner API:** `PATCH /resources/{id}`, `GET /resources/{id}/analytics`,
-  `PATCH`/`DELETE /slots/{id}`, `POST /bookings/{id}/confirm`, a `status`
-  filter on `GET /bookings`, and the `{"actor":"owner"}` cancel override —
-  all no-auth (`actor` flag only).
+  `PATCH`/`DELETE /slots/{id}`, `POST /bookings/{id}/confirm`, and a `status`
+  filter on `GET /bookings` — now gated by `require_owner`. The owner cancel
+  override is keyed on the token role instead of the old `{"actor":"owner"}`
+  body.
 - **Infra:** startup via FastAPI lifespan; `POST /config/reload` for the
   instant pivot.
-- **Auth:** not implemented yet. Supabase Auth is the target for this branch
-  (`16-auth-system`) — see **Auth** above; `client_email` identity is still
-  trusted from the request body until it lands.
+- **Auth:** implemented (`app/auth.py`) — Supabase JWT verified per request,
+  `require_user`/`require_owner` gate the write endpoints, `client_email`
+  derived from the token, the role resolved (and trusted) from `profiles`, and
+  **RLS enforced live** by routing user-owned reads/writes through a
+  user-JWT-scoped client (service key kept for system work). See **Auth** above.
 
 Verified live against a real Supabase project (schema setup, `slot_occupancy`
 view, cascade delete) in addition to the offline suite. The 13 formerly

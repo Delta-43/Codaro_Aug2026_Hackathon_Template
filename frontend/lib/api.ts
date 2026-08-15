@@ -1,4 +1,19 @@
+import { getSupabase } from "@/lib/supabase";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+
+/** The current Supabase access token, if the visitor is signed in. Attached as
+ *  `Authorization: Bearer <jwt>` so the backend can verify the user instead of
+ *  trusting the request body (frontend/CLAUDE.md "Auth"). Returns null when auth
+ *  is unconfigured or the visitor is logged out -- the backend still falls back
+ *  to the body identity in that case, so pre-auth flows keep working. */
+async function authHeader(): Promise<Record<string, string>> {
+  const supabase = getSupabase();
+  if (!supabase) return {};
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 /** Thrown for any non-2xx response. `detail` carries the backend's own message
  *  (FastAPI's HTTPException detail) so rule violations from `app/rules.py`
@@ -15,9 +30,10 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const auth = await authHeader();
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
+    headers: { "Content-Type": "application/json", ...auth, ...init?.headers },
   });
   if (!res.ok) {
     // The body is usually {"detail": "..."}, but a proxy/500 can return HTML --

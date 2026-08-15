@@ -1,8 +1,9 @@
 from collections import Counter
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
-from app.db import get_supabase, maybe_row
+from app.auth import AuthUser, enforce_rls_write, require_owner
+from app.db import get_supabase, get_user_client, maybe_row
 from app.meta import validate_metadata
 from app.models import ResourceCreate, ResourceUpdate
 
@@ -15,14 +16,19 @@ def list_resources():
 
 
 @router.post("")
-def create_resource(payload: ResourceCreate):
+def create_resource(payload: ResourceCreate, owner: AuthUser = Depends(require_owner)):
     validate_metadata("resources", payload.metadata)
+    # Stamp ownership in metadata (the schema is frozen — no owner column). This
+    # is what the resources RLS policies key on, and it records who created it.
+    metadata = {**payload.metadata, "owner_id": owner.id}
     row = {
         "name": payload.name,
         "description": payload.description,
-        "metadata": payload.metadata,
+        "metadata": metadata,
     }
-    return get_supabase().table("resources").insert(row).execute().data
+    # User-scoped insert so RLS's resources_insert_owner (is_owner()) enforces.
+    created = get_user_client(owner.token).table("resources").insert(row).execute().data
+    return enforce_rls_write(created, entity="resource")
 
 
 @router.get("/{resource_id}")
@@ -34,7 +40,9 @@ def get_resource(resource_id: str):
 
 
 @router.patch("/{resource_id}")
-def update_resource(resource_id: str, payload: ResourceUpdate):
+def update_resource(
+    resource_id: str, payload: ResourceUpdate, owner: AuthUser = Depends(require_owner)
+):
     db = get_supabase()
     existing = maybe_row(db.table("resources").select("*").eq("id", resource_id))
     if existing is None:
@@ -45,11 +53,16 @@ def update_resource(resource_id: str, payload: ResourceUpdate):
         validate_metadata("resources", patch["metadata"])
     if not patch:
         return [existing]
-    return db.table("resources").update(patch).eq("id", resource_id).execute().data
+    # User-scoped update so RLS's resources_modify_own (owner_id == auth.uid())
+    # enforces that an owner edits only their own resources.
+    updated = (
+        get_user_client(owner.token).table("resources").update(patch).eq("id", resource_id).execute().data
+    )
+    return enforce_rls_write(updated, entity="resource")
 
 
 @router.get("/{resource_id}/analytics")
-def resource_analytics(resource_id: str):
+def resource_analytics(resource_id: str, _owner: AuthUser = Depends(require_owner)):
     """Owner analytics, computed in Python from slot_occupancy + bookings —
     no new SQL/view (the schema stays frozen)."""
     db = get_supabase()

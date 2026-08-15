@@ -45,21 +45,14 @@ class SlotUpdate(BaseModel):
 
 class BookingCreate(BaseModel):
     slot_id: str
-    client_email: str
+    # Booking ownership is derived from the verified auth token, not trusted
+    # from the body (see backend/CLAUDE.md "Auth"). These fields are accepted
+    # for backward-compatibility but ignored — the router overwrites them with
+    # the token's email / user id.
+    client_email: str | None = None
     client_id: str | None = None
     metadata: dict = Field(default_factory=dict)
 
 
 class RescheduleRequest(BaseModel):
     new_slot_id: str
-
-
-class ActorBody(BaseModel):
-    """Optional owner/client flag on cancel/confirm — never credentials.
-
-    Absent (or ``actor="client"``) ⇒ client behaviour, so the existing
-    frontend calls keep working. ``actor="owner"`` overrides the
-    cancellation window and is recorded in ``history``.
-    """
-
-    actor: str | None = None

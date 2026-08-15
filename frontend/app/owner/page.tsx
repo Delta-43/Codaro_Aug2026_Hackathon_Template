@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Term, useDomain } from "@/lib/domain";
+import { useAuth } from "@/lib/auth";
 import { ApiError, api, type Resource, type ResourceAnalytics } from "@/lib/api";
 
 /** A datetime-local value (local wall-clock, no offset) `hours` from now,
@@ -37,6 +39,8 @@ function buildMetadata(
 
 export default function OwnerDashboard() {
   const { terms, rules, metaFields } = useDomain();
+  const { user, isOwner, loading: authLoading, signOut } = useAuth();
+  const router = useRouter();
   const resourceMeta = metaFields.resources ?? [];
 
   const [resources, setResources] = useState<Resource[]>([]);
@@ -66,10 +70,22 @@ export default function OwnerDashboard() {
   }, []);
 
   useEffect(() => {
+    // Wait for the session to resolve, then gate: only an authenticated owner
+    // loads the dashboard. Unauthenticated -> /login; a signed-in non-owner gets
+    // the access-denied panel below (no data fetched for them).
+    if (authLoading) return;
+    if (!user) {
+      router.replace("/login");
+      return;
+    }
+    if (!isOwner) {
+      setLoading(false);
+      return;
+    }
     reload()
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [reload]);
+  }, [authLoading, user, isOwner, reload, router]);
 
   // Default the slot form's resource to the first one, once loaded.
   useEffect(() => {
@@ -126,7 +142,47 @@ export default function OwnerDashboard() {
   const durationMinutes = rules.slotDurationMinutes;
   const defaultCapacity = rules.maxBookingsPerSlot;
 
-  if (loading) return <main className="mx-auto max-w-3xl p-8 text-sm text-gray-500">Loading...</main>;
+  if (authLoading || loading)
+    return <main className="mx-auto max-w-3xl p-8 text-sm text-gray-500">Loading...</main>;
+
+  // Signed in, but not as a professional -- offer the paths that fit their role
+  // rather than the owner tools.
+  if (user && !isOwner) {
+    return (
+      <main className="mx-auto max-w-sm p-8">
+        <h1 className="text-2xl font-semibold">
+          <Term term="admin" /> access only
+        </h1>
+        <p className="mt-2 text-sm text-gray-600">
+          You&apos;re signed in as {user.email}, which isn&apos;t {" "}
+          {/^[aeiou]/i.test(terms.admin) ? "an" : "a"} <Term term="admin" /> account.
+        </p>
+        <div className="mt-6 flex flex-wrap gap-2">
+          <Link
+            href="/dashboard"
+            className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+          >
+            Go to your <Term term="client" /> dashboard
+          </Link>
+          <Link
+            href="/owner/register"
+            className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            Register as a professional
+          </Link>
+        </div>
+        <button
+          onClick={async () => {
+            await signOut();
+            router.push("/login");
+          }}
+          className="mt-4 text-sm text-gray-500 underline hover:text-gray-800"
+        >
+          Sign out
+        </button>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto max-w-3xl p-8">
@@ -134,9 +190,18 @@ export default function OwnerDashboard() {
         <h1 className="text-2xl font-semibold">
           <Term term="admin" /> dashboard
         </h1>
-        <Link href="/" className="text-sm text-gray-500 underline hover:text-gray-800">
-          Public page
-        </Link>
+        <p className="text-sm text-gray-500">
+          {user?.email}{" "}
+          <button
+            onClick={async () => {
+              await signOut();
+              router.push("/login");
+            }}
+            className="ml-2 underline hover:text-gray-800"
+          >
+            sign out
+          </button>
+        </p>
       </div>
       <p className="mt-1 text-sm text-gray-600">
         Set up your <Term term="resources" /> and open <Term term="slot" plural />, then watch

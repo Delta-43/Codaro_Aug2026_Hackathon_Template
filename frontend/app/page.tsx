@@ -1,24 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Term, useDomain } from "@/lib/domain";
+import { useAuth } from "@/lib/auth";
 import { api, type Resource, type SlotOccupancy } from "@/lib/api";
-import { getClientEmail, setClientEmail } from "@/lib/session";
 
 export default function LandingPage() {
   const { copy } = useDomain();
-  const router = useRouter();
+  const { user } = useAuth();
   const [resources, setResources] = useState<Resource[]>([]);
   const [slots, setSlots] = useState<SlotOccupancy[]>([]);
-  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Prefill with whoever was identified last so a returning visitor just
-    // hits Continue.
-    setEmail(getClientEmail() ?? "");
     Promise.all([api.listResources(), api.slotOccupancy()])
       .then(([r, s]) => {
         setResources(r);
@@ -27,13 +22,6 @@ export default function LandingPage() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
-
-  function identify(e: React.FormEvent) {
-    e.preventDefault();
-    if (!email.trim()) return;
-    setClientEmail(email);
-    router.push("/dashboard");
-  }
 
   // Open slots per resource, so the showcase says something useful rather than
   // just listing names.
@@ -49,25 +37,36 @@ export default function LandingPage() {
       <h1 className="text-2xl font-semibold">{copy.landingTitle}</h1>
       <p className="mt-1 text-gray-600">{copy.landingSubtitle}</p>
 
-      <form onSubmit={identify} className="mt-6 flex flex-wrap gap-2">
-        <input
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="you@example.com"
-          aria-label="Email"
-          className="flex-1 rounded border border-gray-300 px-3 py-2 text-sm"
-        />
-        <button
-          type="submit"
-          className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-        >
-          Continue
-        </button>
-      </form>
+      <div className="mt-6 flex flex-wrap items-center gap-2">
+        {user ? (
+          <>
+            <Link
+              href="/dashboard"
+              className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+            >
+              Go to your dashboard
+            </Link>
+            <span className="text-sm text-gray-500">Signed in as {user.email}</span>
+          </>
+        ) : (
+          <>
+            <Link
+              href="/login"
+              className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+            >
+              Sign in
+            </Link>
+            <Link
+              href="/login"
+              className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Create account
+            </Link>
+          </>
+        )}
+      </div>
       <p className="mt-1 text-xs text-gray-500">
-        No password needed. Your email identifies your <Term term="booking" plural />.
+        Sign in to book and manage your <Term term="booking" plural />.
       </p>
 
       <section className="mt-10">
@@ -98,9 +97,15 @@ export default function LandingPage() {
 
       <p className="mt-10 text-xs text-gray-400">
         Are you the <Term term="admin" />?{" "}
-        <Link href="/owner" className="underline hover:text-gray-600">
-          Manage <Term term="resources" /> &amp; <Term term="slot" plural />
-        </Link>
+        {user ? (
+          <Link href="/owner" className="underline hover:text-gray-600">
+            Manage <Term term="resources" /> &amp; <Term term="slot" plural />
+          </Link>
+        ) : (
+          <Link href="/owner/register" className="underline hover:text-gray-600">
+            Register as a professional
+          </Link>
+        )}
       </p>
     </main>
   );

@@ -1,13 +1,24 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 
-from app.db import get_supabase, maybe_row
+from app.auth import AuthUser, enforce_rls_write, require_owner, require_user
+from app.config import get_config
+from app.db import get_supabase, get_user_client, maybe_row
 from app.meta import validate_metadata
-from app.models import ActorBody, BookingCreate, RescheduleRequest
+from app.models import BookingCreate, RescheduleRequest
 from app.rules import RuleViolation, apply_rules, check_capacity
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
+
+
+def _own_or_owner(booking: dict, user: AuthUser) -> None:
+    """A client may only act on their own bookings; an owner may act on any.
+    403 otherwise. Message pivots with the domain via ``terms.booking``."""
+    if user.is_owner or booking.get("client_email") == user.email:
+        return
+    booking_term = get_config()["terms"]["booking"].lower()
+    raise HTTPException(403, f"You can only manage your own {booking_term}.")
 
 
 def _history_entry(status: str, actor: str | None = None) -> dict:
@@ -26,9 +37,17 @@ def _booking(db, booking_id: str) -> dict | None:
 
 
 @router.get("")
-def list_bookings(client_email: str | None = None, status: str | None = None):
-    query = get_supabase().table("bookings").select("*")
-    if client_email:
+def list_bookings(
+    user: AuthUser = Depends(require_user),
+    client_email: str | None = None,
+    status: str | None = None,
+):
+    # Read through the user's own client so RLS scopes the result: a client sees
+    # only their own rows, an owner sees all. The owner may still narrow to one
+    # client via the query param; for a client that param is moot (RLS already
+    # limits them to themselves).
+    query = get_user_client(user.token).table("bookings").select("*")
+    if user.is_owner and client_email:
         query = query.eq("client_email", client_email)
     if status:
         query = query.eq("status", status)
@@ -36,8 +55,10 @@ def list_bookings(client_email: str | None = None, status: str | None = None):
 
 
 @router.post("")
-def create_booking(payload: BookingCreate):
+def create_booking(payload: BookingCreate, user: AuthUser = Depends(require_user)):
     db = get_supabase()
+    if not user.email:
+        raise HTTPException(400, "Authenticated user has no email to book under.")
     slot = _occupancy(db, payload.slot_id)
     if slot is None:
         raise HTTPException(404, "Slot not found")
@@ -57,28 +78,34 @@ def create_booking(payload: BookingCreate):
 
     row = {
         "slot_id": payload.slot_id,
-        "client_email": payload.client_email,
-        "client_id": payload.client_id,
+        # Ownership comes from the verified token, not the body.
+        "client_email": user.email,
+        "client_id": user.id,
         "metadata": payload.metadata,
         "status": "confirmed",
         "history": [_history_entry("confirmed")],
     }
-    return db.table("bookings").insert(row).execute().data
+    # Insert through the user's client: RLS's bookings_insert_own enforces that
+    # client_id == the authenticated user (capacity was read above via service).
+    inserted = get_user_client(user.token).table("bookings").insert(row).execute().data
+    return enforce_rls_write(inserted, entity="booking")
 
 
 @router.post("/{booking_id}/cancel")
-def cancel_booking(booking_id: str, body: ActorBody | None = None):
+def cancel_booking(booking_id: str, user: AuthUser = Depends(require_user)):
     db = get_supabase()
     booking = _booking(db, booking_id)
     if booking is None:
         raise HTTPException(404, "Booking not found")
+    _own_or_owner(booking, user)
     if booking["status"] == "cancelled":
         raise HTTPException(409, "Booking is already cancelled.")
 
-    is_owner = bool(body and body.actor == "owner")
+    # The owner role (verified from the token) overrides the cancellation
+    # window; a client is held to it.
+    is_owner = user.is_owner
     slot = _booking_slot(db, booking)
     if not is_owner:
-        # The cancellation window constrains clients; owners override it.
         try:
             apply_rules("booking.change", {"slot_starts_at": slot["starts_at"]})
         except RuleViolation as e:
@@ -87,17 +114,21 @@ def cancel_booking(booking_id: str, body: ActorBody | None = None):
     history = booking["history"] + [
         _history_entry("cancelled", actor="owner" if is_owner else None)
     ]
-    return (
-        db.table("bookings")
+    # The write goes through the user's client so RLS is the final authority
+    # (a client can only touch their own row; an owner, any).
+    updated = (
+        get_user_client(user.token)
+        .table("bookings")
         .update({"status": "cancelled", "history": history})
         .eq("id", booking_id)
         .execute()
         .data
     )
+    return enforce_rls_write(updated, entity="booking")
 
 
 @router.post("/{booking_id}/confirm")
-def confirm_booking(booking_id: str):
+def confirm_booking(booking_id: str, owner: AuthUser = Depends(require_owner)):
     """Owner action — move a booking to confirmed and record it in history."""
     db = get_supabase()
     booking = _booking(db, booking_id)
@@ -105,21 +136,28 @@ def confirm_booking(booking_id: str):
         raise HTTPException(404, "Booking not found")
 
     history = booking["history"] + [_history_entry("confirmed", actor="owner")]
-    return (
-        db.table("bookings")
+    updated = (
+        get_user_client(owner.token)
+        .table("bookings")
         .update({"status": "confirmed", "history": history})
         .eq("id", booking_id)
         .execute()
         .data
     )
+    return enforce_rls_write(updated, entity="booking")
 
 
 @router.post("/{booking_id}/reschedule")
-def reschedule_booking(booking_id: str, payload: RescheduleRequest):
+def reschedule_booking(
+    booking_id: str,
+    payload: RescheduleRequest,
+    user: AuthUser = Depends(require_user),
+):
     db = get_supabase()
     booking = _booking(db, booking_id)
     if booking is None:
         raise HTTPException(404, "Booking not found")
+    _own_or_owner(booking, user)
 
     slot = _booking_slot(db, booking)
     try:
@@ -142,8 +180,9 @@ def reschedule_booking(booking_id: str, payload: RescheduleRequest):
         raise HTTPException(409, str(e))
 
     history = booking["history"] + [_history_entry("rescheduled")]
-    return (
-        db.table("bookings")
+    updated = (
+        get_user_client(user.token)
+        .table("bookings")
         .update(
             {"slot_id": payload.new_slot_id, "status": "confirmed", "history": history}
         )
@@ -151,6 +190,7 @@ def reschedule_booking(booking_id: str, payload: RescheduleRequest):
         .execute()
         .data
     )
+    return enforce_rls_write(updated, entity="booking")
 
 
 def _booking_slot(db, booking: dict) -> dict:

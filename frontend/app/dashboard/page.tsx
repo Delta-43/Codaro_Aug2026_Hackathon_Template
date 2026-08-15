@@ -3,15 +3,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Term, useDomain } from "@/lib/domain";
+import { useAuth } from "@/lib/auth";
 import { ApiError, api, type Booking, type Resource, type Slot, type SlotOccupancy } from "@/lib/api";
-import { clearClientEmail, getClientEmail } from "@/lib/session";
 import { formatSlotTime, hoursUntil } from "@/lib/format";
 
 export default function CustomerDashboard() {
   const { copy, rules } = useDomain();
+  const { user, loading: authLoading, signOut } = useAuth();
   const router = useRouter();
 
-  const [email, setEmail] = useState<string | null>(null);
+  // The signed-in user's email is the verified booking owner -- it replaces the
+  // old localStorage "claimed email" and is what `client_email` gets set to.
+  const email = user?.email ?? null;
   const [resources, setResources] = useState<Resource[]>([]);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [occupancy, setOccupancy] = useState<SlotOccupancy[]>([]);
@@ -38,16 +41,17 @@ export default function CustomerDashboard() {
   }, []);
 
   useEffect(() => {
-    const who = getClientEmail();
-    if (!who) {
-      router.replace("/");
+    // Wait for the session to resolve before deciding, so a page refresh with a
+    // valid session doesn't bounce the user to /login.
+    if (authLoading) return;
+    if (!email) {
+      router.replace("/login");
       return;
     }
-    setEmail(who);
-    reload(who)
+    reload(email)
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false));
-  }, [reload, router]);
+  }, [authLoading, email, reload, router]);
 
   async function act(id: string, fn: () => Promise<unknown>, successMessage: string) {
     if (!email) return;
@@ -91,13 +95,13 @@ export default function CustomerDashboard() {
         <p className="text-sm text-gray-500">
           {email}{" "}
           <button
-            onClick={() => {
-              clearClientEmail();
-              router.push("/");
+            onClick={async () => {
+              await signOut();
+              router.push("/login");
             }}
             className="ml-2 underline hover:text-gray-800"
           >
-            switch
+            sign out
           </button>
         </p>
       </div>
