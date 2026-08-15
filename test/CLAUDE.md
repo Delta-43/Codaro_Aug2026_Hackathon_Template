@@ -21,19 +21,49 @@ test/
   requirements-test.txt     # test-only deps (pytest, httpx, anyio)
   fixtures/
     domain.config.test.json # neutral pivot file used instead of the repo's real one
-  backend/                  # offline API tests (FastAPI TestClient + in-memory Supabase)
-    conftest.py             # fakes wiring, config override, startup neutralisation
-    fakes.py                # FakeSupabase: the fluent PostgREST chain, in memory
-    helpers.py              # row builders (make_resource / make_slot / make_booking)
+  backend/                  # offline tests (pure units + FastAPI TestClient + in-memory Supabase)
+    conftest.py             # fakes wiring, config override, startup neutralisation, AUTH override
+    fakes.py                # FakeSupabase: fluent PostgREST chain, all tables + party-size occupancy
+    helpers.py              # row builders (make_provider/service/resource/slot/booking/catalog)
+    # --- pure unit tests (no Supabase, no network — the backbone) ---
+    test_serialize.py       # serialize.py: every serializer's key set; slot/booking status; iso_utc
+    test_resolve_selection.py  # bookings._resolve_selection: all branches -> ApiError code
+    test_errors.py          # errors.api_error status/code mapping
+    test_rules.py           # rules.py: window/capacity + effective_service_rules + within_cutoff
+    # --- integration tests (real endpoints, fake Supabase, stubbed auth) ---
     test_health_config.py   # /health, /config, config-pivot behaviour
-    test_rules.py           # rules.py unit tests (cancellation window, capacity)
-    test_resources.py       # /resources CRUD
-    test_slots.py           # /slots + /slots/occupancy
-    test_bookings.py        # create / cancel / reschedule / list + end-to-end flow
-    test_frontend_contract.py  # frontend/lib/api.ts paths + types vs the live route table
+    test_resources.py       # /resources reads + owner CRUD + analytics
+    test_slots.py           # /slots + /slots/occupancy + owner CRUD + buffer rule
+    test_bookings.py        # create/list(scope)/get/reschedule/cancel/review + cutoff/capacity
+    test_providers.py       # /providers discovery (search/by-code) + follow/unfollow
+    test_services.py        # /services reads + derived resourceIds
+    test_availability.py    # /availability + /month-density
+    test_me.py              # GET/PATCH /me
+    test_frontend_contract.py  # frontend/src/api paths + error codes vs the live route table
   e2e/
-    test_live_api.py        # opt-in smoke tests against a running stack
+    test_live_api.py        # opt-in smoke tests against a running stack + real Supabase Auth
 ```
+
+### Auth in the offline suite
+
+Endpoints are now gated by Supabase-JWT dependencies (`require_user`,
+`require_owner`, `optional_user`). Real verification needs the project's JWT
+secret and a JWKS fetch, so the `auth` fixture in `backend/conftest.py` overrides
+those FastAPI dependencies via `app.dependency_overrides` and lets a test run as
+a chosen identity:
+
+```python
+def test_x(client, db, auth):
+    auth(role="owner")           # or auth(role="client"), auth(anon=True), auth(email=...)
+```
+
+`require_owner` is **not** stubbed — it depends on the overridden `require_user`,
+so the real owner-gating (`is_owner`) still runs; only token verification is
+replaced. Tests that omit the `auth` fixture hit the real `require_user`, which
+returns 401 for the missing header (used to assert the 401 path). The
+user-scoped RLS client (`get_user_client`) is patched to the same in-memory
+`FakeSupabase` — RLS itself is not simulated offline; it's covered by the live
+suite.
 
 ## How to run (update this section whenever the suite changes)
 
@@ -60,37 +90,52 @@ test/.venv/bin/pip install -r backend/requirements.txt -r test/requirements-test
 test/.venv/bin/python -m pytest test/backend -q
 ```
 
-**Live e2e suite (opt-in, needs a running stack + real Supabase):**
+**Live e2e suite (opt-in, needs a running stack + real Supabase Auth):**
 
 ```bash
 make start
+export SUPABASE_URL=... SUPABASE_ANON_KEY=...          # to mint a real JWT
 E2E_BASE_URL=http://localhost:8000 python -m pytest test/e2e -q
 ```
 
-Without `E2E_BASE_URL` these tests skip, so `pytest test/` stays green
-offline.
+The suite signs the seeded demo user in through Supabase Auth
+(`demo@codaro.app` / `Codaro-Demo-2026`, override with `E2E_DEMO_EMAIL` /
+`E2E_DEMO_PASSWORD`), attaches the returned JWT as `Authorization: Bearer`, and
+then drives `/providers` (7 in the fleet seed, incl. `VISTULA-4471`),
+`/services`, `/availability`, `/me`, `/bookings?scope=all` (6 seeded for the demo
+user), a create → reschedule → cancel lifecycle on a far-future slot, and
+follow/unfollow. It **skips unless both `SUPABASE_URL` and `SUPABASE_ANON_KEY`
+are set** (the backend base URL defaults to `http://localhost:8000`; override
+with `E2E_BASE_URL`), so `pytest test/` stays green offline.
 
 **Frontend unit tests:** none — the frontend has no test runner wired up
 (`frontend/package.json` has no `test` script). The practical part of the
 stack check is automated instead in `test/backend/test_frontend_contract.py`,
-which parses `frontend/lib/api.ts` / `lib/domain.tsx` and asserts every path
-and response field the UI expects actually exists on the FastAPI app.
+which parses `frontend/src/api/index.ts` + `src/api/errors.ts` and asserts every
+path the UI calls exists on the FastAPI app (method-aware) and that the
+`ApiErrorCode` union matches the backend's `app.errors`.
 
 ## Conventions for this suite
 
-- Tests hit the **real endpoints** through `TestClient`; only the Supabase
-  client is faked. Never re-implement router or rules logic in a test.
-- `fakes.FakeSupabase` recomputes `slot_occupancy` from `slots` + `bookings`
-  on every read, exactly like the SQL view — capacity behaviour is therefore
-  genuinely exercised rather than stubbed.
+- **Pure unit tests** (`test_serialize.py`, `test_resolve_selection.py`,
+  `test_errors.py`, and the `effective_service_rules`/`within_cutoff` parts of
+  `test_rules.py`) are the backbone: they import the functions directly, touch
+  no Supabase and no network, and MUST stay green. Keep them independent of
+  `domain.config.json` specifics (or use the `domain_config` override) so they
+  don't drift on a pivot.
+- **Integration tests** hit the **real endpoints** through `TestClient`; only
+  the Supabase client and the auth dependencies are faked. Never re-implement
+  router or rules logic in a test.
+- `fakes.FakeSupabase` recomputes `slot_occupancy` on every read exactly like
+  the SQL view — **summing `party_size` across confirmed bookings via
+  `booking_slots`** — so multi-slot + shared-capacity behaviour is genuinely
+  exercised rather than stubbed. It also enforces composite primary keys
+  (`follows`, `booking_slots`) so router idempotency is real.
 - Rule values come from a per-test copy of the config: use the
   `domain_config(rules={...})` fixture to prove behaviour is config-driven,
   and `use_real_config` to assert against the repo's actual
   `domain.config.json`.
-- Known backend bugs are pinned with `@pytest.mark.xfail(reason=...)` (never
-  deleted or "fixed" in the test), and each is paired with a
-  `*_current_behaviour` test documenting what the API does today. This
-  directory must not modify anything outside `test/`.
+- This directory must not modify anything outside `test/`.
 
 ## Coverage target (from the README's Track B checklist)
 
@@ -102,49 +147,54 @@ and response field the UI expects actually exists on the FastAPI app.
 - Config-driven behavior — `GET /config` reflects `domain.config.json`, and
   rule values (e.g. `cancellationWindowHours`) are actually enforced, not
   just returned.
-- **Auth (new, branch `16-auth-system`)** — once Supabase Auth is wired:
-  protected endpoints reject a missing/invalid JWT (401), owner endpoints
-  reject a non-owner role (403), and identity is read from the verified token
-  rather than the request body. **Not covered yet** — the current suite runs
-  the engine in its pre-auth, `client_email`-from-body form. `test-writer` will
-  need to fake/stub JWT verification the way it already fakes the Supabase
-  client (see `fakes.FakeSupabase`).
+- **Auth (branch `16-auth-system`)** — protected endpoints reject a missing
+  token (401 — asserted by omitting the `auth` fixture), owner endpoints reject
+  a non-owner role (403 — `auth(role="client")`), and identity is read from the
+  verified token rather than the body (create asserts `booking.userId ==` the
+  token user). JWT signature verification and live RLS are stubbed offline and
+  covered against a real project by the e2e suite.
 
 ## Current state
 
-`python -m pytest test/backend -q` from the repo root: **128 passed**
-(0 failures, 0 xfailed, 0 xpassed, exits 0). `python -m pytest test/` adds
-the 4 live e2e tests, which skip without `E2E_BASE_URL`.
+`python -m pytest test/backend -q` from the repo root: **203 passed**
+(0 failures, 0 xfail). `python -m pytest test/` adds the 8 live e2e tests, which
+skip without `SUPABASE_URL`/`SUPABASE_ANON_KEY`.
 
-Covered: `/health`, `/config` (config pivot mid-test + `POST /config/reload`
-instant refresh), `rules.py` (window boundary incl. naive-timestamp
-coercion + `min(capacity, maxBookingsPerSlot)`), `/resources`
-list/create/get/**patch**/**analytics**, `/slots`
-list/filter/create/**patch**/**delete (204 + cascade)**, `/slots/occupancy`
-(counts, cancelled bookings excluded, resource filter), `/bookings`
-create/409-at-capacity/404-unknown-slot, cancel (status + append-only
-history, 409 inside the window, **409 on double-cancel**, **owner
-`{"actor":"owner"}` overrides the window**), **`POST .../confirm`**,
-reschedule (slot move, history append, 409 on full target / inside window,
-404s, **self-reschedule succeeds**), `client_email` **and `status`**
-filtering, config-driven `metaFields` validation (type mismatch → 422,
-`required:true` missing → 422, undeclared keys pass through), and a full
-config -> resource -> slot -> book -> reschedule -> cancel flow.
+Rewritten for the richer `Provider → Service → Resource → Slot → Booking → User`
+domain and the camelCase wire shapes (the frontend contract in
+`frontend/src/types/domain.ts`), and for Supabase-Auth gating.
 
-The 13 previously-`xfail`ed gaps (raw-dict 500s vs Pydantic 422s, `.single()`
-vs `maybe_row` 404s, naive-timestamp `TypeError`, missing cancel/reschedule
-status guards, `POST /slots` `ends_at`/`metaFields`) are **all closed** — the
-backend now passes what were failing assertions, so those tests assert
-plainly (no markers) and their paired `*_current_behaviour` docs of the old
-buggy behaviour were removed. The one surviving `*_current_behaviour` test
-(`test_reschedule_of_a_cancelled_booking_current_behaviour`) documents a
-still-current, intentional contract: reschedule has no status guard, so
-rescheduling a cancelled booking re-confirms it.
+**Pure unit tests (offline backbone, ~90 tests):**
+- `serialize.py` — every serializer's exact key set + shape (Provider/Service/
+  Resource/Slot/Booking/User), the `derive_slot_status` ladder
+  (past→blocked→full→partial→available), `effective_booking_status`
+  (past-confirmed→completed, cancelled sticks, rescheduled→confirmed), and
+  `iso_utc` trailing-`Z`/millisecond formatting + offset normalisation.
+- `bookings._resolve_selection` — every branch, asserting the raised
+  `HTTPException.detail['code']`: empty/`INVALID_RANGE`, unknown/`NOT_FOUND`,
+  cross-resource, min/max count, non-contiguity, past/blocked slot, party>cap
+  (`CAPACITY_EXCEEDED`), slot-just-taken (`SLOT_UNAVAILABLE` + `slotId` detail),
+  and the reschedule credit-back path.
+- `errors.api_error` — code→status mapping + `{code,message,details?}` envelope.
+- `rules.effective_service_rules` (service-wins > global-wins > hard-default) and
+  `within_cutoff` (boundary inclusive), plus the retained `check_capacity` /
+  `check_cancellation_window` config-driven tests.
 
-New coverage matches the owner API in `backend/CLAUDE.md`: `PATCH
-/resources/{id}` (partial update + 404 + metadata validation), `GET
-/resources/{id}/analytics` (`{total_slots, total_capacity, booked_count,
-available_count, occupancy_rate, bookings_by_status}` + 404), `PATCH
-/slots/{id}`, `DELETE /slots/{id}` (204, DB cascade removes dependent
-bookings — mirrored by `FakeSupabase.cascade_delete`, + 404), `POST
-/bookings/{id}/confirm`, and the `GET /bookings?status=` filter.
+**Integration tests (real endpoints, fake Supabase, stubbed auth):**
+`/health` + `/config` (pivot mid-test + `POST /config/reload`); `/resources`
+(public reads, service filter/active, owner create stamping `owner_id`,
+`PATCH`, `analytics`, 401/403 gating); `/slots` (reads, `/occupancy` summing
+party size + excluding cancelled, owner create deriving `ends_at`/`capacity`
+from config, buffer rule 409, metadata 422, `PATCH`, `DELETE` 204 + cascade);
+`/bookings` (create → single camelCase Booking scoped to the token, capacity
+`SLOT_UNAVAILABLE`/`CAPACITY_EXCEEDED`, unknown slot/service 404, multi-slot
+contiguity + price, `scope=upcoming|past|all`, get, reschedule incl. cutoff +
+credit-back, idempotent cancel, owner cutoff override, review only when
+completed); `/providers` (search text/category/rating, by-code, follow/unfollow
+idempotent + pin-to-top); `/services` (derived `resourceIds`); `/availability` +
+`/month-density`; `/me` (GET/PATCH). `test_frontend_contract.py` checks the
+`frontend/src/api` paths + error-code union against the live route table.
+
+The live e2e suite signs in the demo user via Supabase Auth and drives the real
+stack (providers/services/availability/me/bookings + a create→reschedule→cancel
+lifecycle + follow/unfollow); see the run section above.

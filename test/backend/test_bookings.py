@@ -1,565 +1,385 @@
-"""/bookings — create, cancel, reschedule, list.
+"""/bookings — the reworked, auth-gated booking loop, through the real endpoints.
 
-Covers the Track B checklist items "Booking and Confirmation", "Change and
-Cancellation" and "Status and History", plus the two config-driven rules the
-routers enforce (maxBookingsPerSlot, cancellationWindowHours).
+A booking spans one-or-more contiguous same-resource slots, carries a party
+size, and is scoped to the verified user (identity from the token, never the
+body). Create returns a single camelCase `Booking`; `GET /bookings` returns a
+list. Capacity/contiguity/cutoff are enforced at commit and surface as the
+frontend's ApiError codes.
 """
 
-from datetime import datetime
+from __future__ import annotations
 
-import pytest
+from datetime import datetime, timedelta
 
-from helpers import iso_in, make_booking, make_resource, make_slot, occupancy_for
-
-
-def parse_iso(value: str) -> datetime:
-    return datetime.fromisoformat(value)
-
-
-# --------------------------------------------------------------------
-# POST /bookings
-# --------------------------------------------------------------------
+from helpers import (
+    iso_in,
+    make_booking,
+    make_catalog,
+    make_resource,
+    make_service,
+    make_slot,
+)
 
 
-def test_create_booking_confirms_and_starts_the_history(client, db):
-    slot = make_slot(db, hours_ahead=48)
+def _detail_code(resp) -> str:
+    return resp.json()["detail"]["code"]
 
-    response = client.post(
-        "/bookings", json={"slot_id": slot["id"], "client_email": "guest@example.com"}
+
+def _contiguous_slots(db, cat, *, n=2, first_hours=48):
+    """`n` back-to-back slots on the catalog's resource/service."""
+    dur = cat["service"]["slot_duration_minutes"]
+    start = datetime.fromisoformat(iso_in(hours=first_hours))
+    slots = []
+    for i in range(n):
+        s = (start + timedelta(minutes=dur * i)).isoformat()
+        e = (start + timedelta(minutes=dur * (i + 1))).isoformat()
+        slots.append(
+            make_slot(
+                db,
+                cat["resource"]["id"],
+                service_id=cat["service"]["id"],
+                starts_at=s,
+                ends_at=e,
+                capacity=cat["slot"]["capacity"],
+            )
+        )
+    return slots
+
+
+# --- create ----------------------------------------------------------------
+
+
+def test_create_requires_a_token(client, db):
+    cat = make_catalog(db)
+    resp = client.post(
+        "/bookings",
+        json={
+            "serviceId": cat["service"]["id"],
+            "resourceId": cat["resource"]["id"],
+            "slotIds": [cat["slot"]["id"]],
+            "partySize": 1,
+        },
     )
-    assert response.status_code == 200
+    assert resp.status_code == 401
 
-    body = response.json()
-    assert isinstance(body, list) and len(body) == 1
-    booking = body[0]
-    assert booking["slot_id"] == slot["id"]
-    assert booking["client_email"] == "guest@example.com"
+
+def test_create_returns_a_single_booking_scoped_to_the_token(client, db, auth):
+    user = auth(role="client", email="ada@example.com")
+    cat = make_catalog(db, price_minor_units=1000)
+    resp = client.post(
+        "/bookings",
+        json={
+            "serviceId": cat["service"]["id"],
+            "resourceId": cat["resource"]["id"],
+            "slotIds": [cat["slot"]["id"]],
+            "partySize": 1,
+        },
+    )
+    assert resp.status_code == 200
+    booking = resp.json()
+    assert isinstance(booking, dict)  # single object, not a list
     assert booking["status"] == "confirmed"
-    assert len(booking["history"]) == 1
-    assert booking["history"][0]["status"] == "confirmed"
-    assert parse_iso(booking["history"][0]["at"]).tzinfo is not None
+    assert booking["reference"].startswith("BK-")
+    assert booking["slotIds"] == [cat["slot"]["id"]]
+    assert booking["userId"] == user.id  # from the token, not the body
+    assert booking["priceMinorUnits"] == 1000  # price * 1 slot * party 1
 
-    assert db.count("bookings") == 1
 
-
-def test_create_booking_keeps_extra_payload_fields(client, db):
-    slot = make_slot(db)
-    booking = client.post(
+def test_create_holds_capacity_in_occupancy(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db, capacity=5, slot_capacity=5)
+    client.post(
         "/bookings",
         json={
-            "slot_id": slot["id"],
-            "client_email": "guest@example.com",
-            "client_id": "guest-42",
-            "metadata": {"note": "window seat"},
+            "serviceId": cat["service"]["id"],
+            "resourceId": cat["resource"]["id"],
+            "slotIds": [cat["slot"]["id"]],
+            "partySize": 3,
         },
-    ).json()[0]
-    assert booking["client_id"] == "guest-42"
-    assert booking["metadata"] == {"note": "window seat"}
-
-
-def test_create_booking_consumes_capacity(client, db):
-    slot = make_slot(db, capacity=1)
-    client.post("/bookings", json={"slot_id": slot["id"], "client_email": "a@example.com"})
-    assert occupancy_for(db, slot["id"])["available_count"] == 0
-
-
-def test_create_booking_on_a_full_slot_returns_409(client, db, domain_config):
-    domain_config(rules={"maxBookingsPerSlot": 1})
-    slot = make_slot(db, capacity=1)
-    make_booking(db, slot["id"], client_email="first@example.com")
-
-    response = client.post(
-        "/bookings", json={"slot_id": slot["id"], "client_email": "second@example.com"}
     )
-    assert response.status_code == 409
-    assert "fully booked" in response.json()["detail"]
-    assert db.count("bookings") == 1  # nothing written
+    row = client.get("/slots/occupancy").json()[0]
+    assert row["booked_count"] == 3
 
 
-def test_capacity_limit_is_config_driven(client, db, domain_config):
-    """Same slot row, different maxBookingsPerSlot -> different verdict."""
-    domain_config(rules={"maxBookingsPerSlot": 2})
-    slot = make_slot(db, capacity=5)
+def test_second_booking_at_capacity_is_slot_unavailable(client, db, auth):
+    cat = make_catalog(db, capacity=1, slot_capacity=1)
+    body = {
+        "serviceId": cat["service"]["id"],
+        "resourceId": cat["resource"]["id"],
+        "slotIds": [cat["slot"]["id"]],
+        "partySize": 1,
+    }
+    auth(role="client", email="a@example.com")
+    assert client.post("/bookings", json=body).status_code == 200
+    auth(role="client", email="b@example.com", id="33333333-3333-3333-3333-333333333333")
+    resp = client.post("/bookings", json=body)
+    assert resp.status_code == 409
+    assert _detail_code(resp) == "SLOT_UNAVAILABLE"
 
-    first = client.post("/bookings", json={"slot_id": slot["id"], "client_email": "a@example.com"})
-    second = client.post("/bookings", json={"slot_id": slot["id"], "client_email": "b@example.com"})
-    assert first.status_code == 200
+
+def test_party_over_capacity_is_capacity_exceeded(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db, capacity=2, slot_capacity=2)
+    resp = client.post(
+        "/bookings",
+        json={
+            "serviceId": cat["service"]["id"],
+            "resourceId": cat["resource"]["id"],
+            "slotIds": [cat["slot"]["id"]],
+            "partySize": 5,
+        },
+    )
+    assert resp.status_code == 409
+    assert _detail_code(resp) == "CAPACITY_EXCEEDED"
+
+
+def test_unknown_slot_is_not_found(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db)
+    resp = client.post(
+        "/bookings",
+        json={
+            "serviceId": cat["service"]["id"],
+            "resourceId": cat["resource"]["id"],
+            "slotIds": ["ghost-slot"],
+            "partySize": 1,
+        },
+    )
+    assert resp.status_code == 404
+    assert _detail_code(resp) == "NOT_FOUND"
+
+
+def test_unknown_service_is_not_found(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db)
+    resp = client.post(
+        "/bookings",
+        json={
+            "serviceId": "ghost-service",
+            "resourceId": cat["resource"]["id"],
+            "slotIds": [cat["slot"]["id"]],
+            "partySize": 1,
+        },
+    )
+    assert resp.status_code == 404
+
+
+def test_multi_slot_contiguous_booking(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db, max_slots_per_booking=3, price_minor_units=500)
+    a, b = _contiguous_slots(db, cat, n=2)
+    resp = client.post(
+        "/bookings",
+        json={
+            "serviceId": cat["service"]["id"],
+            "resourceId": cat["resource"]["id"],
+            "slotIds": [a["id"], b["id"]],
+            "partySize": 1,
+        },
+    )
+    assert resp.status_code == 200
+    booking = resp.json()
+    assert booking["slotIds"] == [a["id"], b["id"]]
+    assert booking["priceMinorUnits"] == 1000  # 500 * 2 slots * party 1
+
+
+def test_non_contiguous_selection_is_invalid_range(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db, max_slots_per_booking=3)
+    a, b = _contiguous_slots(db, cat, n=2)
+    # third slot far away -> gap between b and c
+    c = make_slot(
+        db,
+        cat["resource"]["id"],
+        service_id=cat["service"]["id"],
+        hours_ahead=100,
+        capacity=cat["slot"]["capacity"],
+    )
+    resp = client.post(
+        "/bookings",
+        json={
+            "serviceId": cat["service"]["id"],
+            "resourceId": cat["resource"]["id"],
+            "slotIds": [a["id"], c["id"]],
+            "partySize": 1,
+        },
+    )
+    assert resp.status_code == 400
+    assert _detail_code(resp) == "INVALID_RANGE"
+
+
+# --- list ------------------------------------------------------------------
+
+
+def test_list_requires_a_token(client, db):
+    assert client.get("/bookings").status_code == 401
+
+
+def test_list_scope_filters(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db)
+    # an upcoming (future) booking
+    future_slot = make_slot(
+        db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100
+    )
+    make_booking(db, slots=[future_slot], service=cat["service"], reference="BK-FUT")
+    # a completed (past) booking
+    past_slot = make_slot(
+        db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=-5
+    )
+    make_booking(db, slots=[past_slot], service=cat["service"], reference="BK-PAST")
+
+    all_refs = {b["reference"] for b in client.get("/bookings", params={"scope": "all"}).json()}
+    assert {"BK-FUT", "BK-PAST"} <= all_refs
+
+    upcoming = client.get("/bookings", params={"scope": "upcoming"}).json()
+    assert [b["reference"] for b in upcoming] == ["BK-FUT"]
+
+    past = client.get("/bookings", params={"scope": "past"}).json()
+    assert [b["reference"] for b in past] == ["BK-PAST"]
+
+
+def test_get_single_booking(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db)
+    booking = make_booking(db, slots=[cat["slot"]], service=cat["service"])
+    got = client.get(f"/bookings/{booking['id']}").json()
+    assert got["id"] == booking["id"]
+
+
+def test_get_unknown_booking_is_404(client, db, auth):
+    auth(role="client")
+    assert client.get("/bookings/nope").status_code == 404
+
+
+# --- cancel ----------------------------------------------------------------
+
+
+def test_cancel_far_future_booking(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db, cancellation_cutoff_hours=24)
+    slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100)
+    booking = make_booking(db, slots=[slot], service=cat["service"])
+    resp = client.post(f"/bookings/{booking['id']}/cancel")
+    assert resp.status_code == 200
+    out = resp.json()
+    assert out["status"] == "cancelled"
+    assert out["cancelledAtUtc"] is not None
+    stored = db.get_row("bookings", booking["id"])
+    assert [h["status"] for h in stored["history"]] == ["confirmed", "cancelled"]
+
+
+def test_cancel_is_idempotent(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db)
+    slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100)
+    booking = make_booking(db, slots=[slot], service=cat["service"])
+    client.post(f"/bookings/{booking['id']}/cancel")
+    second = client.post(f"/bookings/{booking['id']}/cancel")
     assert second.status_code == 200
-
-    third = client.post("/bookings", json={"slot_id": slot["id"], "client_email": "c@example.com"})
-    assert third.status_code == 409  # min(capacity=5, maxBookingsPerSlot=2)
-
-    domain_config(rules={"maxBookingsPerSlot": 3})
-    assert client.post(
-        "/bookings", json={"slot_id": slot["id"], "client_email": "c@example.com"}
-    ).status_code == 200
+    assert second.json()["status"] == "cancelled"
 
 
-def test_row_capacity_binds_when_it_is_lower_than_the_config(client, db, domain_config):
-    domain_config(rules={"maxBookingsPerSlot": 10})
-    slot = make_slot(db, capacity=1)
-
-    assert client.post(
-        "/bookings", json={"slot_id": slot["id"], "client_email": "a@example.com"}
-    ).status_code == 200
-    assert client.post(
-        "/bookings", json={"slot_id": slot["id"], "client_email": "b@example.com"}
-    ).status_code == 409
+def test_client_cannot_cancel_inside_the_cutoff(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db, cancellation_cutoff_hours=24)
+    slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=2)
+    booking = make_booking(db, slots=[slot], service=cat["service"])
+    resp = client.post(f"/bookings/{booking['id']}/cancel")
+    assert resp.status_code == 409
+    assert _detail_code(resp) == "CUTOFF_PASSED"
 
 
-def test_cancelled_booking_frees_the_slot_again(client, db, domain_config):
-    domain_config(rules={"maxBookingsPerSlot": 1})
-    slot = make_slot(db, capacity=1)
-    make_booking(db, slot["id"], status="cancelled")
-
-    response = client.post(
-        "/bookings", json={"slot_id": slot["id"], "client_email": "new@example.com"}
-    )
-    assert response.status_code == 200
-
-
-def test_create_booking_unknown_slot_returns_404(client):
-    response = client.post(
-        "/bookings",
-        json={"slot_id": "00000000-0000-0000-0000-000000000000", "client_email": "a@example.com"},
-    )
-    assert response.status_code == 404
-    assert response.json()["detail"] == "Slot not found"
-
-
-def test_create_booking_unknown_slot_404_against_real_postgrest(strict_client):
-    response = strict_client.post(
-        "/bookings",
-        json={"slot_id": "00000000-0000-0000-0000-000000000000", "client_email": "a@example.com"},
-    )
-    assert response.status_code == 404
-
-
-def test_create_booking_missing_slot_id_should_422(raw_client):
-    response = raw_client.post("/bookings", json={"client_email": "a@example.com"})
-    assert response.status_code == 422
-
-
-def test_create_booking_missing_client_email_should_422(raw_client, db):
-    slot = make_slot(db)
-    response = raw_client.post("/bookings", json={"slot_id": slot["id"]})
-    assert response.status_code == 422
-
-
-# --------------------------------------------------------------------
-# GET /bookings
-# --------------------------------------------------------------------
-
-
-def test_list_bookings_empty(client):
-    response = client.get("/bookings")
-    assert response.status_code == 200
-    assert response.json() == []
-
-
-def test_list_bookings_returns_every_row(client, db):
-    slot = make_slot(db)
-    make_booking(db, slot["id"], client_email="a@example.com")
-    make_booking(db, slot["id"], client_email="b@example.com")
-
-    assert len(client.get("/bookings").json()) == 2
-
-
-def test_list_bookings_filters_by_client_email(client, db):
-    slot = make_slot(db, capacity=5)
-    mine = make_booking(db, slot["id"], client_email="me@example.com")
-    make_booking(db, slot["id"], client_email="someone@example.com")
-
-    rows = client.get("/bookings", params={"client_email": "me@example.com"}).json()
-    assert [row["id"] for row in rows] == [mine["id"]]
-
-
-def test_list_bookings_filters_by_status(client, db):
-    slot = make_slot(db, capacity=5)
-    confirmed = make_booking(db, slot["id"], client_email="a@example.com", status="confirmed")
-    make_booking(db, slot["id"], client_email="b@example.com", status="cancelled")
-
-    rows = client.get("/bookings", params={"status": "confirmed"}).json()
-    assert [row["id"] for row in rows] == [confirmed["id"]]
-
-    cancelled = client.get("/bookings", params={"status": "cancelled"}).json()
-    assert [row["status"] for row in cancelled] == ["cancelled"]
-
-
-def test_list_bookings_status_and_email_filters_combine(client, db):
-    slot = make_slot(db, capacity=5)
-    mine = make_booking(db, slot["id"], client_email="me@example.com", status="confirmed")
-    make_booking(db, slot["id"], client_email="me@example.com", status="cancelled")
-    make_booking(db, slot["id"], client_email="other@example.com", status="confirmed")
-
-    rows = client.get(
-        "/bookings", params={"client_email": "me@example.com", "status": "confirmed"}
-    ).json()
-    assert [row["id"] for row in rows] == [mine["id"]]
-
-
-def test_list_bookings_unknown_email_returns_empty(client, db):
-    slot = make_slot(db)
-    make_booking(db, slot["id"], client_email="a@example.com")
-    assert client.get("/bookings", params={"client_email": "nope@example.com"}).json() == []
-
-
-def test_list_bookings_includes_status_and_history(client, db):
-    slot = make_slot(db)
-    make_booking(db, slot["id"])
-    row = client.get("/bookings").json()[0]
-    assert row["status"] == "confirmed"
-    assert isinstance(row["history"], list) and row["history"]
-
-
-# --------------------------------------------------------------------
-# POST /bookings/{id}/cancel
-# --------------------------------------------------------------------
-
-
-def test_cancel_sets_status_and_appends_to_history(client, db, domain_config):
-    domain_config(rules={"cancellationWindowHours": 24})
-    slot = make_slot(db, hours_ahead=72)
-    booking = make_booking(db, slot["id"])
-    original_entry = booking["history"][0]
-
-    response = client.post(f"/bookings/{booking['id']}/cancel")
-    assert response.status_code == 200
-
-    cancelled = response.json()[0]
-    assert cancelled["status"] == "cancelled"
-    # append-only: the original entry survives untouched, in order
-    assert len(cancelled["history"]) == 2
-    assert cancelled["history"][0] == original_entry
-    assert cancelled["history"][1]["status"] == "cancelled"
-    assert parse_iso(cancelled["history"][1]["at"]).tzinfo is not None
-
+def test_owner_overrides_the_cutoff(client, db, auth):
+    auth(role="owner")
+    cat = make_catalog(db, cancellation_cutoff_hours=24)
+    slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=2)
+    booking = make_booking(db, slots=[slot], service=cat["service"])
+    resp = client.post(f"/bookings/{booking['id']}/cancel")
+    assert resp.status_code == 200
     stored = db.get_row("bookings", booking["id"])
-    assert stored["status"] == "cancelled"
-    assert len(stored["history"]) == 2
+    assert stored["history"][-1]["actor"] == "owner"
 
 
-def test_cancel_frees_the_slot_in_the_occupancy_view(client, db):
-    slot = make_slot(db, capacity=1, hours_ahead=72)
-    booking = make_booking(db, slot["id"])
-    assert occupancy_for(db, slot["id"])["available_count"] == 0
-
-    client.post(f"/bookings/{booking['id']}/cancel")
-    assert occupancy_for(db, slot["id"])["available_count"] == 1
+# --- reschedule ------------------------------------------------------------
 
 
-def test_cancel_inside_the_window_returns_409(client, db, domain_config):
-    domain_config(rules={"cancellationWindowHours": 24})
-    slot = make_slot(db, hours_ahead=2)
-    booking = make_booking(db, slot["id"])
-
-    response = client.post(f"/bookings/{booking['id']}/cancel")
-    assert response.status_code == 409
-    assert "24h" in response.json()["detail"]
-    assert db.get_row("bookings", booking["id"])["status"] == "confirmed"
-    assert len(db.get_row("bookings", booking["id"])["history"]) == 1  # nothing appended
-
-
-def test_cancellation_window_is_config_driven(client, db, domain_config):
-    slot = make_slot(db, hours_ahead=5)
-    booking = make_booking(db, slot["id"])
-
-    domain_config(rules={"cancellationWindowHours": 24})
-    assert client.post(f"/bookings/{booking['id']}/cancel").status_code == 409
-
-    domain_config(rules={"cancellationWindowHours": 2})
-    assert client.post(f"/bookings/{booking['id']}/cancel").status_code == 200
+def test_reschedule_moves_the_booking(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db, cancellation_cutoff_hours=24)
+    old = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100)
+    new = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=200)
+    booking = make_booking(db, slots=[old], service=cat["service"])
+    resp = client.post(f"/bookings/{booking['id']}/reschedule", json={"newSlotIds": [new["id"]]})
+    assert resp.status_code == 200
+    out = resp.json()
+    assert out["slotIds"] == [new["id"]]
+    assert out["status"] == "confirmed"
+    assert len(out["changeHistory"]) == 1
 
 
-def test_cancel_unknown_booking_returns_404(client):
-    response = client.post("/bookings/00000000-0000-0000-0000-000000000000/cancel")
-    assert response.status_code == 404
-    assert response.json()["detail"] == "Booking not found"
+def test_reschedule_inside_cutoff_is_blocked_for_client(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db, cancellation_cutoff_hours=24)
+    old = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=2)
+    new = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=200)
+    booking = make_booking(db, slots=[old], service=cat["service"])
+    resp = client.post(f"/bookings/{booking['id']}/reschedule", json={"newSlotIds": [new["id"]]})
+    assert resp.status_code == 409
+    assert _detail_code(resp) == "CUTOFF_PASSED"
 
 
-def test_cancel_unknown_booking_404_against_real_postgrest(strict_client):
-    response = strict_client.post("/bookings/00000000-0000-0000-0000-000000000000/cancel")
-    assert response.status_code == 404
-
-
-def test_cancel_twice_should_409(client, db):
-    slot = make_slot(db, hours_ahead=72)
-    booking = make_booking(db, slot["id"])
-    client.post(f"/bookings/{booking['id']}/cancel")
-    assert client.post(f"/bookings/{booking['id']}/cancel").status_code == 409
-
-
-def test_cancel_handles_a_naive_slot_timestamp(raw_client, db):
-    slot = make_slot(db, starts_at="2099-01-01T10:00:00", ends_at="2099-01-01T10:30:00")
-    booking = make_booking(db, slot["id"])
-    response = raw_client.post(f"/bookings/{booking['id']}/cancel")
-    assert response.status_code == 200
-
-
-def test_owner_cancel_skips_the_window(client, db, domain_config):
-    """The cancellation window constrains clients; an owner overrides it and
-    the override is recorded in history."""
-    domain_config(rules={"cancellationWindowHours": 24})
-    slot = make_slot(db, hours_ahead=2)  # inside the window
-    booking = make_booking(db, slot["id"])
-
-    response = client.post(f"/bookings/{booking['id']}/cancel", json={"actor": "owner"})
-    assert response.status_code == 200
-    cancelled = response.json()[0]
-    assert cancelled["status"] == "cancelled"
-    assert cancelled["history"][-1]["status"] == "cancelled"
-    assert cancelled["history"][-1]["actor"] == "owner"
-
-
-def test_client_cancel_inside_window_stays_409_while_owner_succeeds(client, db, domain_config):
-    """Same slot, two bookings: the client is blocked inside the window, the
-    owner is not."""
-    domain_config(rules={"cancellationWindowHours": 24})
-    slot = make_slot(db, hours_ahead=2, capacity=5)
-    client_booking = make_booking(db, slot["id"], client_email="client@example.com")
-    owner_booking = make_booking(db, slot["id"], client_email="owner-managed@example.com")
-
-    # No body ⇒ client behaviour ⇒ blocked.
-    assert client.post(f"/bookings/{client_booking['id']}/cancel").status_code == 409
-    # actor="client" is explicit client behaviour ⇒ still blocked.
-    assert client.post(
-        f"/bookings/{client_booking['id']}/cancel", json={"actor": "client"}
-    ).status_code == 409
-    assert db.get_row("bookings", client_booking["id"])["status"] == "confirmed"
-
-    # actor="owner" overrides the window.
-    assert client.post(
-        f"/bookings/{owner_booking['id']}/cancel", json={"actor": "owner"}
-    ).status_code == 200
-
-
-# --------------------------------------------------------------------
-# POST /bookings/{id}/confirm
-# --------------------------------------------------------------------
-
-
-def test_confirm_booking_sets_status_and_appends_owner_history(client, db):
-    slot = make_slot(db, hours_ahead=72)
-    booking = make_booking(db, slot["id"], status="cancelled")
-    original_len = len(booking["history"])
-
-    response = client.post(f"/bookings/{booking['id']}/confirm")
-    assert response.status_code == 200
-    confirmed = response.json()[0]
-    assert confirmed["status"] == "confirmed"
-    assert len(confirmed["history"]) == original_len + 1
-    assert confirmed["history"][-1]["status"] == "confirmed"
-    assert confirmed["history"][-1]["actor"] == "owner"
-    assert parse_iso(confirmed["history"][-1]["at"]).tzinfo is not None
-
-    assert db.get_row("bookings", booking["id"])["status"] == "confirmed"
-
-
-def test_confirm_unknown_booking_returns_404(client):
-    response = client.post("/bookings/00000000-0000-0000-0000-000000000000/confirm")
-    assert response.status_code == 404
-    assert response.json()["detail"] == "Booking not found"
-
-
-# --------------------------------------------------------------------
-# POST /bookings/{id}/reschedule
-# --------------------------------------------------------------------
-
-
-def test_reschedule_moves_the_slot_and_appends_history(client, db, domain_config):
-    domain_config(rules={"cancellationWindowHours": 24})
-    resource = make_resource(db)
-    old_slot = make_slot(db, resource["id"], hours_ahead=72)
-    new_slot = make_slot(db, resource["id"], hours_ahead=96)
-    booking = make_booking(db, old_slot["id"])
-    original_entry = booking["history"][0]
-
-    response = client.post(
-        f"/bookings/{booking['id']}/reschedule", json={"new_slot_id": new_slot["id"]}
+def test_reschedule_to_full_slot_is_slot_unavailable(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db, capacity=1, slot_capacity=1, cancellation_cutoff_hours=24)
+    old = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100, capacity=1)
+    taken = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=200, capacity=1)
+    booking = make_booking(db, slots=[old], service=cat["service"])
+    # someone else fills `taken`
+    make_booking(
+        db,
+        slots=[taken],
+        service=cat["service"],
+        user_id="99999999-9999-9999-9999-999999999999",
+        reference="BK-OTHER",
     )
-    assert response.status_code == 200
-
-    updated = response.json()[0]
-    assert updated["slot_id"] == new_slot["id"]
-    assert updated["status"] == "confirmed"
-    assert len(updated["history"]) == 2
-    assert updated["history"][0] == original_entry  # append-only
-    assert updated["history"][1]["status"] == "rescheduled"
-
-    assert db.get_row("bookings", booking["id"])["slot_id"] == new_slot["id"]
+    resp = client.post(f"/bookings/{booking['id']}/reschedule", json={"newSlotIds": [taken["id"]]})
+    assert resp.status_code == 409
+    assert _detail_code(resp) == "SLOT_UNAVAILABLE"
 
 
-def test_reschedule_moves_occupancy_between_slots(client, db):
-    resource = make_resource(db)
-    old_slot = make_slot(db, resource["id"], hours_ahead=72, capacity=1)
-    new_slot = make_slot(db, resource["id"], hours_ahead=96, capacity=1)
-    booking = make_booking(db, old_slot["id"])
-
-    client.post(f"/bookings/{booking['id']}/reschedule", json={"new_slot_id": new_slot["id"]})
-
-    assert occupancy_for(db, old_slot["id"])["booked_count"] == 0
-    assert occupancy_for(db, new_slot["id"])["booked_count"] == 1
-
-
-def test_reschedule_inside_the_window_returns_409(client, db, domain_config):
-    domain_config(rules={"cancellationWindowHours": 24})
-    old_slot = make_slot(db, hours_ahead=3)
-    new_slot = make_slot(db, hours_ahead=96)
-    booking = make_booking(db, old_slot["id"])
-
-    response = client.post(
-        f"/bookings/{booking['id']}/reschedule", json={"new_slot_id": new_slot["id"]}
-    )
-    assert response.status_code == 409
-    assert "24h" in response.json()["detail"]
-    stored = db.get_row("bookings", booking["id"])
-    assert stored["slot_id"] == old_slot["id"]
-    assert len(stored["history"]) == 1
+def test_reschedule_to_same_slot_credits_back_capacity(client, db, auth):
+    """A capacity-1 slot the booking already holds looks full, but its own party
+    is credited back — re-selecting it succeeds (the credit path)."""
+    auth(role="client")
+    cat = make_catalog(db, capacity=1, slot_capacity=1, cancellation_cutoff_hours=24)
+    slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100, capacity=1)
+    booking = make_booking(db, slots=[slot], service=cat["service"])
+    resp = client.post(f"/bookings/{booking['id']}/reschedule", json={"newSlotIds": [slot["id"]]})
+    assert resp.status_code == 200
+    assert resp.json()["slotIds"] == [slot["id"]]
 
 
-def test_reschedule_to_a_full_slot_returns_409(client, db, domain_config):
-    domain_config(rules={"cancellationWindowHours": 24, "maxBookingsPerSlot": 1})
-    old_slot = make_slot(db, hours_ahead=72)
-    full_slot = make_slot(db, hours_ahead=96, capacity=1)
-    make_booking(db, full_slot["id"], client_email="other@example.com")
-    booking = make_booking(db, old_slot["id"])
-
-    response = client.post(
-        f"/bookings/{booking['id']}/reschedule", json={"new_slot_id": full_slot["id"]}
-    )
-    assert response.status_code == 409
-    assert "fully booked" in response.json()["detail"]
-    assert db.get_row("bookings", booking["id"])["slot_id"] == old_slot["id"]
+# --- review ----------------------------------------------------------------
 
 
-def test_reschedule_to_unknown_slot_returns_404(client, db):
-    old_slot = make_slot(db, hours_ahead=72)
-    booking = make_booking(db, old_slot["id"])
-
-    response = client.post(
-        f"/bookings/{booking['id']}/reschedule",
-        json={"new_slot_id": "00000000-0000-0000-0000-000000000000"},
-    )
-    assert response.status_code == 404
-    assert response.json()["detail"] == "New slot not found"
-
-
-def test_reschedule_unknown_booking_returns_404(client, db):
-    slot = make_slot(db, hours_ahead=72)
-    response = client.post(
-        "/bookings/00000000-0000-0000-0000-000000000000/reschedule",
-        json={"new_slot_id": slot["id"]},
-    )
-    assert response.status_code == 404
-    assert response.json()["detail"] == "Booking not found"
+def test_review_only_completed_bookings(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db)
+    # completed = confirmed booking whose slot end is in the past
+    past = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=-5)
+    booking = make_booking(db, slots=[past], service=cat["service"])
+    resp = client.post(f"/bookings/{booking['id']}/review", json={"rating": 5, "text": "Great"})
+    assert resp.status_code == 200
+    out = resp.json()
+    assert out["review"]["rating"] == 5
+    assert out["review"]["text"] == "Great"
 
 
-def test_reschedule_onto_the_same_slot_should_succeed(client, db, domain_config):
-    domain_config(rules={"maxBookingsPerSlot": 1})
-    slot = make_slot(db, hours_ahead=72, capacity=1)
-    booking = make_booking(db, slot["id"])
-    response = client.post(
-        f"/bookings/{booking['id']}/reschedule", json={"new_slot_id": slot["id"]}
-    )
-    assert response.status_code == 200
-
-
-def test_reschedule_missing_new_slot_id_should_422(raw_client, db):
-    slot = make_slot(db, hours_ahead=72)
-    booking = make_booking(db, slot["id"])
-    response = raw_client.post(f"/bookings/{booking['id']}/reschedule", json={})
-    assert response.status_code == 422
-
-
-def test_reschedule_keeps_history_append_only_across_several_moves(client, db):
-    resource = make_resource(db)
-    slot_a = make_slot(db, resource["id"], hours_ahead=72)
-    slot_b = make_slot(db, resource["id"], hours_ahead=96)
-    slot_c = make_slot(db, resource["id"], hours_ahead=120)
-    booking = make_booking(db, slot_a["id"])
-
-    client.post(f"/bookings/{booking['id']}/reschedule", json={"new_slot_id": slot_b["id"]})
-    client.post(f"/bookings/{booking['id']}/reschedule", json={"new_slot_id": slot_c["id"]})
-    final = client.post(f"/bookings/{booking['id']}/cancel").json()[0]
-
-    assert [entry["status"] for entry in final["history"]] == [
-        "confirmed",
-        "rescheduled",
-        "rescheduled",
-        "cancelled",
-    ]
-    timestamps = [parse_iso(entry["at"]) for entry in final["history"]]
-    assert timestamps == sorted(timestamps)
-
-
-def test_reschedule_of_a_cancelled_booking_current_behaviour(client, db):
-    """No status guard: cancelling then rescheduling re-confirms the booking."""
-    resource = make_resource(db)
-    slot_a = make_slot(db, resource["id"], hours_ahead=72)
-    slot_b = make_slot(db, resource["id"], hours_ahead=96)
-    booking = make_booking(db, slot_a["id"])
-    client.post(f"/bookings/{booking['id']}/cancel")
-
-    response = client.post(
-        f"/bookings/{booking['id']}/reschedule", json={"new_slot_id": slot_b["id"]}
-    )
-    assert response.status_code == 200
-    assert response.json()[0]["status"] == "confirmed"
-
-
-def test_booking_flow_end_to_end(client, db, domain_config):
-    """config -> resource -> slot -> book -> occupancy -> reschedule -> cancel."""
-    domain_config(rules={"cancellationWindowHours": 24, "maxBookingsPerSlot": 1})
-    rules = client.get("/config").json()["rules"]
-    assert rules["maxBookingsPerSlot"] == 1
-
-    resource = client.post("/resources", json={"name": "Widget 1", "metadata": {}}).json()[0]
-    first = client.post(
-        "/slots",
-        json={
-            "resource_id": resource["id"],
-            "starts_at": iso_in(hours=72),
-            "ends_at": iso_in(hours=72.5),
-            "capacity": 1,
-        },
-    ).json()[0]
-    second = client.post(
-        "/slots",
-        json={
-            "resource_id": resource["id"],
-            "starts_at": iso_in(hours=96),
-            "ends_at": iso_in(hours=96.5),
-            "capacity": 1,
-        },
-    ).json()[0]
-
-    booking = client.post(
-        "/bookings", json={"slot_id": first["id"], "client_email": "guest@example.com"}
-    ).json()[0]
-
-    occupancy = {row["slot_id"]: row for row in client.get("/slots/occupancy").json()}
-    assert occupancy[first["id"]]["available_count"] == 0
-    assert occupancy[second["id"]]["available_count"] == 1
-
-    assert client.post(
-        "/bookings", json={"slot_id": first["id"], "client_email": "other@example.com"}
-    ).status_code == 409
-
-    moved = client.post(
-        f"/bookings/{booking['id']}/reschedule", json={"new_slot_id": second["id"]}
-    ).json()[0]
-    assert moved["slot_id"] == second["id"]
-
-    cancelled = client.post(f"/bookings/{booking['id']}/cancel").json()[0]
-    assert cancelled["status"] == "cancelled"
-
-    mine = client.get("/bookings", params={"client_email": "guest@example.com"}).json()
-    assert len(mine) == 1
-    assert [entry["status"] for entry in mine[0]["history"]] == [
-        "confirmed",
-        "rescheduled",
-        "cancelled",
-    ]
-
-    occupancy = {row["slot_id"]: row for row in client.get("/slots/occupancy").json()}
-    assert occupancy[second["id"]]["available_count"] == 1
+def test_review_rejected_for_upcoming_booking(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db)
+    future = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100)
+    booking = make_booking(db, slots=[future], service=cat["service"])
+    resp = client.post(f"/bookings/{booking['id']}/review", json={"rating": 4})
+    assert resp.status_code == 404

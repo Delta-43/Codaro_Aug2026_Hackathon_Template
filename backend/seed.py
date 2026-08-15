@@ -175,17 +175,23 @@ def _wipe(db) -> None:
 
 
 def _ensure_user(db, email: str, password: str, metadata: dict) -> str:
-    """Create (or find) a Supabase auth user; return its id."""
+    """Create (or find) a Supabase auth user; return its id. On an existing user
+    the profile metadata is reset to the seed values, so a reseed restores the
+    demo user to a pristine state."""
     try:
         resp = db.auth.admin.create_user(
             {"email": email, "password": password, "email_confirm": True, "user_metadata": metadata}
         )
         return resp.user.id
     except Exception:
-        # Already exists — locate by email through the admin list.
+        # Already exists — locate by email and reset its metadata.
         try:
             for u in db.auth.admin.list_users():
                 if getattr(u, "email", None) == email:
+                    try:
+                        db.auth.admin.update_user_by_id(u.id, {"user_metadata": metadata})
+                    except Exception:
+                        pass
                     return u.id
         except Exception:
             logger.exception("Could not resolve existing user %s", email)

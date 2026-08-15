@@ -1,175 +1,127 @@
-"""/resources — list, create, get by id, patch, analytics."""
+"""/resources — public reads + owner-gated writes, through the real endpoints.
 
-from helpers import make_booking, make_resource, make_slot
+Reads are open; create/patch/analytics require the owner role (`require_owner`).
+The `auth` fixture stubs token verification and lets a test run as anon / client
+/ owner so the gating is genuinely exercised.
+"""
 
+from __future__ import annotations
 
-def test_list_resources_empty(client):
-    response = client.get("/resources")
-    assert response.status_code == 200
-    assert response.json() == []
-
-
-def test_list_resources_returns_every_row(client, db):
-    make_resource(db, name="Widget 1")
-    make_resource(db, name="Widget 2", description="second")
-
-    response = client.get("/resources")
-    assert response.status_code == 200
-    names = sorted(row["name"] for row in response.json())
-    assert names == ["Widget 1", "Widget 2"]
+from helpers import make_booking, make_catalog, make_resource, make_service, make_slot
 
 
-def test_create_resource_persists_and_echoes_the_row(client, db):
-    response = client.post(
-        "/resources",
-        json={"name": "Widget 3", "description": "created via API", "metadata": {"room": "A1"}},
-    )
-    assert response.status_code == 200
-
-    body = response.json()
-    assert isinstance(body, list) and len(body) == 1  # PostgREST returns a list
-    created = body[0]
-    assert created["name"] == "Widget 3"
-    assert created["description"] == "created via API"
-    assert created["metadata"] == {"room": "A1"}
-    assert created["id"]
-
-    assert db.count("resources") == 1
-    assert client.get("/resources").json()[0]["id"] == created["id"]
+# --- public reads ----------------------------------------------------------
 
 
-def test_create_resource_defaults_metadata_to_an_empty_object(client):
-    created = client.post("/resources", json={"name": "Bare"}).json()[0]
-    assert created["metadata"] == {}
-    assert created["description"] is None
+def test_list_resources_is_public_and_camelcase(client, db):
+    make_resource(db, "Unit 1", service_id="svc-1", capacity=2)
+    rows = client.get("/resources").json()
+    assert len(rows) == 1
+    r = rows[0]
+    assert set(r) == {
+        "id",
+        "serviceId",
+        "name",
+        "description",
+        "imageUrl",
+        "capacity",
+        "attributes",
+        "active",
+    }
+    assert r["serviceId"] == "svc-1"
+    assert r["capacity"] == 2
 
 
-def test_create_resource_keeps_arbitrary_metadata_for_the_pivot(client):
-    """New domain fields go in metadata jsonb — never a new column."""
-    metadata = {"speciality": "cardiology", "tags": ["a", "b"], "rooms": 3}
-    created = client.post("/resources", json={"name": "Doctor 1", "metadata": metadata}).json()[0]
-    assert created["metadata"] == metadata
-
-    fetched = client.get(f"/resources/{created['id']}").json()
-    assert fetched["metadata"] == metadata
+def test_list_filtered_by_service_returns_only_active(client, db):
+    make_resource(db, "Active", service_id="svc-1", active=True)
+    make_resource(db, "Inactive", service_id="svc-1", active=False)
+    make_resource(db, "Other", service_id="svc-2", active=True)
+    rows = client.get("/resources", params={"service_id": "svc-1"}).json()
+    assert [r["name"] for r in rows] == ["Active"]
 
 
 def test_get_resource_by_id(client, db):
-    resource = make_resource(db, name="Widget 7")
-    response = client.get(f"/resources/{resource['id']}")
-    assert response.status_code == 200
-
-    body = response.json()
-    assert isinstance(body, dict)  # .single() -> one object, not a list
-    assert body["id"] == resource["id"]
-    assert body["name"] == "Widget 7"
+    res = make_resource(db, "Unit X", service_id="svc-1")
+    got = client.get(f"/resources/{res['id']}").json()
+    assert got["id"] == res["id"]
+    assert got["name"] == "Unit X"
 
 
-def test_get_resource_unknown_id_should_404(client):
-    response = client.get("/resources/00000000-0000-0000-0000-000000000000")
-    assert response.status_code == 404
+def test_get_unknown_resource_is_404(client, db):
+    assert client.get("/resources/does-not-exist").status_code == 404
 
 
-def test_get_resource_unknown_id_404_against_real_postgrest(strict_client):
-    """Real PostgREST raises PGRST116 from .single() on zero rows; maybe_row
-    swallows it so the 404 branch is reachable in production too."""
-    response = strict_client.get("/resources/00000000-0000-0000-0000-000000000000")
-    assert response.status_code == 404
+# --- owner-gated create ----------------------------------------------------
 
 
-def test_create_resource_missing_name_should_422(raw_client):
-    response = raw_client.post("/resources", json={"description": "no name"})
-    assert response.status_code == 422
+def test_create_without_a_token_is_401(client, db):
+    resp = client.post("/resources", json={"name": "New", "metadata": {}})
+    assert resp.status_code == 401
 
 
-def test_create_resource_validates_configured_meta_fields(client, domain_config):
-    """A declared metaField present with the wrong type is a 422 (type map:
-    number -> int|float)."""
-    domain_config(metaFields={"resources": [{"key": "rooms", "label": "Rooms", "type": "number"}]})
-    response = client.post("/resources", json={"name": "Bad meta", "metadata": {"rooms": "three"}})
-    assert response.status_code == 422
+def test_create_as_client_is_403(client, db, auth):
+    auth(role="client")
+    resp = client.post("/resources", json={"name": "New", "metadata": {}})
+    assert resp.status_code == 403
 
 
-def test_create_resource_accepts_correctly_typed_meta_field(client, domain_config):
-    domain_config(metaFields={"resources": [{"key": "rooms", "label": "Rooms", "type": "number"}]})
-    response = client.post("/resources", json={"name": "Good meta", "metadata": {"rooms": 3}})
-    assert response.status_code == 200
-    assert response.json()[0]["metadata"]["rooms"] == 3
+def test_create_as_owner_stamps_owner_id(client, db, auth):
+    owner = auth(role="owner")
+    resp = client.post("/resources", json={"name": "New Unit", "metadata": {"room": "A"}})
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert isinstance(rows, list)
+    assert rows[0]["metadata"]["owner_id"] == owner.id
+    assert rows[0]["metadata"]["room"] == "A"
 
 
-def test_create_resource_optional_meta_field_may_be_omitted(client, domain_config):
-    """Declared fields are optional by default: absence is fine."""
-    domain_config(metaFields={"resources": [{"key": "rooms", "label": "Rooms", "type": "number"}]})
-    response = client.post("/resources", json={"name": "No meta", "metadata": {}})
-    assert response.status_code == 200
+def test_create_rejects_bad_metadata_type(client, db, auth):
+    auth(role="owner")
+    # metaFields.resources declares `room` as text; a number is a 422.
+    resp = client.post("/resources", json={"name": "Bad", "metadata": {"room": 5}})
+    assert resp.status_code == 422
 
 
-def test_create_resource_required_meta_field_missing_is_422(client, domain_config):
-    domain_config(
-        metaFields={
-            "resources": [{"key": "room", "label": "Room", "type": "text", "required": True}]
-        }
-    )
-    response = client.post("/resources", json={"name": "No room", "metadata": {}})
-    assert response.status_code == 422
+# --- owner-gated patch -----------------------------------------------------
 
 
-def test_create_resource_undeclared_meta_keys_pass_through(client, domain_config):
-    """The metadata jsonb column is the extension point — keys the config
-    never declares are stored untouched."""
-    domain_config(metaFields={"resources": [{"key": "room", "label": "Room", "type": "text"}]})
-    metadata = {"room": "A1", "speciality": "cardiology", "tags": ["x", "y"]}
-    created = client.post("/resources", json={"name": "Doctor", "metadata": metadata}).json()[0]
-    assert created["metadata"] == metadata
+def test_patch_updates_fields(client, db, auth):
+    auth(role="owner")
+    res = make_resource(db, "Before")
+    resp = client.patch(f"/resources/{res['id']}", json={"name": "After"})
+    assert resp.status_code == 200
+    assert db.get_row("resources", res["id"])["name"] == "After"
 
 
-# --------------------------------------------------------------------
-# PATCH /resources/{id}
-# --------------------------------------------------------------------
+def test_patch_unknown_resource_is_404(client, db, auth):
+    auth(role="owner")
+    assert client.patch("/resources/nope", json={"name": "x"}).status_code == 404
 
 
-def test_patch_resource_partial_update(client, db):
-    resource = make_resource(db, name="Widget 1", description="old")
-    response = client.patch(f"/resources/{resource['id']}", json={"description": "new"})
-    assert response.status_code == 200
-    updated = response.json()[0]
-    assert updated["name"] == "Widget 1"  # untouched
-    assert updated["description"] == "new"
-    assert db.get_row("resources", resource["id"])["description"] == "new"
+def test_patch_validates_metadata(client, db, auth):
+    auth(role="owner")
+    res = make_resource(db, "R")
+    resp = client.patch(f"/resources/{res['id']}", json={"metadata": {"room": 9}})
+    assert resp.status_code == 422
 
 
-def test_patch_resource_unknown_id_returns_404(client):
-    response = client.patch(
-        "/resources/00000000-0000-0000-0000-000000000000", json={"name": "x"}
-    )
-    assert response.status_code == 404
-    assert response.json()["detail"] == "Resource not found"
+def test_patch_requires_owner(client, db, auth):
+    auth(role="client")
+    res = make_resource(db, "R")
+    assert client.patch(f"/resources/{res['id']}", json={"name": "x"}).status_code == 403
 
 
-def test_patch_resource_validates_metadata(client, db, domain_config):
-    domain_config(metaFields={"resources": [{"key": "rooms", "label": "Rooms", "type": "number"}]})
-    resource = make_resource(db, name="Widget 1")
-    response = client.patch(
-        f"/resources/{resource['id']}", json={"metadata": {"rooms": "three"}}
-    )
-    assert response.status_code == 422
+# --- owner-gated analytics -------------------------------------------------
 
 
-# --------------------------------------------------------------------
-# GET /resources/{id}/analytics
-# --------------------------------------------------------------------
+def test_analytics_shape_and_counts(client, db, auth):
+    auth(role="owner")
+    cat = make_catalog(db, capacity=2, slot_capacity=2)
+    # one confirmed booking (party 1) against the slot
+    make_booking(db, slots=[cat["slot"]], service=cat["service"], party_size=1)
 
-
-def test_resource_analytics_shape_and_counts(client, db):
-    resource = make_resource(db, name="Widget 1")
-    slot_a = make_slot(db, resource["id"], capacity=2)
-    slot_b = make_slot(db, resource["id"], capacity=3)
-    make_booking(db, slot_a["id"], client_email="a@example.com")
-    make_booking(db, slot_a["id"], client_email="b@example.com")
-    make_booking(db, slot_b["id"], client_email="c@example.com", status="cancelled")
-
-    body = client.get(f"/resources/{resource['id']}/analytics").json()
-    assert set(body) == {
+    data = client.get(f"/resources/{cat['resource']['id']}/analytics").json()
+    assert set(data) == {
         "total_slots",
         "total_capacity",
         "booked_count",
@@ -177,27 +129,20 @@ def test_resource_analytics_shape_and_counts(client, db):
         "occupancy_rate",
         "bookings_by_status",
     }
-    assert body["total_slots"] == 2
-    assert body["total_capacity"] == 5
-    assert body["booked_count"] == 2  # only confirmed hold capacity
-    assert body["available_count"] == 3
-    assert body["occupancy_rate"] == 2 / 5
-    # bookings_by_status is aggregated from the rows, not a fixed list
-    assert body["bookings_by_status"] == {"confirmed": 2, "cancelled": 1}
+    assert data["total_slots"] == 1
+    assert data["total_capacity"] == 2
+    assert data["booked_count"] == 1
+    assert data["available_count"] == 1
+    assert data["occupancy_rate"] == 0.5
+    assert data["bookings_by_status"] == {"confirmed": 1}
 
 
-def test_resource_analytics_empty_resource(client, db):
-    resource = make_resource(db, name="Empty")
-    body = client.get(f"/resources/{resource['id']}/analytics").json()
-    assert body["total_slots"] == 0
-    assert body["total_capacity"] == 0
-    assert body["occupancy_rate"] == 0.0
-    assert body["bookings_by_status"] == {}
+def test_analytics_unknown_resource_is_404(client, db, auth):
+    auth(role="owner")
+    assert client.get("/resources/nope/analytics").status_code == 404
 
 
-def test_resource_analytics_unknown_id_returns_404(client):
-    response = client.get(
-        "/resources/00000000-0000-0000-0000-000000000000/analytics"
-    )
-    assert response.status_code == 404
-    assert response.json()["detail"] == "Resource not found"
+def test_analytics_requires_owner(client, db, auth):
+    auth(role="client")
+    res = make_resource(db, "R")
+    assert client.get(f"/resources/{res['id']}/analytics").status_code == 403

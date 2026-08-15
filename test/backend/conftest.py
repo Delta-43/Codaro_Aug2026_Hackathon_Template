@@ -29,10 +29,16 @@ from fastapi.testclient import TestClient
 import app.config as app_config
 import app.db as app_db
 import app.schema_setup as app_schema_setup
+import app.users as users_module
 import seed as seed_module
 from app import main as app_main
+from app.auth import AuthUser, optional_user, require_user
+from app.routers import availability as availability_router
 from app.routers import bookings as bookings_router
+from app.routers import me as me_router
+from app.routers import providers as providers_router
 from app.routers import resources as resources_router
+from app.routers import services as services_router
 from app.routers import slots as slots_router
 from fakes import FakeSupabase
 
@@ -41,7 +47,28 @@ REPO_ROOT = TEST_DIR.parent
 FIXTURE_CONFIG_PATH = TEST_DIR / "fixtures" / "domain.config.test.json"
 REAL_CONFIG_PATH = REPO_ROOT / "domain.config.json"
 
-ROUTER_MODULES = (bookings_router, resources_router, slots_router)
+# Every module that did `from app.db import get_supabase [, get_user_client]`
+# at import time holds its own reference, so each must be patched individually.
+_SUPABASE_MODULES = (
+    app_db,
+    seed_module,
+    users_module,
+    bookings_router,
+    resources_router,
+    slots_router,
+    providers_router,
+    services_router,
+    availability_router,
+    me_router,
+)
+_USER_CLIENT_MODULES = (
+    app_db,
+    users_module,
+    bookings_router,
+    resources_router,
+    slots_router,
+    providers_router,
+)
 
 
 def _clear_caches() -> None:
@@ -123,14 +150,22 @@ def _patch_supabase(monkeypatch, fake: FakeSupabase) -> None:
     def _get_supabase():
         return fake
 
+    def _get_user_client(_token):
+        # Offline we don't simulate RLS: the user-scoped client is the same
+        # in-memory store as the service client. Router-level auth checks
+        # (require_owner, own-or-owner) still run and are what the tests assert.
+        return fake
+
     # Keep the lru_cache surface so anything calling .cache_clear() on the
     # patched function (see _clear_caches) still works.
     _get_supabase.cache_clear = lambda: None
 
-    monkeypatch.setattr(app_db, "get_supabase", _get_supabase)
-    monkeypatch.setattr(seed_module, "get_supabase", _get_supabase)
-    for module in ROUTER_MODULES:
-        monkeypatch.setattr(module, "get_supabase", _get_supabase)
+    for module in _SUPABASE_MODULES:
+        if hasattr(module, "get_supabase"):
+            monkeypatch.setattr(module, "get_supabase", _get_supabase)
+    for module in _USER_CLIENT_MODULES:
+        if hasattr(module, "get_user_client"):
+            monkeypatch.setattr(module, "get_user_client", _get_user_client)
 
 
 @pytest.fixture(autouse=True)
@@ -162,3 +197,71 @@ def raw_client(db):
     instead of re-raising them — used to pin current crash behaviour."""
     with TestClient(app_main.app, raise_server_exceptions=False) as test_client:
         yield test_client
+
+
+# --- auth override ---------------------------------------------------------
+#
+# Real JWT verification needs the project's JWT secret and (for asymmetric
+# tokens) a network JWKS fetch — neither is available offline. Instead we
+# override the FastAPI dependencies `require_user` / `optional_user` so a test
+# runs "as" a chosen user. `require_owner` depends on `require_user`, so the
+# override cascades and the real owner-gating (`is_owner`) still executes —
+# that behaviour is exercised, only the token verification is stubbed.
+
+DEFAULT_USER_ID = "11111111-1111-1111-1111-111111111111"
+DEFAULT_OWNER_ID = "22222222-2222-2222-2222-222222222222"
+
+
+def make_user(
+    *,
+    role: str = "client",
+    id: str | None = None,
+    email: str = "guest@example.com",
+    metadata: dict | None = None,
+    token: str = "test-token",
+) -> AuthUser:
+    return AuthUser(
+        id=id or (DEFAULT_OWNER_ID if role == "owner" else DEFAULT_USER_ID),
+        email=email,
+        role=role,
+        token=token,
+        claims={"user_metadata": metadata or {}},
+    )
+
+
+@pytest.fixture
+def auth():
+    """Install auth-dependency overrides. Returns a setter to choose the current
+    user::
+
+        auth()                       # default: a signed-in client
+        auth(role="owner")           # a signed-in owner
+        auth(email="a@b.com")        # a specific client
+        auth(anon=True)              # no user -> require_user yields 401
+
+    `require_owner` runs for real against whatever user is set.
+    """
+    from fastapi import HTTPException
+
+    state: dict[str, AuthUser | None] = {"user": make_user()}
+
+    def _require_user() -> AuthUser:
+        user = state["user"]
+        if user is None:
+            raise HTTPException(401, "Missing bearer token.")
+        return user
+
+    def _optional_user() -> AuthUser | None:
+        return state["user"]
+
+    app_main.app.dependency_overrides[require_user] = _require_user
+    app_main.app.dependency_overrides[optional_user] = _optional_user
+
+    def _set(anon: bool = False, **kwargs) -> AuthUser | None:
+        state["user"] = None if anon else make_user(**kwargs)
+        return state["user"]
+
+    yield _set
+
+    app_main.app.dependency_overrides.pop(require_user, None)
+    app_main.app.dependency_overrides.pop(optional_user, None)
