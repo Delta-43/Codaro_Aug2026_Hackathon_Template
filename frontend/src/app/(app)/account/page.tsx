@@ -1,18 +1,24 @@
 "use client";
 
-// Tab 5 — Account. Full profile editing (display name, timezone), stubbed
-// payment row, and help/version land in Phase 8. The demo panel is wired now
-// because it only needs Button + context and makes the whole app demoable
-// across verticals immediately.
+/**
+ * Tab 5 — Account. Profile editing (name / email / timezone via updateUser),
+ * an identity-only note (no password auth in this app), a stubbed payment row,
+ * the demo panel (vertical switch + reseed), and a help/version footer.
+ */
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { CreditCard } from "lucide-react";
 import { useApp } from "@/context/app-context";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/skeleton";
+import { ProfileForm } from "@/components/account/profile-form";
 import { VERTICAL_IDS, VERTICALS } from "@/config/verticals";
 import type { VerticalId } from "@/types/domain";
 
+const APP_VERSION = "demo build";
+
 export default function AccountPage() {
-  const { user, verticalId, switchVertical, reseed } = useApp();
+  const { ready, user, verticalId, switchVertical, reseed } = useApp();
   const router = useRouter();
   const [pending, setPending] = useState<null | "switch" | "reset">(null);
 
@@ -58,9 +64,31 @@ export default function AccountPage() {
         </div>
       </header>
 
-      <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-        Profile editing, timezone, and payment method arrive in Phase 8.
-      </p>
+      {/* Profile */}
+      {ready && user ? (
+        <ProfileForm user={user} />
+      ) : (
+        <Skeleton className="h-72 w-full" />
+      )}
+
+      {/* Payment method (stub) */}
+      <div className="rounded-xl border border-border bg-card p-4">
+        <h2 className="text-sm font-semibold">Payment method</h2>
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="grid size-9 place-items-center rounded-lg bg-muted text-muted-foreground">
+              <CreditCard className="size-4" aria-hidden />
+            </div>
+            <p className="text-sm text-muted-foreground">No payment method on file</p>
+          </div>
+          <Button variant="outline" size="sm" isDisabled>
+            Add
+          </Button>
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">
+          Payments are out of scope for this demo — bookings are confirmed without charge.
+        </p>
+      </div>
 
       {/* Demo panel */}
       <div className="rounded-xl border border-border bg-card p-4">
@@ -96,6 +124,12 @@ export default function AccountPage() {
           Provider-side availability management is planned for a later iteration.
         </p>
       </div>
+
+      {/* Help / version */}
+      <footer className="flex items-center justify-between gap-3 px-1 text-xs text-muted-foreground">
+        <span>Codaro · {APP_VERSION}</span>
+        <span>State is in-memory — a refresh resets to seed.</span>
+      </footer>
     </section>
   );
 }

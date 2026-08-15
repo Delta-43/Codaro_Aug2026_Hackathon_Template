@@ -6,12 +6,20 @@ Demo-ready, mock-data-driven booking & scheduling frontend (Next.js 14 App
 Router, Tailwind, shadcn/ui). Consumed by hackathon judges (working demo) and
 the backend team (typed data contract + a single API module they later swap
 for HTTP). Runtime state is in-memory only; a hard refresh resets to seed.
-**Current phase: 2 complete** — data contract, API seam, mock store, three
-vertical seeds, plus the responsive app shell (bottom tabs / left drawer),
-the five routes, and the app-wide context (vertical + user + locked-in
-provider). The Account demo panel (vertical switcher + reset) is wired early.
-Feature UI for tabs 1–4 (Phases 3–7) is pending the shadcn primitives being
-added via CLI.
+**Current phase: 8 complete** — contract, API seam, mock store, three seeds,
+responsive shell, app-wide context, and all five tabs: **Search**, **Provider**,
+**Calendar** (full Month/Week/Day booking flow), **Tab 4 Bookings** (Upcoming/
+Past list, detail, reschedule, cancel, review — Phase 7), and **Tab 5 Account**
+(profile editing via `updateUser` + timezone, payment stub, demo panel —
+Phase 8). The whole click path — search → provider → calendar → book →
+reschedule/cancel/review — was run end-to-end against `next dev` and verified.
+Remaining: polish/a11y (9) and demo hardening (10).
+
+Feature components are built with `Button` (from the shadcn kit) plus local,
+token-styled elements (`components/modal.tsx`, `skeleton.tsx`, `avatar-img.tsx`)
+because only `button` has been added via CLI so far. Swapping in shadcn
+`Card`/`Input`/`Dialog`/etc. later is a localized change — no component imports
+a primitive that doesn't exist, so the build stays green.
 
 The app lives under `frontend/src`. The previous backend-integrated frontend
 (`app/` + `lib/`, config-driven from `GET /config`) was retired into
@@ -154,9 +162,9 @@ resetDemoData(): Promise<void>
 1. **`lucide-react ^1.31.0` — verify it resolves on install.** Historically
    lucide-react is 0.x; an unresolvable pin breaks `npm install` for the team.
    (Tailwind v3/v4 question is now resolved → v4; see Architecture Decisions.)
-2. **No Node/Docker in the build sandbox** — I cannot run `next dev`/`next build`
-   here to prove the shell renders. Code is authored type-correct; someone with
-   the docker toolchain should run `make start` to confirm the build.
+2. ~~**No Node/Docker in the build sandbox**~~ — Resolved: `next build` passes
+   clean (all 9 routes) and the app was run under `next dev` and clicked through
+   end-to-end (list → detail → reschedule commit → cancel → profile save).
 3. Currency/locale per vertical — keep EUR, or localize?
 
 ## 7. Demo Script
@@ -185,3 +193,42 @@ scaffold only — the click path is not yet runnable end to end.
   purposeful empty states on tabs 2–3; Account demo panel wired (vertical
   switch + reset). UI split: primitives added via shadcn CLI by the human;
   Claude builds shell + features on top.
+- **2026-08-15 — Phase 3:** Tab 1 Search — debounced text/location + category
+  chips (`searchProviders`), "Have a provider code?" (`getProviderByCode`),
+  demo QR scanner (no camera; mock targets resolve via code), followed pinned +
+  highlighted, provider preview modal with optimistic Follow + Open. Four states
+  throughout. New: `components/search/*`, `components/modal.tsx`,
+  `hooks/use-debounced-value.ts`, `hooks/use-follow.ts`, `lib/geo.ts`.
+- **2026-08-15 — Phase 4:** Tab 2 Provider — cover/avatar/rating/location,
+  Follow toggle, switch-provider, bio, external links, services list (duration ·
+  price · spots-per-session for shared_capacity). Selecting a service → active +
+  calendar; unit_selection opens `components/provider/resource-picker.tsx`
+  (units + "Any available unit") first.
+- **2026-08-15 — Phase 5:** Tab 3 Calendar — `lib/calendar.ts` (tz-correct week/
+  month math), `components/calendar/*` (zoom control, week/day/month views,
+  density dots, slot-state pills). Navigation clamps at the current period.
+  Browse-only; `Slot.status` from the API drives every pill.
+- **2026-08-15 — Phase 6:** booking flow — `components/booking/*`. Single-slot
+  services confirm on tap; range services build a contiguous span (validated
+  inline via a commit-window availability refetch) with a running total;
+  shared_capacity gets a party stepper capped at remaining. Confirm screen
+  (full details + policy) → `createBooking` → result screen with reference.
+  SLOT_UNAVAILABLE/CAPACITY_EXCEEDED → banner + availability refresh, selection
+  cleared, user stays on the calendar. `reloadKey` added to CalendarView.
+- **2026-08-15 — Phase 7:** Tab 4 Bookings — `app/(app)/bookings/page.tsx`
+  (Upcoming/Past segmented list; provider/service names resolved once per list
+  since bookings carry only ids) and `bookings/[id]/page.tsx` (client loader).
+  New `components/booking/{booking-card,status-badge,booking-detail,cancel-dialog,
+  reschedule-flow,review-form}`. Full lifecycle: **reschedule** (calendar pinned
+  to the booking's own resource + party size, atomic commit via
+  `rescheduleBooking`, records `changeHistory`; CUTOFF_PASSED bubbles back to
+  detail, SLOT_UNAVAILABLE refreshes and re-picks), **cancel** (confirm dialog on
+  the shared `Modal`), and **review** (1–5 stars + note, completed only). Cutoff
+  greys out actions client-side; the backend stays authority and its ApiError
+  messages are shown verbatim. Added `formatBookingWhen` to `lib/format` (uses
+  `endUtc − 1ms` so full-day spans don't read one day long).
+- **2026-08-15 — Phase 8:** Tab 5 Account — `components/account/profile-form.tsx`
+  edits display name / email / timezone through `updateUser` (Save enabled only
+  when dirty + valid; changing timezone re-renders every stored instant in the
+  new wall clock without touching state). Added a payment-method stub row and a
+  help/version footer; the demo panel (vertical switch + reseed) stays as-is.

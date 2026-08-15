@@ -1,14 +1,15 @@
 "use client";
 
-// Tab 3 — Calendar / availability. Operates only on the locked-in provider &
-// service. Empty states guide the user forward; the month/week/day views,
-// density, and selection land in Phases 5–6.
+// Tab 3 — Calendar / availability + booking. Browsable Month · Week · Day with
+// density and slot states; selecting availability runs the confirm → create →
+// result flow (Phase 6).
 import { CalendarDays } from "lucide-react";
 import { useApp } from "@/context/app-context";
 import { EmptyState } from "@/components/empty-state";
+import { BookingFlow } from "@/components/booking/booking-flow";
 
 export default function CalendarPage() {
-  const { activeProvider, activeService, vertical } = useApp();
+  const { activeProvider, activeService, activeResource, user, vertical } = useApp();
 
   if (!activeProvider) {
     return (
@@ -34,14 +35,16 @@ export default function CalendarPage() {
     );
   }
 
+  const tz = user?.timezone ?? "UTC";
+
   return (
-    <section className="py-6">
-      <h1 className="text-xl font-semibold tracking-tight">{activeService.name}</h1>
-      <p className="mt-1 text-sm text-muted-foreground">{activeProvider.name}</p>
-      <p className="mt-6 rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-        Month · Week · Day availability, density, and slot selection arrive in
-        Phases 5–6.
-      </p>
+    <section className="py-4">
+      <BookingFlow
+        provider={activeProvider}
+        service={activeService}
+        resource={activeResource}
+        tz={tz}
+      />
     </section>
   );
 }

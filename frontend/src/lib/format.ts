@@ -85,6 +85,27 @@ export function formatSpan(slotCount: number, slotDurationMinutes: number): stri
   return formatDuration(slotCount * slotDurationMinutes);
 }
 
+/**
+ * One-line "when" summary for a booking span. Same local day → date + time
+ * range with zone; multi-day → date range. `endUtc` is exclusive (the instant
+ * the last slot ends), so the last calendar day is `endUtc − 1ms` — this keeps
+ * full-day slots from reading one day long.
+ */
+export function formatBookingWhen(startUtc: string, endUtc: string, timeZone: string): string {
+  const lastInstant = new Date(ms(endUtc) - 1).toISOString();
+  const sameDay = formatDate(startUtc, timeZone) === formatDate(lastInstant, timeZone);
+  if (sameDay) {
+    return `${formatDate(startUtc, timeZone, { weekday: true })} · ${formatTimeRange(
+      startUtc,
+      endUtc,
+      timeZone,
+    )} ${zoneAbbrev(startUtc, timeZone)}`;
+  }
+  return `${formatDate(startUtc, timeZone, { weekday: true })} – ${formatDate(lastInstant, timeZone, {
+    weekday: true,
+  })}`;
+}
+
 /** Hours from now until `iso` (negative if past). */
 export function hoursUntil(iso: string): number {
   return (ms(iso) - Date.now()) / 3_600_000;
