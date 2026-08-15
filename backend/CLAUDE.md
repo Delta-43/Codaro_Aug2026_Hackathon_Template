@@ -31,8 +31,11 @@ routers. See root [CLAUDE.md](../CLAUDE.md) for the overall architecture and
   `supabase/schema.sql` is frozen at pivot time.
 - **A new business rule = one config key in `domain.config.json` + one
   small validator in `rules.py`.** Don't scatter rule logic across routers.
-- **Users have no passwords.** Identify/track by `client_email` /
-  `client_id` only.
+- **Identity comes from Supabase Auth, not the request body.** Verify the
+  `Authorization: Bearer <jwt>` token and read the user (`sub`, `email`) from
+  the verified claims. `client_email` stays the stored booking owner, but it's
+  populated from the token rather than trusted from the payload. (Being wired
+  on this branch — see **Auth** below; until then the body is still trusted.)
 - **`bookings.history` is append-only** — every status change appends an
   entry, never overwrites the array.
 - **Single-row lookups go through `db.maybe_row()`,** not a bare
@@ -107,10 +110,13 @@ def apply_rules(event: str, ctx: dict) -> None:
   when absent, and defaults `capacity` from `rules.maxBookingsPerSlot`
   (same as `seed.py` — no magic literals).
 
-## Owner API (term-neutral, no auth)
+## Owner API (term-neutral, role-gated)
 
-The owner/client split is a UI concern (`terms.admin` labels it); the
-backend takes an `actor` flag, never credentials:
+The owner/client split stays term-neutral (`terms.admin` / `terms.client`
+label it). Endpoints take an `actor` today; on this branch that unchecked flag
+is being replaced by the **verified role** from the Supabase Auth token, so
+owner endpoints require an authenticated owner rather than trusting a body
+value (see **Auth** below). The endpoint shapes are unchanged:
 
 - `PATCH /resources/{id}` — partial update (`model_dump(exclude_none=True)`);
   validate `metadata` if present.
@@ -130,12 +136,38 @@ backend takes an `actor` flag, never credentials:
   occupancy_rate, bookings_by_status}` where `bookings_by_status` is
   aggregated from the rows (a `Counter`), never a hardcoded status list.
 
+## Auth (Supabase Auth)
+
+Added on branch `16-auth-system`; reverses the engine's original "no auth"
+stance. Target design:
+
+- **Supabase issues the JWT** (email/password). The backend verifies the
+  `Authorization: Bearer <token>` header against Supabase's JWT secret / JWKS
+  and reads the user from the verified claims (`sub` → user id, `email`).
+- **`require_user` / `require_owner` FastAPI dependencies** gate protected
+  routes: client endpoints need any authenticated user, owner endpoints need
+  the owner role. This replaces the unchecked `actor` body flag.
+- **Roles stay config-neutral:** owner vs client maps to `terms.admin` /
+  `terms.client`; store the role in Supabase user `app_metadata` or a
+  `profiles` row — never a hardcoded email allowlist.
+- **`client_email` becomes derived,** set from the verified token instead of
+  trusted from the body, so booking ownership no longer relies on the caller
+  being honest.
+- Keep the **service-key** Supabase client for schema/seed and trusted server
+  work; per-user reads that must respect RLS should carry the user's token
+  (the service key bypasses RLS). Note the tradeoff in code when you wire it.
+
+Status on this branch: documented direction, **not yet implemented** in
+`app/`. Update this section and `## Current state` as endpoints get gated.
+
 ## Don't
 
 - Touch `supabase/schema.sql` — frozen; analytics and aggregates are
   computed in Python, not new views.
-- Add auth, passwords, JWTs, or role tables — `actor` flag +
-  `client_email` only.
+- Hand-roll auth — custom password hashing, bespoke JWT signing, or a parallel
+  users table. Auth is **Supabase Auth**: verify its JWT, read roles from the
+  token / `profiles`; don't reinvent it. (This reverses the previous "no auth"
+  rule — this branch adds Supabase Auth.)
 - Break the frontend contract in `frontend/lib/api.ts`: keep existing
   paths/params, keep POST endpoints returning PostgREST row **lists**;
   only add.
@@ -163,6 +195,9 @@ the authoritative gap list). What's implemented:
   all no-auth (`actor` flag only).
 - **Infra:** startup via FastAPI lifespan; `POST /config/reload` for the
   instant pivot.
+- **Auth:** not implemented yet. Supabase Auth is the target for this branch
+  (`16-auth-system`) — see **Auth** above; `client_email` identity is still
+  trusted from the request body until it lands.
 
 Verified live against a real Supabase project (schema setup, `slot_occupancy`
 view, cascade delete) in addition to the offline suite. The 13 formerly

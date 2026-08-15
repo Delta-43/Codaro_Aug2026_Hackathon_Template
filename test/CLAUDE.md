@@ -102,6 +102,13 @@ and response field the UI expects actually exists on the FastAPI app.
 - Config-driven behavior — `GET /config` reflects `domain.config.json`, and
   rule values (e.g. `cancellationWindowHours`) are actually enforced, not
   just returned.
+- **Auth (new, branch `16-auth-system`)** — once Supabase Auth is wired:
+  protected endpoints reject a missing/invalid JWT (401), owner endpoints
+  reject a non-owner role (403), and identity is read from the verified token
+  rather than the request body. **Not covered yet** — the current suite runs
+  the engine in its pre-auth, `client_email`-from-body form. `test-writer` will
+  need to fake/stub JWT verification the way it already fakes the Supabase
+  client (see `fakes.FakeSupabase`).
 
 ## Current state
 

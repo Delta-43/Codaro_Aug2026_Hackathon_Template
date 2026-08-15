@@ -13,7 +13,7 @@ by the config the backend serves at `GET /config`. See root
 |------|-----------------|
 | `lib/domain.tsx` | `fetchConfig()`, `<DomainProvider>`, `useDomain()`, `<Term>` |
 | `lib/api.ts` | Typed client for `/resources` `/slots` `/bookings` (+ `/slots/occupancy`, owner CRUD + `analytics`), plus `ApiError` |
-| `lib/session.ts` | Remembers the claimed email in `localStorage` (identity only, no auth) |
+| `lib/session.ts` | Current identity helper (claimed email in `localStorage`) — being replaced by the Supabase Auth session on this branch; see Auth |
 | `lib/format.ts` | `formatSlotTime()` (UTC → viewer's timezone), `hoursUntil()` |
 | `app/layout.tsx` | Wraps the app in `<DomainProvider>` |
 | `app/page.tsx` | Landing page — resource showcase + email identify → `/dashboard` |
@@ -39,8 +39,10 @@ the backend stays the authority.
 - **Every limit/number comes from `useDomain().rules`,** never a literal
   (e.g. don't hardcode "24 hours" for cancellation — read
   `rules.cancellationWindowHours`).
-- **No password auth.** "Login" is just identifying by email/userid — there
-  is no password field or auth provider to wire up.
+- **Auth is Supabase Auth** (added on this branch). Use the Supabase JS client
+  for email/password sign-up + login, and attach the session's access token as
+  `Authorization: Bearer <jwt>` on every backend call. Don't hand-roll a
+  password flow. (Reverses the engine's original "no password auth" rule.)
 - Use `NEXT_PUBLIC_API_BASE` (see `.env.local.example`) for the backend URL,
   never a hardcoded `localhost:8000`.
 
@@ -48,8 +50,9 @@ the backend stays the authority.
 
 1. **Landing page** — showcase resources. *Built* (`app/page.tsx`): resource
    cards with an open-slot count, plus the identify form.
-2. **Login / identify** — email or userid only. *Built* (on the landing page,
-   backed by `lib/session.ts`).
+2. **Login / sign-up** — Supabase Auth (email/password). *In progress on this
+   branch* — the current landing-page email identify (`lib/session.ts`) is the
+   placeholder being replaced. See **Auth** below.
 3. **Customer dashboard** — view available slots, book, reschedule, cancel.
    *Built* (`app/dashboard/page.tsx`).
 4. **Owner dashboard** — *Built* (`app/owner/page.tsx`): create
@@ -65,6 +68,24 @@ the backend stays the authority.
 Each of these should stay config-driven: e.g. the owner/customer split uses
 `terms.admin` / `terms.client` for labeling, not hardcoded "Owner"/"Customer"
 strings.
+
+## Auth (Supabase Auth)
+
+Added on branch `16-auth-system`, replacing the email-only identity. Target:
+
+- Use `@supabase/supabase-js` (or `@supabase/ssr`) with
+  `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` for
+  email/password sign-up + login; Supabase stores the session.
+- In `lib/api.ts`, attach the session access token as
+  `Authorization: Bearer <jwt>` on every backend call so the backend can verify
+  the user.
+- Gate `app/dashboard` (client) and `app/owner` (owner) on an authenticated
+  session; owner-only UI checks the role from the session, still labelled via
+  `terms.admin` / `terms.client` (no hardcoded "Owner"/"Customer").
+- `lib/session.ts` (localStorage email) is the placeholder to retire once the
+  Supabase session is the source of truth.
+
+Status: documented direction; not wired in `app/` yet.
 
 ## Testing
 

@@ -5,7 +5,7 @@
 A generic booking engine (`resource → slot → booking`) built so a completely
 different niche can be adopted via a single config edit instead of a rewrite.
 Stack: **Next.js 14 + Tailwind** frontend, **FastAPI** backend, hosted
-**Supabase (Postgres)**. See `README.md` for the full run instructions and
+**Supabase (Postgres + Auth)**. See `README.md` for the full run instructions and
 `Project_Summary.md` for the original brief.
 
 The pivot mechanism: `domain.config.json` is the single source of truth for
@@ -17,6 +17,30 @@ goes in each table's `metadata jsonb` column — no migrations at pivot time.
 `supabase/schema.sql` is treated as frozen/idempotent once the event starts.
 On the backend, the pivot is enforced by an event-keyed rules registry and a
 config-driven `metaFields` validator — see [backend/CLAUDE.md](backend/CLAUDE.md).
+
+## Auth (Supabase Auth)
+
+Being added on this branch (`16-auth-system`), and it reverses the engine's
+original "no auth" stance. Identity moves from *"trust the `client_email` in
+the request body"* to **Supabase Auth**: Supabase handles email/password
+sign-up + login and issues a JWT. The frontend attaches that JWT as
+`Authorization: Bearer <token>`; the backend verifies it and reads the user
+(`sub`, `email`) from the token instead of trusting the body.
+
+- **Roles stay config-driven.** The owner/client split keeps using
+  `terms.admin` / `terms.client`; the existing `actor` concept becomes a
+  *verified* role (from the token / a `profiles` row) rather than an unchecked
+  flag.
+- **Per-user isolation via Supabase RLS** (see
+  [supabase/CLAUDE.md](supabase/CLAUDE.md)): clients see only their own
+  bookings, owners manage only their own resources.
+- Auth is a cross-cutting layer on top of the engine — it does **not** change
+  the pivot design. `domain.config.json` still owns vocabulary/rules; no domain
+  term or magic number moves into auth code.
+
+This documents the target design; each subdir's `CLAUDE.md` records what's
+actually implemented so far (as of this branch: nothing in code yet — docs
+first).
 
 ## Repo layout
 

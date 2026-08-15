@@ -18,8 +18,13 @@ container.
   goes into each table's `metadata jsonb` column, never a new migration or
   column. That's the whole point of the pivot design — see root
   [CLAUDE.md](../CLAUDE.md).
-- **No password storage.** Users (clients) are identified by
-  `client_email` / `client_id` only — there is no auth/password table.
+- **No custom password table.** Auth is **Supabase Auth** (added on branch
+  `16-auth-system`): Supabase owns the `auth.users` table and password hashing,
+  so never create a parallel users/passwords table here. Booking rows still key
+  ownership by `client_email` / `client_id`, now populated from the verified
+  auth user rather than trusted input. If you need per-user profile data (e.g.
+  role), add a `profiles` table keyed by `auth.users.id`, kept idempotent like
+  everything else.
 - **`bookings.history`** is append-only jsonb: every status change
   (confirm/cancel/reschedule) should be pushed onto it, not overwrite it, so
   the full history survives.
@@ -32,6 +37,15 @@ isolation is needed, add Supabase RLS policies here — keep them additive
 and idempotent (`drop policy if exists` + `create policy` is fine since
 policies aren't covered by the "no DROP" rule, which is about table/column
 structure, not policies).
+
+With Supabase Auth on this branch, RLS becomes the enforcement layer for
+per-user isolation: policies keyed on `auth.uid()` so a client sees/modifies
+only their own bookings and an owner only their own resources. Add these here
+(idempotent `drop policy if exists` + `create policy`) when auth is wired.
+**Caveat:** the backend currently uses the Supabase **service key**, which
+**bypasses RLS** — policies only bite for requests made with the user's token,
+so coordinate with `backend/CLAUDE.md`'s **Auth** section on which reads carry
+the user JWT. Not yet added — the schema still has no policies.
 
 ## Testing
 
