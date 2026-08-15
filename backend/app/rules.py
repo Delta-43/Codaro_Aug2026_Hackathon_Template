@@ -120,3 +120,46 @@ def check_capacity(booked_count: int, capacity: int) -> None:
         get_config()["rules"]["maxBookingsPerSlot"],
         {"booked_count": booked_count, "capacity": capacity},
     )
+
+
+# -- per-service rules (frontend contract) -------------------------------
+#
+# The new frontend models rules PER SERVICE (slot duration, min/max slots per
+# booking, cancellation cutoff, price/currency, booking model). A service's own
+# column wins; where it is null/absent, `domain.config.json` `rules` supplies the
+# global default — so config becomes "vocabulary + defaults" rather than "the
+# rules". This is the single place that merge happens; routers read the resolved
+# dict, never raw service columns, so the fallback behaviour lives in one spot.
+
+# service column -> (global config key or None, hard default)
+_SERVICE_RULE_MAP = {
+    "slotDurationMinutes": ("slot_duration_minutes", "slotDurationMinutes", 30),
+    "cancellationCutoffHours": ("cancellation_cutoff_hours", "cancellationWindowHours", 24),
+    "minSlotsPerBooking": ("min_slots_per_booking", None, 1),
+    "maxSlotsPerBooking": ("max_slots_per_booking", None, 1),
+    "priceMinorUnits": ("price_minor_units", None, 0),
+    "currency": ("currency", None, "EUR"),
+    "bookingModel": ("booking_model", None, "one_to_one"),
+}
+
+
+def effective_service_rules(service: dict | None) -> dict:
+    """Resolve a service's effective rule values: its own column, else the global
+    `domain.config.json` default, else a hard fallback. Keys are the frontend's
+    camelCase names."""
+    svc = service or {}
+    g = get_config().get("rules", {})
+    out: dict = {}
+    for name, (col, global_key, default) in _SERVICE_RULE_MAP.items():
+        value = svc.get(col)
+        if value is None and global_key is not None:
+            value = g.get(global_key)
+        out[name] = value if value is not None else default
+    return out
+
+
+def within_cutoff(slot_starts_at: str | datetime, cutoff_hours, now: datetime | None = None) -> bool:
+    """True when `now` is inside the cancellation/change cutoff of a slot start
+    (the point past which a client may no longer cancel/reschedule)."""
+    now = now or datetime.now(timezone.utc)
+    return now >= parse_ts(slot_starts_at) - timedelta(hours=cutoff_hours)

@@ -14,7 +14,7 @@ which returns a list.
 from __future__ import annotations
 
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 
@@ -29,6 +29,7 @@ from app.errors import (
     api_error,
 )
 from app.models import BookingCreateReq, ReviewReq, RescheduleReq
+from app.rules import effective_service_rules, within_cutoff
 from app.serialize import _parse, effective_booking_status, iso_utc, serialize_booking
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
@@ -105,7 +106,7 @@ def _ordered_span(slot_ids: list[str], time_map: dict[str, tuple]) -> tuple[list
 
 
 def _resolve_selection(
-    service: dict,
+    rules: dict,
     occ: dict[str, dict],
     slot_ids: list[str],
     resource_id: str,
@@ -113,8 +114,9 @@ def _resolve_selection(
     credit: set[str],
 ) -> list[dict]:
     """Validate a slot selection at commit time and return the occupancy rows in
-    start order. `credit` is the set of slots the booking already holds (party
-    size credited back, for reschedule overlap). Raises the appropriate ApiError."""
+    start order. `rules` is the resolved per-service rule dict
+    (`effective_service_rules`); `credit` is the set of slots the booking already
+    holds (party size credited back, for reschedule overlap). Raises ApiError."""
     if not slot_ids:
         raise api_error(INVALID_RANGE, "Choose at least one time.")
 
@@ -127,7 +129,7 @@ def _resolve_selection(
             raise api_error(INVALID_RANGE, "All times must be for the same option.")
         rows.append(r)
 
-    lo, hi = service["min_slots_per_booking"], service["max_slots_per_booking"]
+    lo, hi = rules["minSlotsPerBooking"], rules["maxSlotsPerBooking"]
     n = len(rows)
     if n < lo or n > hi:
         if hi == 1:
@@ -239,18 +241,19 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
         raise api_error(NOT_FOUND, "Authenticated user has no email to book under.")
     db = get_supabase()
     service = _load_service(db, payload.service_id)
+    rules = effective_service_rules(service)
     party = max(1, int(payload.party_size or 1))
 
     occ = _occ_by_id(db, payload.slot_ids)
-    rows = _resolve_selection(service, occ, payload.slot_ids, payload.resource_id, party, credit=set())
+    rows = _resolve_selection(rules, occ, payload.slot_ids, payload.resource_id, party, credit=set())
     ordered = [r["slot_id"] for r in rows]
     start, end = rows[0]["starts_at"], rows[-1]["ends_at"]
 
     metadata = {
         "party_size": party,
         "reference": _reference(),
-        "price_minor_units": service["price_minor_units"] * len(rows) * party,
-        "currency": service["currency"],
+        "price_minor_units": rules["priceMinorUnits"] * len(rows) * party,
+        "currency": rules["currency"],
         "provider_id": service["provider_id"],
         "service_id": service["id"],
         "resource_id": payload.resource_id,
@@ -285,20 +288,20 @@ def reschedule_booking(
     booking = _load_own(uc, booking_id)
     md = dict(booking.get("metadata") or {})
     service = _load_service(db, md.get("service_id"))
+    rules = effective_service_rules(service)
 
     cur_ids, cur_start, cur_end = _span_of(db, booking, uc)
     if effective_booking_status(booking["status"], cur_end) != "confirmed":
         raise api_error(CUTOFF_PASSED, "Only upcoming bookings can be moved.")
-    if not user.is_owner:
-        cutoff = service["cancellation_cutoff_hours"]
-        if cur_start and _now() >= _parse(cur_start) - timedelta(hours=cutoff):
-            raise api_error(CUTOFF_PASSED, f"Changes closed — within {cutoff}h of the start.")
+    cutoff = rules["cancellationCutoffHours"]
+    if not user.is_owner and cur_start and within_cutoff(cur_start, cutoff):
+        raise api_error(CUTOFF_PASSED, f"Changes closed — within {cutoff}h of the start.")
 
     party = int(md.get("party_size", 1))
     resource_id = md.get("resource_id")
     occ = _occ_by_id(db, payload.new_slot_ids)
     rows = _resolve_selection(
-        service, occ, payload.new_slot_ids, resource_id, party, credit=set(cur_ids)
+        rules, occ, payload.new_slot_ids, resource_id, party, credit=set(cur_ids)
     )
     ordered = [r["slot_id"] for r in rows]
     new_start, new_end = rows[0]["starts_at"], rows[-1]["ends_at"]
@@ -310,7 +313,7 @@ def reschedule_booking(
     ).execute()
 
     md["slot_ids"] = ordered
-    md["price_minor_units"] = service["price_minor_units"] * len(rows) * party
+    md["price_minor_units"] = rules["priceMinorUnits"] * len(rows) * party
     md.setdefault("change_history", []).append(
         {
             "at_utc": iso_utc(_now()),
@@ -346,9 +349,9 @@ def cancel_booking(booking_id: str, user: AuthUser = Depends(require_user)):
         raise api_error(CUTOFF_PASSED, "Completed bookings can't be cancelled.")
     if not user.is_owner:
         md = booking.get("metadata") or {}
-        service = _load_service(db, md.get("service_id"))
-        cutoff = service["cancellation_cutoff_hours"]
-        if cur_start and _now() >= _parse(cur_start) - timedelta(hours=cutoff):
+        rules = effective_service_rules(_load_service(db, md.get("service_id")))
+        cutoff = rules["cancellationCutoffHours"]
+        if cur_start and within_cutoff(cur_start, cutoff):
             raise api_error(CUTOFF_PASSED, f"Changes closed — within {cutoff}h of the start.")
 
     md = dict(booking.get("metadata") or {})
