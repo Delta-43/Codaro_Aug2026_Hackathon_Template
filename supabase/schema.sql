@@ -37,6 +37,86 @@ create index if not exists idx_slots_resource_id on slots(resource_id);
 create index if not exists idx_bookings_slot_id on bookings(slot_id);
 create index if not exists idx_bookings_client_email on bookings(client_email);
 
+-- ===========================================================================
+-- Extended entities: providers, services, multi-slot bookings, reviews, follows
+-- (added for the frontend wiring). NEW tables only, idempotent like everything
+-- else — the three base tables above stay frozen; their new domain fields live
+-- in `metadata` (resources: service_id/capacity/active/attributes/image_url;
+-- slots: service_id; bookings: party_size/reference/price_minor_units/currency/
+-- provider_id/service_id/resource_id/change_history/slot_ids).
+-- ===========================================================================
+
+-- A provider is the business/tenant (labelled via terms.admin). Presentational
+-- fields (avatar/cover/tagline/bio/location/links) live in metadata; `rating`
+-- and `reviewCount` are DERIVED from `reviews`, never stored.
+create table if not exists providers (
+  id uuid primary key default gen_random_uuid(),
+  owner_id uuid references auth.users(id) on delete set null,
+  name text not null,
+  public_code text unique,          -- looked up by code entry / QR
+  category_id text,                 -- vertical category (engine-neutral string)
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+-- A service is a bookable offering under a provider. The rules the frontend
+-- models PER SERVICE live here as columns (duration/min-max/cutoff/price);
+-- domain.config.json now holds only global defaults + vocabulary.
+create table if not exists services (
+  id uuid primary key default gen_random_uuid(),
+  provider_id uuid not null references providers(id) on delete cascade,
+  name text not null,
+  description text,
+  booking_model text not null default 'one_to_one', -- unit_selection | one_to_one | shared_capacity
+  slot_duration_minutes int not null default 30,
+  min_slots_per_booking int not null default 1,
+  max_slots_per_booking int not null default 1,
+  price_minor_units int not null default 0,
+  currency text not null default 'EUR',
+  cancellation_cutoff_hours int not null default 24,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+-- Multi-slot bookings: a booking links to one-or-more slots. `bookings.slot_id`
+-- stays populated (the first slot) for compatibility; this join table is the
+-- full set and the basis for occupancy.
+create table if not exists booking_slots (
+  booking_id uuid not null references bookings(id) on delete cascade,
+  slot_id uuid not null references slots(id) on delete cascade,
+  primary key (booking_id, slot_id)
+);
+
+-- One review per completed booking; provider rating/reviewCount are computed
+-- from these rows.
+create table if not exists reviews (
+  id uuid primary key default gen_random_uuid(),
+  booking_id uuid not null references bookings(id) on delete cascade,
+  provider_id uuid not null references providers(id) on delete cascade,
+  rating int not null,
+  text text,
+  created_at timestamptz not null default now()
+);
+
+-- A user follows a provider. user_id is auth.users(id).
+create table if not exists follows (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  provider_id uuid not null references providers(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, provider_id)
+);
+
+create index if not exists idx_services_provider_id on services(provider_id);
+create index if not exists idx_booking_slots_slot_id on booking_slots(slot_id);
+create index if not exists idx_booking_slots_booking_id on booking_slots(booking_id);
+create index if not exists idx_reviews_provider_id on reviews(provider_id);
+create index if not exists idx_reviews_booking_id on reviews(booking_id);
+create index if not exists idx_follows_user_id on follows(user_id);
+
+-- Occupancy sums PARTY SIZE across confirmed bookings that include each slot
+-- (via booking_slots), so shared-capacity party sizes and multi-slot bookings
+-- both count correctly. Only 'confirmed' holds capacity (cancelled/rescheduled
+-- release it). party_size defaults to 1 when absent from metadata.
 create or replace view slot_occupancy as
 select
   s.id as slot_id,
@@ -44,10 +124,13 @@ select
   s.starts_at,
   s.ends_at,
   s.capacity,
-  count(b.id) filter (where b.status = 'confirmed') as booked_count,
-  s.capacity - count(b.id) filter (where b.status = 'confirmed') as available_count
+  coalesce(sum(coalesce((b.metadata->>'party_size')::int, 1))
+           filter (where b.status = 'confirmed'), 0) as booked_count,
+  s.capacity - coalesce(sum(coalesce((b.metadata->>'party_size')::int, 1))
+           filter (where b.status = 'confirmed'), 0) as available_count
 from slots s
-left join bookings b on b.slot_id = s.id
+left join booking_slots bs on bs.slot_id = s.id
+left join bookings b on b.id = bs.booking_id
 group by s.id, s.resource_id, s.starts_at, s.ends_at, s.capacity;
 
 -- ===========================================================================
@@ -199,3 +282,66 @@ create policy bookings_update_own_or_owner on bookings
 drop policy if exists bookings_delete_owner on bookings;
 create policy bookings_delete_owner on bookings
   for delete using (public.is_owner());
+
+-- ===========================================================================
+-- RLS for the extended entities (same model: public read for discovery, owner
+-- writes for provider/service, per-user writes for bookings' children/follows).
+-- ===========================================================================
+alter table providers     enable row level security;
+alter table services      enable row level security;
+alter table booking_slots enable row level security;
+alter table reviews       enable row level security;
+alter table follows       enable row level security;
+
+-- providers: public read (discovery/landing); an owner manages only their own.
+drop policy if exists providers_select_all on providers;
+create policy providers_select_all on providers for select using (true);
+
+drop policy if exists providers_write_own on providers;
+create policy providers_write_own on providers for all
+  using (public.is_owner() and owner_id = auth.uid())
+  with check (public.is_owner() and owner_id = auth.uid());
+
+-- services: public read; write limited to the owner of the parent provider.
+drop policy if exists services_select_all on services;
+create policy services_select_all on services for select using (true);
+
+drop policy if exists services_write_own on services;
+create policy services_write_own on services for all
+  using (public.is_owner() and exists (
+    select 1 from providers p
+    where p.id = services.provider_id and p.owner_id = auth.uid()))
+  with check (public.is_owner() and exists (
+    select 1 from providers p
+    where p.id = services.provider_id and p.owner_id = auth.uid()));
+
+-- booking_slots: visible/writable to the booking's owner (client) or any owner.
+drop policy if exists booking_slots_select on booking_slots;
+create policy booking_slots_select on booking_slots for select
+  using (exists (select 1 from bookings b where b.id = booking_id
+                 and (b.client_id = auth.uid()::text or public.is_owner())));
+
+drop policy if exists booking_slots_write on booking_slots;
+create policy booking_slots_write on booking_slots for all
+  using (exists (select 1 from bookings b where b.id = booking_id
+                 and (b.client_id = auth.uid()::text or public.is_owner())))
+  with check (exists (select 1 from bookings b where b.id = booking_id
+                 and (b.client_id = auth.uid()::text or public.is_owner())));
+
+-- reviews: public read (feeds provider ratings); a client writes a review only
+-- for their own booking.
+drop policy if exists reviews_select_all on reviews;
+create policy reviews_select_all on reviews for select using (true);
+
+drop policy if exists reviews_insert_own on reviews;
+create policy reviews_insert_own on reviews for insert
+  with check (exists (select 1 from bookings b where b.id = booking_id
+                      and b.client_id = auth.uid()::text));
+
+-- follows: a user sees and manages only their own follows.
+drop policy if exists follows_select_own on follows;
+create policy follows_select_own on follows for select using (user_id = auth.uid());
+
+drop policy if exists follows_write_own on follows;
+create policy follows_write_own on follows for all
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
