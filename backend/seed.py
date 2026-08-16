@@ -5,10 +5,14 @@ Ports `frontend/src/api/seed/*` to the backend: it turns the declarative
 DST-aware slot grids, edge-case occupancy (a blocked day, a fully-booked day, a
 one-seat-left slot), plus a demo user's seed bookings + a review + a follow.
 
-Two auth users are provisioned via the Supabase admin API:
+Auth users provisioned via the Supabase admin API:
   * the **demo user** (login below) owns the seed bookings/reviews/follows.
   * a **holds user** owns the "someone else already booked" occupancy so full /
     partial slots are real (occupancy is derived from confirmed bookings).
+  * the **owner** (`owner@codaro.app`) owns the demo provider, so the business
+    dashboard is populated; the primary service is manual-approve.
+  * a **prospect** (`prospect@codaro.app`) — a fresh client whose pending
+    request appears in the owner's Requests tab.
 
 `seed_if_empty()` runs on startup (default vertical when no providers exist);
 `seed_vertical(id)` is the destructive reseed used by `reseed.py` and the demo
@@ -37,6 +41,10 @@ DEMO_EMAIL = "demo@codaro.app"
 DEMO_PASSWORD = "Codaro-Demo-2026"
 OWNER_EMAIL = "owner@codaro.app"
 OWNER_PASSWORD = "Codaro-Owner-2026"
+# A fresh prospective client — appears in the owner's Requests tab as a new
+# member (little history), the counterpart to the established demo user.
+PROSPECT_EMAIL = "prospect@codaro.app"
+PROSPECT_PASSWORD = "Codaro-Prospect-2026"
 _HOLDS_EMAIL = "holds@codaro.app"
 _HOLDS_PASSWORD = secrets.token_urlsafe(18)
 
@@ -229,6 +237,10 @@ def seed_vertical(vertical_id: str) -> dict:
         db, OWNER_EMAIL, OWNER_PASSWORD,
         {"display_name": "Olga Owner", "timezone": tz, "verified": True, "role": "owner"},
     )
+    prospect_uid = _ensure_user(
+        db, PROSPECT_EMAIL, PROSPECT_PASSWORD,
+        {"display_name": "Pedro Prospect", "timezone": tz, "verified": False, "role": "client"},
+    )
 
     counts = {"providers": 0, "services": 0, "resources": 0, "slots": 0, "bookings": 0}
     demo_provider_id = None
@@ -236,7 +248,8 @@ def seed_vertical(vertical_id: str) -> dict:
     provider_ids: list[str] = []
 
     def add_service(
-        provider_id: str, spec: dict, resources: list[dict], owner_id: str | None = None
+        provider_id: str, spec: dict, resources: list[dict], owner_id: str | None = None,
+        auto_approve: bool = True,
     ) -> tuple[str, list[dict]]:
         svc = db.table("services").insert({
             "provider_id": provider_id,
@@ -249,7 +262,12 @@ def seed_vertical(vertical_id: str) -> dict:
             "price_minor_units": spec["priceMinorUnits"],
             "currency": currency,
             "cancellation_cutoff_hours": spec["cancellationCutoffHours"],
-            "metadata": {"image_url": tile_uri(spec["name"], spec["name"])},
+            # auto_approve rides in metadata (no column): the demo's primary
+            # service is manual-approve so the Requests tab has something to act on.
+            "metadata": {
+                "image_url": tile_uri(spec["name"], spec["name"]),
+                "auto_approve": auto_approve,
+            },
         }).execute().data[0]
         counts["services"] += 1
         service_id = svc["id"]
@@ -315,7 +333,12 @@ def seed_vertical(vertical_id: str) -> dict:
         if i == 0:
             demo_provider_id = prov["id"]
             for si, spec in enumerate(cfg["demoServices"]):
-                sid, res_rows = add_service(prov["id"], spec, spec["resources"], owner_id=owner_uid)
+                # The primary service is manual-approve so incoming requests wait
+                # in the owner's Requests tab; the rest auto-approve.
+                sid, res_rows = add_service(
+                    prov["id"], spec, spec["resources"],
+                    owner_id=owner_uid, auto_approve=si != 0,
+                )
                 if si == 0:
                     primary_service = {"id": sid, "spec": spec, "resource": res_rows[0], "resources": res_rows}
         else:
@@ -327,6 +350,12 @@ def seed_vertical(vertical_id: str) -> dict:
         counts["bookings"] += _inject_edge_cases(db, primary_service, tz, holds_uid, demo_provider_id, currency)
         counts["bookings"] += _seed_bookings(
             db, primary_service, demo_provider_id, demo_uid, DEMO_EMAIL, model, currency, tz
+        )
+        # Pending requests waiting on the owner (Requests tab): one from the
+        # established demo user, one from a fresh prospect.
+        counts["bookings"] += _seed_requests(
+            db, primary_service, demo_provider_id, model, currency,
+            [(demo_uid, DEMO_EMAIL), (prospect_uid, PROSPECT_EMAIL)],
         )
 
     # demo user follows the second provider
@@ -373,6 +402,53 @@ def _hold(db, slot, service_id, provider_id, resource_id, party, holds_uid, curr
         },
     }).execute().data[0]
     db.table("booking_slots").insert({"booking_id": booking["id"], "slot_id": slot["id"]}).execute()
+
+
+def _seed_requests(db, primary, provider_id, model, currency, requesters) -> int:
+    """Pending booking requests on the primary (manual-approve) service, so the
+    owner's Requests tab is populated. Each gets a dedicated future slot (pending
+    holds no capacity, so this never collides with real occupancy). Mirrors the
+    shape create_booking would produce, but with status 'pending'."""
+    service_id = primary["id"]
+    spec = primary["spec"]
+    resource_id = primary["resource"]["id"]
+    capacity = primary["resource"]["_capacity"]
+    dur = spec["slotDurationMinutes"]
+    price = spec["priceMinorUnits"]
+    party = 2 if model == "shared_capacity" else 1
+    now = datetime.now(timezone.utc)
+    day = timedelta(days=1)
+
+    made = 0
+    for i, (uid, email) in enumerate(requesters):
+        start = now + (4 + 3 * i) * day + timedelta(hours=2)
+        slot = _insert_dedicated_slot(db, service_id, resource_id, capacity, start, dur)
+        created = now - timedelta(hours=6 + i)
+        booking = db.table("bookings").insert({
+            "slot_id": slot["id"],
+            "client_email": email,
+            "client_id": uid,
+            "status": "pending",
+            "history": [{"status": "pending", "at": _iso(created)}],
+            "metadata": {
+                "party_size": party,
+                "reference": _reference(),
+                "price_minor_units": price * party,
+                "currency": currency,
+                "provider_id": provider_id,
+                "service_id": service_id,
+                "resource_id": resource_id,
+                "user_id": uid,
+                "slot_ids": [slot["id"]],
+                "change_history": [],
+            },
+            "created_at": _iso(created),
+        }).execute().data[0]
+        db.table("booking_slots").insert(
+            {"booking_id": booking["id"], "slot_id": slot["id"]}
+        ).execute()
+        made += 1
+    return made
 
 
 def _inject_edge_cases(db, primary, tz, holds_uid, provider_id, currency) -> int:

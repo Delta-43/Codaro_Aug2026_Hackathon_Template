@@ -16,9 +16,9 @@ from __future__ import annotations
 import secrets
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
-from app.auth import AuthUser, enforce_rls_write, require_user
+from app.auth import AuthUser, enforce_rls_write, require_owner, require_user
 from app.db import get_supabase, get_user_client, maybe_row
 from app.errors import (
     CAPACITY_EXCEEDED,
@@ -200,6 +200,16 @@ def _load_own(uc, booking_id: str) -> dict:
     return row
 
 
+def _assert_owns_booking(db, booking: dict, owner: AuthUser) -> None:
+    """Defense-in-depth: verify the owner owns the provider this booking belongs
+    to before they act on it. RLS's is_owner() lets any owner update any booking,
+    so this narrows owner actions to their own providers (403 otherwise)."""
+    provider_id = (booking.get("metadata") or {}).get("provider_id")
+    provider = maybe_row(db.table("providers").select("owner_id").eq("id", provider_id))
+    if not provider or provider.get("owner_id") != owner.id:
+        raise HTTPException(403, "You can only manage bookings for your own business.")
+
+
 def _span_of(db, booking: dict, uc) -> tuple[list[str], str | None, str | None]:
     sids = _slot_ids_map(uc, [booking["id"]]).get(booking["id"]) or (
         [booking["slot_id"]] if booking.get("slot_id") else []
@@ -221,7 +231,13 @@ def list_bookings(scope: str = "all", user: AuthUser = Depends(require_user)):
     now_iso = iso_utc(_now())
 
     def is_upcoming(b: dict) -> bool:
-        return bool(b["endUtc"] and b["endUtc"] > now_iso and b["status"] != "completed")
+        # A rejected request is not an upcoming booking even though its slot is in
+        # the future; only live statuses count as upcoming.
+        return bool(
+            b["endUtc"]
+            and b["endUtc"] > now_iso
+            and b["status"] not in ("completed", "rejected")
+        )
 
     if scope == "upcoming":
         bookings = [b for b in bookings if is_upcoming(b)]
@@ -256,6 +272,13 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
     ordered = [r["slot_id"] for r in rows]
     start, end = rows[0]["starts_at"], rows[-1]["ends_at"]
 
+    # Manual-approve services (autoApprove=false) land the booking as a pending
+    # request the owner acts on in the Requests tab; the default confirms it
+    # immediately. Pending holds no capacity (slot_occupancy counts only
+    # 'confirmed'), so capacity is re-checked at approval time.
+    auto_approve = bool((service.get("metadata") or {}).get("auto_approve", True))
+    status = "confirmed" if auto_approve else "pending"
+
     metadata = {
         "party_size": party,
         "reference": _reference(),
@@ -272,8 +295,8 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
         "slot_id": ordered[0],  # first slot, for base-table compatibility
         "client_email": user.email,
         "client_id": user.id,
-        "status": "confirmed",
-        "history": [{"status": "confirmed", "at": iso_utc(_now())}],
+        "status": status,
+        "history": [{"status": status, "at": iso_utc(_now())}],
         "metadata": metadata,
     }
     uc = get_user_client(user.token)
@@ -402,3 +425,70 @@ def review_booking(booking_id: str, payload: ReviewReq, user: AuthUser = Depends
     ).execute()
     review = maybe_row(db.table("reviews").select("*").eq("booking_id", booking_id))
     return serialize_booking(booking, slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end, review=review)
+
+
+# --- owner request decisions (approve / reject) ----------------------------
+
+
+@router.post("/{booking_id}/approve")
+def approve_booking(booking_id: str, owner: AuthUser = Depends(require_owner)):
+    """Owner approves a pending request → confirmed. Capacity is re-checked now
+    (pending holds none), so a slot that filled while the request waited fails
+    with the same SLOT_UNAVAILABLE the client would see."""
+    db = get_supabase()
+    uc = get_user_client(owner.token)
+    booking = _load_own(uc, booking_id)  # owner sees all bookings via RLS
+    _assert_owns_booking(db, booking, owner)
+    if booking["status"] != "pending":
+        raise api_error(INVALID_RANGE, "Only pending requests can be approved.")
+
+    md = dict(booking.get("metadata") or {})
+    service = _load_service(db, md.get("service_id"))
+    rules = effective_service_rules(service)
+    cur_ids, cur_start, cur_end = _span_of(db, booking, uc)
+    party = int(md.get("party_size", 1))
+
+    occ = _occ_by_id(db, cur_ids)
+    _resolve_selection(rules, occ, cur_ids, md.get("resource_id"), party, credit=set())
+
+    history = booking["history"] + [{"status": "confirmed", "at": iso_utc(_now()), "actor": "owner"}]
+    updated = (
+        uc.table("bookings")
+        .update({"status": "confirmed", "history": history})
+        .eq("id", booking_id)
+        .execute()
+        .data
+    )
+    updated = enforce_rls_write(updated, entity="booking")
+    review = _reviews_map(db, [booking_id]).get(booking_id)
+    return serialize_booking(
+        updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end, review=review
+    )
+
+
+@router.post("/{booking_id}/reject")
+def reject_booking(booking_id: str, owner: AuthUser = Depends(require_owner)):
+    """Owner declines a pending request → rejected (idempotent)."""
+    db = get_supabase()
+    uc = get_user_client(owner.token)
+    booking = _load_own(uc, booking_id)
+    _assert_owns_booking(db, booking, owner)
+    cur_ids, cur_start, cur_end = _span_of(db, booking, uc)
+
+    if booking["status"] == "rejected":  # idempotent
+        return serialize_booking(booking, slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end)
+    if booking["status"] != "pending":
+        raise api_error(INVALID_RANGE, "Only pending requests can be rejected.")
+
+    history = booking["history"] + [{"status": "rejected", "at": iso_utc(_now()), "actor": "owner"}]
+    updated = (
+        uc.table("bookings")
+        .update({"status": "rejected", "history": history})
+        .eq("id", booking_id)
+        .execute()
+        .data
+    )
+    updated = enforce_rls_write(updated, entity="booking")
+    return serialize_booking(
+        updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end
+    )
