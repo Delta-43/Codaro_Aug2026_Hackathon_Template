@@ -13,6 +13,7 @@ import { useAuth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/skeleton";
 import { ProfileForm } from "@/components/account/profile-form";
+import { ThemeToggle } from "@/components/account/theme-toggle";
 import { VERTICAL_IDS, VERTICALS } from "@/config/verticals";
 import type { VerticalId } from "@/types/domain";
 
@@ -69,6 +70,7 @@ export default function AccountPage() {
           </h1>
           <p className="truncate text-sm text-muted-foreground">{user?.email}</p>
         </div>
+        <ThemeToggle />
         <Button variant="outline" size="sm" onPress={onSignOut}>
           Sign out
         </Button>
@@ -137,7 +139,10 @@ export default function AccountPage() {
 
       {/* Help / version */}
       <footer className="flex items-center justify-between gap-3 px-1 text-xs text-muted-foreground">
-        <span>Codaro · {APP_VERSION}</span>
+        <span>
+          <span className="text-foreground">Service</span>
+          <span className="text-primary">.com</span> · {APP_VERSION}
+        </span>
         <span>Signed in with Supabase — bookings persist in the backend.</span>
       </footer>
     </section>

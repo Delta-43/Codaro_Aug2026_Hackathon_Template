@@ -5,7 +5,8 @@
       "name": "codaro-frontend",
       "runtimeExecutable": "/Users/philipwarda/.nvm/versions/node/v24.19.0/bin/node",
       "runtimeArgs": ["frontend/node_modules/next/dist/bin/next", "dev", "frontend"],
-      "port": 3000
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }
