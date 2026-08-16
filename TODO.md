@@ -81,6 +81,23 @@ _Prioritised. Snapshot, not a living doc — regenerate via the pipeline._
   tested task rather than `npm audit fix --force`.
 
 ## Environment / ops
+- [x] **Frontend build broke on `@import "tailwindcss"`** (`Cannot read
+  properties of undefined (reading 'All')`). Root cause: BuildKit's
+  `RUN npm ci` bakes a **stale Tailwind v3** into the image layer (a
+  builder-specific npm resolution quirk — a plain *runtime* `npm ci`, host or
+  `docker run node:20-slim`, correctly resolves the v4 engine the lockfile
+  pins). The dev container's `node_modules` is an anon volume seeded from the
+  image, so it inherited v3 and the v4 `@import` couldn't compile. Fix in
+  `frontend/Dockerfile`: copy the lockfile + `npm ci` for determinism, **and
+  self-heal at startup** — if installed Tailwind isn't v4, reconcile against the
+  lockfile before `npm run dev` (fast no-op once correct; heals a fresh
+  `make reset` volume in ~15s). Host `node_modules` also reset to v4. Verified:
+  fresh v3 volume → startup heal → `tailwindcss@4.3.3`, CSS compiles,
+  `next build` ✓, owner flow green.
+  - Gotcha: don't run `next build` against the running dev server — they share
+    the `.next` anon volume, so a build clobbers dev's chunk manifest (404s on
+    `_next/static/chunks/*`). Restart the frontend container after a manual build.
+
 - [ ] `backend/.env` now needs `SUPABASE_JWT_SECRET` + `SUPABASE_ANON_KEY` (in
   addition to URL/service key/db url). `frontend/.env.local` needs
   `NEXT_PUBLIC_SUPABASE_URL/ANON_KEY` and `NEXT_PUBLIC_API_BASE`. Keep
