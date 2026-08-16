@@ -73,12 +73,18 @@ current vertical from a service's booking model.
 
 ## Frontend — what exists and how
 - **Auth**: `src/lib/supabase.ts`, `src/lib/auth.tsx` (`AuthProvider`/`useAuth`/
-  `getAccessToken`), `src/app/login/page.tsx` (login/sign-up),
-  `src/components/auth-gate.tsx` (redirects anonymous → `/login`). Root layout
-  wraps `AuthProvider`; the `(app)` group is gated; Account has Sign out.
+  `getAccessToken`), `src/app/login/page.tsx` (login/sign-up + owner role
+  toggle), `src/components/auth-gate.tsx` (redirects anonymous → `/login`). Root
+  layout wraps `AuthProvider`; the `(app)` group is gated; owners are routed to
+  `/owner`; Account has Sign out.
 - **Seam**: `src/api/index.ts` rewritten as real HTTP — attaches the Bearer
   token, returns the domain shapes, maps errors to `ApiError` codes. Function
-  signatures unchanged, so no page/component changed.
+  signatures unchanged, so no page/component changed. Owner writes added
+  (`getMyProviders`, `createProvider`, `createService`, `createResource`,
+  `createSlot`).
+- **Owner area** (`src/app/owner/`): role-gated dashboard to set up a business
+  end to end — create provider → service (per-service rules) → units → open
+  slots. An owner-created business is immediately in the customer catalog.
 - **Mock deleted**: `mockStore.ts`, `latency.ts`, `storeTypes.ts`, `seed/*`.
   `verticals.ts` is now pure UI vocabulary.
 
@@ -103,13 +109,14 @@ current vertical from a service's booking model.
 ## Tests
 Regenerated for the new contract (was 128 targeting the retired flat engine):
 
-- **`python -m pytest test/backend -q` → 203 passed** (offline, in-memory
+- **`python -m pytest test/backend -q` → 227 passed** (offline, in-memory
   `FakeSupabase`). Covers: pure-unit serializers + slot-status/completed
   derivation, `effective_service_rules`/`within_cutoff`, `_resolve_selection`
-  every branch (asserting the raised `ApiError` code), `api_error` mapping, and
+  every branch (asserting the raised `ApiError` code), `api_error` mapping,
   auth-gated integration tests for providers/services/resources/slots/
-  availability/bookings/me — with the fake occupancy view now summing
-  `party_size` via `booking_slots` and enforcing composite-PK idempotency.
+  availability/bookings/me, and the owner-gated provider/service create+update
+  endpoints — with the fake occupancy view now summing `party_size` via
+  `booking_slots` and enforcing composite-PK idempotency.
 - **`python -m pytest test/e2e -q` → 8 passed** against the live Supabase
   project (signs in `demo@codaro.app` for a real JWT, then drives providers/
   by-code/services/availability/me/bookings + create→reschedule→cancel +

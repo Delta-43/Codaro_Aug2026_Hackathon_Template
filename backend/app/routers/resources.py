@@ -36,7 +36,8 @@ def create_resource(payload: ResourceCreate, owner: AuthUser = Depends(require_o
     }
     # User-scoped insert so RLS's resources_insert_owner (is_owner()) enforces.
     created = get_user_client(owner.token).table("resources").insert(row).execute().data
-    return enforce_rls_write(created, entity="resource")
+    created = enforce_rls_write(created, entity="resource")
+    return serialize_resource(created[0])
 
 
 @router.get("/{resource_id}")
@@ -60,13 +61,14 @@ def update_resource(
     if "metadata" in patch:
         validate_metadata("resources", patch["metadata"])
     if not patch:
-        return [existing]
+        return serialize_resource(existing)
     # User-scoped update so RLS's resources_modify_own (owner_id == auth.uid())
     # enforces that an owner edits only their own resources.
     updated = (
         get_user_client(owner.token).table("resources").update(patch).eq("id", resource_id).execute().data
     )
-    return enforce_rls_write(updated, entity="resource")
+    updated = enforce_rls_write(updated, entity="resource")
+    return serialize_resource(updated[0])
 
 
 @router.get("/{resource_id}/analytics")

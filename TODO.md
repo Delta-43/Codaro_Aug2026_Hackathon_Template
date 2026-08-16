@@ -33,10 +33,17 @@ _Prioritised. Snapshot, not a living doc — regenerate via the pipeline._
   backend persistence).
 
 ## P2 — completeness / stretch
-- [ ] **Owner/admin UI** in the new frontend — the backend has provider/service/
-  resource/slot management surface only partially exposed (no provider/service
-  *create* endpoints were added; seeds populate data). Add owner endpoints +
-  screens if owner self-service is needed.
+- [x] **Owner/admin UI** — built. Backend: owner-gated `POST/PATCH /providers`,
+  `GET /providers/mine`, `POST/PATCH /services` (ownership stamped from the
+  token, RLS-enforced); `resources` create/update now return serialized shapes.
+  Frontend: owner sign-up (role toggle on login), a role-gated `/owner` area, and
+  a dashboard that creates business → service → unit → slots. Verified in a
+  browser end-to-end (owner-created business appears in customer search). Covered
+  by 23 new backend tests (suite: 227 passing). Owner demo login:
+  `owner@codaro.app` / `Codaro-Owner-2026`.
+  - Remaining owner polish (not built): edit/delete of existing providers/
+    services/units, a bookings/analytics view per resource, and richer resource
+    attributes/images in the create form.
 - [ ] **Provider search `near`** is a case-insensitive city substring computed in
   Python over all providers (fine at demo scale). Add real geo/pagination if the
   catalog grows.

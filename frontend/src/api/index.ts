@@ -212,6 +212,73 @@ export async function resetDemoData(): Promise<void> {
   await post("/demo/reset");
 }
 
+// --- owner (admin) ---------------------------------------------------------
+// Owner-gated writes; the backend stamps ownership from the token and RLS
+// enforces it. Bodies are camelCase (the backend accepts them via CamelModel).
+
+export function getMyProviders(): Promise<Provider[]> {
+  return request("/providers/mine");
+}
+
+export function createProvider(input: {
+  name: string;
+  publicCode?: string;
+  categoryId?: string;
+  tagline?: string;
+  bio?: string;
+  location?: { city: string; country: string; lat: number; lng: number };
+}): Promise<Provider> {
+  return post("/providers", input) as Promise<Provider>;
+}
+
+export function createService(input: {
+  providerId: ID;
+  name: string;
+  description?: string;
+  bookingModel: "unit_selection" | "one_to_one" | "shared_capacity";
+  slotDurationMinutes: number;
+  minSlotsPerBooking: number;
+  maxSlotsPerBooking: number;
+  priceMinorUnits: number;
+  currency: string;
+  cancellationCutoffHours: number;
+}): Promise<Service> {
+  return post("/services", input) as Promise<Service>;
+}
+
+export function createResource(input: {
+  serviceId: ID;
+  name: string;
+  description?: string;
+  capacity: number;
+  attributes?: { label: string; value: string }[];
+}): Promise<Resource> {
+  return post("/resources", {
+    name: input.name,
+    description: input.description,
+    metadata: {
+      service_id: input.serviceId,
+      capacity: input.capacity,
+      active: true,
+      attributes: input.attributes ?? [],
+    },
+  }) as Promise<Resource>;
+}
+
+/** Create one slot. `startsAt` is UTC ISO; the backend derives `ends_at` from
+ *  the service's slot duration and defaults capacity from the resource. */
+export function createSlot(input: {
+  resourceId: ID;
+  startsAt: IsoUtc;
+  capacity?: number;
+}): Promise<unknown> {
+  return post("/slots", {
+    resource_id: input.resourceId,
+    starts_at: input.startsAt,
+    capacity: input.capacity,
+  });
+}
+
 // --- dev convenience -------------------------------------------------------
 // Makes the seams pokeable from the browser console. Dev only; harmless in prod.
 if (typeof window !== "undefined") {

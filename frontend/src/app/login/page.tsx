@@ -22,22 +22,27 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
-  const { session, loading, configured, signIn, signUp } = useAuth();
+  const { session, loading, role, configured, signIn, signUp } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") || "/search";
+  // Owners land in the owner area; everyone else at their requested destination.
+  const destination = role === "owner" ? "/owner" : next;
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [asOwner, setAsOwner] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // Already signed in → leave the login screen.
+  // Already signed in (or just signed in) → leave the login screen. This is the
+  // single redirect authority; it re-runs when the session/role resolves, so the
+  // owner-vs-customer destination is always correct.
   useEffect(() => {
-    if (!loading && session) router.replace(next);
-  }, [loading, session, next, router]);
+    if (!loading && session) router.replace(destination);
+  }, [loading, session, destination, router]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -45,16 +50,19 @@ function LoginForm() {
     setNotice(null);
     setBusy(true);
     try {
+      // On success the session updates and the redirect useEffect (role-aware)
+      // takes the user to /owner or their destination — no redirect here.
       if (mode === "signin") {
         await signIn(email, password);
-        router.replace(next);
       } else {
-        const { needsConfirmation } = await signUp(email, password);
+        const { needsConfirmation } = await signUp(
+          email,
+          password,
+          asOwner ? "owner" : "client",
+        );
         if (needsConfirmation) {
           setNotice("Check your inbox to confirm your email, then sign in.");
           setMode("signin");
-        } else {
-          router.replace(next);
         }
       }
     } catch (err) {
@@ -106,6 +114,18 @@ function LoginForm() {
               placeholder="••••••••"
             />
           </div>
+
+          {mode === "signup" && (
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={asOwner}
+                onChange={(e) => setAsOwner(e.target.checked)}
+                className="size-4 rounded border-border accent-primary"
+              />
+              I&apos;m a business (owner account)
+            </label>
+          )}
 
           {error && (
             <p className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">

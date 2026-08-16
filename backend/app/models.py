@@ -53,6 +53,62 @@ class UserPatch(CamelModel):
     avatar_url: str | None = None
 
 
+class ProviderCreate(CamelModel):
+    """POST /providers (owner) — the presentational fields ride in metadata; the
+    router stamps owner_id from the token."""
+
+    name: str
+    public_code: str | None = None
+    category_id: str | None = None
+    tagline: str | None = None
+    bio: str | None = None
+    avatar_url: str | None = None
+    cover_url: str | None = None
+    location: dict | None = None  # {city, country, lat, lng}
+    links: list | None = None
+
+
+class ProviderUpdate(CamelModel):
+    name: str | None = None
+    public_code: str | None = None
+    category_id: str | None = None
+    tagline: str | None = None
+    bio: str | None = None
+    avatar_url: str | None = None
+    cover_url: str | None = None
+    location: dict | None = None
+    links: list | None = None
+
+
+class ServiceCreate(CamelModel):
+    """POST /services (owner) — the per-service rules are real columns."""
+
+    provider_id: str
+    name: str
+    description: str | None = None
+    booking_model: str = "one_to_one"
+    slot_duration_minutes: int = 30
+    min_slots_per_booking: int = 1
+    max_slots_per_booking: int = 1
+    price_minor_units: int = 0
+    currency: str = "EUR"
+    cancellation_cutoff_hours: int = 24
+    image_url: str | None = None
+
+
+class ServiceUpdate(CamelModel):
+    name: str | None = None
+    description: str | None = None
+    booking_model: str | None = None
+    slot_duration_minutes: int | None = None
+    min_slots_per_booking: int | None = None
+    max_slots_per_booking: int | None = None
+    price_minor_units: int | None = None
+    currency: str | None = None
+    cancellation_cutoff_hours: int | None = None
+    image_url: str | None = None
+
+
 class ResourceCreate(BaseModel):
     name: str
     description: str | None = None

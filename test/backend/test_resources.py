@@ -65,14 +65,32 @@ def test_create_as_client_is_403(client, db, auth):
     assert resp.status_code == 403
 
 
-def test_create_as_owner_stamps_owner_id(client, db, auth):
+def test_create_as_owner_returns_serialized_resource(client, db, auth):
     owner = auth(role="owner")
-    resp = client.post("/resources", json={"name": "New Unit", "metadata": {"room": "A"}})
+    resp = client.post(
+        "/resources", json={"name": "New Unit", "metadata": {"room": "A"}}
+    )
     assert resp.status_code == 200
-    rows = resp.json()
-    assert isinstance(rows, list)
-    assert rows[0]["metadata"]["owner_id"] == owner.id
-    assert rows[0]["metadata"]["room"] == "A"
+    body = resp.json()
+    # create now returns a single serialized Resource (camelCase), not a raw
+    # PostgREST row list.
+    assert isinstance(body, dict)
+    assert set(body) == {
+        "id",
+        "serviceId",
+        "name",
+        "description",
+        "imageUrl",
+        "capacity",
+        "attributes",
+        "active",
+    }
+    assert body["name"] == "New Unit"
+    # serialize_resource intentionally does NOT expose owner_id; assert the
+    # ownership stamp via the stored row's metadata instead.
+    stored = db.get_row("resources", body["id"])
+    assert stored["metadata"]["owner_id"] == owner.id
+    assert stored["metadata"]["room"] == "A"
 
 
 def test_create_rejects_bad_metadata_type(client, db, auth):
@@ -90,7 +108,25 @@ def test_patch_updates_fields(client, db, auth):
     res = make_resource(db, "Before")
     resp = client.patch(f"/resources/{res['id']}", json={"name": "After"})
     assert resp.status_code == 200
+    # patch returns a single serialized Resource, not a raw row list.
+    body = resp.json()
+    assert isinstance(body, dict)
+    assert body["id"] == res["id"]
+    assert body["name"] == "After"
     assert db.get_row("resources", res["id"])["name"] == "After"
+
+
+def test_patch_empty_body_returns_serialized_existing(client, db, auth):
+    auth(role="owner")
+    res = make_resource(db, "Unchanged", service_id="svc-1", capacity=3)
+    resp = client.patch(f"/resources/{res['id']}", json={})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert isinstance(body, dict)
+    assert body["id"] == res["id"]
+    assert body["name"] == "Unchanged"
+    assert body["serviceId"] == "svc-1"
+    assert body["capacity"] == 3
 
 
 def test_patch_unknown_resource_is_404(client, db, auth):

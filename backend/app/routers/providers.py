@@ -7,9 +7,11 @@ Follow/unfollow require a user and write through the RLS-scoped client.
 from fastapi import APIRouter, Depends
 
 from app import discovery
-from app.auth import AuthUser, optional_user, require_user
+from app.auth import AuthUser, enforce_rls_write, optional_user, require_owner, require_user
 from app.db import get_supabase, get_user_client, maybe_row
 from app.errors import NOT_FOUND, api_error
+from app.models import ProviderCreate, ProviderUpdate
+from app.serialize import serialize_provider
 from app.users import load_user
 
 router = APIRouter(prefix="/providers", tags=["providers"])
@@ -58,6 +60,79 @@ def get_provider_by_code(code: str):
         if (p["publicCode"] or "").lower() == code.lower():
             return p
     raise api_error(NOT_FOUND, "No match for that code.")
+
+
+def _provider_metadata(payload, base: dict | None = None) -> dict:
+    """Assemble a provider's presentational metadata from a create/update body,
+    dropping keys the body left unset (so PATCH is partial)."""
+    md = dict(base or {})
+    fields = {
+        "avatar_url": payload.avatar_url,
+        "cover_url": payload.cover_url,
+        "tagline": payload.tagline,
+        "bio": payload.bio,
+        "location": payload.location,
+        "links": payload.links,
+    }
+    for key, value in fields.items():
+        if value is not None:
+            md[key] = value
+    return md
+
+
+@router.get("/mine")
+def my_providers(owner: AuthUser = Depends(require_owner)):
+    """The signed-in owner's own providers (for the owner dashboard)."""
+    db = get_supabase()
+    rows = db.table("providers").select("*").eq("owner_id", owner.id).execute().data or []
+    sums, counts = discovery.review_aggregates(db)
+    svc = discovery.service_ids_by_provider(db)
+    return [discovery.build_provider(r, svc_by_prov=svc, sums=sums, counts=counts) for r in rows]
+
+
+@router.post("")
+def create_provider(payload: ProviderCreate, owner: AuthUser = Depends(require_owner)):
+    row = {
+        "owner_id": owner.id,  # RLS providers_write_own checks owner_id == auth.uid()
+        "name": payload.name,
+        "public_code": payload.public_code,
+        "category_id": payload.category_id,
+        "metadata": _provider_metadata(payload),
+    }
+    created = get_user_client(owner.token).table("providers").insert(row).execute().data
+    created = enforce_rls_write(created, entity="provider")
+    return serialize_provider(created[0])
+
+
+@router.patch("/{provider_id}")
+def update_provider(
+    provider_id: str, payload: ProviderUpdate, owner: AuthUser = Depends(require_owner)
+):
+    db = get_supabase()
+    existing = maybe_row(db.table("providers").select("*").eq("id", provider_id))
+    if existing is None:
+        raise api_error(NOT_FOUND, "That provider no longer exists.")
+
+    patch: dict = {}
+    if payload.name is not None:
+        patch["name"] = payload.name
+    if payload.public_code is not None:
+        patch["public_code"] = payload.public_code
+    if payload.category_id is not None:
+        patch["category_id"] = payload.category_id
+    md = _provider_metadata(payload, existing.get("metadata") or {})
+    if md != (existing.get("metadata") or {}):
+        patch["metadata"] = md
+    if not patch:
+        return serialize_provider(existing)
+
+    updated = (
+        get_user_client(owner.token).table("providers").update(patch).eq("id", provider_id).execute().data
+    )
+    updated = enforce_rls_write(updated, entity="provider")
+    sums, counts = discovery.review_aggregates(db)
+    svc = discovery.service_ids_by_provider(db)
+    return discovery.build_provider(updated[0], svc_by_prov=svc, sums=sums, counts=counts)
 
 
 @router.get("/{provider_id}")

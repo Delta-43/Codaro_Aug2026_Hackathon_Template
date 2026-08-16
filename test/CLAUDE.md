@@ -35,8 +35,8 @@ test/
     test_resources.py       # /resources reads + owner CRUD + analytics
     test_slots.py           # /slots + /slots/occupancy + owner CRUD + buffer rule
     test_bookings.py        # create/list(scope)/get/reschedule/cancel/review + cutoff/capacity
-    test_providers.py       # /providers discovery (search/by-code) + follow/unfollow
-    test_services.py        # /services reads + derived resourceIds
+    test_providers.py       # /providers discovery (search/by-code) + follow/unfollow + owner create/patch/mine
+    test_services.py        # /services reads + derived resourceIds + owner create/patch
     test_availability.py    # /availability + /month-density
     test_me.py              # GET/PATCH /me
     test_frontend_contract.py  # frontend/src/api paths + error codes vs the live route table
@@ -176,9 +176,14 @@ path the UI calls exists on the FastAPI app (method-aware) and that the
 
 ## Current state
 
-`python -m pytest test/backend -q` from the repo root: **203 passed**
+`python -m pytest test/backend -q` from the repo root: **227 passed**
 (0 failures, 0 xfail). `python -m pytest test/` adds the 8 live e2e tests, which
 skip without `SUPABASE_URL`/`SUPABASE_ANON_KEY`.
+
+Note: `services.py` does a user-scoped write (`get_user_client`) for owner
+create/patch, so `services_router` is registered in `conftest._USER_CLIENT_MODULES`
+alongside the other RLS-writing routers — without it the fake user client isn't
+injected and the owner-write tests hit the network.
 
 Rewritten for the richer `Provider → Service → Resource → Slot → Booking → User`
 domain and the camelCase wire shapes (the frontend contract in
@@ -202,8 +207,10 @@ domain and the camelCase wire shapes (the frontend contract in
 
 **Integration tests (real endpoints, fake Supabase, stubbed auth):**
 `/health` + `/config` (pivot mid-test + `POST /config/reload`); `/resources`
-(public reads, service filter/active, owner create stamping `owner_id`,
-`PATCH`, `analytics`, 401/403 gating); `/slots` (reads, `/occupancy` summing
+(public reads, service filter/active, owner create returning a **serialized
+single Resource** with the `owner_id` stamp asserted via the stored row,
+`PATCH` returning a serialized object incl. the empty-patch path, `analytics`,
+401/403 gating); `/slots` (reads, `/occupancy` summing
 party size + excluding cancelled, owner create deriving `ends_at`/`capacity`
 from config, buffer rule 409, metadata 422, `PATCH`, `DELETE` 204 + cascade);
 `/bookings` (create → single camelCase Booking scoped to the token, capacity
@@ -211,7 +218,12 @@ from config, buffer rule 409, metadata 422, `PATCH`, `DELETE` 204 + cascade);
 contiguity + price, `scope=upcoming|past|all`, get, reschedule incl. cutoff +
 credit-back, idempotent cancel, owner cutoff override, review only when
 completed); `/providers` (search text/category/rating, by-code, follow/unfollow
-idempotent + pin-to-top); `/services` (derived `resourceIds`); `/availability` +
+idempotent + pin-to-top; owner `POST` returning a serialized Provider that
+stamps `owner_id` from the token, `PATCH` of columns + presentational metadata,
+`GET /mine` filtered to the owner's own providers, 401/403 gating);
+`/services` (derived `resourceIds`; owner `POST` under a provider with the
+per-service rule columns persisted, `PATCH` of columns + `imageUrl`→metadata,
+401/403 gating); `/availability` +
 `/month-density`; `/me` (GET/PATCH). `test_frontend_contract.py` checks the
 `frontend/src/api` paths + error-code union against the live route table.
 

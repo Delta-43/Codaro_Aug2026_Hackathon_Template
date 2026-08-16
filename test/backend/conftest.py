@@ -68,6 +68,7 @@ _USER_CLIENT_MODULES = (
     resources_router,
     slots_router,
     providers_router,
+    services_router,
 )
 
 
