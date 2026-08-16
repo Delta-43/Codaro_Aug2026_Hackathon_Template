@@ -6,7 +6,16 @@ require a user. Providers carry derived `serviceIds` and pooled `rating`.
 
 from __future__ import annotations
 
-from helpers import make_provider, make_service
+from helpers import (
+    DEFAULT_OWNER_ID,
+    make_booking,
+    make_provider,
+    make_resource,
+    make_service,
+    make_slot,
+)
+
+OTHER_OWNER_ID = "99999999-9999-9999-9999-999999999999"
 
 PROVIDER_KEYS = {
     "id",
@@ -237,3 +246,112 @@ def test_my_providers_reflects_a_just_created_one(client, db, auth):
     created = client.post("/providers", json={"name": "Fresh"}).json()
     rows = client.get("/providers/mine").json()
     assert [r["id"] for r in rows] == [created["id"]]
+
+
+# --- owner-gated delete (DELETE /providers/{id}) ---------------------------
+
+
+def test_delete_provider_without_a_token_is_401(client, db):
+    p = make_provider(db, "P", owner_id=DEFAULT_OWNER_ID)
+    assert client.delete(f"/providers/{p['id']}").status_code == 401
+
+
+def test_delete_provider_as_client_is_403(client, db, auth):
+    auth(role="client")
+    p = make_provider(db, "P", owner_id=DEFAULT_OWNER_ID)
+    assert client.delete(f"/providers/{p['id']}").status_code == 403
+
+
+def test_delete_provider_unknown_is_404(client, db, auth):
+    auth(role="owner")
+    assert client.delete("/providers/nope").status_code == 404
+
+
+def test_delete_another_owners_provider_is_403(client, db, auth):
+    auth(role="owner")  # DEFAULT_OWNER_ID
+    p = make_provider(db, "Not mine", owner_id=OTHER_OWNER_ID)
+    assert client.delete(f"/providers/{p['id']}").status_code == 403
+    assert db.get_row("providers", p["id"]) is not None
+
+
+def test_delete_provider_happy_path_removes_row(client, db, auth):
+    auth(role="owner")  # DEFAULT_OWNER_ID
+    p = make_provider(db, "Gone soon", owner_id=DEFAULT_OWNER_ID)
+    resp = client.delete(f"/providers/{p['id']}")
+    assert resp.status_code == 204
+    assert resp.content == b""
+    assert db.get_row("providers", p["id"]) is None
+
+
+def test_delete_provider_cascades_services_follows_and_reviews(client, db, auth):
+    auth(role="owner")  # DEFAULT_OWNER_ID
+    p = make_provider(db, "Full house", owner_id=DEFAULT_OWNER_ID)
+    svc = make_service(db, p["id"], "S")
+    db.insert_row("follows", user_id=DEFAULT_OWNER_ID, provider_id=p["id"])
+
+    resp = client.delete(f"/providers/{p['id']}")
+    assert resp.status_code == 204
+    assert db.get_row("providers", p["id"]) is None
+    # FK cascade removes services + follows under the provider.
+    assert db.get_row("services", svc["id"]) is None
+    assert db.count("follows") == 0
+
+
+def test_delete_provider_removes_metadata_linked_resources_and_their_slots(
+    client, db, auth
+):
+    auth(role="owner")  # DEFAULT_OWNER_ID; make_catalog stamps the same owner_id
+    cat = make_catalog_owned(db)
+    make_booking(db, slots=[cat["slot"]], service=cat["service"], party_size=1)
+    provider_id = cat["provider"]["id"]
+    resource_id = cat["resource"]["id"]
+    slot_id = cat["slot"]["id"]
+    assert db.count("resources") == 1
+    assert db.count("slots") == 1
+    assert db.count("bookings") == 1
+
+    resp = client.delete(f"/providers/{provider_id}")
+    assert resp.status_code == 204
+    # provider gone; its service gone by FK cascade...
+    assert db.get_row("providers", provider_id) is None
+    assert db.get_row("services", cat["service"]["id"]) is None
+    # ...and its metadata-linked resource (no FK) removed by the router helper,
+    # taking its slot -> booking -> booking_slots cascade with it.
+    assert db.get_row("resources", resource_id) is None
+    assert db.get_row("slots", slot_id) is None
+    assert db.count("resources") == 0
+    assert db.count("slots") == 0
+    assert db.count("bookings") == 0
+    assert db.count("booking_slots") == 0
+
+
+def test_delete_provider_leaves_another_providers_resources(client, db, auth):
+    auth(role="owner")  # DEFAULT_OWNER_ID
+    mine = make_catalog_owned(db)
+    # a second provider (also owned) with its own service + resource.
+    other_p = make_provider(db, "Keep me", owner_id=DEFAULT_OWNER_ID)
+    other_svc = make_service(db, other_p["id"], "Keep svc")
+    other_res = make_resource(
+        db, "Keep unit", service_id=other_svc["id"], owner_id=DEFAULT_OWNER_ID
+    )
+
+    resp = client.delete(f"/providers/{mine['provider']['id']}")
+    assert resp.status_code == 204
+    # only the deleted provider's resource is gone; the other provider's stays.
+    assert db.get_row("resources", mine["resource"]["id"]) is None
+    assert db.get_row("resources", other_res["id"]) is not None
+    assert db.get_row("services", other_svc["id"]) is not None
+    assert db.get_row("providers", other_p["id"]) is not None
+
+
+def make_catalog_owned(db):
+    """A provider + service + resource + slot, all stamped with the owner used by
+    `auth(role="owner")` so the ownership check passes and the metadata link is
+    exercised end to end."""
+    p = make_provider(db, "Owned", owner_id=DEFAULT_OWNER_ID)
+    svc = make_service(db, p["id"], "S")
+    res = make_resource(
+        db, "Unit", service_id=svc["id"], capacity=2, owner_id=DEFAULT_OWNER_ID
+    )
+    slot = make_slot(db, res["id"], service_id=svc["id"], capacity=2)
+    return {"provider": p, "service": svc, "resource": res, "slot": slot}

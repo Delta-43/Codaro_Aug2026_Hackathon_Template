@@ -95,6 +95,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 const post = (path: string, body?: unknown) =>
   request(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 
+const patch = (path: string, body: unknown) =>
+  request(path, { method: "PATCH", body: JSON.stringify(body) });
+
+const del = (path: string) => request(path, { method: "DELETE" });
+
 // --- discovery -------------------------------------------------------------
 
 export function searchProviders(q: {
@@ -243,15 +248,25 @@ export function getResourceBookings(id: ID): Promise<OwnerBooking[]> {
   return request(`/resources/${id}/bookings`);
 }
 
-export function createProvider(input: {
+type ProviderInput = {
   name: string;
   publicCode?: string;
   categoryId?: string;
   tagline?: string;
   bio?: string;
   location?: { city: string; country: string; lat: number; lng: number };
-}): Promise<Provider> {
+};
+
+export function createProvider(input: ProviderInput): Promise<Provider> {
   return post("/providers", input) as Promise<Provider>;
+}
+
+export function updateProvider(id: ID, patchBody: Partial<ProviderInput>): Promise<Provider> {
+  return patch(`/providers/${id}`, patchBody) as Promise<Provider>;
+}
+
+export function deleteProvider(id: ID): Promise<void> {
+  return del(`/providers/${id}`) as Promise<void>;
 }
 
 export function createService(input: {
@@ -267,6 +282,25 @@ export function createService(input: {
   cancellationCutoffHours: number;
 }): Promise<Service> {
   return post("/services", input) as Promise<Service>;
+}
+
+/** Partial update of a service's editable fields (name + per-service rules). */
+export function updateService(
+  id: ID,
+  patchBody: Partial<{
+    name: string;
+    description: string;
+    slotDurationMinutes: number;
+    maxSlotsPerBooking: number;
+    priceMinorUnits: number;
+    cancellationCutoffHours: number;
+  }>,
+): Promise<Service> {
+  return patch(`/services/${id}`, patchBody) as Promise<Service>;
+}
+
+export function deleteService(id: ID): Promise<void> {
+  return del(`/services/${id}`) as Promise<void>;
 }
 
 export function createResource(input: {
@@ -286,6 +320,22 @@ export function createResource(input: {
       attributes: input.attributes ?? [],
     },
   }) as Promise<Resource>;
+}
+
+/** Update a unit. `metadata` is merged server-side, so passing `{capacity}`
+ *  alone is safe (owner_id / service_id are preserved). */
+export function updateResource(
+  id: ID,
+  patchBody: { name?: string; capacity?: number },
+): Promise<Resource> {
+  const body: { name?: string; metadata?: { capacity: number } } = {};
+  if (patchBody.name !== undefined) body.name = patchBody.name;
+  if (patchBody.capacity !== undefined) body.metadata = { capacity: patchBody.capacity };
+  return patch(`/resources/${id}`, body) as Promise<Resource>;
+}
+
+export function deleteResource(id: ID): Promise<void> {
+  return del(`/resources/${id}`) as Promise<void>;
 }
 
 /** Create one slot. `startsAt` is UTC ISO; the backend derives `ends_at` from

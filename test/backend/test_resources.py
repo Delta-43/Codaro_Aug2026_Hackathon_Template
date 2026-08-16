@@ -7,7 +7,16 @@ The `auth` fixture stubs token verification and lets a test run as anon / client
 
 from __future__ import annotations
 
-from helpers import make_booking, make_catalog, make_resource, make_service, make_slot
+from helpers import (
+    DEFAULT_OWNER_ID,
+    make_booking,
+    make_catalog,
+    make_resource,
+    make_service,
+    make_slot,
+)
+
+OTHER_OWNER_ID = "99999999-9999-9999-9999-999999999999"
 
 
 # --- public reads ----------------------------------------------------------
@@ -145,6 +154,98 @@ def test_patch_requires_owner(client, db, auth):
     auth(role="client")
     res = make_resource(db, "R")
     assert client.patch(f"/resources/{res['id']}", json={"name": "x"}).status_code == 403
+
+
+# --- metadata merge on PATCH -----------------------------------------------
+
+
+def test_patch_metadata_merges_over_existing(client, db, auth):
+    # A partial metadata edit (e.g. {"capacity": 4}) must MERGE over the stored
+    # metadata rather than replace it, so owner_id/service_id survive the edit.
+    auth(role="owner")
+    res = make_resource(
+        db, "Van", service_id="svc-7", capacity=2, owner_id=DEFAULT_OWNER_ID
+    )
+    resp = client.patch(f"/resources/{res['id']}", json={"metadata": {"capacity": 4}})
+    assert resp.status_code == 200
+    assert resp.json()["capacity"] == 4
+    stored = db.get_row("resources", res["id"])["metadata"]
+    # merged: the new value is applied...
+    assert stored["capacity"] == 4
+    # ...and the pre-existing keys are preserved (not dropped by a replace).
+    assert stored["owner_id"] == DEFAULT_OWNER_ID
+    assert stored["service_id"] == "svc-7"
+    assert stored["active"] is True
+
+
+def test_patch_metadata_merge_can_add_a_new_key(client, db, auth):
+    auth(role="owner")
+    res = make_resource(db, "Van", service_id="svc-7", owner_id=DEFAULT_OWNER_ID)
+    resp = client.patch(
+        f"/resources/{res['id']}", json={"metadata": {"room": "B"}}
+    )
+    assert resp.status_code == 200
+    stored = db.get_row("resources", res["id"])["metadata"]
+    assert stored["room"] == "B"
+    assert stored["service_id"] == "svc-7"
+    assert stored["owner_id"] == DEFAULT_OWNER_ID
+
+
+# --- owner-gated delete (DELETE /resources/{id}) ---------------------------
+
+
+def test_delete_resource_without_a_token_is_401(client, db):
+    res = make_resource(db, "R", owner_id=DEFAULT_OWNER_ID)
+    assert client.delete(f"/resources/{res['id']}").status_code == 401
+
+
+def test_delete_resource_as_client_is_403(client, db, auth):
+    auth(role="client")
+    res = make_resource(db, "R", owner_id=DEFAULT_OWNER_ID)
+    assert client.delete(f"/resources/{res['id']}").status_code == 403
+
+
+def test_delete_unknown_resource_is_404(client, db, auth):
+    auth(role="owner")
+    assert client.delete("/resources/nope").status_code == 404
+
+
+def test_delete_another_owners_resource_is_403(client, db, auth):
+    auth(role="owner")  # DEFAULT_OWNER_ID
+    res = make_resource(db, "Not mine", owner_id=OTHER_OWNER_ID)
+    assert client.delete(f"/resources/{res['id']}").status_code == 403
+    # the row must survive a rejected delete.
+    assert db.get_row("resources", res["id"]) is not None
+
+
+def test_delete_resource_happy_path_removes_row(client, db, auth):
+    auth(role="owner")  # DEFAULT_OWNER_ID
+    res = make_resource(db, "Gone soon", owner_id=DEFAULT_OWNER_ID)
+    resp = client.delete(f"/resources/{res['id']}")
+    assert resp.status_code == 204
+    assert resp.content == b""
+    assert db.get_row("resources", res["id"]) is None
+
+
+def test_delete_resource_cascades_to_slots_and_bookings(client, db, auth):
+    auth(role="owner")  # DEFAULT_OWNER_ID; make_catalog stamps the same owner_id
+    cat = make_catalog(db, capacity=2, slot_capacity=2)
+    make_booking(db, slots=[cat["slot"]], service=cat["service"], party_size=1)
+    resource_id = cat["resource"]["id"]
+    slot_id = cat["slot"]["id"]
+    assert db.count("slots") == 1
+    assert db.count("bookings") == 1
+    assert db.count("booking_slots") == 1
+
+    resp = client.delete(f"/resources/{resource_id}")
+    assert resp.status_code == 204
+    # the DB FK cascade (modelled in the fake) removes slots -> bookings ->
+    # booking_slots under the deleted resource.
+    assert db.get_row("resources", resource_id) is None
+    assert db.get_row("slots", slot_id) is None
+    assert db.count("slots") == 0
+    assert db.count("bookings") == 0
+    assert db.count("booking_slots") == 0
 
 
 # --- owner-gated analytics -------------------------------------------------

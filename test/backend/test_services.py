@@ -3,7 +3,16 @@ derived `resourceIds` link array (its active resources)."""
 
 from __future__ import annotations
 
-from helpers import make_provider, make_resource, make_service
+from helpers import (
+    DEFAULT_OWNER_ID,
+    make_booking,
+    make_provider,
+    make_resource,
+    make_service,
+    make_slot,
+)
+
+OTHER_OWNER_ID = "99999999-9999-9999-9999-999999999999"
 
 SERVICE_KEYS = {
     "id",
@@ -182,3 +191,70 @@ def test_patch_service_empty_body_returns_serialized_existing(client, db, auth):
     assert body["id"] == svc["id"]
     assert body["name"] == "Steady"
     assert body["priceMinorUnits"] == 500
+
+
+# --- owner-gated delete (DELETE /services/{id}) ----------------------------
+
+
+def test_delete_service_without_a_token_is_401(client, db):
+    p = make_provider(db, "P", owner_id=DEFAULT_OWNER_ID)
+    svc = make_service(db, p["id"], "S")
+    assert client.delete(f"/services/{svc['id']}").status_code == 401
+
+
+def test_delete_service_as_client_is_403(client, db, auth):
+    auth(role="client")
+    p = make_provider(db, "P", owner_id=DEFAULT_OWNER_ID)
+    svc = make_service(db, p["id"], "S")
+    assert client.delete(f"/services/{svc['id']}").status_code == 403
+
+
+def test_delete_service_unknown_is_404(client, db, auth):
+    auth(role="owner")
+    assert client.delete("/services/nope").status_code == 404
+
+
+def test_delete_service_of_another_owners_provider_is_403(client, db, auth):
+    auth(role="owner")  # DEFAULT_OWNER_ID
+    p = make_provider(db, "Not mine", owner_id=OTHER_OWNER_ID)
+    svc = make_service(db, p["id"], "S")
+    assert client.delete(f"/services/{svc['id']}").status_code == 403
+    assert db.get_row("services", svc["id"]) is not None
+
+
+def test_delete_service_happy_path_removes_row(client, db, auth):
+    auth(role="owner")  # DEFAULT_OWNER_ID
+    p = make_provider(db, "P", owner_id=DEFAULT_OWNER_ID)
+    svc = make_service(db, p["id"], "S")
+    resp = client.delete(f"/services/{svc['id']}")
+    assert resp.status_code == 204
+    assert resp.content == b""
+    assert db.get_row("services", svc["id"]) is None
+    # the parent provider is untouched.
+    assert db.get_row("providers", p["id"]) is not None
+
+
+def test_delete_service_removes_its_metadata_linked_resources(client, db, auth):
+    auth(role="owner")  # DEFAULT_OWNER_ID
+    p = make_provider(db, "P", owner_id=DEFAULT_OWNER_ID)
+    svc = make_service(db, p["id"], "S")
+    res = make_resource(
+        db, "Unit", service_id=svc["id"], capacity=2, owner_id=DEFAULT_OWNER_ID
+    )
+    slot = make_slot(db, res["id"], service_id=svc["id"], capacity=2)
+    make_booking(db, slots=[slot], service=svc, party_size=1)
+    # a resource under a *different* service must survive.
+    other = make_resource(
+        db, "Other unit", service_id="svc-other", owner_id=DEFAULT_OWNER_ID
+    )
+
+    resp = client.delete(f"/services/{svc['id']}")
+    assert resp.status_code == 204
+    # the service's metadata-linked resource (and its slot/booking cascade) go...
+    assert db.get_row("services", svc["id"]) is None
+    assert db.get_row("resources", res["id"]) is None
+    assert db.get_row("slots", slot["id"]) is None
+    assert db.count("bookings") == 0
+    assert db.count("booking_slots") == 0
+    # ...but an unrelated resource stays.
+    assert db.get_row("resources", other["id"]) is not None

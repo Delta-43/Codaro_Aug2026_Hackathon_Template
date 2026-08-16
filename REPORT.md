@@ -43,9 +43,12 @@ cancel/reschedule window. The legacy global registry is retained for `slots.py`.
 
 ### Routers (`app/routers/`)
 - `providers.py` — `GET /providers` (search text/category/near, followed-first),
-  `GET /providers/by-code/{code}`, `GET /providers/{id}`, follow/unfollow.
-- `services.py` — `GET /services?provider_id`, `GET /services/{id}`.
-- `resources.py` — `GET /resources?service_id` (active-only), serialized output.
+  `GET /providers/by-code/{code}`, `GET /providers/{id}`, follow/unfollow, and
+  owner CRUD (`GET /providers/mine`, `POST`, `PATCH`, `DELETE`).
+- `services.py` — `GET /services?provider_id`, `GET /services/{id}`, owner
+  `POST`/`PATCH`/`DELETE`.
+- `resources.py` — `GET /resources?service_id` (active-only), serialized output;
+  owner `POST`/`PATCH` (metadata-merge)/`DELETE` + `/analytics` + `/bookings`.
 - `availability.py` — `GET /availability` (day-grouped in the viewer tz),
   `GET /month-density`.
 - `bookings.py` — multi-slot + party-size create, `?scope` list, single get,
@@ -83,10 +86,14 @@ current vertical from a service's booking model.
   (`getMyProviders`, `createProvider`, `createService`, `createResource`,
   `createSlot`).
 - **Owner area** (`src/app/owner/`): role-gated dashboard to set up a business
-  end to end — create provider → service (per-service rules) → units → open
-  slots — and monitor it: per-unit occupancy + an expandable bookings list
-  (reference/client/date/status, owner-scoped by `_owned_resource`). An
-  owner-created business is immediately in the customer catalog.
+  end to end — create/**edit**/**delete** provider → service (per-service rules)
+  → units → open slots — and monitor it: per-unit occupancy + an expandable
+  bookings list (reference/client/date/status, owner-scoped by
+  `_owned_resource`). Edit forms open prefilled (keyed so React remounts on the
+  create↔edit switch); deletes are two-step confirmed and cascade correctly
+  (deleting a business/service also removes its metadata-linked units — no FK —
+  and units cascade to slots→bookings). An owner-created business is immediately
+  in the customer catalog.
 - **Mock deleted**: `mockStore.ts`, `latency.ts`, `storeTypes.ts`, `seed/*`.
   `verticals.ts` is now pure UI vocabulary.
 
@@ -111,14 +118,15 @@ current vertical from a service's booking model.
 ## Tests
 Regenerated for the new contract (was 128 targeting the retired flat engine):
 
-- **`python -m pytest test/backend -q` → 227 passed** (offline, in-memory
+- **`python -m pytest test/backend -q` → 259 passed** (offline, in-memory
   `FakeSupabase`). Covers: pure-unit serializers + slot-status/completed
   derivation, `effective_service_rules`/`within_cutoff`, `_resolve_selection`
   every branch (asserting the raised `ApiError` code), `api_error` mapping,
   auth-gated integration tests for providers/services/resources/slots/
-  availability/bookings/me, and the owner-gated provider/service create+update
-  endpoints — with the fake occupancy view now summing `party_size` via
-  `booking_slots` and enforcing composite-PK idempotency.
+  availability/bookings/me, and the owner-gated provider/service/resource
+  create+update+**delete** endpoints (delete gating matrix, the metadata-linked
+  cascade, and the PATCH metadata-merge) — with the fake occupancy view now
+  summing `party_size` via `booking_slots` and enforcing composite-PK idempotency.
 - **`python -m pytest test/e2e -q` → 8 passed** against the live Supabase
   project (signs in `demo@codaro.app` for a real JWT, then drives providers/
   by-code/services/availability/me/bookings + create→reschedule→cancel +

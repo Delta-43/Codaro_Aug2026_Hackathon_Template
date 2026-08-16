@@ -176,9 +176,22 @@ path the UI calls exists on the FastAPI app (method-aware) and that the
 
 ## Current state
 
-`python -m pytest test/backend -q` from the repo root: **237 passed**
+`python -m pytest test/backend -q` from the repo root: **259 passed**
 (0 failures, 0 xfail). `python -m pytest test/` adds the 8 live e2e tests, which
 skip without `SUPABASE_URL`/`SUPABASE_ANON_KEY`.
+
+Owner/admin DELETE coverage (the metadata-linked cascade + the PATCH-merge fix):
+- `test_providers.py` — `DELETE /providers/{id}`: 401/403(client)/404/403(other
+  owner) gating, 204 happy path, FK cascade to services/follows, and the
+  router-driven removal of the provider's **metadata-linked** resources (no FK)
+  taking their slots→bookings→booking_slots with them; a second owned provider's
+  resources are left intact.
+- `test_services.py` — `DELETE /services/{id}`: same gating matrix + 204, and the
+  metadata-linked resource (+ slot/booking cascade) removed while an unrelated
+  service's resource survives.
+- `test_resources.py` — `DELETE /resources/{id}`: gating matrix + 204 + FK
+  cascade to slots/bookings; plus `update_resource` PATCH now **merges** metadata
+  (`{"capacity": 4}` keeps owner_id/service_id) rather than replacing it.
 
 Note: `services.py` does a user-scoped write (`get_user_client`) for owner
 create/patch, so `services_router` is registered in `conftest._USER_CLIENT_MODULES`

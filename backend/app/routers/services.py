@@ -1,15 +1,31 @@
 """Service discovery (public reads). A service carries the per-service rules as
 columns and its `resourceIds` as a derived link array."""
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app import discovery
 from app.auth import AuthUser, enforce_rls_write, require_owner
 from app.db import get_supabase, get_user_client, maybe_row
 from app.errors import NOT_FOUND, api_error
 from app.models import ServiceCreate, ServiceUpdate
+from app.routers.resources import delete_resources_for_services
 from app.serialize import serialize_service
 
 router = APIRouter(prefix="/services", tags=["services"])
+
+
+def _owned_service(db, service_id: str, owner: AuthUser) -> dict:
+    """Fetch a service and assert the caller owns its parent provider. 404 if the
+    service is gone, 403 if the provider belongs to someone else. Used before a
+    destructive delete so we never partially delete another owner's data."""
+    service = maybe_row(db.table("services").select("*").eq("id", service_id))
+    if service is None:
+        raise api_error(NOT_FOUND, "That service no longer exists.")
+    provider = maybe_row(
+        db.table("providers").select("owner_id").eq("id", service["provider_id"])
+    )
+    if not provider or provider.get("owner_id") != owner.id:
+        raise HTTPException(403, "You can only manage your own services.")
+    return service
 
 
 @router.post("")
@@ -58,6 +74,20 @@ def update_service(
     updated = enforce_rls_write(updated, entity="service")
     res_by_svc = discovery.resource_ids_by_service(db)
     return discovery.build_service(updated[0], res_by_svc=res_by_svc)
+
+
+@router.delete("/{service_id}", status_code=204)
+def delete_service(service_id: str, owner: AuthUser = Depends(require_owner)):
+    """Delete one of the owner's services. Its metadata-linked units are removed
+    first (they don't FK-cascade); the service delete then removes the row (RLS
+    services_write_own enforces ownership via the parent provider)."""
+    db = get_supabase()
+    _owned_service(db, service_id, owner)  # 404 missing / 403 not-yours
+    uc = get_user_client(owner.token)
+    delete_resources_for_services(uc, db, {service_id})
+    deleted = uc.table("services").delete().eq("id", service_id).execute().data
+    enforce_rls_write(deleted, entity="service")
+    return Response(status_code=204)
 
 
 @router.get("")

@@ -4,13 +4,14 @@ Public reads (search, by-id, by-code) go through the service key and are
 personalised (followed-first ordering) only when a valid token is present.
 Follow/unfollow require a user and write through the RLS-scoped client.
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app import discovery
 from app.auth import AuthUser, enforce_rls_write, optional_user, require_owner, require_user
 from app.db import get_supabase, get_user_client, maybe_row
 from app.errors import NOT_FOUND, api_error
 from app.models import ProviderCreate, ProviderUpdate
+from app.routers.resources import delete_resources_for_services
 from app.serialize import serialize_provider
 from app.users import load_user
 
@@ -133,6 +134,30 @@ def update_provider(
     sums, counts = discovery.review_aggregates(db)
     svc = discovery.service_ids_by_provider(db)
     return discovery.build_provider(updated[0], svc_by_prov=svc, sums=sums, counts=counts)
+
+
+@router.delete("/{provider_id}", status_code=204)
+def delete_provider(provider_id: str, owner: AuthUser = Depends(require_owner)):
+    """Delete one of the owner's businesses. Order matters: its services'
+    metadata-linked units are removed first (no FK cascade), then the provider
+    delete cascades to services / follows / reviews via FK. RLS
+    providers_write_own enforces that it's the caller's provider."""
+    db = get_supabase()
+    existing = maybe_row(db.table("providers").select("owner_id").eq("id", provider_id))
+    if existing is None:
+        raise api_error(NOT_FOUND, "That provider no longer exists.")
+    if existing.get("owner_id") != owner.id:
+        raise HTTPException(403, "You can only manage your own businesses.")
+
+    uc = get_user_client(owner.token)
+    service_ids = {
+        s["id"]
+        for s in db.table("services").select("id").eq("provider_id", provider_id).execute().data or []
+    }
+    delete_resources_for_services(uc, db, service_ids)
+    deleted = uc.table("providers").delete().eq("id", provider_id).execute().data
+    enforce_rls_write(deleted, entity="provider")
+    return Response(status_code=204)
 
 
 @router.get("/{provider_id}")

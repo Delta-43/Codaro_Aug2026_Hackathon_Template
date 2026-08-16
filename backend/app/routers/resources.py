@@ -1,6 +1,6 @@
 from collections import Counter
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app.auth import AuthUser, enforce_rls_write, require_owner
 from app.db import get_supabase, get_user_client, maybe_row
@@ -10,6 +10,20 @@ from app.routers.bookings import _enrich
 from app.serialize import serialize_resource
 
 router = APIRouter(prefix="/resources", tags=["resources"])
+
+
+def delete_resources_for_services(uc, db, service_ids: set[str]) -> None:
+    """Delete every resource whose `metadata.service_id` is in `service_ids`.
+    Resources are linked to a service via metadata (no FK), so a provider/service
+    delete does NOT cascade to them — this closes that gap. Each resource delete
+    *does* cascade (FK) to its slots → bookings → booking_slots/reviews. Deletes
+    go through the RLS-scoped user client, so only the owner's own units go."""
+    if not service_ids:
+        return
+    rows = db.table("resources").select("*").execute().data or []
+    for r in rows:
+        if (r.get("metadata") or {}).get("service_id") in service_ids:
+            uc.table("resources").delete().eq("id", r["id"]).execute()
 
 
 def _owned_resource(db, resource_id: str, owner: AuthUser) -> dict:
@@ -72,7 +86,12 @@ def update_resource(
 
     patch = payload.model_dump(exclude_none=True)
     if "metadata" in patch:
-        validate_metadata("resources", patch["metadata"])
+        # Merge over the existing metadata rather than replace it, so a partial
+        # edit (e.g. {"capacity": 4}) can't drop owner_id/service_id and orphan
+        # the unit from RLS + its parent service.
+        merged = {**(existing.get("metadata") or {}), **patch["metadata"]}
+        validate_metadata("resources", merged)
+        patch["metadata"] = merged
     if not patch:
         return serialize_resource(existing)
     # User-scoped update so RLS's resources_modify_own (owner_id == auth.uid())
@@ -82,6 +101,19 @@ def update_resource(
     )
     updated = enforce_rls_write(updated, entity="resource")
     return serialize_resource(updated[0])
+
+
+@router.delete("/{resource_id}", status_code=204)
+def delete_resource(resource_id: str, owner: AuthUser = Depends(require_owner)):
+    """Delete one of the owner's units. The schema cascade removes its slots →
+    bookings; RLS's resources_delete_own enforces that it's the caller's unit."""
+    db = get_supabase()
+    _owned_resource(db, resource_id, owner)  # 404 missing / 403 not-yours
+    deleted = (
+        get_user_client(owner.token).table("resources").delete().eq("id", resource_id).execute().data
+    )
+    enforce_rls_write(deleted, entity="resource")
+    return Response(status_code=204)
 
 
 @router.get("/{resource_id}/analytics")

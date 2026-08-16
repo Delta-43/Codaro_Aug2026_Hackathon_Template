@@ -48,8 +48,18 @@ _Prioritised. Snapshot, not a living doc — regenerate via the pipeline._
   - **Authz tightened**: `_owned_resource` now scopes both the analytics and
     bookings endpoints to the caller's own resource (403 otherwise) — closes the
     earlier "any owner can view any resource" gap.
-  - Remaining owner polish (not built): edit/delete of existing providers/
-    services/units, and richer resource attributes/images in the create form.
+  - **Edit + delete (built)**: owner-gated `DELETE /providers/{id}`,
+    `DELETE /services/{id}`, `DELETE /resources/{id}` (gating matrix
+    401/403/404, RLS-enforced). Because resources are metadata-linked to
+    services (no FK), provider/service deletes explicitly remove their units
+    first (`delete_resources_for_services`); unit deletes cascade to
+    slots→bookings. `PATCH /resources/{id}` now **merges** metadata so a partial
+    edit (e.g. capacity) can't drop `owner_id`/`service_id`. Frontend: inline
+    edit forms (prefilled, keyed to remount on create↔edit) and two-step delete
+    confirms for business/service/unit. Verified live (17-step API check, all
+    pass) + browser render check; +22 backend tests (suite: 259 passing).
+  - Remaining owner polish (not built): richer resource attributes/images in the
+    create form.
 - [ ] **Provider search `near`** is a case-insensitive city substring computed in
   Python over all providers (fine at demo scale). Add real geo/pagination if the
   catalog grows.
