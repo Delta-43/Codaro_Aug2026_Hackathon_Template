@@ -100,7 +100,10 @@ function LoginForm() {
     <div className="flex min-h-dvh items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-sm">
         <div className="mb-6 text-center">
-          <h1 className="text-2xl font-semibold tracking-tight">Codaro</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            <span className="text-foreground">Service</span>
+            <span className="text-primary">.com</span>
+          </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {mode === "signin" ? "Sign in to continue" : "Create your account"}
           </p>
