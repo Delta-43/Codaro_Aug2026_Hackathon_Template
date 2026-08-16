@@ -7,6 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth";
 
+// Temporary Demo Mode (issue #23) — the seeded demo accounts. Lets us jump
+// straight into a working space to review changes without creating an account
+// or typing credentials. Providers mode is intentionally thin for now; the
+// owner surface is only just being built out. Remove before production; these
+// are the same credentials the backend seeds (backend/seed.py).
+const DEMO_USER = { email: "demo@codaro.app", password: "Codaro-Demo-2026" };
+const DEMO_PROVIDER = { email: "owner@codaro.app", password: "Codaro-Owner-2026" };
+
 /**
  * Login / sign-up — the front door. Backed by Supabase Auth via useAuth(); on
  * success the whole app becomes available (the (app) group is gated on a
@@ -43,6 +51,22 @@ function LoginForm() {
   useEffect(() => {
     if (!loading && session) router.replace(destination);
   }, [loading, session, destination, router]);
+
+  // One-click entry with a seeded demo account. Goes through the real Supabase
+  // sign-in (real JWT + RLS), so it's a shortcut, not a bypass — the redirect
+  // useEffect above takes over once the session lands (owners → /owner).
+  async function enterDemoMode(account: { email: string; password: string }) {
+    setError(null);
+    setNotice(null);
+    setBusy(true);
+    try {
+      await signIn(account.email, account.password);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Demo sign-in failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -175,15 +199,34 @@ function LoginForm() {
           )}
         </div>
 
-        <div className="mt-6 space-y-1 rounded-xl bg-muted px-3 py-2 text-center text-xs text-muted-foreground">
-          <p>
-            Customer demo — <span className="font-medium text-foreground">demo@codaro.app</span> /{" "}
-            <span className="font-medium text-foreground">Codaro-Demo-2026</span>
+        {/* Temporary Demo Mode (issue #23) — developer entry at the foot of the
+            card. Each button does a one-click sign-in with a seeded demo account
+            so changes can be reviewed without logging in. Providers mode is still
+            thin (owner surface under construction). Remove before production. */}
+        <div className="mt-6 space-y-2 border-t border-border pt-5 text-center">
+          <p className="text-xs text-muted-foreground">
+            For developers, check out our website
           </p>
-          <p>
-            Business demo — <span className="font-medium text-foreground">owner@codaro.app</span> /{" "}
-            <span className="font-medium text-foreground">Codaro-Owner-2026</span>
-          </p>
+          <Button
+            type="button"
+            variant="secondary"
+            size="lg"
+            onPress={() => enterDemoMode(DEMO_USER)}
+            isDisabled={busy || !configured}
+            className="w-full"
+          >
+            {busy ? "Please wait…" : "Demo Mode For Users"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onPress={() => enterDemoMode(DEMO_PROVIDER)}
+            isDisabled={busy || !configured}
+            className="w-full"
+          >
+            {busy ? "Please wait…" : "Demo Mode For Providers"}
+          </Button>
         </div>
       </div>
     </div>
