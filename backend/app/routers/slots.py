@@ -1,6 +1,13 @@
-from fastapi import APIRouter
+from datetime import timedelta
 
-from app.db import get_supabase
+from fastapi import APIRouter, Depends, HTTPException, Response
+
+from app.auth import AuthUser, enforce_rls_write, require_owner
+from app.config import get_config
+from app.db import get_supabase, get_user_client, maybe_row
+from app.meta import validate_metadata
+from app.models import SlotCreate, SlotUpdate
+from app.rules import RuleViolation, apply_rules, parse_ts
 
 router = APIRouter(prefix="/slots", tags=["slots"])
 
@@ -22,7 +29,73 @@ def slot_occupancy(resource_id: str | None = None):
 
 
 @router.post("")
-def create_slot(payload: dict):
-    # TODO: derive ends_at from starts_at + rules.slotDurationMinutes when
-    # not explicitly provided.
-    return get_supabase().table("slots").insert(payload).execute().data
+def create_slot(payload: SlotCreate, owner: AuthUser = Depends(require_owner)):
+    db = get_supabase()
+    rules = get_config()["rules"]
+
+    ends_at = payload.ends_at
+    if ends_at is None:
+        ends_at = (
+            parse_ts(payload.starts_at) + timedelta(minutes=rules["slotDurationMinutes"])
+        ).isoformat()
+    capacity = payload.capacity if payload.capacity is not None else rules["maxBookingsPerSlot"]
+
+    validate_metadata("slots", payload.metadata)
+
+    existing = (
+        db.table("slots").select("*").eq("resource_id", payload.resource_id).execute().data
+    )
+    try:
+        apply_rules(
+            "slot.create",
+            {"starts_at": payload.starts_at, "ends_at": ends_at, "existing_slots": existing},
+        )
+    except RuleViolation as e:
+        raise HTTPException(409, str(e))
+
+    row = {
+        "resource_id": payload.resource_id,
+        "starts_at": payload.starts_at,
+        "ends_at": ends_at,
+        "capacity": capacity,
+        "metadata": payload.metadata,
+    }
+    # User-scoped insert so RLS's slots_write_owner enforces that the owner owns
+    # the parent resource (existing-slot lookup above stays on the service key).
+    created = get_user_client(owner.token).table("slots").insert(row).execute().data
+    return enforce_rls_write(created, entity="slot")
+
+
+@router.patch("/{slot_id}")
+def update_slot(
+    slot_id: str, payload: SlotUpdate, owner: AuthUser = Depends(require_owner)
+):
+    db = get_supabase()
+    existing = maybe_row(db.table("slots").select("*").eq("id", slot_id))
+    if existing is None:
+        raise HTTPException(404, "Slot not found")
+
+    patch = payload.model_dump(exclude_none=True)
+    if "metadata" in patch:
+        validate_metadata("slots", patch["metadata"])
+    if not patch:
+        return [existing]
+    # User-scoped update so RLS enforces parent-resource ownership.
+    updated = (
+        get_user_client(owner.token).table("slots").update(patch).eq("id", slot_id).execute().data
+    )
+    return enforce_rls_write(updated, entity="slot")
+
+
+@router.delete("/{slot_id}", status_code=204)
+def delete_slot(slot_id: str, owner: AuthUser = Depends(require_owner)):
+    db = get_supabase()
+    existing = maybe_row(db.table("slots").select("*").eq("id", slot_id))
+    if existing is None:
+        raise HTTPException(404, "Slot not found")
+    # User-scoped delete so RLS enforces parent-resource ownership; the schema
+    # cascade removes dependent bookings. Delete returns the removed rows, so an
+    # empty result means RLS refused.
+    deleted = get_user_client(owner.token).table("slots").delete().eq("id", slot_id).execute().data
+    enforce_rls_write(deleted, entity="slot")
+    return Response(status_code=204)

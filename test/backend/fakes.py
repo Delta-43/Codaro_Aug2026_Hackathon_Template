@@ -1,33 +1,31 @@
 """An in-memory stand-in for the Supabase (PostgREST) client.
 
 CI has no Supabase project and no network, so the routers' database calls
-are served by this fake. It implements exactly the fluent chain the backend
-uses today::
+are served by this fake. It implements the fluent chain the backend uses::
 
-    db.table("bookings").select("*").eq("id", x).single().execute().data
+    db.table("bookings").select("*").eq("id", x).maybe_single().execute().data
     db.table("bookings").insert(row).execute().data
     db.table("bookings").update(patch).eq("id", x).execute().data
-    db.table("resources").select("id").limit(1).execute().data   # seed.py
+    db.table("slot_occupancy").select("*").in_("slot_id", ids).execute().data
 
 Design notes / deliberate fidelity choices:
 
-* ``slot_occupancy`` is a *derived view* (recomputed on every read from
-  ``slots`` + ``bookings``), exactly like the SQL view in
-  ``supabase/schema.sql``. That means capacity behaviour is genuinely
-  exercised end to end: insert a booking and the occupancy the router reads
-  changes, without any test-side bookkeeping.
-* Column defaults mirror ``supabase/schema.sql`` (``status='confirmed'``,
-  ``history='[]'``, ``metadata='{}'`` ...), so an insert that omits them
+* The schema grew to `providers / services / resources / slots / bookings /
+  booking_slots / reviews / follows / profiles`. All are modelled here.
+* ``slot_occupancy`` is a *derived view*, recomputed on every read exactly like
+  the SQL view in ``supabase/schema.sql``: it **sums party_size** across the
+  ``confirmed`` bookings linked to each slot **via booking_slots**. That means
+  multi-slot + shared-capacity party sizes are genuinely exercised — insert a
+  booking (plus its booking_slots) and occupancy shifts with no test bookkeeping.
+* Column defaults mirror ``supabase/schema.sql`` so an insert that omits them
   behaves like the real table.
-* Reads and writes deep-copy, so callers can never mutate the store by
-  holding onto a returned row (PostgREST returns JSON, not references).
+* Reads and writes deep-copy, so callers can never mutate the store by holding a
+  returned row (PostgREST returns JSON, not references).
 
-``strict_single`` toggles the one place where real PostgREST and the
-backend's expectations disagree: with ``strict_single=False`` (default)
-``.single()`` returns ``None`` for zero rows, which is what the routers
-assume (``if slot is None: raise HTTPException(404, ...)``). With
-``strict_single=True`` it raises like PostgREST's ``PGRST116``, which is what
-a live Supabase actually does — used by the xfail tests that pin that gap.
+``strict_single`` toggles the one place real PostgREST and the routers disagree:
+with it off (default) ``.maybe_single()`` returns ``None`` for zero rows (what
+``db.maybe_row`` normalises to); with it on it raises ``PGRST116`` like a live
+project.
 """
 
 from __future__ import annotations
@@ -61,12 +59,48 @@ TABLE_DEFAULTS: dict[str, dict[str, Any]] = {
         "history": [],
         "metadata": {},
     },
+    "providers": {
+        "owner_id": None,
+        "public_code": None,
+        "category_id": None,
+        "metadata": {},
+    },
+    "services": {
+        "description": None,
+        "booking_model": "one_to_one",
+        "slot_duration_minutes": 30,
+        "min_slots_per_booking": 1,
+        "max_slots_per_booking": 1,
+        "price_minor_units": 0,
+        "currency": "EUR",
+        "cancellation_cutoff_hours": 24,
+        "metadata": {},
+    },
+    "booking_slots": {},
+    "reviews": {"text": None},
+    "follows": {},
+    "profiles": {"email": None, "role": "client"},
 }
 
 REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
     "resources": ("name",),
     "slots": ("resource_id", "starts_at", "ends_at"),
     "bookings": ("slot_id", "client_email"),
+    "providers": ("name",),
+    "services": ("provider_id", "name"),
+    "booking_slots": ("booking_id", "slot_id"),
+    "reviews": ("booking_id", "provider_id", "rating"),
+    "follows": ("user_id", "provider_id"),
+    "profiles": ("id",),
+}
+
+# Tables whose primary key is caller-supplied (composite join tables / profiles):
+# a duplicate insert must raise a unique violation, exactly like Postgres, so the
+# routers' idempotency (`follow` swallows the conflict) is genuinely exercised.
+PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
+    "booking_slots": ("booking_id", "slot_id"),
+    "follows": ("user_id", "provider_id"),
+    "profiles": ("id",),
 }
 
 
@@ -97,6 +131,22 @@ class _Query:
 
     def in_(self, column: str, values: list) -> "_Query":
         self._filters.append(("in", column, list(values)))
+        return self
+
+    def gte(self, column: str, value: Any) -> "_Query":
+        self._filters.append(("gte", column, value))
+        return self
+
+    def gt(self, column: str, value: Any) -> "_Query":
+        self._filters.append(("gt", column, value))
+        return self
+
+    def lte(self, column: str, value: Any) -> "_Query":
+        self._filters.append(("lte", column, value))
+        return self
+
+    def lt(self, column: str, value: Any) -> "_Query":
+        self._filters.append(("lt", column, value))
         return self
 
     def limit(self, count: int) -> "_Query":
@@ -136,6 +186,17 @@ class _Query:
                 return False
             if kind == "in" and actual not in value:
                 return False
+            if kind in ("gte", "gt", "lte", "lt"):
+                if actual is None:
+                    return False
+                if kind == "gte" and not (actual >= value):
+                    return False
+                if kind == "gt" and not (actual > value):
+                    return False
+                if kind == "lte" and not (actual <= value):
+                    return False
+                if kind == "lt" and not (actual < value):
+                    return False
         return True
 
     def _project(self, row: dict) -> dict:
@@ -180,6 +241,15 @@ class _Query:
                         f'null value in column "{column}" violates not-null constraint',
                         code="23502",
                     )
+            pk = PRIMARY_KEYS.get(self._table)
+            if pk and any(
+                all(existing.get(c) == payload.get(c) for c in pk)
+                for existing in self._db.tables[self._table]
+            ):
+                raise FakeAPIError(
+                    f"duplicate key value violates unique constraint on {self._table}",
+                    code="23505",
+                )
             row = {
                 "id": str(uuid.uuid4()),
                 "created_at": _now_iso(),
@@ -205,6 +275,7 @@ class _Query:
         for row in self._db.tables[self._table]:
             (removed if self._matches(row) else kept).append(row)
         self._db.tables[self._table] = kept
+        self._db.cascade_delete(self._table, removed)
         return copy.deepcopy(removed)
 
 
@@ -240,7 +311,17 @@ class _TableHandle:
 class FakeSupabase:
     """Minimal in-memory replacement for ``supabase.Client``."""
 
-    BASE_TABLES = ("resources", "slots", "bookings")
+    BASE_TABLES = (
+        "resources",
+        "slots",
+        "bookings",
+        "providers",
+        "services",
+        "booking_slots",
+        "reviews",
+        "follows",
+        "profiles",
+    )
 
     def __init__(self, strict_single: bool = False):
         self.tables: dict[str, list[dict]] = {name: [] for name in self.BASE_TABLES}
@@ -268,16 +349,54 @@ class FakeSupabase:
         if name in self.VIEWS:
             raise FakeAPIError(f"cannot write to view {name}", code="42809")
 
+    # -- referential integrity (mirror `on delete cascade` in schema.sql) --
+    # A parent may cascade to several children: (child_table, parent_key, child_key).
+    _CASCADES: dict[str, tuple[tuple[str, str, str], ...]] = {
+        "resources": (("slots", "id", "resource_id"),),
+        "slots": (
+            ("bookings", "id", "slot_id"),
+            ("booking_slots", "id", "slot_id"),
+        ),
+        "bookings": (
+            ("booking_slots", "id", "booking_id"),
+            ("reviews", "id", "booking_id"),
+        ),
+        "providers": (
+            ("services", "id", "provider_id"),
+            ("reviews", "id", "provider_id"),
+            ("follows", "id", "provider_id"),
+        ),
+    }
+
+    def cascade_delete(self, table: str, removed_rows: list[dict]) -> None:
+        rules = self._CASCADES.get(table)
+        if not rules or not removed_rows:
+            return
+        for child_table, parent_key, child_key in rules:
+            removed_ids = {row.get(parent_key) for row in removed_rows}
+            kept, orphaned = [], []
+            for row in self.tables[child_table]:
+                (orphaned if row.get(child_key) in removed_ids else kept).append(row)
+            self.tables[child_table] = kept
+            self.cascade_delete(child_table, orphaned)
+
     # -- views (mirror supabase/schema.sql) ---------------------------
     def _slot_occupancy(self) -> list[dict]:
+        # Confirmed bookings by id, with their party size (default 1).
+        confirmed: dict[str, int] = {}
+        for b in self.tables["bookings"]:
+            if b.get("status") == "confirmed":
+                confirmed[b["id"]] = int((b.get("metadata") or {}).get("party_size", 1) or 1)
+        # slot_id -> summed party size across confirmed bookings linked via booking_slots.
+        booked_by_slot: dict[str, int] = {}
+        for bs in self.tables["booking_slots"]:
+            party = confirmed.get(bs.get("booking_id"))
+            if party is not None:
+                booked_by_slot[bs["slot_id"]] = booked_by_slot.get(bs["slot_id"], 0) + party
         rows = []
         for slot in self.tables["slots"]:
-            booked = sum(
-                1
-                for b in self.tables["bookings"]
-                if b.get("slot_id") == slot["id"] and b.get("status") == "confirmed"
-            )
             capacity = slot.get("capacity", 1)
+            booked = booked_by_slot.get(slot["id"], 0)
             rows.append(
                 {
                     "slot_id": slot["id"],

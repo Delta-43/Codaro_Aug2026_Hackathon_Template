@@ -7,8 +7,10 @@
     "slots": "Slots",
     "booking": "Booking",
     "bookings": "Bookings",
-    "client": "Client",
-    "admin": "Owner"
+    "client": "Customer",
+    "clients": "Customers",
+    "admin": "Business",
+    "admins": "Businesses"
   },
   "rules": {
     "cancellationWindowHours": 24,

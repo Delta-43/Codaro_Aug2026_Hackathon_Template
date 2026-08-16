@@ -42,15 +42,19 @@ domain.config.json          # THE pivot file (edit only this at 16:00)
 domain.config.medical.example.json
 supabase/schema.sql         # neutral tables: resources / slots / bookings (+ occupancy view)
 backend/                    # FastAPI generic engine
-  app/config.py             #  loads the pivot file
-  app/db.py                 #  Supabase client
-  app/rules.py              #  data-driven rules engine  <-- add secret rule here
-  app/routers/              #  /resources /slots /bookings (+ /slots/occupancy)
+  app/config.py             #  loads the pivot file (+ POST /config/reload)
+  app/db.py                 #  Supabase client + maybe_row not-found guard
+  app/models.py             #  Pydantic request envelopes
+  app/meta.py               #  config-driven metaFields validator
+  app/rules.py              #  event-keyed rules engine  <-- add secret rule here
+  app/routers/              #  /resources /slots /bookings (+ owner CRUD, analytics)
   seed.py                   #  demo data (auto-seeds on first start; run manually to add more)
 frontend/                   # Next.js 14 + Tailwind
   lib/domain.tsx            #  <Term>, useDomain(), fetchConfig()
   lib/api.ts                #  typed backend client
-  app/page.tsx              #  occupancy view + booking demo (fully config-driven)
+  app/page.tsx              #  landing: resource showcase + email identify
+  app/dashboard/page.tsx    #  customer dashboard: book / reschedule / cancel
+  app/owner/page.tsx        #  owner dashboard: create resources+slots, analytics
 ```
 
 ## Run it (Docker — one command)
@@ -165,3 +169,9 @@ the exact commands and branch naming.
 - [x] Change and Cancellation — `/bookings/{id}/reschedule`, `/bookings/{id}/cancel`
 - [x] Availability View — `slot_occupancy` view + `/slots/occupancy` + UI grid
 - [x] Status and History — `status` + append-only `history` jsonb
+- [x] Customer dashboard — `app/dashboard/page.tsx` (book / reschedule / cancel)
+- [x] Owner dashboard — `app/owner/page.tsx`: add resources & slots, per-item analytics
+- [x] Owner: confirm/cancel bookings — `POST /bookings/{id}/confirm`, `{"actor":"owner"}` cancel
+- [x] Owner: view all bookings + filter — `GET /bookings` (`?status=`, `?client_email=`)
+- [x] Owner: per-item analytics — `GET /resources/{id}/analytics`
+- [x] Config-driven behavior — `GET /config` + rules actually enforced (not just returned)
