@@ -1,6 +1,11 @@
 services:
   backend:
-    build: ./backend
+    # Build from the repo root (not ./backend) so the Dockerfile can COPY the
+    # repo-root files the backend reads — domain.config.json + supabase/. The
+    # volume mount below shadows the image for hot-reload during dev.
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
       - "8000:8000"
     env_file:

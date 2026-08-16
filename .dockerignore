@@ -1,0 +1,17 @@
+# The backend image is built from the repo root (see backend/Dockerfile).
+# Keep the build context small and never ship secrets or the frontend.
+.git
+.github
+frontend
+test
+node_modules
+**/node_modules
+**/.next
+**/__pycache__
+**/*.pyc
+.venv
+**/.venv
+**/.env
+**/.env.*
+!**/.env.example
+*.md

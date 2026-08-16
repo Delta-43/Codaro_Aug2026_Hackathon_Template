@@ -25,15 +25,22 @@ seeding/reset are destructive). From **Settings → API** and **Connect** collec
 - Session-pooler connection string (`SUPABASE_DB_URL`)
 
 The backend applies `supabase/schema.sql` and seeds on first boot, so the
-project can start empty.
+project can start empty — **but only if `SUPABASE_DB_URL` is set** (see below).
+Table creation runs DDL over a direct Postgres connection, which is impossible
+through the REST key alone; without `SUPABASE_DB_URL` the app boots with no
+tables. Startup logs `Schema applied from …` on success, or a loud
+`SUPABASE_DB_URL not set` / `Schema setup FAILED` warning otherwise.
 
 ---
 
 ## 1. Backend → Railway
 
 1. **New Project → Deploy from GitHub repo**, pick this repo.
-2. Open the service → **Settings → Source** → set **Root Directory = `backend`**.
-   Railway then reads `backend/railway.json` and `backend/Dockerfile`.
+2. Open the service → **Settings → Source** → leave **Root Directory** as the
+   **repo root** (empty / `/`), **not** `backend`. The backend reads two
+   repo-root files (`domain.config.json`, `supabase/schema.sql`) that only exist
+   in the image when the build context is the whole repo. Railway reads
+   `railway.json` at the root, which points the build at `backend/Dockerfile`.
 3. **Settings → Networking → Generate Domain** to get a public URL
    (e.g. `https://codaro-backend.up.railway.app`).
 4. **Variables** — add:
@@ -97,5 +104,9 @@ backend per PR — off by default because it multiplies usage.
   raise `WEB_CONCURRENCY`.
 - **Local dev is unchanged.** `docker-compose.yml` overrides the container
   command with `--reload`; the image's default `CMD` is the production command.
+- **Build context is the repo root, not `backend/`.** The backend resolves
+  `domain.config.json` and `supabase/schema.sql` relative to the repo root
+  (`parents[2]` of `backend/app/*.py`), so the Dockerfile copies them in and the
+  image must be built from the root. Keep Railway's Root Directory empty.
 - **Don't hardcode URLs.** Frontend reads `NEXT_PUBLIC_API_BASE`; backend CORS
   reads `CORS_ORIGINS`. Everything else is Supabase config.
