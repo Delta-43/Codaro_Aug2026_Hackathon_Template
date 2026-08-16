@@ -41,6 +41,7 @@ test/
     test_me.py              # GET/PATCH /me
     test_frontend_contract.py  # frontend/src/api paths + error codes vs the live route table
   e2e/
+    conftest.py             # session-scoped autouse teardown: reseeds the default `fleet` vertical after the e2e session (gated on SUPABASE_URL + SUPABASE_ANON_KEY)
     test_live_api.py        # opt-in smoke tests against a running stack + real Supabase Auth
 ```
 
@@ -107,6 +108,25 @@ user), a create → reschedule → cancel lifecycle on a far-future slot, and
 follow/unfollow. It **skips unless both `SUPABASE_URL` and `SUPABASE_ANON_KEY`
 are set** (the backend base URL defaults to `http://localhost:8000`; override
 with `E2E_BASE_URL`), so `pytest test/` stays green offline.
+
+The e2e suite **mutates the real Supabase project** (it can switch the demo
+vertical and create/cancel a booking). `test/e2e/conftest.py` installs a
+`scope="session", autouse=True` teardown that reseeds the default `fleet`
+vertical *after* the whole e2e session, so the project is always left clean even
+if a test switched verticals mid-run. It reseeds by importing the backend seeder
+(`import seed; seed.seed_vertical("fleet")` — `backend/` is already on
+`sys.path`) and only *after* the tests (they assert against the current seed
+counts, so it must not run up front). It is gated on the same
+`SUPABASE_URL` + `SUPABASE_ANON_KEY` env, so it is a no-op when the live suite is
+skipped and never fails collection when the env is absent.
+
+In the dev container the env lives in the backend container, so run e2e there:
+
+```bash
+docker exec -w /workspace/test codarohackathon-backend-1 python3 -m pytest e2e -q
+docker exec -w /workspace/backend codarohackathon-backend-1 \
+  python3 -c "import seed; print(seed.active_vertical())"   # -> fleet after the run
+```
 
 **Frontend unit tests:** none — the frontend has no test runner wired up
 (`frontend/package.json` has no `test` script). The practical part of the

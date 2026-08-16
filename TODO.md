@@ -6,11 +6,14 @@ _Prioritised. Snapshot, not a living doc — regenerate via the pipeline._
 - [x] **Tests regenerated & green**: `test/backend` → 203 passed (offline);
   `test/e2e` → 8 passed against live Supabase. _(Remaining: decide whether CI
   runs the opt-in live suite or stays offline-only.)_
-- [ ] **The live e2e suite mutates the real project** — it switches the demo
-  vertical and creates/cancels a booking, and does not restore `fleet` on exit.
-  After running it, reseed (`docker exec … python3 -c "import seed;
-  seed.seed_vertical('fleet')"`). Consider making the suite reseed-on-teardown,
-  or point it at a throwaway Supabase project.
+- [x] **Live e2e reseed-on-teardown** — `test/e2e/conftest.py` now reseeds the
+  default `fleet` vertical after the session (gated on the Supabase env, failure
+  downgraded to a warning). Verified: starts dirty (`group`) → ends `fleet`,
+  e2e 8 passed, offline 203 unaffected. _(Still consider a throwaway Supabase
+  project for CI so the live suite never touches shared demo data.)_
+  - Note: the container needs `pytest httpx anyio` present to run the suite
+    (test-runner installs them); bake into the backend image or `requirements`
+    if CI runs tests in-container.
 - [ ] **Seeded providers have no `owner_id`** (they're created via the service
   key). By design they can't be edited via an owner token (RLS
   `providers_write_own`). If an owner-admin UI is added, either stamp `owner_id`
