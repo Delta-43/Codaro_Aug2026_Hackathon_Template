@@ -16,7 +16,13 @@ SCHEMA_PATH = Path(__file__).resolve().parents[2] / "supabase" / "schema.sql"
 def create_tables_if_configured() -> None:
     db_url = get_db_url()
     if not db_url:
-        logger.info("SUPABASE_DB_URL not set — skipping schema setup.")
+        # Loud on purpose: without a DB URL there is no way to run DDL, so
+        # tables are NOT auto-created and seeding will find nothing to seed.
+        logger.warning(
+            "SUPABASE_DB_URL not set — tables will NOT be auto-created. Set it "
+            "to the Supabase session-pooler connection string, or apply "
+            "supabase/schema.sql by hand in the Supabase SQL editor."
+        )
         return
     try:
         sql = SCHEMA_PATH.read_text()
@@ -28,6 +34,10 @@ def create_tables_if_configured() -> None:
                 # its schema cache.
                 cur.execute("NOTIFY pgrst, 'reload schema'")
             conn.commit()
-        logger.info("Schema applied (idempotent).")
+        logger.info("Schema applied from %s (idempotent).", SCHEMA_PATH)
     except Exception:
-        logger.exception("Schema setup failed — continuing startup anyway.")
+        logger.exception(
+            "Schema setup FAILED — tables may be missing and seeding will be "
+            "skipped. Verify SUPABASE_DB_URL (use the session-pooler string, "
+            "not the IPv6-only direct host)."
+        )
