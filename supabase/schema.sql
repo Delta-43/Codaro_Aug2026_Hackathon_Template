@@ -367,9 +367,16 @@ begin
   values ('avatars', 'avatars', true, 5242880, array['image/jpeg', 'image/png', 'image/webp'])
   on conflict (id) do nothing;
 
+  -- No public "select" policy: a public bucket serves individual object reads
+  -- via the /storage/v1/object/public/... endpoint, which bypasses RLS
+  -- entirely, so a broad `select` policy here isn't needed for <img> to work
+  -- and would instead let any authenticated client list/enumerate every
+  -- object (i.e. every user id) in the bucket via storage.objects directly.
   drop policy if exists avatars_select_all on storage.objects;
-  create policy avatars_select_all on storage.objects for select
-    using (bucket_id = 'avatars');
+
+  drop policy if exists avatars_select_own on storage.objects;
+  create policy avatars_select_own on storage.objects for select
+    using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
 
   drop policy if exists avatars_write_own on storage.objects;
   create policy avatars_write_own on storage.objects for all
