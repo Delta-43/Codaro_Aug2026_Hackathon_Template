@@ -109,7 +109,7 @@ current vertical from a service's booking model.
 
 ## Pre-existing issues fixed along the way
 - Root `frontend/app/` was shadowing `frontend/src/app/` (Next uses root `app/`
-  when both exist) → moved to `frontend/_legacy/root-app/`.
+  when both exist) → removed (the shadowing copy has since been deleted).
 - `node_modules` was stale (Tailwind 3, no `@tailwindcss/postcss`) vs a Tailwind
   v4 `package.json` → reinstalled; app now builds.
 - `SUPABASE_JWT_SECRET` / `SUPABASE_ANON_KEY` were missing from `backend/.env`
