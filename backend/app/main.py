@@ -5,7 +5,16 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import clear_config_cache, get_config
-from app.routers import bookings, resources, slots
+from app.routers import (
+    availability,
+    bookings,
+    demo,
+    me,
+    providers,
+    resources,
+    services,
+    slots,
+)
 from app.schema_setup import create_tables_if_configured
 from seed import seed_if_empty
 
@@ -30,9 +39,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(providers.router)
+app.include_router(services.router)
 app.include_router(resources.router)
 app.include_router(slots.router)
+app.include_router(availability.router)
 app.include_router(bookings.router)
+app.include_router(me.router)
+app.include_router(demo.router)
 
 
 @app.get("/health")

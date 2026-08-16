@@ -1,0 +1,499 @@
+"""Pure unit tests for `app.serialize` — the row → camelCase wire mappers.
+
+These are offline and config-independent: none of the serializers touch
+`get_config()` or the database, so they run without any fixture. They pin the
+exact key set the frontend's `src/types/domain.ts` expects for each entity, plus
+the three derived helpers (`derive_slot_status`, `effective_booking_status`,
+`iso_utc`).
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+import pytest
+
+from app import serialize as S
+
+# A fixed "now" so the time-dependent ladders are deterministic.
+NOW = datetime(2026, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
+PAST = "2026-01-01T00:00:00+00:00"
+FUTURE = "2027-01-01T00:00:00+00:00"
+
+
+# --- iso_utc ---------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("2026-01-02T03:04:05+00:00", "2026-01-02T03:04:05.000Z"),
+        ("2026-01-02T03:04:05Z", "2026-01-02T03:04:05.000Z"),
+        ("2026-01-02T03:04:05.123456+00:00", "2026-01-02T03:04:05.123Z"),  # µs -> ms
+        ("2026-01-02T03:04:05", "2026-01-02T03:04:05.000Z"),  # naive -> UTC
+        ("2026-01-02T03:04:05+02:00", "2026-01-02T01:04:05.000Z"),  # offset normalised
+    ],
+)
+def test_iso_utc_formats_with_trailing_z_and_millis(value, expected):
+    assert S.iso_utc(value) == expected
+
+
+def test_iso_utc_accepts_a_datetime():
+    dt = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
+    assert S.iso_utc(dt) == "2026-01-02T03:04:05.000Z"
+
+
+def test_iso_utc_none_is_none():
+    assert S.iso_utc(None) is None
+
+
+def test_iso_utc_always_ends_in_z():
+    assert S.iso_utc("2026-01-02T03:04:05+05:30").endswith("Z")
+
+
+# --- derive_slot_status ----------------------------------------------------
+
+
+def test_slot_status_past_beats_everything():
+    # Even a blocked/full slot in the past reads as "past".
+    assert S.derive_slot_status(PAST, capacity=0, booked_count=0, now=NOW) == "past"
+
+
+def test_slot_status_blocked_when_capacity_zero():
+    assert S.derive_slot_status(FUTURE, capacity=0, booked_count=0, now=NOW) == "blocked"
+
+
+def test_slot_status_full_when_booked_meets_capacity():
+    assert S.derive_slot_status(FUTURE, capacity=2, booked_count=2, now=NOW) == "full"
+
+
+def test_slot_status_partial_when_some_booked():
+    assert S.derive_slot_status(FUTURE, capacity=3, booked_count=1, now=NOW) == "partially_booked"
+
+
+def test_slot_status_available_when_empty():
+    assert S.derive_slot_status(FUTURE, capacity=3, booked_count=0, now=NOW) == "available"
+
+
+def test_slot_status_ladder_constants():
+    assert (S.SLOT_PAST, S.SLOT_BLOCKED, S.SLOT_FULL, S.SLOT_PARTIAL, S.SLOT_AVAILABLE) == (
+        "past",
+        "blocked",
+        "full",
+        "partially_booked",
+        "available",
+    )
+
+
+# --- effective_booking_status ----------------------------------------------
+
+
+def test_confirmed_in_the_past_reads_as_completed():
+    assert S.effective_booking_status("confirmed", PAST, now=NOW) == "completed"
+
+
+def test_confirmed_in_the_future_stays_confirmed():
+    assert S.effective_booking_status("confirmed", FUTURE, now=NOW) == "confirmed"
+
+
+def test_confirmed_with_no_end_stays_confirmed():
+    assert S.effective_booking_status("confirmed", None, now=NOW) == "confirmed"
+
+
+def test_cancelled_stays_cancelled_even_in_the_past():
+    assert S.effective_booking_status("cancelled", PAST, now=NOW) == "cancelled"
+
+
+def test_rescheduled_is_treated_as_confirmed():
+    assert S.effective_booking_status("rescheduled", FUTURE, now=NOW) == "confirmed"
+
+
+# --- serialize_provider ----------------------------------------------------
+
+PROVIDER_KEYS = {
+    "id",
+    "name",
+    "avatarUrl",
+    "coverUrl",
+    "tagline",
+    "bio",
+    "categoryId",
+    "location",
+    "rating",
+    "reviewCount",
+    "links",
+    "publicCode",
+    "serviceIds",
+}
+
+
+def _provider_row():
+    return {
+        "id": "prov-1",
+        "name": "Vistula Auto",
+        "category_id": "economy",
+        "public_code": "VISTULA-4471",
+        "metadata": {
+            "avatar_url": "http://img/a.png",
+            "cover_url": "http://img/c.png",
+            "tagline": "City rentals",
+            "bio": "Family-run desk.",
+            "location": {"city": "Warsaw", "country": "Poland", "lat": 52.2, "lng": 21.0},
+            "links": [{"label": "Website", "url": "http://x"}],
+            "rating": 4.7,
+            "review_count": 100,
+        },
+    }
+
+
+def test_provider_key_set():
+    out = S.serialize_provider(_provider_row(), service_ids=["s1", "s2"])
+    assert set(out) == PROVIDER_KEYS
+    assert set(out["location"]) == {"city", "country", "lat", "lng"}
+
+
+def test_provider_serviceids_and_public_code():
+    out = S.serialize_provider(_provider_row(), service_ids=["s1"])
+    assert out["serviceIds"] == ["s1"]
+    assert out["publicCode"] == "VISTULA-4471"
+    assert out["categoryId"] == "economy"
+
+
+def test_provider_rating_pools_seed_baseline_with_real_reviews():
+    # seed: 4.7 over 100; add two real 5.0 reviews -> pooled over 102.
+    out = S.serialize_provider(_provider_row(), review_sum=10.0, review_count=2)
+    assert out["reviewCount"] == 102
+    assert out["rating"] == round((4.7 * 100 + 10.0) / 102, 1)
+
+
+def test_provider_rating_zero_when_no_reviews_at_all():
+    row = _provider_row()
+    row["metadata"]["rating"] = 0
+    row["metadata"]["review_count"] = 0
+    out = S.serialize_provider(row)
+    assert out["rating"] == 0.0
+    assert out["reviewCount"] == 0
+
+
+def test_provider_defaults_when_metadata_sparse():
+    out = S.serialize_provider({"id": "p", "name": "Bare"})
+    assert out["avatarUrl"] == ""
+    assert out["location"] == {"city": "", "country": "", "lat": 0, "lng": 0}
+    assert out["links"] == []
+    assert out["coverUrl"] is None
+
+
+# --- serialize_service -----------------------------------------------------
+
+SERVICE_KEYS = {
+    "id",
+    "providerId",
+    "name",
+    "description",
+    "imageUrl",
+    "bookingModel",
+    "slotDurationMinutes",
+    "minSlotsPerBooking",
+    "maxSlotsPerBooking",
+    "priceMinorUnits",
+    "currency",
+    "cancellationCutoffHours",
+    "resourceIds",
+}
+
+
+def _service_row():
+    return {
+        "id": "svc-1",
+        "provider_id": "prov-1",
+        "name": "Compact rental",
+        "description": "A small car.",
+        "booking_model": "unit_selection",
+        "slot_duration_minutes": 1440,
+        "min_slots_per_booking": 1,
+        "max_slots_per_booking": 7,
+        "price_minor_units": 4500,
+        "currency": "PLN",
+        "cancellation_cutoff_hours": 48,
+        "metadata": {"image_url": "http://img/s.png"},
+    }
+
+
+def test_service_key_set_and_passthrough():
+    out = S.serialize_service(_service_row(), resource_ids=["r1", "r2"])
+    assert set(out) == SERVICE_KEYS
+    assert out["providerId"] == "prov-1"
+    assert out["bookingModel"] == "unit_selection"
+    assert out["slotDurationMinutes"] == 1440
+    assert out["maxSlotsPerBooking"] == 7
+    assert out["cancellationCutoffHours"] == 48
+    assert out["currency"] == "PLN"
+    assert out["resourceIds"] == ["r1", "r2"]
+    assert out["imageUrl"] == "http://img/s.png"
+
+
+def test_service_missing_description_becomes_empty_string():
+    row = _service_row()
+    row["description"] = None
+    assert S.serialize_service(row)["description"] == ""
+
+
+# --- serialize_resource ----------------------------------------------------
+
+RESOURCE_KEYS = {
+    "id",
+    "serviceId",
+    "name",
+    "description",
+    "imageUrl",
+    "capacity",
+    "attributes",
+    "active",
+}
+
+
+def test_resource_key_set_and_metadata_projection():
+    row = {
+        "id": "res-1",
+        "name": "Unit 4471",
+        "description": "Toyota Yaris",
+        "metadata": {
+            "service_id": "svc-1",
+            "capacity": 4,
+            "active": True,
+            "attributes": [{"label": "Seats", "value": "5"}],
+            "image_url": "http://img/r.png",
+        },
+    }
+    out = S.serialize_resource(row)
+    assert set(out) == RESOURCE_KEYS
+    assert out["serviceId"] == "svc-1"
+    assert out["capacity"] == 4
+    assert out["active"] is True
+    assert out["attributes"] == [{"label": "Seats", "value": "5"}]
+
+
+def test_resource_defaults_capacity_and_active():
+    out = S.serialize_resource({"id": "r", "name": "Bare", "metadata": {}})
+    assert out["capacity"] == 1
+    assert out["active"] is True
+    assert out["attributes"] == []
+    assert out["serviceId"] == ""
+
+
+# --- serialize_slot --------------------------------------------------------
+
+SLOT_KEYS = {
+    "id",
+    "serviceId",
+    "resourceId",
+    "startUtc",
+    "endUtc",
+    "capacity",
+    "bookedCount",
+    "status",
+}
+
+
+def test_slot_key_set_and_derived_status():
+    row = {
+        "id": "slot-1",
+        "resource_id": "res-1",
+        "starts_at": "2027-01-01T09:00:00+00:00",
+        "ends_at": "2027-01-01T10:00:00+00:00",
+        "capacity": 3,
+        "metadata": {"service_id": "svc-1"},
+    }
+    out = S.serialize_slot(row, booked_count=1, now=NOW)
+    assert set(out) == SLOT_KEYS
+    assert out["serviceId"] == "svc-1"
+    assert out["startUtc"] == "2027-01-01T09:00:00.000Z"
+    assert out["endUtc"] == "2027-01-01T10:00:00.000Z"
+    assert out["capacity"] == 3
+    assert out["bookedCount"] == 1
+    assert out["status"] == "partially_booked"
+
+
+def test_slot_service_id_kwarg_overrides_metadata():
+    row = {
+        "id": "s",
+        "resource_id": "r",
+        "starts_at": FUTURE,
+        "ends_at": FUTURE,
+        "capacity": 1,
+        "metadata": {"service_id": "from-md"},
+    }
+    out = S.serialize_slot(row, service_id="from-kwarg", now=NOW)
+    assert out["serviceId"] == "from-kwarg"
+
+
+# --- serialize_booking -----------------------------------------------------
+
+BOOKING_KEYS = {
+    "id",
+    "reference",
+    "userId",
+    "providerId",
+    "serviceId",
+    "resourceId",
+    "slotIds",
+    "startUtc",
+    "endUtc",
+    "status",
+    "partySize",
+    "priceMinorUnits",
+    "currency",
+    "createdAtUtc",
+    "cancelledAtUtc",
+    "changeHistory",
+    "review",
+}
+
+
+def _booking_row(status="confirmed"):
+    return {
+        "id": "bk-1",
+        "status": status,
+        "client_id": "user-1",
+        "created_at": "2026-05-01T00:00:00+00:00",
+        "metadata": {
+            "reference": "BK-ABC123",
+            "provider_id": "prov-1",
+            "service_id": "svc-1",
+            "resource_id": "res-1",
+            "party_size": 2,
+            "price_minor_units": 9000,
+            "currency": "PLN",
+            "change_history": [
+                {
+                    "at_utc": "2026-05-02T00:00:00+00:00",
+                    "from_start_utc": "2027-01-01T09:00:00+00:00",
+                    "to_start_utc": "2027-02-01T09:00:00+00:00",
+                }
+            ],
+        },
+    }
+
+
+def test_booking_key_set_and_span():
+    out = S.serialize_booking(
+        _booking_row(),
+        slot_ids=["s1", "s2"],
+        start_utc="2027-02-01T09:00:00+00:00",
+        end_utc="2027-02-01T11:00:00+00:00",
+        now=NOW,
+    )
+    assert set(out) == BOOKING_KEYS
+    assert out["slotIds"] == ["s1", "s2"]
+    assert out["userId"] == "user-1"
+    assert out["reference"] == "BK-ABC123"
+    assert out["partySize"] == 2
+    assert out["priceMinorUnits"] == 9000
+    assert out["currency"] == "PLN"
+    assert out["startUtc"] == "2027-02-01T09:00:00.000Z"
+    assert out["status"] == "confirmed"
+    assert out["cancelledAtUtc"] is None
+    assert out["review"] is None
+
+
+def test_booking_change_history_is_camelcased():
+    out = S.serialize_booking(
+        _booking_row(), slot_ids=["s1"], start_utc=FUTURE, end_utc=FUTURE, now=NOW
+    )
+    entry = out["changeHistory"][0]
+    assert set(entry) == {"atUtc", "fromStartUtc", "toStartUtc"}
+    assert entry["atUtc"] == "2026-05-02T00:00:00.000Z"
+
+
+def test_booking_confirmed_in_past_serializes_as_completed():
+    out = S.serialize_booking(
+        _booking_row(), slot_ids=["s1"], start_utc=PAST, end_utc=PAST, now=NOW
+    )
+    assert out["status"] == "completed"
+
+
+def test_booking_review_is_serialized_when_present():
+    review = {"rating": 5, "text": "Great", "created_at": "2026-05-10T00:00:00+00:00"}
+    out = S.serialize_booking(
+        _booking_row(), slot_ids=["s1"], start_utc=FUTURE, end_utc=FUTURE, review=review, now=NOW
+    )
+    assert out["review"] == {
+        "rating": 5,
+        "text": "Great",
+        "createdAtUtc": "2026-05-10T00:00:00.000Z",
+    }
+
+
+def test_booking_cancelled_at_is_serialized():
+    row = _booking_row(status="cancelled")
+    row["metadata"]["cancelled_at_utc"] = "2026-05-05T00:00:00+00:00"
+    out = S.serialize_booking(row, slot_ids=["s1"], start_utc=FUTURE, end_utc=FUTURE, now=NOW)
+    assert out["status"] == "cancelled"
+    assert out["cancelledAtUtc"] == "2026-05-05T00:00:00.000Z"
+
+
+def test_booking_include_client_adds_client_email_only_when_true():
+    row = _booking_row()
+    row["client_email"] = "guest@example.com"
+
+    # Default (client-facing): no clientEmail leaked.
+    default = S.serialize_booking(
+        row, slot_ids=["s1"], start_utc=FUTURE, end_utc=FUTURE, now=NOW
+    )
+    assert "clientEmail" not in default
+    assert set(default) == BOOKING_KEYS
+
+    # Owner view: additive clientEmail present alongside the full Booking shape.
+    owner_view = S.serialize_booking(
+        row, slot_ids=["s1"], start_utc=FUTURE, end_utc=FUTURE, now=NOW, include_client=True
+    )
+    assert set(owner_view) == BOOKING_KEYS | {"clientEmail"}
+    assert owner_view["clientEmail"] == "guest@example.com"
+
+
+def test_booking_include_client_defaults_missing_email_to_empty_string():
+    # Booking row without a client_email column -> "" (never KeyError/None).
+    out = S.serialize_booking(
+        _booking_row(), slot_ids=["s1"], start_utc=FUTURE, end_utc=FUTURE, now=NOW, include_client=True
+    )
+    assert out["clientEmail"] == ""
+
+
+# --- serialize_user --------------------------------------------------------
+
+USER_KEYS = {
+    "id",
+    "displayName",
+    "email",
+    "avatarUrl",
+    "timezone",
+    "verified",
+    "followedProviderIds",
+}
+
+
+def test_user_key_set_and_metadata():
+    out = S.serialize_user(
+        id="user-1",
+        email="a@b.com",
+        metadata={
+            "display_name": "Ada",
+            "avatar_url": "http://img/u.png",
+            "timezone": "Europe/Warsaw",
+            "verified": True,
+        },
+        followed_provider_ids=["prov-1"],
+    )
+    assert set(out) == USER_KEYS
+    assert out["displayName"] == "Ada"
+    assert out["timezone"] == "Europe/Warsaw"
+    assert out["verified"] is True
+    assert out["followedProviderIds"] == ["prov-1"]
+
+
+def test_user_display_name_falls_back_to_email_local_part():
+    out = S.serialize_user(id="u", email="jane.doe@example.com", metadata={})
+    assert out["displayName"] == "jane.doe"
+    assert out["timezone"] == "UTC"
+    assert out["verified"] is False
+    assert out["followedProviderIds"] == []
