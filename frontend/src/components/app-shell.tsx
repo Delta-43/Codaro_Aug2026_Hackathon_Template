@@ -15,6 +15,7 @@ import { CalendarDays, CircleUser, Search, Store, Ticket, type LucideIcon } from
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/context/app-context";
+import { AvatarImg } from "@/components/avatar-img";
 
 interface Tab {
   href: string;
@@ -69,7 +70,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           className="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 hover:bg-muted"
           aria-label="Account"
         >
-          <Avatar url={user?.avatarUrl} name={user?.displayName} />
+          <AvatarImg
+            src={user?.avatarUrl}
+            name={user?.displayName}
+            alt=""
+            className="size-8"
+          />
           <span className="max-w-[10rem] truncate text-sm">{user?.displayName ?? "Account"}</span>
         </Link>
       </header>
@@ -127,16 +133,5 @@ function NavItem({ tab, active }: { tab: Tab; active: boolean }) {
       <Icon className="size-4" aria-hidden />
       {tab.label}
     </Link>
-  );
-}
-
-function Avatar({ url, name }: { url?: string; name?: string }) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={url ?? ""}
-      alt={name ?? ""}
-      className="size-8 rounded-full bg-muted object-cover"
-    />
   );
 }

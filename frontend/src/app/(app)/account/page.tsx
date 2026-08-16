@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { CreditCard } from "lucide-react";
 import { useApp } from "@/context/app-context";
 import { useAuth } from "@/lib/auth";
+import { AvatarImg } from "@/components/avatar-img";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/skeleton";
 import { ProfileForm } from "@/components/account/profile-form";
@@ -55,12 +56,7 @@ export default function AccountPage() {
   return (
     <section className="space-y-8 py-6">
       <header className="flex items-center gap-3">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={user?.avatarUrl ?? ""}
-          alt=""
-          className="size-14 rounded-full bg-muted object-cover"
-        />
+        <AvatarImg src={user?.avatarUrl} name={user?.displayName} alt="" className="size-14" />
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg font-semibold tracking-tight">
             {user?.displayName ?? "…"}
