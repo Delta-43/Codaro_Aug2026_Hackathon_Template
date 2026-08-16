@@ -14,6 +14,7 @@
  */
 import type {
   Booking,
+  ClientReputation,
   DayAvailability,
   ID,
   IsoUtc,
@@ -31,6 +32,7 @@ import type {
 } from "@/types/domain";
 
 export type {
+  ClientReputation,
   OwnerBooking,
   OwnerDashboard,
   OwnerRequest,
@@ -217,6 +219,12 @@ export function updateUser(patch: Partial<User>): Promise<User> {
   return request("/me", { method: "PATCH", body: JSON.stringify(patch) });
 }
 
+/** The signed-in customer's reputation as businesses see it (score + reviews
+ *  providers left after completed bookings). */
+export function getMyReputation(): Promise<ClientReputation> {
+  return request("/me/reputation");
+}
+
 export async function getActiveVertical(): Promise<VerticalId> {
   const { verticalId } = await request<{ verticalId: VerticalId }>("/demo/vertical");
   return verticalId;
@@ -293,6 +301,19 @@ export function approveBooking(id: ID): Promise<Booking> {
 /** Owner declines a pending request → rejected. */
 export function rejectBooking(id: ID): Promise<Booking> {
   return post(`/bookings/${id}/reject`) as Promise<Booking>;
+}
+
+/** Owner rates the customer after a completed booking (feeds their reputation). */
+export function rateClient(
+  bookingId: ID,
+  rating: number,
+  text = "",
+): Promise<{ rating: number; text: string; createdAtUtc: IsoUtc | null }> {
+  return post(`/bookings/${bookingId}/client-review`, { rating, text }) as Promise<{
+    rating: number;
+    text: string;
+    createdAtUtc: IsoUtc | null;
+  }>;
 }
 
 /** Recent public reviews for a provider (Profile tab). */

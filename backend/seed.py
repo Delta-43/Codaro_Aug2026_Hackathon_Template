@@ -357,6 +357,8 @@ def seed_vertical(vertical_id: str) -> dict:
             db, primary_service, demo_provider_id, model, currency,
             [(demo_uid, DEMO_EMAIL), (prospect_uid, PROSPECT_EMAIL)],
         )
+        # The demo user's reputation: reviews the provider left about them.
+        _seed_client_reviews(db, demo_uid, demo_provider_id)
 
     # demo user follows the second provider
     if len(provider_ids) > 1:
@@ -448,6 +450,36 @@ def _seed_requests(db, primary, provider_id, model, currency, requesters) -> int
             {"booking_id": booking["id"], "slot_id": slot["id"]}
         ).execute()
         made += 1
+    return made
+
+
+_CLIENT_REVIEW_LINES = [
+    (5, "Punctual, friendly and left everything spotless. A pleasure to host."),
+    (5, "Clear communicator and easy to work with — welcome back any time."),
+    (4, "Respectful of our space and prompt with everything. Highly rated."),
+]
+
+
+def _seed_client_reviews(db, client_uid, provider_id) -> int:
+    """Reviews the provider left about the demo customer → their reputation.
+    Attached to a few of the customer's existing bookings (one review each)."""
+    bookings = db.table("bookings").select("id").eq("client_id", client_uid).execute().data or []
+    now = datetime.now(timezone.utc)
+    made = 0
+    for i, b in enumerate(bookings[:3]):
+        rating, text = _CLIENT_REVIEW_LINES[i % len(_CLIENT_REVIEW_LINES)]
+        try:
+            db.table("client_reviews").insert({
+                "booking_id": b["id"],
+                "client_id": client_uid,
+                "provider_id": provider_id,
+                "rating": rating,
+                "text": text,
+                "created_at": _iso(now - timedelta(days=4 * (i + 1))),
+            }).execute()
+            made += 1
+        except Exception:
+            pass  # table may not exist on an older DB — reputation just stays empty
     return made
 
 

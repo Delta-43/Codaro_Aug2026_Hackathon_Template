@@ -173,6 +173,29 @@ def make_booking(
     return booking
 
 
+def make_client_review(
+    db: FakeSupabase,
+    booking: dict,
+    *,
+    rating: int = 5,
+    text: str = "",
+    provider_id: str | None = None,
+    client_id: str | None = None,
+) -> dict:
+    """Insert a `client_reviews` row (a business rating a customer after a
+    completed booking). Defaults resolve the client/provider from the booking's
+    stored ids so a caller only needs the booking + a rating."""
+    md = booking.get("metadata") or {}
+    return db.insert_row(
+        "client_reviews",
+        booking_id=booking["id"],
+        client_id=client_id or booking.get("client_id") or md.get("user_id"),
+        provider_id=provider_id or md.get("provider_id"),
+        rating=rating,
+        text=text,
+    )
+
+
 def make_catalog(
     db: FakeSupabase,
     *,

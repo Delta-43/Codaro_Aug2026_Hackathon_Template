@@ -28,7 +28,7 @@ from app.errors import (
     SLOT_UNAVAILABLE,
     api_error,
 )
-from app.models import BookingCreateReq, ReviewReq, RescheduleReq
+from app.models import BookingCreateReq, ClientReviewReq, ReviewReq, RescheduleReq
 from app.rules import effective_service_rules, within_cutoff
 from app.serialize import _parse, effective_booking_status, iso_utc, serialize_booking
 
@@ -464,6 +464,41 @@ def approve_booking(booking_id: str, owner: AuthUser = Depends(require_owner)):
     return serialize_booking(
         updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end, review=review
     )
+
+
+@router.post("/{booking_id}/client-review")
+def review_client(booking_id: str, payload: ClientReviewReq, owner: AuthUser = Depends(require_owner)):
+    """Owner rates the customer after a completed booking → the customer's
+    reputation. One review per booking (a re-review replaces the prior one)."""
+    db = get_supabase()
+    uc = get_user_client(owner.token)
+    booking = _load_own(uc, booking_id)
+    _assert_owns_booking(db, booking, owner)
+
+    cur_ids, _cur_start, cur_end = _span_of(db, booking, uc)
+    if effective_booking_status(booking["status"], cur_end) != "completed":
+        raise api_error(NOT_FOUND, "You can only rate a customer after the booking is completed.")
+
+    rating = max(1, min(5, round(payload.rating)))
+    md = booking.get("metadata") or {}
+    # One review per booking: clear any prior (service key) then insert through
+    # the owner's client so RLS's client_reviews_insert_owner enforces.
+    db.table("client_reviews").delete().eq("booking_id", booking_id).execute()
+    uc.table("client_reviews").insert(
+        {
+            "booking_id": booking_id,
+            "client_id": booking.get("client_id") or md.get("user_id"),
+            "provider_id": md.get("provider_id"),
+            "rating": rating,
+            "text": (payload.text or "").strip(),
+        }
+    ).execute()
+    row = maybe_row(db.table("client_reviews").select("*").eq("booking_id", booking_id))
+    return {
+        "rating": int(row["rating"]) if row else rating,
+        "text": (row.get("text") if row else payload.text) or "",
+        "createdAtUtc": iso_utc(row.get("created_at")) if row else None,
+    }
 
 
 @router.post("/{booking_id}/reject")

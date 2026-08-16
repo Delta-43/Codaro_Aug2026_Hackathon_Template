@@ -187,6 +187,15 @@ def _client_profile(db, client_id: str, email: str, provider_ids: set[str]) -> d
     with_us = [r for r in rows if (r.get("metadata") or {}).get("provider_id") in provider_ids]
     cancelled = sum(1 for r in with_us if r["status"] == "cancelled")
 
+    # The client's reputation (ratings businesses left them). Degrades to no
+    # rating if the table isn't present (e.g. offline fake).
+    ratings: list[int] = []
+    try:
+        rev = db.table("client_reviews").select("rating").eq("client_id", client_id).execute().data or []
+        ratings = [int(r["rating"]) for r in rev]
+    except Exception:
+        ratings = []
+
     return {
         "id": client_id,
         "displayName": display_name,
@@ -196,6 +205,8 @@ def _client_profile(db, client_id: str, email: str, provider_ids: set[str]) -> d
         "totalBookings": total,
         "bookingsWithProvider": len(with_us),
         "cancelledWithProvider": cancelled,
+        "rating": round(sum(ratings) / len(ratings), 1) if ratings else None,
+        "reviewCount": len(ratings),
     }
 
 

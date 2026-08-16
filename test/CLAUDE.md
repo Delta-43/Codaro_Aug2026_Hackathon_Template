@@ -176,9 +176,23 @@ path the UI calls exists on the FastAPI app (method-aware) and that the
 
 ## Current state
 
-`python -m pytest test/backend -q` from the repo root: **297 passed**
+`python -m pytest test/backend -q` from the repo root: **311 passed**
 (0 failures, 0 xfail). `python -m pytest test/` adds the 8 live e2e tests, which
 skip without `SUPABASE_URL`/`SUPABASE_ANON_KEY`.
+
+Client-reputation coverage (the `client_reviews` table + businesses rating
+customers): `FakeSupabase.BASE_TABLES` now includes `client_reviews` (defaults +
+required cols + booking/provider delete-cascade), and `helpers.make_client_review`
+builds rows. `test_bookings.py` covers `POST /bookings/{id}/client-review` —
+owner rates a completed booking (200 + one persisted row), rating clamp (9→5),
+404 for an upcoming booking, 401/403(client)/403(other-owner) gating, and a
+re-review replacing the prior row. `test_me.py` covers `GET /me/reputation` —
+empty default `{score:0,count:0,reviews:[]}`, two reviews aggregated to the mean
+`score` with `author`=provider name newest-first, and scoping to the signed-in
+user. `test_owner.py`'s request `client` card asserts the two new keys
+(`rating`/`reviewCount`, defaulting to `None`/`0`) and reflects a present
+`client_review`. `test_providers.py` covers the public `GET /providers/{id}/reviews`
+(newest-first, author from the booking's email local part).
 
 Business-mode (owner/provider) coverage:
 - `test_serialize.py` — `serialize_service` now emits `autoApprove`

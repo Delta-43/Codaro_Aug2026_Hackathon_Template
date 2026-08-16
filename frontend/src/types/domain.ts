@@ -161,6 +161,8 @@ export interface RequestClient {
   totalBookings: number;
   bookingsWithProvider: number;
   cancelledWithProvider: number;
+  rating: number | null; // reputation from businesses; null when never rated
+  reviewCount: number;
 }
 
 /** A pending request enriched for the Requests tab. */
@@ -219,4 +221,11 @@ export interface ProviderReview {
   text: string;
   createdAtUtc: IsoUtc;
   author: string;
+}
+
+/** A customer's reputation as businesses see it (customer Profile tab). */
+export interface ClientReputation {
+  score: number;
+  count: number;
+  reviews: { author: string; rating: number; text: string; createdAtUtc: IsoUtc | null }[];
 }

@@ -43,6 +43,14 @@ class ReviewReq(CamelModel):
     text: str = ""
 
 
+class ClientReviewReq(CamelModel):
+    """POST /bookings/{id}/client-review — an owner rating the customer after a
+    completed booking (feeds the customer's reputation)."""
+
+    rating: int
+    text: str = ""
+
+
 class UserPatch(CamelModel):
     """PATCH /me — a partial User. Only these keys are honored; role/verified
     are not self-editable."""

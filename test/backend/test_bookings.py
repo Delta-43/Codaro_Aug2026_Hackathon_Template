@@ -15,6 +15,7 @@ from helpers import (
     iso_in,
     make_booking,
     make_catalog,
+    make_client_review,
     make_resource,
     make_service,
     make_slot,
@@ -572,3 +573,96 @@ def test_reject_by_other_owner_is_403(client, db, auth):
     cat = make_catalog(db, owner_id=OTHER_OWNER_ID)
     booking = _pending(db, cat)
     assert client.post(f"/bookings/{booking['id']}/reject").status_code == 403
+
+
+# --- owner client-review (client reputation) -------------------------------
+
+
+def _completed(db, cat, *, client_email="guest@example.com"):
+    """A confirmed booking whose slot end is in the past — the router treats this
+    as `completed`, the only state that can be rated."""
+    past = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=-5)
+    return make_booking(
+        db, slots=[past], service=cat["service"], status="confirmed", client_email=client_email
+    )
+
+
+def test_client_review_on_completed_booking_persists(client, db, auth):
+    auth(role="owner")  # DEFAULT_OWNER_ID owns the catalog provider
+    cat = make_catalog(db)
+    booking = _completed(db, cat)
+    resp = client.post(
+        f"/bookings/{booking['id']}/client-review", json={"rating": 4, "text": "Great customer"}
+    )
+    assert resp.status_code == 200
+    out = resp.json()
+    assert set(out) == {"rating", "text", "createdAtUtc"}
+    assert out["rating"] == 4
+    assert out["text"] == "Great customer"
+    # exactly one row persisted, linked to the booking + client + provider.
+    rows = [r for r in db.rows("client_reviews") if r["booking_id"] == booking["id"]]
+    assert len(rows) == 1
+    assert rows[0]["rating"] == 4
+    assert rows[0]["client_id"] == booking["client_id"]
+    assert rows[0]["provider_id"] == cat["provider"]["id"]
+
+
+def test_client_review_clamps_rating(client, db, auth):
+    auth(role="owner")
+    cat = make_catalog(db)
+    booking = _completed(db, cat)
+    resp = client.post(f"/bookings/{booking['id']}/client-review", json={"rating": 9})
+    assert resp.status_code == 200
+    assert resp.json()["rating"] == 5
+    assert db.rows("client_reviews")[0]["rating"] == 5
+
+
+def test_client_review_upcoming_booking_is_404(client, db, auth):
+    auth(role="owner")
+    cat = make_catalog(db)
+    slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100)
+    booking = make_booking(db, slots=[slot], service=cat["service"], status="confirmed")
+    resp = client.post(f"/bookings/{booking['id']}/client-review", json={"rating": 5})
+    assert resp.status_code == 404
+    assert db.count("client_reviews") == 0
+
+
+def test_client_review_requires_a_token(client, db):
+    cat = make_catalog(db)
+    booking = _completed(db, cat)
+    assert client.post(f"/bookings/{booking['id']}/client-review", json={"rating": 5}).status_code == 401
+
+
+def test_client_review_as_client_is_403(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db)
+    booking = _completed(db, cat)
+    resp = client.post(f"/bookings/{booking['id']}/client-review", json={"rating": 5})
+    assert resp.status_code == 403
+    assert db.count("client_reviews") == 0
+
+
+def test_client_review_by_other_owner_is_403(client, db, auth):
+    auth(role="owner")  # DEFAULT_OWNER_ID
+    cat = make_catalog(db, owner_id=OTHER_OWNER_ID)  # provider owned by someone else
+    booking = _completed(db, cat)
+    resp = client.post(f"/bookings/{booking['id']}/client-review", json={"rating": 5})
+    assert resp.status_code == 403
+    assert db.count("client_reviews") == 0
+
+
+def test_client_review_replaces_prior_one(client, db, auth):
+    auth(role="owner")
+    cat = make_catalog(db)
+    booking = _completed(db, cat)
+    client.post(f"/bookings/{booking['id']}/client-review", json={"rating": 2, "text": "meh"})
+    second = client.post(
+        f"/bookings/{booking['id']}/client-review", json={"rating": 5, "text": "improved"}
+    )
+    assert second.status_code == 200
+    assert second.json()["rating"] == 5
+    # still a single row for the booking — the prior review was replaced.
+    rows = [r for r in db.rows("client_reviews") if r["booking_id"] == booking["id"]]
+    assert len(rows) == 1
+    assert rows[0]["rating"] == 5
+    assert rows[0]["text"] == "improved"

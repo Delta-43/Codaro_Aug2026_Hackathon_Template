@@ -111,7 +111,14 @@ superseded by the per-service flow in `bookings.py`. Parse all timestamps throug
   (confirmed/completed bookings in a window, default current month). Reads use
   the service key (system aggregation); shapes are additive owner-only envelopes.
 - **Account:** `GET /me`, `PATCH /me` (writes editable fields to
-  `user_metadata`); `POST /providers/{id}/follow` + `/unfollow` (return the User).
+  `user_metadata`); `GET /me/reputation` (the customer's rating + the reviews
+  businesses left them, from `client_reviews`); `POST /providers/{id}/follow` +
+  `/unfollow` (return the User).
+- **Client reputation:** `POST /bookings/{id}/client-review` (owner, completed
+  bookings only) records a rating of the customer in `client_reviews`; it feeds
+  `GET /me/reputation` and the owner Requests screening card's `rating`.
+  `GET /providers/{id}/reviews` (public) lists a provider's recent reviews for
+  the Profile tab.
 - **Demo:** `GET /demo/vertical` (public), `POST /demo/vertical` + `POST
   /demo/reset` (`require_user`, destructive backend reseed).
 

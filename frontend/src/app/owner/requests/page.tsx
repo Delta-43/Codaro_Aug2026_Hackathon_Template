@@ -10,7 +10,7 @@
  * they want to work with. Requests + actions are the real /owner + /bookings API.
  */
 import { useEffect, useMemo, useState } from "react";
-import { Check, Clock, ShieldCheck, TriangleAlert, Users, X } from "lucide-react";
+import { Check, Clock, ShieldCheck, Star, TriangleAlert, Users, X } from "lucide-react";
 import { useOwner } from "@/context/owner-context";
 import { Skeleton } from "@/components/skeleton";
 import { AvatarImg } from "@/components/avatar-img";
@@ -200,6 +200,12 @@ function RequestCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="font-semibold">{r.client.displayName}</span>
+            {r.client.rating != null && r.client.reviewCount > 0 ? (
+              <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
+                <Star className="size-3 fill-amber-400 text-amber-400" aria-hidden />
+                {r.client.rating.toFixed(1)}
+              </span>
+            ) : null}
             {flagged ? (
               <span className="inline-flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-600 dark:text-amber-400">
                 <TriangleAlert className="size-3" aria-hidden /> Screen

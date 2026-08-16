@@ -7,13 +7,13 @@
  * /owner/calendar across all the owner's resources; cancel hits /bookings/{id}.
  */
 import { useEffect, useMemo, useState } from "react";
-import { Clock, Users } from "lucide-react";
+import { Clock, Star, Users } from "lucide-react";
 import { useOwner } from "@/context/owner-context";
 import { Skeleton } from "@/components/skeleton";
 import { Modal } from "@/components/modal";
 import { Button } from "@/components/ui/button";
 import { BookingCalendar } from "@/components/business/booking-calendar";
-import { cancelBooking, getOwnerCalendar, getOwnerServices, ApiError } from "@/api";
+import { cancelBooking, getOwnerCalendar, getOwnerServices, rateClient, ApiError } from "@/api";
 import type { OwnerBooking, OwnerServiceSummary } from "@/types/domain";
 import type { DemoBooking } from "@/lib/business-demo";
 import { ownerBookingToCal } from "@/lib/owner-view";
@@ -134,6 +134,8 @@ export default function CalendarPage() {
                 Cancel booking
               </Button>
             </div>
+            {selected.status === "completed" ? <RateClient bookingId={selected.id} clientName={selected.client} /> : null}
+
             <p className="text-[11px] text-muted-foreground">
               Messaging and reschedule are coming to the owner console next.
             </p>
@@ -149,6 +151,62 @@ function Row({ icon, children }: { icon: React.ReactNode; children: React.ReactN
     <div className="flex items-center gap-2">
       <span className="text-muted-foreground">{icon}</span>
       <span>{children}</span>
+    </div>
+  );
+}
+
+/** Rate the customer after a completed booking — feeds their reputation. */
+function RateClient({ bookingId, clientName }: { bookingId: string; clientName: string }) {
+  const [rating, setRating] = useState(0);
+  const [hover, setHover] = useState(0);
+  const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(value: number) {
+    setRating(value);
+    setBusy(true);
+    try {
+      await rateClient(bookingId, value);
+      setDone(true);
+    } catch (e) {
+      alert(e instanceof ApiError ? e.message : "Couldn't submit the rating.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <p className="rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
+        Thanks — you rated {clientName} {rating}★. It shows on their customer profile.
+      </p>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-border bg-background/40 px-3 py-2">
+      <p className="mb-1 text-xs font-medium">Rate this customer</p>
+      <div className="flex items-center gap-1" onMouseLeave={() => setHover(0)}>
+        {[1, 2, 3, 4, 5].map((v) => (
+          <button
+            key={v}
+            type="button"
+            disabled={busy}
+            aria-label={`${v} star${v > 1 ? "s" : ""}`}
+            onMouseEnter={() => setHover(v)}
+            onClick={() => submit(v)}
+            className="p-0.5 disabled:opacity-50"
+          >
+            <Star
+              className={cn(
+                "size-5",
+                (hover || rating) >= v ? "fill-amber-400 text-amber-400" : "fill-muted text-muted-foreground/40",
+              )}
+              aria-hidden
+            />
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
