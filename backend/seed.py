@@ -18,11 +18,13 @@ from __future__ import annotations
 
 import logging
 import secrets
+import time
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
 
 import psycopg
+from postgrest.exceptions import APIError
 
 from app.db import get_db_url, get_supabase
 from seed_data import DEFAULT_VERTICAL, VERTICALS
@@ -512,11 +514,26 @@ def active_vertical() -> str:
 
 
 def seed_if_empty() -> None:
-    try:
-        existing = get_supabase().table("providers").select("id").limit(1).execute().data
-    except Exception:
-        logger.exception("Could not check providers; skipping seed.")
-        return
+    # On a fresh DB the tables are created via a direct Postgres connection
+    # (schema_setup) moments before this runs, but PostgREST reloads its schema
+    # cache asynchronously after the `NOTIFY pgrst, 'reload schema'`. Until it
+    # does, the REST client 404s with PGRST205 even though the table exists, so
+    # poll past that reload window instead of giving up on the first miss.
+    existing = None
+    for attempt in range(10):
+        try:
+            existing = get_supabase().table("providers").select("id").limit(1).execute().data
+            break
+        except APIError as exc:
+            if exc.code == "PGRST205" and attempt < 9:
+                logger.info("providers not in PostgREST cache yet; waiting for reload...")
+                time.sleep(1)
+                continue
+            logger.exception("Could not check providers; skipping seed.")
+            return
+        except Exception:
+            logger.exception("Could not check providers; skipping seed.")
+            return
     if existing:
         return
     seed_vertical(DEFAULT_VERTICAL)
