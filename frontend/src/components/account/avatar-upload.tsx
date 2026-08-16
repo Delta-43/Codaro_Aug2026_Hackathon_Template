@@ -76,7 +76,7 @@ export function AvatarUpload({
           isDisabled={busy}
           onPress={() => (hasPhoto ? void handleRemove() : inputRef.current?.click())}
           aria-label={hasPhoto ? "Remove profile photo" : "Upload profile photo"}
-          className="absolute -right-1 -bottom-1 size-8 rounded-full border-2 border-background bg-background p-0 shadow-sm"
+          className="absolute -right-1 -bottom-1 size-8 rounded-full border-2 border-background bg-background p-0 shadow-sm dark:bg-background"
         >
           {hasPhoto ? (
             <Trash2 className="size-3.5 text-destructive" />
