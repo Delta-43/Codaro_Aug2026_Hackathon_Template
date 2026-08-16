@@ -60,6 +60,11 @@ reschedule flows special-case the codes for re-pick / disabled-with-reason.
   a session; `getCurrentUser`/`updateUser` map to `/me`.
 - Env: `NEXT_PUBLIC_API_BASE`, `NEXT_PUBLIC_SUPABASE_URL`,
   `NEXT_PUBLIC_SUPABASE_ANON_KEY` (see `.env.local.example`).
+- **Theming** is `next-themes` (`attribute="class"`, `defaultTheme="light"`,
+  `enableSystem`) mounted in `src/app/layout.tsx`; dark tokens live under `.dark`
+  in `globals.css`. The Account tab's `theme-toggle.tsx` sets Light / Dark /
+  Smart (`"system"`). First load is always light; the choice persists and
+  Smart tracks the OS `prefers-color-scheme` live.
 
 ## Views (per README)
 
@@ -71,8 +76,8 @@ reschedule flows special-case the codes for re-pick / disabled-with-reason.
    multi-slot + party-size booking flow. *Built.*
 5. **Bookings** (tab 4) — upcoming/past, detail, reschedule, cancel, review.
    *Built.*
-6. **Account** (tab 5) — profile edit (`PATCH /me`), sign-out, demo
-   vertical-switch/reset. *Built.*
+6. **Account** (tab 5) — profile edit (`PATCH /me`), sign-out, **Appearance**
+   theme toggle (Light / Dark / Smart), demo vertical-switch/reset. *Built.*
 
 Owner/admin self-service (creating providers/services from the UI) is not built —
 seeds populate catalog data; see `TODO.md`.

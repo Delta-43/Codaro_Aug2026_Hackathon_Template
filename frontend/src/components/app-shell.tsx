@@ -24,7 +24,7 @@ interface Tab {
 
 const TABS: Tab[] = [
   { href: "/search", label: "Search", icon: Search },
-  { href: "/provider", label: "Provider", icon: Store },
+  { href: "/provider", label: "Services", icon: Store },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/bookings", label: "Bookings", icon: Ticket },
   { href: "/account", label: "Account", icon: CircleUser },
@@ -46,7 +46,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Desktop left drawer */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-card px-3 py-4 md:flex">
         <Link href="/search" className="mb-4 px-3 text-lg font-semibold tracking-tight">
-          Codaro
+          <span className="text-foreground">Service</span>
+          <span className="text-primary">.com</span>
         </Link>
         <nav className="flex flex-col gap-1">
           {TABS.map((tab) => (

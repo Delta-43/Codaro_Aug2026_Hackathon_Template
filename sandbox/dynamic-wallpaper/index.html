@@ -1,0 +1,333 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Dynamic Wallpaper — sandbox</title>
+<style>
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #d9dbe8; /* replaced by the active theme at runtime */
+  }
+  #scene {
+    position: fixed;
+    inset: 0;
+    display: block;
+    width: 100vw;
+    height: 100vh;
+  }
+  /* frosted "liquid glass" over the whole scene — configured per theme */
+  #frost {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+  }
+</style>
+
+<canvas id="scene"></canvas>
+<div id="frost"></div>
+
+<script>
+/* =========================================================================
+   DYNAMIC WALLPAPER — v3 (sandbox)
+   Two big rolling sinusoids over a morphing pastel mesh, with a liquid-glass
+   finish. LIGHT is the default; DARK is an opt-in theme (see MODE below).
+
+   Wave geometry, described the intuitive way:
+     bandPct   = crest-to-trough height, as a fraction of the window height
+     troughPct = how far the LOWEST point sits above the bottom edge
+   e.g. layer 1 rides 5% → 75%  =>  bandPct 0.70, troughPct 0.05
+        layer 2 rides 0% → 40%  =>  bandPct 0.40, troughPct 0.00
+   ========================================================================= */
+
+// Theme select: default LIGHT. Preview dark with  ?mode=dark  in the URL.
+const MODE = (new URLSearchParams(location.search).get('mode') === 'dark') ? 'dark' : 'light';
+
+const CONFIG = {
+  // --- Shared pastel palette (hues are the same; themes darken them) ------
+  palette: {
+    turquoise: '#8FE7DB',
+    violet:    '#C8B8F3',
+    pink:      '#F8C8DC',
+    orange:    '#F9CB9F',   // gentle sunset
+    emerald:   '#93E3BE',   // light deep emerald
+    gold:      '#F3E0A9',
+  },
+
+  timeScale: 1.0,           // master speed multiplier
+
+  background: {
+    blobCount: 6,
+    driftSpeed: 0.05,      // pace of the morph (~30% quicker)
+    radius: 0.75,           // blob size, fraction of min(viewport)
+    alpha: 0.9,            // blob strength (raised → ~20% less faded)
+    lowResScale: 0.22,      // render small + upscale = free, buttery blur
+  },
+
+  // --- Layer 1: big front sinusoid, rides 5% → 75%, pans right ------------
+  wave1: {
+    bandPct: 0.70,
+    troughPct: 0.05,
+    wavelengthPct: 0.90,    // wavelength, fraction of screen width
+    crossSeconds: 16,       // time for a peak to cross the screen
+    direction: 1,           // +1 pans right, -1 pans left
+    alpha: 0.60,            // 60% opaque → ~40% of background shows through
+    blur: 22,               // soft edges
+    gradientSpan: 1.9,      // colour gradient width, ×window (bigger = longer fades)
+    sheen: 0.18,            // glassy highlight pooling near the crest
+    depthShade: 0.12,       // shading toward the bottom (volume)
+    edge: 0.38,             // specular highlight along the crest
+    edgeWidth: 3.0,
+    colors: ['turquoise', 'violet', 'pink'],
+  },
+
+  // --- Layer 2: big back sinusoid, rides 0% → 40%, pans left --------------
+  wave2: {
+    bandPct: 0.40,
+    troughPct: 0.00,
+    wavelengthPct: 0.72,
+    crossSeconds: 16,
+    direction: -1,
+    alpha: 0.60,
+    blur: 20,
+    gradientSpan: 1.9,
+    sheen: 0.16,
+    depthShade: 0.10,
+    edge: 0.32,
+    edgeWidth: 2.6,
+    colors: ['emerald', 'gold', 'orange'],
+  },
+
+  wobble: 0.26,             // gentle randomness on top of the clean sine
+};
+
+/* --- THEMES: the only place light vs. dark differ ----------------------- */
+const THEMES = {
+  light: {
+    base: '#e7e9f2',                          // ground colour of the mesh
+    paletteDarken: 0.10,                      // shift all hues 10% darker
+    frost: 'rgba(255,255,255,0.10)',          // glass tint (lighter → less faded)
+    frostBlur: 7,
+    frostSaturate: 1.05,
+    sheenColor:  [255, 255, 255],             // crest highlight / volume light
+    depthColor:  [20, 22, 45],                // volume shade
+    topLight:    { color: [255, 255, 255], strength: 0.12 },
+    vignette:    { color: [16, 18, 38], strength: 0.12 },
+  },
+  dark: {
+    base: '#0f1220',                          // deep night ground
+    paletteDarken: 0.42,                      // hues become deep jewel tones
+    frost: 'rgba(10,12,22,0.16)',             // dark glass tint (lighter → less faded)
+    frostBlur: 8,
+    frostSaturate: 1.12,
+    sheenColor:  [205, 220, 255],             // cool glassy highlight
+    depthColor:  [0, 0, 0],
+    topLight:    { color: [130, 150, 210], strength: 0.10 },
+    vignette:    { color: [0, 0, 0], strength: 0.30 },
+  },
+};
+const T = THEMES[MODE];
+
+/* ------------------------------------------------------------------------ */
+
+// tiny seeded PRNG so each load differs but is internally consistent
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+const SEED = (Math.random() * 1e9) | 0;
+const rnd = mulberry32(SEED);
+
+function hexToRgb(hex){
+  const h = hex.replace('#','');
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+// palette colours, darkened by the active theme
+function rgba(hex, a){
+  const d = 1 - (T.paletteDarken || 0);
+  let [r,g,b] = hexToRgb(hex);
+  return `rgba(${Math.round(r*d)},${Math.round(g*d)},${Math.round(b*d)},${a})`;
+}
+// neutral colours (lights/shadows) — NOT affected by the palette darken
+function neutral(rgb, a){ return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`; }
+
+// apply theme chrome (page + frosted glass)
+document.documentElement.style.background = T.base;
+document.body.style.background = T.base;
+const frostEl = document.getElementById('frost');
+frostEl.style.background = T.frost;
+frostEl.style.backdropFilter = `blur(${T.frostBlur}px) saturate(${T.frostSaturate})`;
+frostEl.style.webkitBackdropFilter = `blur(${T.frostBlur}px) saturate(${T.frostSaturate})`;
+
+const canvas = document.getElementById('scene');
+const ctx = canvas.getContext('2d');
+const bg = document.createElement('canvas');
+const bgx = bg.getContext('2d');
+
+let W = 0, H = 0, DPR = 1;
+
+const blobs = [];
+function initBlobs(){
+  blobs.length = 0;
+  const keys = Object.keys(CONFIG.palette);
+  for (let i = 0; i < CONFIG.background.blobCount; i++){
+    blobs.push({
+      color: CONFIG.palette[keys[i % keys.length]],
+      hx: 0.15 + rnd() * 0.70,
+      hy: 0.15 + rnd() * 0.70,
+      rangeX: 0.30 + rnd() * 0.28,   // roam further so colours slide across
+      rangeY: 0.30 + rnd() * 0.28,   // the canvas instead of shimmering in place
+      f1: 0.5 + rnd() * 0.9,
+      f2: 0.5 + rnd() * 0.9,
+      p1: rnd() * Math.PI * 2,
+      p2: rnd() * Math.PI * 2,
+      rPulse: 0.10 + rnd() * 0.12,
+    });
+  }
+}
+
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width  = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const s = CONFIG.background.lowResScale;
+  bg.width  = Math.max(2, Math.round(W * s));
+  bg.height = Math.max(2, Math.round(H * s));
+}
+window.addEventListener('resize', resize);
+
+/* --- background: soft drifting colour fields ---------------------------- */
+function drawBackground(t){
+  const bw = bg.width, bh = bg.height;
+  const cfg = CONFIG.background;
+  const sp = cfg.driftSpeed;
+
+  bgx.globalCompositeOperation = 'source-over';
+  bgx.fillStyle = T.base;
+  bgx.fillRect(0, 0, bw, bh);
+
+  const baseR = cfg.radius * Math.min(bw, bh);
+  for (const b of blobs){
+    const x = (b.hx + Math.sin(t * sp * b.f1 + b.p1) * b.rangeX) * bw;
+    const y = (b.hy + Math.cos(t * sp * b.f2 + b.p2) * b.rangeY) * bh;
+    const r = baseR * (1 + Math.sin(t * sp * 0.8 + b.p1) * b.rPulse);
+    const g = bgx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0,   rgba(b.color, cfg.alpha));
+    g.addColorStop(0.6, rgba(b.color, cfg.alpha * 0.35));
+    g.addColorStop(1,   rgba(b.color, 0));
+    bgx.fillStyle = g;
+    bgx.fillRect(0, 0, bw, bh);
+  }
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(bg, 0, 0, W, H);
+}
+
+/* --- one big sinusoid layer, rendered as a glassy ribbon ---------------- */
+function drawWave(cfg, t){
+  const ampTotal = cfg.bandPct * H / 2;
+  const troughY  = H * (1 - cfg.troughPct);
+  const midY     = troughY - ampTotal;
+  const amp      = ampTotal / (1 + CONFIG.wobble);
+  const k        = (Math.PI * 2) / (W * cfg.wavelengthPct);
+  const speed    = W / cfg.crossSeconds;
+  const x0       = cfg.direction * speed * t;
+
+  const step = 6;
+  const pts = [];
+  let crestMin = H;
+  for (let x = 0; x <= W; x += step){
+    const phase = k * (x - x0);
+    const y = midY
+            + amp * Math.sin(phase)
+            + amp * CONFIG.wobble * Math.sin(phase * 0.5 + t * 0.18 + SEED);
+    pts.push([x, y]);
+    if (y < crestMin) crestMin = y;
+  }
+
+  const traceFill = () => {
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.lineTo(W, H);
+    ctx.lineTo(0, H);
+    ctx.closePath();
+  };
+
+  // 1) coloured fill — horizontal gradient with long, gentle fades
+  ctx.save();
+  ctx.filter = `blur(${cfg.blur}px)`;
+  traceFill();
+  const span  = cfg.gradientSpan * W;
+  const drift = Math.sin(t * 0.05) * W * 0.08;
+  const gx0 = W / 2 - span / 2 + drift;
+  const gx1 = W / 2 + span / 2 + drift;
+  const grad = ctx.createLinearGradient(gx0, 0, gx1, 0);
+  const cols = cfg.colors;
+  for (let i = 0; i < cols.length; i++){
+    grad.addColorStop(i / (cols.length - 1), rgba(CONFIG.palette[cols[i]], cfg.alpha));
+  }
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.restore();
+
+  // 2) glass volume — bright sheen near the crest, subtle shade toward bottom
+  ctx.save();
+  traceFill();
+  ctx.clip();
+  const vg = ctx.createLinearGradient(0, crestMin, 0, H);
+  vg.addColorStop(0.00, neutral(T.sheenColor, cfg.sheen));
+  vg.addColorStop(0.30, neutral(T.sheenColor, 0));
+  vg.addColorStop(1.00, neutral(T.depthColor, cfg.depthShade));
+  ctx.filter = `blur(${cfg.blur * 0.5}px)`;
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, crestMin - 2, W, H - crestMin + 2);
+  ctx.restore();
+
+  // 3) specular highlight stroked along the crest (the liquid-glass edge)
+  ctx.save();
+  ctx.filter = `blur(${cfg.blur * 0.32}px)`;
+  ctx.beginPath();
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+  ctx.strokeStyle = neutral(T.sheenColor, cfg.edge);
+  ctx.lineWidth = cfg.edgeWidth;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* --- scene lighting: light source + depth ------------------------------- */
+function drawLighting(){
+  const lg = ctx.createRadialGradient(W * 0.5, -H * 0.15, 0, W * 0.5, -H * 0.15, H * 1.35);
+  lg.addColorStop(0, neutral(T.topLight.color, T.topLight.strength));
+  lg.addColorStop(1, neutral(T.topLight.color, 0));
+  ctx.fillStyle = lg;
+  ctx.fillRect(0, 0, W, H);
+
+  const vg = ctx.createLinearGradient(0, H * 0.45, 0, H);
+  vg.addColorStop(0, neutral(T.vignette.color, 0));
+  vg.addColorStop(1, neutral(T.vignette.color, T.vignette.strength));
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+}
+
+/* --- main loop ---------------------------------------------------------- */
+let start = performance.now();
+function frame(now){
+  const t = ((now - start) / 1000) * CONFIG.timeScale;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, W, H);
+  drawBackground(t);
+  // --- sinusoids temporarily disabled: viewing just the fading background ---
+  // drawWave(CONFIG.wave2, t); // back layer
+  // drawWave(CONFIG.wave1, t); // front layer
+  drawLighting();
+  requestAnimationFrame(frame);
+}
+
+resize();
+initBlobs();
+requestAnimationFrame(frame);
+</script>
