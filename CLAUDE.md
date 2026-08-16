@@ -2,53 +2,61 @@
 
 ## What this is
 
-A generic booking engine (`resource → slot → booking`) built so a completely
-different niche can be adopted via a single config edit instead of a rewrite.
-Stack: **Next.js 14 + Tailwind** frontend, **FastAPI** backend, hosted
-**Supabase (Postgres + Auth)**. See `README.md` for the full run instructions and
-`Project_Summary.md` for the original brief.
+A generic booking engine — `provider → service → resource → slot → booking →
+user` — built so a completely different niche can be adopted via config +
+seed data instead of a rewrite. Multi-slot bookings, party size, reviews,
+follows, search, day-availability and month-density all ride on that neutral
+spine. Stack: **Next.js 14 + Tailwind** frontend, **FastAPI** backend, hosted
+**Supabase (Postgres + Auth)**. See `README.md` for the full run instructions,
+`Project_Summary.md` for the original brief, and `REPORT.md` for the current
+frontend⇄backend wiring snapshot.
 
-The pivot mechanism: `domain.config.json` is the single source of truth for
-`terms` (vocabulary), `rules` (business rules), `copy`, `theme`, and
-`metaFields`. The backend serves it at `GET /config`; the frontend renders
-every label through `<Term>` and every number from `rules`. Nothing in code
-should hard-code a domain term or a magic number. New domain-specific data
-goes in each table's `metadata jsonb` column — no migrations at pivot time.
-`supabase/schema.sql` is treated as frozen/idempotent once the event starts.
-On the backend, the pivot is enforced by an event-keyed rules registry and a
+The pivot mechanism: `domain.config.json` holds the engine's **vocabulary +
+global defaults** — `terms`, `copy`, `theme`, `metaFields`, and the `rules`
+that seed each service's defaults. The backend serves it at `GET /config`.
+**Rules are now per-service**: a service's own columns (duration, min/max slots,
+cutoff, price, booking model) win over the config globals — `rules.py`
+`effective_service_rules` is the single merge point. The frontend renders
+vertical vocabulary from `src/config/verticals.ts` (pure UI labels/nouns/copy).
+New domain-specific data goes in each base table's `metadata jsonb` column — no
+migrations at pivot time. `supabase/schema.sql` is treated as frozen/idempotent
+once the event starts (new *entities* are added as new tables, base tables stay
+frozen). On the backend, the pivot is enforced by the per-service rule resolver,
+the legacy event-keyed rules registry (still used by `slots.py`), and a
 config-driven `metaFields` validator — see [backend/CLAUDE.md](backend/CLAUDE.md).
 
 ## Auth (Supabase Auth)
 
-Being added on this branch (`16-auth-system`), and it reverses the engine's
-original "no auth" stance. Identity moves from *"trust the `client_email` in
+Implemented on this branch (`16-auth-system`); it reverses the engine's
+original "no auth" stance. Identity moved from *"trust the `client_email` in
 the request body"* to **Supabase Auth**: Supabase handles email/password
 sign-up + login and issues a JWT. The frontend attaches that JWT as
-`Authorization: Bearer <token>`; the backend verifies it and reads the user
+`Authorization: Bearer <token>`; the backend verifies it (both **ES256 via
+JWKS** — this project's scheme — and legacy **HS256**) and reads the user
 (`sub`, `email`) from the token instead of trusting the body.
 
 - **Roles stay config-driven.** The owner/client split keeps using
-  `terms.admin` / `terms.client`; the existing `actor` concept becomes a
-  *verified* role (from the token / a `profiles` row) rather than an unchecked
-  flag.
+  `terms.admin` / `terms.client`; the `actor` concept became a *verified* role,
+  trusted from a `profiles` row rather than an unchecked flag.
 - **Per-user isolation via Supabase RLS** (see
   [supabase/CLAUDE.md](supabase/CLAUDE.md)): clients see only their own
-  bookings, owners manage only their own resources.
+  bookings, owners manage only their own providers/resources. Every user-owned
+  read/write goes through a JWT-scoped Supabase client so RLS applies live; the
+  service key is kept for system/cross-user work.
 - Auth is a cross-cutting layer on top of the engine — it does **not** change
-  the pivot design. `domain.config.json` still owns vocabulary/rules; no domain
-  term or magic number moves into auth code.
+  the pivot design. `domain.config.json` still owns vocabulary/defaults; no
+  domain term or magic number moves into auth code.
 
-This documents the target design; each subdir's `CLAUDE.md` records what's
-actually implemented so far (as of this branch: nothing in code yet — docs
-first).
+Each subdir's `CLAUDE.md` records what's actually implemented; `REPORT.md` is
+the current verified snapshot.
 
 ## Repo layout
 
 | Path | Owns | Detail |
 |------|------|--------|
-| `backend/` | FastAPI engine: config loading, rules engine, `/resources` `/slots` `/bookings` routers, seeding | [backend/CLAUDE.md](backend/CLAUDE.md) |
-| `frontend/` | Next.js UI: landing page, customer + owner dashboards, config-driven rendering | [frontend/CLAUDE.md](frontend/CLAUDE.md) |
-| `supabase/` | `schema.sql` — neutral tables + occupancy view | [supabase/CLAUDE.md](supabase/CLAUDE.md) |
+| `backend/` | FastAPI engine: config + per-service rules, camelCase serialization, `/providers` `/services` `/resources` `/slots` `/availability` `/bookings` `/me` `/demo` routers, auth, three-vertical seeding | [backend/CLAUDE.md](backend/CLAUDE.md) |
+| `frontend/` | Next.js app (`frontend/src/`): login + gated `(app)` group (search / calendar / bookings / provider / account), real HTTP API seam | [frontend/CLAUDE.md](frontend/CLAUDE.md) |
+| `supabase/` | `schema.sql` — neutral base tables + extended entities (providers/services/booking_slots/reviews/follows), occupancy view, RLS | [supabase/CLAUDE.md](supabase/CLAUDE.md) |
 | `test/` | Stack + API tests (owned exclusively by the `test-writer` agent, see below) | [test/CLAUDE.md](test/CLAUDE.md) |
 | `domain.config.json` | The pivot file | — |
 
@@ -90,7 +98,7 @@ than hand-edit them.
 ## Commands
 
 ```bash
-cp backend/.env.example backend/.env   # fill SUPABASE_URL + SUPABASE_SERVICE_KEY (+ SUPABASE_DB_URL)
+cp backend/.env.example backend/.env   # SUPABASE_URL + SERVICE_KEY + ANON_KEY + JWT_SECRET (+ DB_URL)
 make start                             # frontend :3000, backend :8000
 make reload                            # re-read domain.config.json after an edit
 make reseed                            # wipe + reseed demo data to match current config

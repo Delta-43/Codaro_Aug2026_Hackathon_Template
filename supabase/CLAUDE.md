@@ -2,82 +2,89 @@
 
 ## Role
 
-`schema.sql` defines the **neutral**, domain-agnostic tables that back the
-booking engine: `resources`, `slots`, `bookings`, plus the `slot_occupancy`
-view used for the availability grid. This is the only file in this
-directory — the database itself is hosted Supabase (Postgres), not a local
-container.
+`schema.sql` defines the tables that back the booking engine. The **neutral base
+tables** — `resources`, `slots`, `bookings` — plus the `slot_occupancy` view are
+the frozen spine; on top of them sit the **extended entities** the richer domain
+needs (`providers`, `services`, `booking_slots`, `reviews`, `follows`) and the
+auth layer (`profiles`). This is the only file in this directory — the database
+itself is hosted Supabase (Postgres), not a local container.
 
 ## Hard rules
 
 - **Idempotent, always.** Only `create table if not exists`,
-  `create index if not exists`, `create or replace view`. Never `DROP` or
-  `ALTER` — the backend re-runs this file on every startup
-  (`SUPABASE_DB_URL`), and existing data must survive that.
-- **Treat as frozen once the event/pivot starts.** New domain-specific data
-  goes into each table's `metadata jsonb` column, never a new migration or
-  column. That's the whole point of the pivot design — see root
+  `create index if not exists`, `create or replace view`, and
+  `drop policy if exists` before each policy. Never `DROP`/`ALTER` a table — the
+  backend re-runs this file on every startup (`SUPABASE_DB_URL`), and existing
+  data must survive that.
+- **Base tables (`resources`/`slots`/`bookings`) are frozen.** New domain fields
+  go in their `metadata jsonb`, never a new column. New *entities* are added as
+  **new tables** (idempotently — the same way `profiles` and the extended
+  entities were added). That's the pivot design — see root
   [CLAUDE.md](../CLAUDE.md).
-- **No custom password table.** Auth is **Supabase Auth** (added on branch
-  `16-auth-system`): Supabase owns the `auth.users` table and password hashing,
-  so never create a parallel users/passwords table here. Booking rows still key
-  ownership by `client_email` / `client_id`, now populated from the verified
-  auth user rather than trusted input. If you need per-user profile data (e.g.
-  role), add a `profiles` table keyed by `auth.users.id`, kept idempotent like
-  everything else.
-- **`bookings.history`** is append-only jsonb: every status change
-  (confirm/cancel/reschedule) should be pushed onto it, not overwrite it, so
-  the full history survives.
+- **No custom password table.** Auth is **Supabase Auth**: Supabase owns
+  `auth.users` + password hashing. `profiles` (1:1 with `auth.users`) holds the
+  engine `role`; per-user profile fields (displayName/timezone/avatar/verified)
+  live in Supabase `user_metadata`, not here.
+- **`bookings.history`** is append-only jsonb (every status change is pushed on,
+  never overwritten).
 
-## Current state
+## Tables
 
-Base tables + `slot_occupancy` view, **plus the auth layer** added on branch
-`16-auth-system` (all in `schema.sql`, idempotent):
+**Base (frozen; new fields ride in `metadata`):**
+- `resources` — `metadata`: `service_id`, `capacity`, `active`,
+  `attributes[{label,value}]`, `image_url`, `owner_id`.
+- `slots` — `metadata`: `service_id`.
+- `bookings` — one row per booking; `slot_id` holds the *first* slot for
+  base-table compatibility. `metadata`: `party_size`, `reference`,
+  `price_minor_units`, `currency`, `provider_id`, `service_id`, `resource_id`,
+  `user_id`, `slot_ids[]`, `change_history[]`, `cancelled_at_utc`.
 
-- **`profiles`** — 1:1 with `auth.users` (`id` FK, `on delete cascade`),
-  holding the engine `role` (`'owner'|'client'`, default `client`). Not a
-  password table (Supabase owns `auth.users`).
-- **`handle_new_user()` trigger** on `auth.users` — auto-creates a profile on
-  sign-up, copying `raw_user_meta_data->>'role'` (what the frontend sets in
-  `user_metadata`). Wrapped in a guarded `DO` block: if the DB role lacks
-  privilege on `auth.users` the trigger is skipped with a `notice` instead of
-  rolling back the whole (single-transaction) file — populate `profiles`
-  manually/via an admin in that case.
-- **`public.is_owner()`** — `security definer` helper the policies use to check
-  the caller's role from `profiles` without RLS recursion.
-- **RLS enabled + policies** on `profiles`/`resources`/`slots`/`bookings`,
-  keyed on `auth.uid()`:
-  - `resources`/`slots`: public `select` (the landing page lists them for anon);
-    write limited to the owner. Resource ownership is `metadata.owner_id` (schema
-    frozen — no new column), stamped by the backend's `create_resource`; slot
-    writes check the parent resource's owner.
-  - `bookings`: a client sees/creates/updates only rows where
-    `client_id = auth.uid()`; an owner sees/manages all.
-  - `profiles`: a user reads only their own row; no API insert/update/delete, so
-    a client can't self-promote to owner (only the trigger / service role / an
-    admin write it).
+**Extended entities (new tables, idempotent):**
+- `providers` — the business/tenant. Columns `owner_id`, `name`,
+  `public_code` (unique, for code/QR lookup), `category_id`; `metadata` holds
+  presentational fields (avatar/cover/tagline/bio/location/links) and the seeded
+  `rating`/`review_count` baseline. Live rating is derived from `reviews`.
+- `services` — a bookable offering under a provider. The **per-service rules**
+  are real columns: `booking_model`, `slot_duration_minutes`,
+  `min/max_slots_per_booking`, `price_minor_units`, `currency`,
+  `cancellation_cutoff_hours`.
+- `booking_slots` — multi-slot join `(booking_id, slot_id)` (composite PK).
+- `reviews` — one per completed booking (`booking_id`, `provider_id`, `rating`,
+  `text`); provider aggregates are computed from these.
+- `follows` — `(user_id, provider_id)` composite PK.
+- `profiles` — engine `role` (`owner`|`client`), auto-provisioned by the
+  `handle_new_user()` trigger from `raw_user_meta_data->>'role'`.
 
-Validated on a throwaway PG16 cluster (idempotent re-apply + policy behavior as
-a non-superuser `authenticated` role).
+**`slot_occupancy` view** (`create or replace`) sums **`party_size`** over
+`confirmed` bookings joined through `booking_slots`, so shared-capacity party
+sizes and multi-slot holds are both counted (was: `count(*)` of confirmed rows).
+Only `confirmed` holds capacity; `cancelled`/`rescheduled` release it.
 
-**RLS is live.** The backend routes user-owned reads/writes through a
-client that carries the user's JWT (`get_user_client` in `backend/app/db.py`),
-so these policies enforce at the database; it keeps the **service key** (which
-**bypasses RLS**) only for system/cross-user work — capacity aggregation,
-analytics, control-flow reads, seeding, and resolving a user's role from
-`profiles`. See `backend/CLAUDE.md` **Auth**. The in-router checks remain as
-defense-in-depth. No explicit `grant`s live in `schema.sql` (they'd roll the
-transaction back on a non-Supabase Postgres where the `anon`/`authenticated`
-roles don't exist — Supabase provides them, and their default table grants,
-already).
+## RLS
 
-Note: RLS owner-writes rely on `resources.metadata.owner_id`, stamped by
-`create_resource`. Rows seeded before auth (or without an owner) can't be
-edited via a user token — expected; owners manage resources they created.
+Enabled on every table; policies key on `auth.uid()`. Public `select` for
+discovery (`providers`/`services`/`resources`/`slots`/`reviews`); owner writes
+for `providers`/`services` (own `owner_id` / parent provider); per-user writes
+for `bookings` + `booking_slots` (`client_id = auth.uid()`), `follows`, and
+`reviews` (own booking). `profiles`: read-own only — a client can't self-promote
+(only the trigger / service role / an admin write it). `is_owner()` is a
+`security definer` helper the policies use to read the role without recursion.
+
+**Enforcement.** The backend routes user-owned reads/writes through a
+JWT-scoped client (`get_user_client`), so these policies enforce live at the
+database. The **service key bypasses RLS** and is kept for system/cross-user work
+(aggregation, analytics, seeding, resolving roles, control-flow reads). In-router
+checks remain as defense-in-depth. See `backend/CLAUDE.md` **Auth**. No explicit
+`grant`s live here (Supabase provides the `anon`/`authenticated` roles + default
+grants; adding them would roll back the transaction on a non-Supabase Postgres).
+
+Note: seeded providers/resources carry no `owner_id` (created via the service
+key), so token-scoped owner edits against them hit RLS 403 by design — owners
+manage what they created.
 
 ## Testing
 
-This directory has no tests of its own — `slot_occupancy` correctness and
-FK/constraint behavior should be covered by backend integration tests in
-`test/` (see [test/CLAUDE.md](../test/CLAUDE.md)), since they require the
-backend's Supabase client to exercise.
+No tests of its own — `slot_occupancy` correctness (party-size + multi-slot),
+FK/cascade, and RLS behavior are covered by `test/backend` (fake occupancy
+mirrors the SQL) and the live `test/e2e` suite. See
+[test/CLAUDE.md](../test/CLAUDE.md).

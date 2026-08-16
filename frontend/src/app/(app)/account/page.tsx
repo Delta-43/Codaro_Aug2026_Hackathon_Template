@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Tab 5 — Account. Profile editing (name / email / timezone via updateUser),
- * an identity-only note (no password auth in this app), a stubbed payment row,
- * the demo panel (vertical switch + reseed), and a help/version footer.
+ * Tab 5 — Account. Profile editing (name / email / timezone via updateUser →
+ * PATCH /me), sign-out, a stubbed payment row, the demo panel (backend vertical
+ * switch + reseed), and a help/version footer.
  */
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -104,7 +104,7 @@ export default function AccountPage() {
       <div className="rounded-xl border border-border bg-card p-4">
         <h2 className="text-sm font-semibold">Demo</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          Switching vertical reseeds the store and resets navigation.
+          Switching vertical reseeds the backend demo data and resets navigation.
         </p>
 
         <div className="mt-3">
@@ -138,7 +138,7 @@ export default function AccountPage() {
       {/* Help / version */}
       <footer className="flex items-center justify-between gap-3 px-1 text-xs text-muted-foreground">
         <span>Codaro · {APP_VERSION}</span>
-        <span>State is in-memory — a refresh resets to seed.</span>
+        <span>Signed in with Supabase — bookings persist in the backend.</span>
       </footer>
     </section>
   );

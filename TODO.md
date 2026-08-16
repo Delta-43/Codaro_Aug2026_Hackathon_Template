@@ -22,17 +22,12 @@ _Prioritised. Snapshot, not a living doc — regenerate via the pipeline._
   or disabling outside demo mode before any real multi-tenant use.
 
 ## P1 — docs drift (the code moved; docs didn't)
-- [ ] `CLAUDE.md`, `backend/CLAUDE.md`, `frontend/CLAUDE.md`, `supabase/CLAUDE.md`
-  still describe the **old flat engine** (single-slot bookings, global rules,
-  snake-case row lists, HS256-only auth). Update them to the
-  Provider→Service→Resource domain, per-service rules, camelCase contract, the
-  new tables/endpoints, and ES256+JWKS auth.
-- [ ] `frontend/CLAUDE.md` references retired files (`lib/domain.tsx`,
-  `lib/api.ts`, `app/dashboard`, `app/owner`) — those live under `_legacy/` now.
-  The new app is `src/`, gated on a Supabase session, with the seam at
-  `src/api/index.ts`.
-- [ ] Account page copy still says "State is in-memory — a refresh resets to
-  seed" and "no password auth" — both untrue now. Update.
+- [x] `CLAUDE.md`, `backend/CLAUDE.md`, `frontend/CLAUDE.md`, `supabase/CLAUDE.md`
+  updated to the Provider→Service→Resource domain, per-service rules, camelCase
+  contract, new tables/endpoints, and ES256+JWKS auth. (`frontend/CLAUDE.md` now
+  points at `src/` + the retired `_legacy/` files.)
+- [x] Account page copy fixed ("in-memory"/"no password auth" → real auth +
+  backend persistence).
 
 ## P2 — completeness / stretch
 - [ ] **Owner/admin UI** in the new frontend — the backend has provider/service/
@@ -50,9 +45,14 @@ _Prioritised. Snapshot, not a living doc — regenerate via the pipeline._
   scale is desired.
 - [ ] **N+1 enrichment**: `/bookings` list resolves provider/service names client
   side per card. Fine now; a batch/embed endpoint would cut round-trips at scale.
-- [ ] **`favicon.ico` 404** in the browser console — add a favicon to the app.
-- [ ] Frontend `npm audit` reported 2 high-severity advisories after the
-  dependency install — review.
+- [x] **Favicon** added (`src/app/icon.svg`, served 200) — the tab icon renders
+  and the `/favicon.ico` probe is resolved via `<link rel="icon">`.
+- [ ] **`npm audit`: 2 high-severity advisories** — both are **Next.js 14
+  inherent** (DoS/SSRF/cache-poisoning classes) plus a transitive **postcss**
+  XSS. npm's only offered fix is `next@16.3.1` — a **two-major-version breaking
+  upgrade** (would very likely break the react-aria UI + app-router usage). Left
+  as-is deliberately; treat a Next 14→latest migration as its own tracked,
+  tested task rather than `npm audit fix --force`.
 
 ## Environment / ops
 - [ ] `backend/.env` now needs `SUPABASE_JWT_SECRET` + `SUPABASE_ANON_KEY` (in
