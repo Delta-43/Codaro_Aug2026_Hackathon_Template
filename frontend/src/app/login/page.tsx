@@ -7,12 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth";
 
-// Temporary Demo Mode (issue #23) — the seeded customer demo account. Lets us
-// jump straight into a working space to review changes without creating an
-// account or typing credentials. Remove before production; these are the same
-// credentials the backend seeds (backend/seed.py) and the hint block advertises.
-const DEMO_EMAIL = "demo@codaro.app";
-const DEMO_PASSWORD = "Codaro-Demo-2026";
+// Temporary Demo Mode (issue #23) — the seeded demo accounts. Lets us jump
+// straight into a working space to review changes without creating an account
+// or typing credentials. Providers mode is intentionally thin for now; the
+// owner surface is only just being built out. Remove before production; these
+// are the same credentials the backend seeds (backend/seed.py).
+const DEMO_USER = { email: "demo@codaro.app", password: "Codaro-Demo-2026" };
+const DEMO_PROVIDER = { email: "owner@codaro.app", password: "Codaro-Owner-2026" };
 
 /**
  * Login / sign-up — the front door. Backed by Supabase Auth via useAuth(); on
@@ -51,15 +52,15 @@ function LoginForm() {
     if (!loading && session) router.replace(destination);
   }, [loading, session, destination, router]);
 
-  // One-click entry with the seeded customer demo account. Goes through the
-  // real Supabase sign-in (real JWT + RLS), so it's a shortcut, not a bypass —
-  // the redirect useEffect above takes over once the session lands.
-  async function enterDemoMode() {
+  // One-click entry with a seeded demo account. Goes through the real Supabase
+  // sign-in (real JWT + RLS), so it's a shortcut, not a bypass — the redirect
+  // useEffect above takes over once the session lands (owners → /owner).
+  async function enterDemoMode(account: { email: string; password: string }) {
     setError(null);
     setNotice(null);
     setBusy(true);
     try {
-      await signIn(DEMO_EMAIL, DEMO_PASSWORD);
+      await signIn(account.email, account.password);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Demo sign-in failed.");
     } finally {
@@ -202,10 +203,10 @@ function LoginForm() {
         </div>
 
         {/* Temporary Demo Mode (issue #23) — developer entry at the foot of the
-            card. "Demo Mode" does a one-click sign-in with the seeded customer
-            demo account so changes can be reviewed without logging in. Remove
-            before production. */}
-        <div className="mt-6 border-t border-border pt-5 text-center">
+            card. Each button does a one-click sign-in with a seeded demo account
+            so changes can be reviewed without logging in. Providers mode is still
+            thin (owner surface under construction). Remove before production. */}
+        <div className="mt-6 space-y-2 border-t border-border pt-5 text-center">
           <p className="text-xs text-muted-foreground">
             For developers, check out our website
           </p>
@@ -213,11 +214,21 @@ function LoginForm() {
             type="button"
             variant="secondary"
             size="lg"
-            onPress={enterDemoMode}
+            onPress={() => enterDemoMode(DEMO_USER)}
             isDisabled={busy || !configured}
-            className="mt-3 w-full"
+            className="w-full"
           >
-            {busy ? "Please wait…" : "Demo Mode"}
+            {busy ? "Please wait…" : "Demo Mode For Users"}
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onPress={() => enterDemoMode(DEMO_PROVIDER)}
+            isDisabled={busy || !configured}
+            className="w-full"
+          >
+            {busy ? "Please wait…" : "Demo Mode For Providers"}
           </Button>
         </div>
       </div>
