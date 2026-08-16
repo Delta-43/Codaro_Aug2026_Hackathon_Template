@@ -12,6 +12,20 @@ from app.serialize import serialize_service
 
 router = APIRouter(prefix="/services", tags=["services"])
 
+# Service fields that don't have a column and instead ride in services.metadata.
+# Kept in one place so create + update agree on the keys.
+_META_FIELDS = ("image_url", "auto_approve")
+
+
+def _service_metadata(base: dict | None = None, **fields) -> dict:
+    """Merge the non-column service fields into metadata, dropping keys left
+    unset (None) so a PATCH stays partial."""
+    md = dict(base or {})
+    for key, value in fields.items():
+        if value is not None:
+            md[key] = value
+    return md
+
 
 def _owned_service(db, service_id: str, owner: AuthUser) -> dict:
     """Fetch a service and assert the caller owns its parent provider. 404 if the
@@ -43,7 +57,9 @@ def create_service(payload: ServiceCreate, owner: AuthUser = Depends(require_own
         "price_minor_units": payload.price_minor_units,
         "currency": payload.currency,
         "cancellation_cutoff_hours": payload.cancellation_cutoff_hours,
-        "metadata": {"image_url": payload.image_url} if payload.image_url else {},
+        "metadata": _service_metadata(
+            image_url=payload.image_url, auto_approve=payload.auto_approve
+        ),
     }
     created = get_user_client(owner.token).table("services").insert(row).execute().data
     created = enforce_rls_write(created, entity="service")
@@ -60,11 +76,11 @@ def update_service(
         raise api_error(NOT_FOUND, "That service no longer exists.")
 
     patch = payload.model_dump(exclude_none=True, by_alias=False)
-    image_url = patch.pop("image_url", None)
-    if image_url is not None:
-        md = dict(existing.get("metadata") or {})
-        md["image_url"] = image_url
-        patch["metadata"] = md
+    # image_url / auto_approve aren't columns — pull them out of the column patch
+    # and merge into metadata instead (leaving the rest as real column updates).
+    meta_patch = {k: patch.pop(k) for k in _META_FIELDS if k in patch}
+    if meta_patch:
+        patch["metadata"] = _service_metadata(existing.get("metadata") or {}, **meta_patch)
     if not patch:
         return serialize_service(existing)
 

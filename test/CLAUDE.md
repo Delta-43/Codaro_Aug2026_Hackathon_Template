@@ -176,9 +176,48 @@ path the UI calls exists on the FastAPI app (method-aware) and that the
 
 ## Current state
 
-`python -m pytest test/backend -q` from the repo root: **259 passed**
+`python -m pytest test/backend -q` from the repo root: **311 passed**
 (0 failures, 0 xfail). `python -m pytest test/` adds the 8 live e2e tests, which
 skip without `SUPABASE_URL`/`SUPABASE_ANON_KEY`.
+
+Client-reputation coverage (the `client_reviews` table + businesses rating
+customers): `FakeSupabase.BASE_TABLES` now includes `client_reviews` (defaults +
+required cols + booking/provider delete-cascade), and `helpers.make_client_review`
+builds rows. `test_bookings.py` covers `POST /bookings/{id}/client-review` —
+owner rates a completed booking (200 + one persisted row), rating clamp (9→5),
+404 for an upcoming booking, 401/403(client)/403(other-owner) gating, and a
+re-review replacing the prior row. `test_me.py` covers `GET /me/reputation` —
+empty default `{score:0,count:0,reviews:[]}`, two reviews aggregated to the mean
+`score` with `author`=provider name newest-first, and scoping to the signed-in
+user. `test_owner.py`'s request `client` card asserts the two new keys
+(`rating`/`reviewCount`, defaulting to `None`/`0`) and reflects a present
+`client_review`. `test_providers.py` covers the public `GET /providers/{id}/reviews`
+(newest-first, author from the booking's email local part).
+
+Business-mode (owner/provider) coverage:
+- `test_serialize.py` — `serialize_service` now emits `autoApprove`
+  (`SERVICE_KEYS` updated; default `True`, `False` from `metadata.auto_approve`);
+  `effective_booking_status` passes `pending`/`rejected` through unchanged
+  (a past-end pending is NOT auto-completed).
+- `test_services.py` — `SERVICE_KEYS` updated; owner create with
+  `autoApprove:false` serializes back false and persists to `services.metadata`
+  (not a column); PATCH toggling `autoApprove` merges metadata (keeps
+  `image_url`).
+- `test_bookings.py` — create on a manual-approve service (`auto_approve=false`)
+  lands `pending` (holds no capacity); owner `POST /bookings/{id}/approve`
+  (pending→confirmed, re-checks capacity → `SLOT_UNAVAILABLE`, 400 if not
+  pending) and `/reject` (pending→rejected, idempotent, 400 if confirmed), each
+  gated 401/403(client)/403(other-owner); a rejected future booking is excluded
+  from `scope=upcoming` but present in `scope=all`.
+- `test_owner.py` (new) — `/owner/dashboard` (shape + per-currency revenue
+  buckets with a dominant-currency headline, count-weighted satisfaction pooled
+  across all the owner's providers, pending count/requests, own-provider scope),
+  `/owner/services` (serialized Service + `providerName` + `stats`),
+  `/owner/requests` (pending-only + `client` screening card, degrading to the
+  email-local-part display name / `memberSinceUtc=None` since `FakeSupabase` has
+  no `auth.admin`), `/owner/calendar` (confirmed/completed only, sorted, default
+  current month), all 401/403-gated. `owner_router` is wired into
+  `conftest._SUPABASE_MODULES`.
 
 Owner/admin DELETE coverage (the metadata-linked cascade + the PATCH-merge fix):
 - `test_providers.py` — `DELETE /providers/{id}`: 401/403(client)/404/403(other

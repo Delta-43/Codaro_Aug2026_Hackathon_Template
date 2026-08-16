@@ -1,21 +1,29 @@
 "use client";
 
 /**
- * One responsive shell for the whole app — no separate mobile app, no
- * user-agent sniffing. Breakpoint at 768px (Tailwind `md`):
- *  - below md: fixed bottom tab bar (5 items, icon + label), compact sticky
- *    header, content scrolls under it.
- *  - md and up: persistent ~240px left drawer with the same 5 items, plus a
- *    top bar with the page title and an avatar that navigates to Account.
- * Touch targets ≥44px; safe-area insets respected on mobile.
+ * The business-mode shell — same responsive pattern and design language as the
+ * customer AppShell (bottom tab bar under md, left drawer at md+), but a
+ * completely different set of five tabs for the provider persona:
+ *   Dashboard · Services · Requests · Calendar · Profile
+ * The gold "Business" chip and verified-style avatar mark this as the business
+ * account. Identity follows the active demo use case. The top-right avatar opens
+ * Settings (desktop); a quick sign-out sits bottom-left of the drawer.
  */
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { CalendarDays, CircleUser, Search, Store, Ticket, type LucideIcon } from "lucide-react";
+import {
+  CalendarDays,
+  CircleCheckBig,
+  CircleUser,
+  Rocket,
+  SlidersHorizontal,
+  type LucideIcon,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { useApp } from "@/context/app-context";
 import { useAuth } from "@/lib/auth";
+import { useOwner } from "@/context/owner-context";
+import { VerifiedScene } from "@/components/business/verified-badge";
 import { Button } from "@/components/ui/button";
 
 interface Tab {
@@ -25,34 +33,45 @@ interface Tab {
 }
 
 const TABS: Tab[] = [
-  { href: "/search", label: "Search", icon: Search },
-  { href: "/provider", label: "Services", icon: Store },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/bookings", label: "Bookings", icon: Ticket },
-  { href: "/account", label: "Profile", icon: CircleUser },
+  { href: "/owner", label: "Dashboard", icon: Rocket },
+  { href: "/owner/services", label: "Services", icon: SlidersHorizontal },
+  { href: "/owner/requests", label: "Requests", icon: CircleCheckBig },
+  { href: "/owner/calendar", label: "Calendar", icon: CalendarDays },
+  { href: "/owner/profile", label: "Profile", icon: CircleUser },
 ];
 
 function isActive(pathname: string, href: string): boolean {
+  if (href === "/owner") return pathname === "/owner";
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+function Wordmark() {
+  return (
+    <span className="text-lg font-semibold tracking-tight">
+      <span className="text-foreground">Service</span>
+      <span className="text-primary">.com</span>
+      <span className="ml-2 rounded-full bg-amber-400/15 px-2 py-0.5 align-middle text-xs font-medium text-amber-600 dark:text-amber-400">
+        Business
+      </span>
+    </span>
+  );
+}
+
+export function BusinessShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, activeProvider } = useApp();
   const { signOut } = useAuth();
-
+  const { activeProvider, scene } = useOwner();
+  const businessName = activeProvider?.name ?? "Your business";
   const active = TABS.find((t) => isActive(pathname, t.href)) ?? TABS[0];
-  const heading = pathname.startsWith("/account/settings") ? "Settings" : active.label;
-  const showProviderContext = active.href === "/provider" || active.href === "/calendar";
+  const heading = pathname.startsWith("/owner/settings") ? "Settings" : active.label;
 
   return (
     <div className="min-h-dvh md:pl-60">
       {/* Desktop left drawer */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-card px-3 py-4 md:flex">
-        <Link href="/search" className="mb-4 px-3 text-lg font-semibold tracking-tight">
-          <span className="text-foreground">Service</span>
-          <span className="text-primary">.com</span>
+        <Link href="/owner" className="mb-4 px-1">
+          <Wordmark />
         </Link>
         <nav className="flex flex-col gap-1">
           {TABS.map((tab) => (
@@ -75,31 +94,27 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-20 hidden h-14 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur md:flex">
         <div className="min-w-0">
           <h1 className="truncate text-sm font-semibold">{heading}</h1>
-          {showProviderContext && activeProvider ? (
-            <p className="truncate text-xs text-muted-foreground">{activeProvider.name}</p>
-          ) : null}
+          <p className="truncate text-xs text-muted-foreground">{businessName}</p>
         </div>
         <Link
-          href="/account/settings"
+          href="/owner/settings"
           className="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 hover:bg-muted"
           aria-label="Settings"
         >
-          <Avatar url={user?.avatarUrl} name={user?.displayName} />
-          <span className="max-w-[10rem] truncate text-sm">{user?.displayName ?? "Account"}</span>
+          <VerifiedScene scene={scene} size="sm" />
+          <span className="max-w-[10rem] truncate text-sm">{businessName}</span>
         </Link>
       </header>
 
       {/* Mobile compact header */}
-      <header className="sticky top-0 z-20 flex h-12 items-center border-b border-border bg-background/85 px-4 backdrop-blur pt-[env(safe-area-inset-top)] md:hidden">
+      <header className="sticky top-0 z-20 flex h-12 items-center gap-2 border-b border-border bg-background/85 px-4 backdrop-blur pt-[env(safe-area-inset-top)] md:hidden">
         <span className="truncate text-sm font-semibold">
           {heading}
-          {showProviderContext && activeProvider ? (
-            <span className="ml-2 font-normal text-muted-foreground">{activeProvider.name}</span>
-          ) : null}
+          <span className="ml-2 font-normal text-muted-foreground">{businessName}</span>
         </span>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-2 md:px-6 md:pb-10">{children}</main>
+      <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-3 md:px-6 md:pb-10">{children}</main>
 
       {/* Mobile bottom tab bar */}
       <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
@@ -142,16 +157,5 @@ function NavItem({ tab, active }: { tab: Tab; active: boolean }) {
       <Icon className="size-4" aria-hidden />
       {tab.label}
     </Link>
-  );
-}
-
-function Avatar({ url, name }: { url?: string; name?: string }) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={url ?? ""}
-      alt={name ?? ""}
-      className="size-8 rounded-full bg-muted object-cover"
-    />
   );
 }

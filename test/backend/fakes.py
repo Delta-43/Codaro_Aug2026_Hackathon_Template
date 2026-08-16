@@ -78,6 +78,7 @@ TABLE_DEFAULTS: dict[str, dict[str, Any]] = {
     },
     "booking_slots": {},
     "reviews": {"text": None},
+    "client_reviews": {"provider_id": None, "text": ""},
     "follows": {},
     "profiles": {"email": None, "role": "client"},
 }
@@ -90,6 +91,7 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
     "services": ("provider_id", "name"),
     "booking_slots": ("booking_id", "slot_id"),
     "reviews": ("booking_id", "provider_id", "rating"),
+    "client_reviews": ("booking_id", "client_id", "rating"),
     "follows": ("user_id", "provider_id"),
     "profiles": ("id",),
 }
@@ -319,6 +321,7 @@ class FakeSupabase:
         "services",
         "booking_slots",
         "reviews",
+        "client_reviews",
         "follows",
         "profiles",
     )
@@ -360,10 +363,12 @@ class FakeSupabase:
         "bookings": (
             ("booking_slots", "id", "booking_id"),
             ("reviews", "id", "booking_id"),
+            ("client_reviews", "id", "booking_id"),
         ),
         "providers": (
             ("services", "id", "provider_id"),
             ("reviews", "id", "provider_id"),
+            ("client_reviews", "id", "provider_id"),
             ("follows", "id", "provider_id"),
         ),
     }

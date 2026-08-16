@@ -344,6 +344,40 @@ def test_delete_provider_leaves_another_providers_resources(client, db, auth):
     assert db.get_row("providers", other_p["id"]) is not None
 
 
+# --- public provider reviews ------------------------------------------------
+
+
+def test_provider_reviews_newest_first_with_author(client, db):
+    p = make_provider(db, "Acme")
+    svc = make_service(db, p["id"], "S")
+    s1 = make_slot(db, service_id=svc["id"], hours_ahead=-10)
+    s2 = make_slot(db, service_id=svc["id"], hours_ahead=-5)
+    b1 = make_booking(
+        db, slots=[s1], service={**svc, "provider_id": p["id"]}, client_email="ada@example.com", reference="BK-1"
+    )
+    b2 = make_booking(
+        db, slots=[s2], service={**svc, "provider_id": p["id"]}, client_email="grace@example.com", reference="BK-2"
+    )
+    db.insert_row(
+        "reviews", booking_id=b1["id"], provider_id=p["id"], rating=3, text="ok",
+        created_at="2020-01-01T00:00:00+00:00",
+    )
+    db.insert_row(
+        "reviews", booking_id=b2["id"], provider_id=p["id"], rating=5, text="great",
+        created_at="2030-01-01T00:00:00+00:00",
+    )
+
+    rows = client.get(f"/providers/{p['id']}/reviews").json()
+    assert [r["rating"] for r in rows] == [5, 3]  # newest first
+    assert [r["author"] for r in rows] == ["grace", "ada"]  # email local part
+    assert set(rows[0]) == {"rating", "text", "createdAtUtc", "author"}
+
+
+def test_provider_reviews_empty_for_provider_without_reviews(client, db):
+    p = make_provider(db, "Quiet")
+    assert client.get(f"/providers/{p['id']}/reviews").json() == []
+
+
 def make_catalog_owned(db):
     """A provider + service + resource + slot, all stamped with the owner used by
     `auth(role="owner")` so the ownership check passes and the metadata link is

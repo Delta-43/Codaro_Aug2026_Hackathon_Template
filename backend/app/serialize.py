@@ -84,15 +84,19 @@ def derive_slot_status(
 def effective_booking_status(
     status: str, end_utc: Any, now: Optional[datetime] = None
 ) -> str:
-    """Frontend BookingStatus is confirmed|cancelled|completed. A stored
-    'confirmed' booking whose end is in the past reads as 'completed'."""
+    """Wire BookingStatus is confirmed|cancelled|completed|pending|rejected.
+    A stored 'confirmed' booking whose end is in the past reads as 'completed'.
+    'pending' (awaiting owner approval on a manual-approve service) and
+    'rejected' (owner declined) pass through unchanged — a pending request is
+    never auto-completed just because its slot elapsed; the owner still acts on
+    it (or it's surfaced as stale)."""
     if status == "confirmed":
         end = _parse(end_utc)
         if end is not None and end <= _now(now):
             return "completed"
         return "confirmed"
-    if status == "cancelled":
-        return "cancelled"
+    if status in ("cancelled", "pending", "rejected"):
+        return status
     # 'rescheduled' is only ever a transient/history value; treat as confirmed.
     return "confirmed"
 
@@ -157,6 +161,10 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
         "priceMinorUnits": row["price_minor_units"],
         "currency": row["currency"],
         "cancellationCutoffHours": row["cancellation_cutoff_hours"],
+        # Owner-controlled: when False, new bookings for this service land as
+        # 'pending' and wait in the Requests tab; when True (default) they
+        # confirm immediately. Rides in metadata (services columns are fixed).
+        "autoApprove": bool(md.get("auto_approve", True)),
         "resourceIds": list(resource_ids),
     }
 
