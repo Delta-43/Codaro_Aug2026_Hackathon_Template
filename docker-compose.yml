@@ -5,6 +5,9 @@ services:
       - "8000:8000"
     env_file:
       - backend/.env
+    # Local dev keeps hot-reload; the image's default CMD is the prod command
+    # (no --reload, binds $PORT) used by Railway.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     working_dir: /workspace/backend
     # whole repo is mounted (not just backend/) so app/config.py and
     # app/schema_setup.py can walk up to domain.config.json / supabase/
