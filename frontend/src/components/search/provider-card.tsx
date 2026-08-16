@@ -32,7 +32,7 @@ export function ProviderCard({
           : "border-border bg-card hover:bg-muted/50",
       )}
     >
-      <AvatarImg src={provider.avatarUrl} alt="" className="size-12 shrink-0" />
+      <AvatarImg src={provider.avatarUrl} name={provider.name} alt="" className="size-12 shrink-0" />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <span className="truncate font-medium">{provider.name}</span>

@@ -10,7 +10,7 @@ import { useState } from "react";
 import type { User } from "@/types/domain";
 import { isApiError, updateUser } from "@/api";
 import { useApp } from "@/context/app-context";
-import { AvatarImg } from "@/components/avatar-img";
+import { AvatarUpload } from "@/components/account/avatar-upload";
 import { Button } from "@/components/ui/button";
 
 const INPUT =
@@ -78,7 +78,7 @@ export function ProfileForm({ user }: { user: User }) {
       <h2 className="text-sm font-semibold">Profile</h2>
 
       <div className="mt-3 flex items-center gap-3">
-        <AvatarImg src={user.avatarUrl} alt="" className="size-14" />
+        <AvatarUpload avatarUrl={user.avatarUrl} name={user.displayName} className="size-14" />
         <p className="text-xs text-muted-foreground">
           Your details are used across bookings. There&apos;s no password — you&apos;re identified
           by email.

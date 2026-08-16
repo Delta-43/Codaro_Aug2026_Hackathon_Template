@@ -87,7 +87,7 @@ export default function ProviderPage() {
         aria-hidden
       />
       <div className="-mt-8 flex items-end gap-3 px-1">
-        <AvatarImg src={p.avatarUrl} alt="" className="size-20 border-4 border-background" />
+        <AvatarImg src={p.avatarUrl} name={p.name} alt="" className="size-20 border-4 border-background" />
         <div className="min-w-0 flex-1 pb-1">
           <h1 className="truncate text-xl font-semibold tracking-tight">{p.name}</h1>
           <p className="truncate text-sm text-muted-foreground">{p.tagline}</p>
