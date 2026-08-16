@@ -183,6 +183,43 @@ def test_multi_slot_contiguous_booking(client, db, auth):
     assert booking["priceMinorUnits"] == 1000  # 500 * 2 slots * party 1
 
 
+def test_create_on_auto_approve_service_is_confirmed(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db, metadata={"auto_approve": True})
+    resp = client.post(
+        "/bookings",
+        json={
+            "serviceId": cat["service"]["id"],
+            "resourceId": cat["resource"]["id"],
+            "slotIds": [cat["slot"]["id"]],
+            "partySize": 1,
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "confirmed"
+
+
+def test_create_on_manual_approve_service_is_pending(client, db, auth):
+    auth(role="client")
+    # autoApprove=false -> new bookings land as a pending request, not confirmed.
+    cat = make_catalog(db, metadata={"auto_approve": False})
+    resp = client.post(
+        "/bookings",
+        json={
+            "serviceId": cat["service"]["id"],
+            "resourceId": cat["resource"]["id"],
+            "slotIds": [cat["slot"]["id"]],
+            "partySize": 1,
+        },
+    )
+    assert resp.status_code == 200
+    booking = resp.json()
+    assert booking["status"] == "pending"
+    # pending holds no capacity — slot_occupancy counts only confirmed.
+    occ = client.get("/slots/occupancy").json()[0]
+    assert occ["booked_count"] == 0
+
+
 def test_non_contiguous_selection_is_invalid_range(client, db, auth):
     auth(role="client")
     cat = make_catalog(db, max_slots_per_booking=3)
@@ -237,6 +274,27 @@ def test_list_scope_filters(client, db, auth):
 
     past = client.get("/bookings", params={"scope": "past"}).json()
     assert [b["reference"] for b in past] == ["BK-PAST"]
+
+
+def test_rejected_future_booking_is_excluded_from_upcoming(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db)
+    future_slot = make_slot(
+        db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100
+    )
+    make_booking(
+        db,
+        slots=[future_slot],
+        service=cat["service"],
+        status="rejected",
+        reference="BK-REJ",
+    )
+    # A rejected request with a future end is NOT an upcoming booking...
+    upcoming = client.get("/bookings", params={"scope": "upcoming"}).json()
+    assert "BK-REJ" not in {b["reference"] for b in upcoming}
+    # ...but it still shows in the full history.
+    all_refs = {b["reference"] for b in client.get("/bookings", params={"scope": "all"}).json()}
+    assert "BK-REJ" in all_refs
 
 
 def test_get_single_booking(client, db, auth):
@@ -383,3 +441,134 @@ def test_review_rejected_for_upcoming_booking(client, db, auth):
     booking = make_booking(db, slots=[future], service=cat["service"])
     resp = client.post(f"/bookings/{booking['id']}/review", json={"rating": 4})
     assert resp.status_code == 404
+
+
+# --- owner approve / reject (request decisions) ----------------------------
+
+OTHER_OWNER_ID = "99999999-9999-9999-9999-999999999999"
+
+
+def _pending(db, cat, *, hours_ahead=100):
+    slot = make_slot(
+        db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=hours_ahead
+    )
+    return make_booking(db, slots=[slot], service=cat["service"], status="pending")
+
+
+def test_approve_pending_becomes_confirmed(client, db, auth):
+    auth(role="owner")  # DEFAULT_OWNER_ID owns the catalog provider
+    cat = make_catalog(db)
+    booking = _pending(db, cat)
+    resp = client.post(f"/bookings/{booking['id']}/approve")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "confirmed"
+    stored = db.get_row("bookings", booking["id"])
+    assert stored["status"] == "confirmed"
+    assert stored["history"][-1] == {**stored["history"][-1], "status": "confirmed", "actor": "owner"}
+
+
+def test_approve_rechecks_capacity_and_can_fail(client, db, auth):
+    auth(role="owner")
+    cat = make_catalog(db, capacity=1, slot_capacity=1)
+    slot = make_slot(
+        db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100, capacity=1
+    )
+    pending = make_booking(db, slots=[slot], service=cat["service"], status="pending")
+    # Someone else confirms and fills the slot while the request waited.
+    make_booking(
+        db,
+        slots=[slot],
+        service=cat["service"],
+        user_id=OTHER_OWNER_ID,
+        reference="BK-FILL",
+        status="confirmed",
+    )
+    resp = client.post(f"/bookings/{pending['id']}/approve")
+    assert resp.status_code == 409
+    assert _detail_code(resp) == "SLOT_UNAVAILABLE"
+    # left pending — not confirmed.
+    assert db.get_row("bookings", pending["id"])["status"] == "pending"
+
+
+def test_approve_non_pending_is_invalid_range(client, db, auth):
+    auth(role="owner")
+    cat = make_catalog(db)
+    slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100)
+    booking = make_booking(db, slots=[slot], service=cat["service"], status="confirmed")
+    resp = client.post(f"/bookings/{booking['id']}/approve")
+    assert resp.status_code == 400
+    assert _detail_code(resp) == "INVALID_RANGE"
+
+
+def test_approve_requires_a_token(client, db):
+    cat = make_catalog(db)
+    booking = _pending(db, cat)
+    assert client.post(f"/bookings/{booking['id']}/approve").status_code == 401
+
+
+def test_approve_as_client_is_403(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db)
+    booking = _pending(db, cat)
+    assert client.post(f"/bookings/{booking['id']}/approve").status_code == 403
+
+
+def test_approve_by_other_owner_is_403(client, db, auth):
+    auth(role="owner")  # DEFAULT_OWNER_ID
+    cat = make_catalog(db, owner_id=OTHER_OWNER_ID)  # provider owned by someone else
+    booking = _pending(db, cat)
+    resp = client.post(f"/bookings/{booking['id']}/approve")
+    assert resp.status_code == 403
+    assert db.get_row("bookings", booking["id"])["status"] == "pending"
+
+
+def test_reject_pending_becomes_rejected(client, db, auth):
+    auth(role="owner")
+    cat = make_catalog(db)
+    booking = _pending(db, cat)
+    resp = client.post(f"/bookings/{booking['id']}/reject")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "rejected"
+    stored = db.get_row("bookings", booking["id"])
+    assert stored["status"] == "rejected"
+    assert stored["history"][-1]["actor"] == "owner"
+
+
+def test_reject_is_idempotent(client, db, auth):
+    auth(role="owner")
+    cat = make_catalog(db)
+    booking = _pending(db, cat)
+    client.post(f"/bookings/{booking['id']}/reject")
+    second = client.post(f"/bookings/{booking['id']}/reject")
+    assert second.status_code == 200
+    assert second.json()["status"] == "rejected"
+
+
+def test_reject_confirmed_is_invalid_range(client, db, auth):
+    auth(role="owner")
+    cat = make_catalog(db)
+    slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100)
+    booking = make_booking(db, slots=[slot], service=cat["service"], status="confirmed")
+    resp = client.post(f"/bookings/{booking['id']}/reject")
+    assert resp.status_code == 400
+    assert _detail_code(resp) == "INVALID_RANGE"
+
+
+def test_reject_requires_a_token(client, db):
+    cat = make_catalog(db)
+    booking = _pending(db, cat)
+    assert client.post(f"/bookings/{booking['id']}/reject").status_code == 401
+
+
+def test_reject_as_client_is_403(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db)
+    booking = _pending(db, cat)
+    assert client.post(f"/bookings/{booking['id']}/reject").status_code == 403
+
+
+def test_reject_by_other_owner_is_403(client, db, auth):
+    auth(role="owner")  # DEFAULT_OWNER_ID
+    cat = make_catalog(db, owner_id=OTHER_OWNER_ID)
+    booking = _pending(db, cat)
+    assert client.post(f"/bookings/{booking['id']}/reject").status_code == 403

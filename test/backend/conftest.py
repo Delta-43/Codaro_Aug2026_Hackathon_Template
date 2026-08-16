@@ -36,6 +36,7 @@ from app.auth import AuthUser, optional_user, require_user
 from app.routers import availability as availability_router
 from app.routers import bookings as bookings_router
 from app.routers import me as me_router
+from app.routers import owner as owner_router
 from app.routers import providers as providers_router
 from app.routers import resources as resources_router
 from app.routers import services as services_router
@@ -60,6 +61,7 @@ _SUPABASE_MODULES = (
     services_router,
     availability_router,
     me_router,
+    owner_router,
 )
 _USER_CLIENT_MODULES = (
     app_db,
