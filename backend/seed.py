@@ -33,6 +33,8 @@ logger = logging.getLogger(__name__)
 # seeded bookings. (Anyone can also register their own empty account.)
 DEMO_EMAIL = "demo@codaro.app"
 DEMO_PASSWORD = "Codaro-Demo-2026"
+OWNER_EMAIL = "owner@codaro.app"
+OWNER_PASSWORD = "Codaro-Owner-2026"
 _HOLDS_EMAIL = "holds@codaro.app"
 _HOLDS_PASSWORD = secrets.token_urlsafe(18)
 
@@ -218,13 +220,22 @@ def seed_vertical(vertical_id: str) -> dict:
         db, _HOLDS_EMAIL, _HOLDS_PASSWORD,
         {"display_name": "Guest", "timezone": tz, "verified": True, "role": "client"},
     )
+    # The demo owner owns the demo provider (index 0), so logging in as the owner
+    # shows a populated dashboard (its services/units/occupancy) rather than a
+    # blank slate.
+    owner_uid = _ensure_user(
+        db, OWNER_EMAIL, OWNER_PASSWORD,
+        {"display_name": "Olga Owner", "timezone": tz, "verified": True, "role": "owner"},
+    )
 
     counts = {"providers": 0, "services": 0, "resources": 0, "slots": 0, "bookings": 0}
     demo_provider_id = None
     primary_service = None  # (service_id, resource rows, dur, cutoff, price)
     provider_ids: list[str] = []
 
-    def add_service(provider_id: str, spec: dict, resources: list[dict]) -> tuple[str, list[dict]]:
+    def add_service(
+        provider_id: str, spec: dict, resources: list[dict], owner_id: str | None = None
+    ) -> tuple[str, list[dict]]:
         svc = db.table("services").insert({
             "provider_id": provider_id,
             "name": spec["name"],
@@ -246,16 +257,19 @@ def seed_vertical(vertical_id: str) -> dict:
         res_rows: list[dict] = []
         slot_rows: list[dict] = []
         for r in resources:
+            res_md = {
+                "service_id": service_id,
+                "capacity": r["capacity"],
+                "active": True,
+                "attributes": r["attributes"],
+                "image_url": tile_uri(service_id + r["name"], r["name"]),
+            }
+            if owner_id:  # so the demo owner can manage (add slots to) these units
+                res_md["owner_id"] = owner_id
             res = db.table("resources").insert({
                 "name": r["name"],
                 "description": r.get("description"),
-                "metadata": {
-                    "service_id": service_id,
-                    "capacity": r["capacity"],
-                    "active": True,
-                    "attributes": r["attributes"],
-                    "image_url": tile_uri(service_id + r["name"], r["name"]),
-                },
+                "metadata": res_md,
             }).execute().data[0]
             counts["resources"] += 1
             res_rows.append({**res, "_capacity": r["capacity"]})
@@ -282,6 +296,7 @@ def seed_vertical(vertical_id: str) -> dict:
             "name": p["name"],
             "public_code": p["publicCode"],
             "category_id": p["categoryId"],
+            "owner_id": owner_uid if i == 0 else None,  # demo owner owns the demo provider
             "metadata": {
                 "avatar_url": avatar_uri(p["name"], p["name"]),
                 "cover_url": cover_uri(p["name"]),
@@ -298,7 +313,7 @@ def seed_vertical(vertical_id: str) -> dict:
         if i == 0:
             demo_provider_id = prov["id"]
             for si, spec in enumerate(cfg["demoServices"]):
-                sid, res_rows = add_service(prov["id"], spec, spec["resources"])
+                sid, res_rows = add_service(prov["id"], spec, spec["resources"], owner_id=owner_uid)
                 if si == 0:
                     primary_service = {"id": sid, "spec": spec, "resource": res_rows[0], "resources": res_rows}
         else:

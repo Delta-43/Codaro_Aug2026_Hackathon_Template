@@ -18,8 +18,10 @@ import {
   createService,
   createSlot,
   getMyProviders,
+  getResourceAnalytics,
   getResources,
   getServices,
+  type ResourceAnalytics,
 } from "@/api";
 import type { BookingModel, Provider, Resource, Service } from "@/types/domain";
 
@@ -168,13 +170,7 @@ export default function OwnerDashboard() {
           ) : (
             <ul className="mb-3 space-y-2">
               {resources.map((r) => (
-                <li
-                  key={r.id}
-                  className="flex items-center justify-between rounded-xl border border-border bg-card px-3 py-2"
-                >
-                  <span className="text-sm font-medium">{r.name}</span>
-                  <AddSlots resourceId={r.id} />
-                </li>
+                <UnitRow key={r.id} resource={r} />
               ))}
             </ul>
           )}
@@ -381,7 +377,37 @@ function CreateResourceForm({ serviceId, shared, onCreated }: {
   );
 }
 
-function AddSlots({ resourceId }: { resourceId: string }) {
+function UnitRow({ resource }: { resource: Resource }) {
+  const [stats, setStats] = useState<ResourceAnalytics | null>(null);
+  const load = useCallback(async () => {
+    try {
+      setStats(await getResourceAnalytics(resource.id));
+    } catch {
+      /* analytics is best-effort; leave the row without stats */
+    }
+  }, [resource.id]);
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  return (
+    <li className="rounded-xl border border-border bg-card px-3 py-2">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-sm font-medium">{resource.name}</span>
+        <AddSlots resourceId={resource.id} onAdded={load} />
+      </div>
+      {stats && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {stats.total_slots} slot{stats.total_slots === 1 ? "" : "s"} ·{" "}
+          {Math.round((stats.occupancy_rate || 0) * 100)}% booked · {stats.booked_count}/
+          {stats.total_capacity} seats
+        </p>
+      )}
+    </li>
+  );
+}
+
+function AddSlots({ resourceId, onAdded }: { resourceId: string; onAdded?: () => void }) {
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState("");
   const [time, setTime] = useState("09:00");
@@ -402,6 +428,7 @@ function AddSlots({ resourceId }: { resourceId: string }) {
         created++;
       }
       setMsg(`Added ${created} slot${created === 1 ? "" : "s"}.`);
+      onAdded?.();
     } catch (e) {
       setMsg(errMsg(e));
     } finally {

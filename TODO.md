@@ -41,9 +41,14 @@ _Prioritised. Snapshot, not a living doc — regenerate via the pipeline._
   browser end-to-end (owner-created business appears in customer search). Covered
   by 23 new backend tests (suite: 227 passing). Owner demo login:
   `owner@codaro.app` / `Codaro-Owner-2026`.
+  - Per-unit **activity/occupancy** is now shown on the dashboard (slots ·
+    % booked · booked/capacity, via `GET /resources/{id}/analytics`).
   - Remaining owner polish (not built): edit/delete of existing providers/
-    services/units, a bookings/analytics view per resource, and richer resource
-    attributes/images in the create form.
+    services/units, a per-booking list view, and richer resource
+    attributes/images in the create form. Minor authz gap:
+    `GET /resources/{id}/analytics` is owner-gated but doesn't verify the
+    resource belongs to the calling owner (any owner can view any resource's
+    numbers) — tighten if owners become mutually untrusted.
 - [ ] **Provider search `near`** is a case-insensitive city substring computed in
   Python over all providers (fine at demo scale). Add real geo/pagination if the
   catalog grows.
@@ -69,5 +74,11 @@ _Prioritised. Snapshot, not a living doc — regenerate via the pipeline._
   addition to URL/service key/db url). `frontend/.env.local` needs
   `NEXT_PUBLIC_SUPABASE_URL/ANON_KEY` and `NEXT_PUBLIC_API_BASE`. Keep
   `.env.example` in sync.
-- [ ] Demo login: `demo@codaro.app` / `Codaro-Demo-2026` (provisioned by the
-  seed). A hidden `holds@codaro.app` user owns the "already booked" occupancy.
+- [ ] Demo logins (provisioned by the seed, shown on the login form):
+  `demo@codaro.app` / `Codaro-Demo-2026` (customer) and `owner@codaro.app` /
+  `Codaro-Owner-2026` (business — owns the demo provider "Vistula Auto"). A
+  hidden `holds@codaro.app` user owns the "already booked" occupancy.
+- [ ] **JWKS cache across key rotation**: `auth._jwks_client` is process-cached;
+  a long-running server can serve a stale JWK set and 401 otherwise-valid tokens
+  after Supabase rotates signing keys (observed once; a backend restart clears
+  it). Consider tuning `PyJWKClient` lifespan / forcing a refetch on kid-miss.

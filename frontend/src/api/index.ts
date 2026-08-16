@@ -220,6 +220,21 @@ export function getMyProviders(): Promise<Provider[]> {
   return request("/providers/mine");
 }
 
+/** Owner analytics for one resource, computed server-side from occupancy +
+ *  bookings (snake_case — it's an aggregate, not a domain entity). */
+export type ResourceAnalytics = {
+  total_slots: number;
+  total_capacity: number;
+  booked_count: number;
+  available_count: number;
+  occupancy_rate: number;
+  bookings_by_status: Record<string, number>;
+};
+
+export function getResourceAnalytics(id: ID): Promise<ResourceAnalytics> {
+  return request(`/resources/${id}/analytics`);
+}
+
 export function createProvider(input: {
   name: string;
   publicCode?: string;
