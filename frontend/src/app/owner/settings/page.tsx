@@ -15,13 +15,13 @@ import { VerifiedScene } from "@/components/business/verified-badge";
 export default function BusinessSettingsPage() {
   const router = useRouter();
   const { user, signOut } = useAuth();
-  const { useCase, demoBusiness } = useOwner();
+  const { activeProvider, scene } = useOwner();
 
   return (
     <SettingsPanel
       variant="business"
-      photo={<VerifiedScene scene={useCase.profileScene} size="lg" />}
-      displayName={demoBusiness.name}
+      photo={<VerifiedScene scene={scene} size="lg" />}
+      displayName={activeProvider?.name ?? "Your business"}
       displayNameLabel="Business name"
       email={user?.email ?? "—"}
       onSignOut={() => signOut().then(() => router.replace("/login"))}

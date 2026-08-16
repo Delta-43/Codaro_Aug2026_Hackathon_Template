@@ -2,24 +2,29 @@
 
 /**
  * Business tab 2 — Services. An editable overview of every offer the business
- * runs, driven by the active demo use case so it stays coherent with the rest
- * of business mode across all niches. Glanceable stats per offer (price, margin,
- * upcoming/past bookings, rating), a drill-in editor for the offer's parameters,
- * and add/remove — each destructive/edit action gated behind the full-screen
- * "are you sure?" confirm. Edits are demo-local (per session); swap this for the
- * owner-gated write API when a single niche is wired end-to-end.
+ * runs, backed by the real owner API: glanceable stats per offer (upcoming/past
+ * bookings, revenue, rating) from /owner/services, a per-offer auto-approve
+ * toggle, a drill-in editor (PATCH /services/{id}), and add/remove
+ * (POST/DELETE /services) — each destructive/edit action gated behind the
+ * full-screen "are you sure?" confirm.
  */
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { ChevronDown, Plus, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ConfirmDialog } from "@/components/business/confirm-dialog";
 import { useOwner } from "@/context/owner-context";
-import { serviceStats } from "@/lib/business-demo";
+import {
+  createService,
+  deleteService,
+  getOwnerServices,
+  updateService,
+  ApiError,
+} from "@/api";
+import type { BookingModel, OwnerServiceSummary } from "@/types/domain";
 import { formatDuration, formatMoney } from "@/lib/format";
-import type { BookingModel } from "@/types/domain";
-import type { UseCase } from "@/config/useCases";
+import { cn } from "@/lib/utils";
 
 const MODELS: { id: BookingModel; label: string }[] = [
   { id: "unit_selection", label: "Unit selection (many units, pick one)" },
@@ -28,156 +33,186 @@ const MODELS: { id: BookingModel; label: string }[] = [
 ];
 const modelLabel = (m: BookingModel) => MODELS.find((x) => x.id === m)?.label ?? m;
 
-interface Offer {
-  id: string;
-  name: string;
-  priceMajor: number;
-  currency: string;
-  model: BookingModel;
-  durationMinutes: number;
-  maxSlots: number;
-  cutoffHours: number;
-}
-
-/** Per-niche default slot length: multi-day niches bill per day. */
-function defaultDuration(uc: UseCase): number {
-  return ["stays", "rentals", "hires"].includes(uc.bookingUnit) ? 1440 : 60;
-}
-
-function seedOffers(uc: UseCase): Offer[] {
-  const dur = defaultDuration(uc);
-  return uc.services.map((s, i) => ({
-    id: `${uc.id}-${i}`,
-    name: s.name,
-    priceMajor: s.priceMajor,
-    currency: s.currency,
-    model: s.model,
-    durationMinutes: dur,
-    maxSlots: s.model === "shared_capacity" ? 12 : 1,
-    cutoffHours: 24,
-  }));
-}
-
 export default function ServicesPage() {
-  const { useCase } = useOwner();
-  const [offers, setOffers] = useState<Offer[]>(() => seedOffers(useCase));
+  const { ready, activeProvider, vocab } = useOwner();
+  const [services, setServices] = useState<OwnerServiceSummary[]>([]);
+  const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Reseed when the demo use case changes so offers match the niche.
+  const load = useCallback(async () => {
+    const all = await getOwnerServices().catch(() => [] as OwnerServiceSummary[]);
+    setServices(activeProvider ? all.filter((s) => s.providerId === activeProvider.id) : all);
+    setLoading(false);
+  }, [activeProvider]);
+
   useEffect(() => {
-    setOffers(seedOffers(useCase));
-    setOpenId(null);
-    setCreating(false);
-  }, [useCase.id]);
+    void load();
+  }, [load]);
+
+  const currency = services[0]?.currency ?? "EUR";
+
+  async function run(action: () => Promise<unknown>) {
+    setError(null);
+    try {
+      await action();
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "That change didn't go through.");
+    }
+  }
+
+  if (!ready || loading) {
+    return (
+      <div className="space-y-3 py-2">
+        <div className="h-6 w-40 animate-pulse rounded bg-muted" />
+        <div className="h-32 w-full animate-pulse rounded-2xl bg-muted" />
+      </div>
+    );
+  }
 
   return (
     <section className="space-y-5 py-2">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">{useCase.serviceNounPlural}</h1>
+          <h1 className="text-lg font-semibold tracking-tight">{vocab.serviceNounPlural}</h1>
           <p className="text-sm text-muted-foreground">
-            What {useCase.business.name} offers, and the rules for each.
+            What {activeProvider?.name ?? "your business"} offers, and the rules for each.
           </p>
         </div>
-        <Button size="sm" onPress={() => setCreating((v) => !v)}>
-          <Plus aria-hidden /> Add offer
-        </Button>
+        {activeProvider ? (
+          <Button size="sm" onPress={() => setCreating((v) => !v)}>
+            <Plus aria-hidden /> Add offer
+          </Button>
+        ) : null}
       </div>
 
-      {creating ? (
+      {error ? (
+        <p className="rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+
+      {creating && activeProvider ? (
         <OfferForm
-          useCase={useCase}
+          currency={currency}
+          serviceNoun={vocab.serviceNoun}
           onCancel={() => setCreating(false)}
-          onCreate={(o) => {
-            setOffers((prev) => [...prev, o]);
-            setCreating(false);
-          }}
+          onCreate={(input) =>
+            run(() => createService({ providerId: activeProvider.id, ...input })).then(() => setCreating(false))
+          }
         />
       ) : null}
 
-      {offers.length === 0 ? (
+      {services.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-          No {useCase.serviceNounPlural.toLowerCase()} yet — add your first offer.
+          No {vocab.serviceNounPlural.toLowerCase()} yet — add your first offer.
         </p>
       ) : (
         <ul className="space-y-3">
-          {offers.map((o) => (
+          {services.map((s) => (
             <ServiceCard
-              key={o.id}
-              offer={o}
-              open={openId === o.id}
-              onToggle={() => setOpenId((id) => (id === o.id ? null : o.id))}
-              onSave={(next) => setOffers((prev) => prev.map((x) => (x.id === o.id ? next : x)))}
-              onDelete={() => {
-                setOffers((prev) => prev.filter((x) => x.id !== o.id));
-                setOpenId(null);
-              }}
+              key={s.id}
+              service={s}
+              open={openId === s.id}
+              onToggle={() => setOpenId((id) => (id === s.id ? null : s.id))}
+              onToggleAutoApprove={() => run(() => updateService(s.id, { autoApprove: !s.autoApprove }))}
+              onSave={(patch) => run(() => updateService(s.id, patch)).then(() => setOpenId(null))}
+              onDelete={() => run(() => deleteService(s.id)).then(() => setOpenId(null))}
             />
           ))}
         </ul>
       )}
-
-      <p className="text-[11px] text-muted-foreground">
-        Offers are demo data for the selected use case; edits apply for this session. Switch use cases in Settings → Demo.
-      </p>
     </section>
   );
 }
 
 function ServiceCard({
-  offer,
+  service: s,
   open,
   onToggle,
+  onToggleAutoApprove,
   onSave,
   onDelete,
 }: {
-  offer: Offer;
+  service: OwnerServiceSummary;
   open: boolean;
   onToggle: () => void;
-  onSave: (next: Offer) => void;
+  onToggleAutoApprove: () => void;
+  onSave: (patch: EditPatch) => void;
   onDelete: () => void;
 }) {
-  const stats = useMemo(() => serviceStats(offer.id), [offer.id]);
   return (
     <li className="overflow-hidden rounded-2xl border border-border bg-card">
-      <button onClick={onToggle} className="flex w-full items-start gap-3 p-4 text-left">
-        <div className="min-w-0 flex-1">
+      <div className="flex items-start gap-3 p-4">
+        <button onClick={onToggle} className="min-w-0 flex-1 text-left">
           <div className="flex items-center gap-2">
-            <span className="truncate font-semibold">{offer.name}</span>
+            <span className="truncate font-semibold">{s.name}</span>
             <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
-              {modelLabel(offer.model).split(" (")[0]}
+              {modelLabel(s.bookingModel).split(" (")[0]}
             </span>
           </div>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            {formatMoney(Math.round(offer.priceMajor * 100), offer.currency)} · per{" "}
-            {formatDuration(offer.durationMinutes)}
-            {offer.maxSlots > 1 ? ` · up to ${offer.maxSlots}` : ""}
+            {formatMoney(s.priceMinorUnits, s.currency)} · per {formatDuration(s.slotDurationMinutes)}
+            {s.maxSlotsPerBooking > 1 ? ` · up to ${s.maxSlotsPerBooking}` : ""}
           </p>
           <div className="mt-3 grid grid-cols-4 gap-2 text-center">
-            <Stat label="Margin" value={`${stats.marginPct}%`} />
-            <Stat label="Upcoming" value={String(stats.upcoming)} />
-            <Stat label="Past" value={String(stats.pastTotal)} />
+            <Stat label="Upcoming" value={String(s.stats.upcomingBookings)} />
+            <Stat label="Past" value={String(s.stats.pastBookings)} />
+            <Stat label="Revenue" value={formatMoney(s.stats.revenueMinorUnits, s.stats.currency)} />
             <Stat
               label="Rating"
               value={
-                <span className="inline-flex items-center gap-0.5">
-                  <Star className="size-3 fill-amber-400 text-amber-400" aria-hidden />
-                  {stats.rating.toFixed(1)}
-                </span>
+                s.stats.reviewCount ? (
+                  <span className="inline-flex items-center gap-0.5">
+                    <Star className="size-3 fill-amber-400 text-amber-400" aria-hidden />
+                    {s.stats.avgRating.toFixed(1)}
+                  </span>
+                ) : (
+                  "—"
+                )
               }
             />
           </div>
-        </div>
+        </button>
         <ChevronDown
-          className={`mt-1 size-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+          className={cn("mt-1 size-4 shrink-0 text-muted-foreground transition-transform", open && "rotate-180")}
           aria-hidden
         />
-      </button>
+      </div>
+
+      <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-2.5">
+        <div className="min-w-0">
+          <p className="text-xs font-medium">Auto-approve</p>
+          <p className="truncate text-[11px] text-muted-foreground">
+            {s.autoApprove ? "Bookings confirm instantly." : "Requests wait for your review."}
+            {s.stats.pendingRequests > 0 ? ` · ${s.stats.pendingRequests} pending` : ""}
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={s.autoApprove}
+          aria-label="Toggle auto-approve"
+          onClick={onToggleAutoApprove}
+          className={cn(
+            "flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors",
+            s.autoApprove ? "bg-primary" : "bg-muted",
+          )}
+        >
+          <span
+            className={cn(
+              "size-5 rounded-full bg-card shadow-sm transition-transform",
+              s.autoApprove ? "translate-x-5" : "translate-x-0",
+            )}
+          />
+        </button>
+      </div>
 
       {open ? (
         <div className="border-t border-border p-4">
-          <ServiceEditor offer={offer} onSave={onSave} onDelete={onDelete} />
+          <ServiceEditor service={s} onSave={onSave} onDelete={onDelete} />
         </div>
       ) : null}
     </li>
@@ -193,21 +228,37 @@ function Stat({ label, value }: { label: string; value: ReactNode }) {
   );
 }
 
-function ServiceEditor({ offer, onSave, onDelete }: { offer: Offer; onSave: (o: Offer) => void; onDelete: () => void }) {
-  const [name, setName] = useState(offer.name);
-  const [priceMajor, setPriceMajor] = useState(offer.priceMajor);
-  const [duration, setDuration] = useState(offer.durationMinutes);
-  const [maxSlots, setMaxSlots] = useState(offer.maxSlots);
-  const [cutoff, setCutoff] = useState(offer.cutoffHours);
+interface EditPatch {
+  name: string;
+  priceMinorUnits: number;
+  slotDurationMinutes: number;
+  maxSlotsPerBooking: number;
+  cancellationCutoffHours: number;
+}
+
+function ServiceEditor({
+  service: s,
+  onSave,
+  onDelete,
+}: {
+  service: OwnerServiceSummary;
+  onSave: (patch: EditPatch) => void;
+  onDelete: () => void;
+}) {
+  const [name, setName] = useState(s.name);
+  const [priceMajor, setPriceMajor] = useState(s.priceMinorUnits / 100);
+  const [duration, setDuration] = useState(s.slotDurationMinutes);
+  const [maxSlots, setMaxSlots] = useState(s.maxSlotsPerBooking);
+  const [cutoff, setCutoff] = useState(s.cancellationCutoffHours);
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   const dirty =
-    name !== offer.name ||
-    priceMajor !== offer.priceMajor ||
-    duration !== offer.durationMinutes ||
-    maxSlots !== offer.maxSlots ||
-    cutoff !== offer.cutoffHours;
+    name !== s.name ||
+    Math.round(priceMajor * 100) !== s.priceMinorUnits ||
+    duration !== s.slotDurationMinutes ||
+    maxSlots !== s.maxSlotsPerBooking ||
+    cutoff !== s.cancellationCutoffHours;
 
   return (
     <div className="rounded-2xl border border-border bg-background/40 p-3">
@@ -216,7 +267,7 @@ function ServiceEditor({ offer, onSave, onDelete }: { offer: Offer; onSave: (o: 
         <Field label="Name" className="col-span-2">
           <Input value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
-        <Field label={`Price (${offer.currency})`}>
+        <Field label={`Price (${s.currency})`}>
           <Input type="number" step="0.01" value={String(priceMajor)} onChange={(e) => setPriceMajor(+e.target.value)} />
         </Field>
         <Field label="Slot duration (min)">
@@ -229,7 +280,7 @@ function ServiceEditor({ offer, onSave, onDelete }: { offer: Offer; onSave: (o: 
           <Input type="number" value={String(cutoff)} onChange={(e) => setCutoff(+e.target.value)} />
         </Field>
       </div>
-      <p className="mt-2 text-[11px] text-muted-foreground">Booking model: {modelLabel(offer.model)}.</p>
+      <p className="mt-2 text-[11px] text-muted-foreground">Booking model: {modelLabel(s.bookingModel)}.</p>
 
       <div className="mt-3 flex items-center gap-2">
         <Button size="sm" isDisabled={!dirty} onPress={() => setConfirming(true)}>
@@ -245,12 +296,11 @@ function ServiceEditor({ offer, onSave, onDelete }: { offer: Offer; onSave: (o: 
         onClose={() => setConfirming(false)}
         onConfirm={() => {
           onSave({
-            ...offer,
             name,
-            priceMajor,
-            durationMinutes: duration,
-            maxSlots: Math.max(1, maxSlots),
-            cutoffHours: cutoff,
+            priceMinorUnits: Math.round(priceMajor * 100),
+            slotDurationMinutes: duration,
+            maxSlotsPerBooking: Math.max(1, maxSlots),
+            cancellationCutoffHours: cutoff,
           });
           setConfirming(false);
         }}
@@ -259,7 +309,7 @@ function ServiceEditor({ offer, onSave, onDelete }: { offer: Offer; onSave: (o: 
         <p className="text-muted-foreground">You&apos;re updating</p>
         <p className="font-medium">{name}</p>
         <ul className="mt-1 list-disc pl-4 text-xs text-muted-foreground">
-          <li>Price {formatMoney(Math.round(priceMajor * 100), offer.currency)}</li>
+          <li>Price {formatMoney(Math.round(priceMajor * 100), s.currency)}</li>
           <li>{formatDuration(duration)} per slot · up to {Math.max(1, maxSlots)}</li>
           <li>{cutoff}h cancellation cutoff</li>
         </ul>
@@ -276,48 +326,64 @@ function ServiceEditor({ offer, onSave, onDelete }: { offer: Offer; onSave: (o: 
         body="This removes the offer from your listing. Existing bookings may be affected."
         confirmLabel="Yes, delete offer"
       >
-        <p className="font-medium">{offer.name}</p>
+        <p className="font-medium">{s.name}</p>
       </ConfirmDialog>
     </div>
   );
 }
 
+interface CreateInput {
+  name: string;
+  description?: string;
+  bookingModel: BookingModel;
+  slotDurationMinutes: number;
+  minSlotsPerBooking: number;
+  maxSlotsPerBooking: number;
+  priceMinorUnits: number;
+  currency: string;
+  cancellationCutoffHours: number;
+  autoApprove: boolean;
+}
+
 function OfferForm({
-  useCase,
+  currency,
+  serviceNoun,
   onCreate,
   onCancel,
 }: {
-  useCase: UseCase;
-  onCreate: (o: Offer) => void;
+  currency: string;
+  serviceNoun: string;
+  onCreate: (input: CreateInput) => void;
   onCancel: () => void;
 }) {
-  const currency = useCase.services[0]?.currency ?? "EUR";
   const [name, setName] = useState("");
-  const [model, setModel] = useState<BookingModel>(useCase.services[0]?.model ?? "unit_selection");
+  const [model, setModel] = useState<BookingModel>("unit_selection");
   const [priceMajor, setPriceMajor] = useState(20);
-  const [duration, setDuration] = useState(defaultDuration(useCase));
+  const [duration, setDuration] = useState(60);
   const [maxSlots, setMaxSlots] = useState(1);
   const [cutoff, setCutoff] = useState(24);
+  const [autoApprove, setAutoApprove] = useState(true);
 
   function submit(e: FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
     onCreate({
-      id: `${useCase.id}-new-${Date.now()}`,
       name: name.trim(),
-      priceMajor,
+      bookingModel: model,
+      slotDurationMinutes: duration,
+      minSlotsPerBooking: 1,
+      maxSlotsPerBooking: Math.max(1, maxSlots),
+      priceMinorUnits: Math.round(priceMajor * 100),
       currency,
-      model,
-      durationMinutes: duration,
-      maxSlots: Math.max(1, maxSlots),
-      cutoffHours: cutoff,
+      cancellationCutoffHours: cutoff,
+      autoApprove,
     });
   }
 
   return (
     <form onSubmit={submit} className="space-y-3 rounded-2xl border border-border bg-card p-4">
-      <Field label={`New ${useCase.serviceNoun.toLowerCase()}`}>
-        <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder={useCase.services[0]?.name} />
+      <Field label={`New ${serviceNoun.toLowerCase()}`}>
+        <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder={serviceNoun} />
       </Field>
       <Field label="Booking model">
         <select
@@ -346,6 +412,15 @@ function OfferForm({
           <Input type="number" value={String(cutoff)} onChange={(e) => setCutoff(+e.target.value)} />
         </Field>
       </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={autoApprove}
+          onChange={(e) => setAutoApprove(e.target.checked)}
+          className="size-4 rounded border-border accent-primary"
+        />
+        Auto-approve new bookings (off = review each request)
+      </label>
       <div className="flex items-center gap-2">
         <Button type="submit" size="sm">
           Create offer

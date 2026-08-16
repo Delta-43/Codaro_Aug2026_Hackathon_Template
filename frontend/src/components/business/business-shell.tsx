@@ -61,7 +61,8 @@ export function BusinessShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { signOut } = useAuth();
-  const { useCase, demoBusiness } = useOwner();
+  const { activeProvider, scene } = useOwner();
+  const businessName = activeProvider?.name ?? "Your business";
   const active = TABS.find((t) => isActive(pathname, t.href)) ?? TABS[0];
   const heading = pathname.startsWith("/owner/settings") ? "Settings" : active.label;
 
@@ -93,15 +94,15 @@ export function BusinessShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-20 hidden h-14 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur md:flex">
         <div className="min-w-0">
           <h1 className="truncate text-sm font-semibold">{heading}</h1>
-          <p className="truncate text-xs text-muted-foreground">{demoBusiness.name}</p>
+          <p className="truncate text-xs text-muted-foreground">{businessName}</p>
         </div>
         <Link
           href="/owner/settings"
           className="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 hover:bg-muted"
           aria-label="Settings"
         >
-          <VerifiedScene scene={useCase.profileScene} size="sm" />
-          <span className="max-w-[10rem] truncate text-sm">{demoBusiness.name}</span>
+          <VerifiedScene scene={scene} size="sm" />
+          <span className="max-w-[10rem] truncate text-sm">{businessName}</span>
         </Link>
       </header>
 
@@ -109,7 +110,7 @@ export function BusinessShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-20 flex h-12 items-center gap-2 border-b border-border bg-background/85 px-4 backdrop-blur pt-[env(safe-area-inset-top)] md:hidden">
         <span className="truncate text-sm font-semibold">
           {heading}
-          <span className="ml-2 font-normal text-muted-foreground">{demoBusiness.name}</span>
+          <span className="ml-2 font-normal text-muted-foreground">{businessName}</span>
         </span>
       </header>
 

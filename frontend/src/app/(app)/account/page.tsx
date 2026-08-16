@@ -7,17 +7,40 @@
  * business Profile: a cog (top-right) opens the User Settings Panel. Editable
  * account details + preferences now live there, not here.
  */
-import { useMemo } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BadgeCheck, Settings, Star } from "lucide-react";
 import { useApp } from "@/context/app-context";
 import { Skeleton } from "@/components/skeleton";
 import { AvatarImg } from "@/components/avatar-img";
-import { userRating } from "@/lib/business-demo";
+import { getMyReputation } from "@/api";
+import type { ClientReputation } from "@/types/domain";
+import { avatarDataUri } from "@/lib/business-demo";
+
+function whenLabel(iso: string | null): string {
+  if (!iso) return "";
+  try {
+    return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" }).format(new Date(iso));
+  } catch {
+    return "";
+  }
+}
+
+const EMPTY_REP: ClientReputation = { score: 0, count: 0, reviews: [] };
 
 export default function ProfilePage() {
   const { ready, user } = useApp();
-  const rep = useMemo(() => userRating(user?.id ?? "demo"), [user?.id]);
+  const [rep, setRep] = useState<ClientReputation>(EMPTY_REP);
+
+  useEffect(() => {
+    let cancelled = false;
+    getMyReputation()
+      .then((r) => !cancelled && setRep(r))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (!ready || !user) return <Skeleton className="h-96 w-full" />;
 
@@ -71,30 +94,36 @@ export default function ProfilePage() {
       {/* Reviews */}
       <div>
         <h2 className="mb-2 text-sm font-semibold">Reviews from businesses</h2>
-        <ul className="space-y-3">
-          {rep.reviews.map((rv) => (
-            <li key={rv.id} className="rounded-2xl border border-border bg-card p-3">
-              <div className="flex items-center gap-2">
-                <AvatarImg src={rv.avatarUrl} alt="" className="size-8" />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="truncate text-sm font-medium">{rv.author}</span>
-                    <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
-                      <Star className="size-3 fill-amber-400 text-amber-400" aria-hidden />
-                      {rv.rating.toFixed(1)}
-                    </span>
+        {rep.reviews.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-xs text-muted-foreground">
+            No reviews yet — businesses rate you after a completed booking.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {rep.reviews.map((rv, i) => (
+              <li key={i} className="rounded-2xl border border-border bg-card p-3">
+                <div className="flex items-center gap-2">
+                  <AvatarImg src={avatarDataUri(rv.author)} alt="" className="size-8" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-medium">{rv.author}</span>
+                      <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
+                        <Star className="size-3 fill-amber-400 text-amber-400" aria-hidden />
+                        {rv.rating.toFixed(1)}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-muted-foreground">{whenLabel(rv.createdAtUtc)}</span>
                   </div>
-                  <span className="text-[11px] text-muted-foreground">{rv.whenLabel}</span>
                 </div>
-              </div>
-              <p className="mt-2 text-sm text-muted-foreground">{rv.text}</p>
-            </li>
-          ))}
-        </ul>
+                {rv.text ? <p className="mt-2 text-sm text-muted-foreground">{rv.text}</p> : null}
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <p className="text-[11px] text-muted-foreground">
-        Your rating and reviews are demo data. Manage your account in{" "}
+        Manage your account in{" "}
         <Link href="/account/settings" className="text-primary hover:underline">
           Settings
         </Link>

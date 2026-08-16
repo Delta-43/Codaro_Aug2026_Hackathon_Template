@@ -14,15 +14,30 @@
  */
 import type {
   Booking,
+  ClientReputation,
   DayAvailability,
   ID,
   IsoUtc,
   MonthDensityCell,
+  OwnerBooking,
+  OwnerDashboard,
+  OwnerRequest,
+  OwnerServiceSummary,
   Provider,
+  ProviderReview,
   Resource,
   Service,
   User,
   VerticalId,
+} from "@/types/domain";
+
+export type {
+  ClientReputation,
+  OwnerBooking,
+  OwnerDashboard,
+  OwnerRequest,
+  OwnerServiceSummary,
+  ProviderReview,
 } from "@/types/domain";
 import { ApiError, type ApiErrorCode } from "@/api/errors";
 import { getAccessToken } from "@/lib/auth";
@@ -204,6 +219,12 @@ export function updateUser(patch: Partial<User>): Promise<User> {
   return request("/me", { method: "PATCH", body: JSON.stringify(patch) });
 }
 
+/** The signed-in customer's reputation as businesses see it (score + reviews
+ *  providers left after completed bookings). */
+export function getMyReputation(): Promise<ClientReputation> {
+  return request("/me/reputation");
+}
+
 export async function getActiveVertical(): Promise<VerticalId> {
   const { verticalId } = await request<{ verticalId: VerticalId }>("/demo/vertical");
   return verticalId;
@@ -241,11 +262,63 @@ export function getResourceAnalytics(id: ID): Promise<ResourceAnalytics> {
 }
 
 /** Bookings on one of the owner's resources — the standard Booking plus the
- *  client email (owner-only). */
-export type OwnerBooking = Booking & { clientEmail?: string };
-
+ *  client email (owner-only). `OwnerBooking` is defined in @/types/domain. */
 export function getResourceBookings(id: ID): Promise<OwnerBooking[]> {
   return request(`/resources/${id}/bookings`);
+}
+
+// --- business-mode aggregation (the five owner tabs) -----------------------
+
+/** Dashboard: badge provider, the three glanceable numbers, this week's
+ *  bookings, and the top pending requests — all scoped to the owner's own
+ *  providers, aggregated server-side (/owner/dashboard). */
+export function getOwnerDashboard(): Promise<OwnerDashboard> {
+  return request("/owner/dashboard");
+}
+
+/** Services tab: each owned service with glanceable stats. */
+export function getOwnerServices(): Promise<OwnerServiceSummary[]> {
+  return request("/owner/services");
+}
+
+/** Requests tab: pending requests across the owner's providers, each with a
+ *  client screening card. */
+export function getOwnerRequests(): Promise<OwnerRequest[]> {
+  return request("/owner/requests");
+}
+
+/** Calendar tab: confirmed/completed bookings in a window (defaults to the
+ *  current month), sorted by start. */
+export function getOwnerCalendar(q?: { fromUtc?: IsoUtc; toUtc?: IsoUtc }): Promise<OwnerBooking[]> {
+  return request(`/owner/calendar${qs({ from: q?.fromUtc, to: q?.toUtc })}`);
+}
+
+/** Owner approves a pending request → confirmed (capacity re-checked). */
+export function approveBooking(id: ID): Promise<Booking> {
+  return post(`/bookings/${id}/approve`) as Promise<Booking>;
+}
+
+/** Owner declines a pending request → rejected. */
+export function rejectBooking(id: ID): Promise<Booking> {
+  return post(`/bookings/${id}/reject`) as Promise<Booking>;
+}
+
+/** Owner rates the customer after a completed booking (feeds their reputation). */
+export function rateClient(
+  bookingId: ID,
+  rating: number,
+  text = "",
+): Promise<{ rating: number; text: string; createdAtUtc: IsoUtc | null }> {
+  return post(`/bookings/${bookingId}/client-review`, { rating, text }) as Promise<{
+    rating: number;
+    text: string;
+    createdAtUtc: IsoUtc | null;
+  }>;
+}
+
+/** Recent public reviews for a provider (Profile tab). */
+export function getProviderReviews(id: ID, limit = 8): Promise<ProviderReview[]> {
+  return request(`/providers/${id}/reviews${qs({ limit })}`);
 }
 
 type ProviderInput = {
@@ -280,6 +353,7 @@ export function createService(input: {
   priceMinorUnits: number;
   currency: string;
   cancellationCutoffHours: number;
+  autoApprove?: boolean;
 }): Promise<Service> {
   return post("/services", input) as Promise<Service>;
 }
@@ -294,6 +368,7 @@ export function updateService(
     maxSlotsPerBooking: number;
     priceMinorUnits: number;
     cancellationCutoffHours: number;
+    autoApprove: boolean;
   }>,
 ): Promise<Service> {
   return patch(`/services/${id}`, patchBody) as Promise<Service>;

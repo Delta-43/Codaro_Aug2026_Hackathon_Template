@@ -106,6 +106,22 @@ create table if not exists follows (
   primary key (user_id, provider_id)
 );
 
+-- Client reputation: a provider rates a customer after a completed booking.
+-- One review per booking; feeds the customer's public reputation and the
+-- owner-side request screening. client_id is auth.users(id) as text (mirrors
+-- bookings.client_id).
+create table if not exists client_reviews (
+  id uuid primary key default gen_random_uuid(),
+  booking_id uuid not null references bookings(id) on delete cascade,
+  client_id text not null,
+  provider_id uuid references providers(id) on delete cascade,
+  rating int not null check (rating between 1 and 5),
+  text text not null default '',
+  created_at timestamptz not null default now()
+);
+create unique index if not exists uq_client_reviews_booking on client_reviews(booking_id);
+create index if not exists idx_client_reviews_client on client_reviews(client_id);
+
 create index if not exists idx_services_provider_id on services(provider_id);
 create index if not exists idx_booking_slots_slot_id on booking_slots(slot_id);
 create index if not exists idx_booking_slots_booking_id on booking_slots(booking_id);
@@ -292,6 +308,7 @@ alter table services      enable row level security;
 alter table booking_slots enable row level security;
 alter table reviews       enable row level security;
 alter table follows       enable row level security;
+alter table client_reviews enable row level security;
 
 -- providers: public read (discovery/landing); an owner manages only their own.
 drop policy if exists providers_select_all on providers;
@@ -337,6 +354,17 @@ drop policy if exists reviews_insert_own on reviews;
 create policy reviews_insert_own on reviews for insert
   with check (exists (select 1 from bookings b where b.id = booking_id
                       and b.client_id = auth.uid()::text));
+
+-- client_reviews: public read (feeds a customer's reputation + owner screening);
+-- only an owner writes one (the router further checks they own the booking's
+-- provider). No update/delete policy — a re-review deletes+inserts via the
+-- service key, like the provider-reviews flow.
+drop policy if exists client_reviews_select_all on client_reviews;
+create policy client_reviews_select_all on client_reviews for select using (true);
+
+drop policy if exists client_reviews_insert_owner on client_reviews;
+create policy client_reviews_insert_owner on client_reviews for insert
+  with check (public.is_owner());
 
 -- follows: a user sees and manages only their own follows.
 drop policy if exists follows_select_own on follows;

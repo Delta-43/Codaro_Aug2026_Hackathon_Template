@@ -4,11 +4,14 @@
  * Business-mode client state, shared across the five owner tabs (dashboard /
  * services / requests / calendar / profile) plus settings.
  *
- * Two data sources, kept distinct:
- *  - `useCase` (client-side demo dimension, switchable in Settings → Demo) drives
- *    the showcase identity + all demo-generated content across every niche.
- *  - `providers` (real, owner-gated `getMyProviders`) backs the Services tab's
- *    live create/edit/delete. The active one is remembered in localStorage.
+ * Everything here is REAL, owner-gated data:
+ *  - `providers` come from `getMyProviders` (owner-scoped); the active one is
+ *    remembered in localStorage and drives the Services CRUD + the profile.
+ *  - `vocab` is the live vertical's UI vocabulary (`config/verticals.ts`), keyed
+ *    off the currently-seeded vertical (`getActiveVertical`).
+ *  - `scene` is the on-brand illustrated profile art for the vertical.
+ * The per-tab aggregates (dashboard numbers, requests, calendar) are fetched by
+ * the pages themselves from the `/owner/*` endpoints.
  */
 import {
   createContext,
@@ -18,24 +21,28 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { Provider } from "@/types/domain";
-import { getMyProviders } from "@/api";
-import { useDemoUseCase } from "@/lib/demo-use-case";
-import type { UseCase, UseCaseId } from "@/config/useCases";
+import type { Provider, VerticalId } from "@/types/domain";
+import { getActiveVertical, getMyProviders } from "@/api";
+import { VERTICALS, type VerticalConfig } from "@/config/verticals";
 
 const PID_KEY = "codaro.owner.activeProviderId";
+
+/** On-brand illustrated profile art per vertical (see components/business/business-art). */
+const VERTICAL_SCENE: Record<VerticalId, string> = {
+  fleet: "car-hero",
+  oneToOne: "tutor-hero",
+  group: "yoga-hero",
+};
 
 interface OwnerContextValue {
   ready: boolean;
   providers: Provider[] | null;
   activeProvider: Provider | null;
-  /** The active demo niche — vocabulary + showcase identity + mock content. */
-  useCase: UseCase;
-  setUseCaseId: (id: UseCaseId) => void;
-  /** The showcase business shown across business mode for the active niche. */
-  demoBusiness: UseCase["business"];
-  /** Stable seed for the deterministic demo generators. */
-  seed: string;
+  /** The live vertical's UI vocabulary (nouns/copy). */
+  vocab: VerticalConfig;
+  vertical: VerticalId;
+  /** On-brand illustrated profile scene for the vertical. */
+  scene: string;
   setActiveProviderId: (id: string) => void;
   refreshProviders: () => Promise<void>;
 }
@@ -45,8 +52,8 @@ const OwnerContext = createContext<OwnerContextValue | null>(null);
 export function OwnerProvider({ children }: { children: ReactNode }) {
   const [providers, setProviders] = useState<Provider[] | null>(null);
   const [pid, setPid] = useState<string | null>(null);
+  const [vertical, setVertical] = useState<VerticalId>("fleet");
   const [ready, setReady] = useState(false);
-  const [useCase, setUseCaseId] = useDemoUseCase();
 
   const refreshProviders = useCallback(async () => {
     try {
@@ -59,9 +66,13 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const list = await getMyProviders().catch(() => [] as Provider[]);
+      const [list, v] = await Promise.all([
+        getMyProviders().catch(() => [] as Provider[]),
+        getActiveVertical().catch(() => "fleet" as VerticalId),
+      ]);
       if (cancelled) return;
       setProviders(list);
+      setVertical(v);
       const stored = typeof window !== "undefined" ? localStorage.getItem(PID_KEY) : null;
       setPid(list.find((p) => p.id === stored)?.id ?? list[0]?.id ?? null);
       setReady(true);
@@ -82,10 +93,9 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
     ready,
     providers,
     activeProvider,
-    useCase,
-    setUseCaseId,
-    demoBusiness: useCase.business,
-    seed: `${useCase.id}:${activeProvider?.id ?? "demo"}`,
+    vocab: VERTICALS[vertical] ?? VERTICALS.fleet,
+    vertical,
+    scene: VERTICAL_SCENE[vertical] ?? "grad-amber",
     setActiveProviderId,
     refreshProviders,
   };

@@ -19,6 +19,7 @@ from helpers import (
     DEFAULT_OWNER_ID,
     DEFAULT_USER_ID,
     make_booking,
+    make_client_review,
     make_provider,
     make_resource,
     make_service,
@@ -245,6 +246,8 @@ def test_owner_requests_pending_only_with_client_card(client, db, auth):
         "totalBookings",
         "bookingsWithProvider",
         "cancelledWithProvider",
+        "rating",
+        "reviewCount",
     }
     # FakeSupabase has no auth.admin — the router degrades gracefully.
     assert client_card["memberSinceUtc"] is None
@@ -254,6 +257,38 @@ def test_owner_requests_pending_only_with_client_card(client, db, auth):
     assert client_card["totalBookings"] == 2  # the request + the confirmed one
     assert client_card["bookingsWithProvider"] == 2
     assert client_card["cancelledWithProvider"] == 0
+    # No client_reviews present -> reputation defaults.
+    assert client_card["rating"] is None
+    assert client_card["reviewCount"] == 0
+
+
+def test_owner_requests_client_card_reflects_client_reviews(client, db, auth):
+    auth(role="owner")
+    p = make_provider(db, "P", owner_id=DEFAULT_OWNER_ID)
+    svc, slot = _service_with_slot(db, p["id"])
+    make_booking(
+        db,
+        slots=[slot],
+        service=svc,
+        status="pending",
+        reference="BK-REQ",
+        client_email="ada@example.com",
+    )
+    # A past completed booking the same client had, rated by a business.
+    past = make_slot(db, slot["resource_id"], service_id=svc["id"], hours_ahead=-5)
+    done = make_booking(
+        db,
+        slots=[past],
+        service=svc,
+        status="confirmed",
+        reference="BK-DONE",
+        client_email="ada@example.com",
+    )
+    make_client_review(db, done, rating=4, provider_id=p["id"])
+
+    card = client.get("/owner/requests").json()[0]["client"]
+    assert card["rating"] == 4.0
+    assert card["reviewCount"] == 1
 
 
 def test_owner_requests_scoped_to_own_providers(client, db, auth):
