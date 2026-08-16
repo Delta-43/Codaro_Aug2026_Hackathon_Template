@@ -12,7 +12,7 @@ from app.db import get_supabase, get_user_client, maybe_row
 from app.errors import NOT_FOUND, api_error
 from app.models import ProviderCreate, ProviderUpdate
 from app.routers.resources import delete_resources_for_services
-from app.serialize import serialize_provider
+from app.serialize import iso_utc, serialize_provider
 from app.users import load_user
 
 router = APIRouter(prefix="/providers", tags=["providers"])
@@ -158,6 +158,36 @@ def delete_provider(provider_id: str, owner: AuthUser = Depends(require_owner)):
     deleted = uc.table("providers").delete().eq("id", provider_id).execute().data
     enforce_rls_write(deleted, entity="provider")
     return Response(status_code=204)
+
+
+@router.get("/{provider_id}/reviews")
+def provider_reviews(provider_id: str, limit: int = 8):
+    """Recent reviews for a provider (public read) — powers the profile's Reviews
+    section. Author is derived from the reviewing booking's client email
+    (best-effort; reviews carry no author column). Newest first."""
+    db = get_supabase()
+    rows = db.table("reviews").select("*").eq("provider_id", provider_id).execute().data or []
+    booking_ids = [r["booking_id"] for r in rows if r.get("booking_id")]
+    emails: dict[str, str] = {}
+    if booking_ids:
+        brows = db.table("bookings").select("id,client_email").in_("id", booking_ids).execute().data or []
+        emails = {b["id"]: (b.get("client_email") or "") for b in brows}
+
+    def _author(row: dict) -> str:
+        email = emails.get(row.get("booking_id")) or ""
+        return email.split("@")[0] if email else "Guest"
+
+    out = [
+        {
+            "rating": int(r["rating"]),
+            "text": r.get("text") or "",
+            "createdAtUtc": iso_utc(r.get("created_at")),
+            "author": _author(r),
+        }
+        for r in rows
+    ]
+    out.sort(key=lambda x: x["createdAtUtc"] or "", reverse=True)
+    return out[: max(0, limit)]
 
 
 @router.get("/{provider_id}")

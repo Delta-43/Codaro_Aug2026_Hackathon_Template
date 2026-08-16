@@ -57,6 +57,7 @@ export interface Service {
   priceMinorUnits: number; // per slot
   currency: string; // ISO 4217
   cancellationCutoffHours: number; // no change/cancel inside this window
+  autoApprove: boolean; // false → new bookings land as pending requests
   resourceIds: ID[];
 }
 
@@ -89,7 +90,12 @@ export interface Slot {
   status: SlotStatus; // derived, but sent explicitly — the UI never recomputes it
 }
 
-export type BookingStatus = "confirmed" | "cancelled" | "completed";
+export type BookingStatus =
+  | "confirmed"
+  | "cancelled"
+  | "completed"
+  | "pending" // awaiting owner approval on a manual-approve service
+  | "rejected"; // owner declined the request
 
 export interface Booking {
   id: ID;
@@ -134,4 +140,83 @@ export type MonthDensityLevel = 0 | 1 | 2 | 3;
 export interface MonthDensityCell {
   date: string; // 'YYYY-MM-DD'
   density: MonthDensityLevel;
+}
+
+// --- business mode (owner) — additive, owner-only shapes -------------------
+// These mirror the backend's /owner/* aggregation envelopes and the owner-only
+// clientEmail on bookings. They are not part of the customer contract.
+
+/** A booking as the owner sees it — the standard Booking plus who booked. */
+export interface OwnerBooking extends Booking {
+  clientEmail?: string;
+}
+
+/** Screening card for a client requesting a booking (Requests tab). */
+export interface RequestClient {
+  id: ID;
+  displayName: string;
+  email: string;
+  avatarUrl: string;
+  memberSinceUtc: IsoUtc | null;
+  totalBookings: number;
+  bookingsWithProvider: number;
+  cancelledWithProvider: number;
+}
+
+/** A pending request enriched for the Requests tab. */
+export interface OwnerRequest extends OwnerBooking {
+  client: RequestClient;
+  serviceName: string;
+  providerName: string;
+}
+
+/** One service with its glanceable owner stats (Services tab). */
+export interface OwnerServiceSummary extends Service {
+  providerName: string;
+  stats: {
+    upcomingBookings: number;
+    pastBookings: number;
+    totalBookings: number;
+    pendingRequests: number;
+    revenueMinorUnits: number;
+    currency: string;
+    avgRating: number;
+    reviewCount: number;
+  };
+}
+
+/** The Dashboard aggregation envelope. */
+export interface OwnerDashboard {
+  provider: Provider | null;
+  providers: Provider[];
+  glance: {
+    upcomingBookings: {
+      total: number;
+      byService: { serviceId: ID; serviceName: string; count: number }[];
+    };
+    clientSatisfaction: {
+      currentRating: number;
+      reviewCount: number;
+      deltaPct: number;
+      basis: string;
+    };
+    revenue: {
+      minorUnits: number;
+      currency: string;
+      byCurrency: { currency: string; minorUnits: number }[];
+      bookingCount: number;
+      period: string; // 'YYYY-MM'
+    };
+  };
+  weekBookings: OwnerBooking[];
+  requests: OwnerRequest[];
+  pendingCount: number;
+}
+
+/** A public review with best-effort author (Profile tab). */
+export interface ProviderReview {
+  rating: number;
+  text: string;
+  createdAtUtc: IsoUtc;
+  author: string;
 }

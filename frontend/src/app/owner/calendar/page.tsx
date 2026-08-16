@@ -1,19 +1,22 @@
 "use client";
 
 /**
- * Business tab 4 — Calendar. Every approved booking laid out across the three
- * standard views (month / week / day, week by default). Tapping a booking opens
- * it for detail and management. Bookings are demo-generated (deterministic per
- * business) until the backend exposes an owner-wide bookings feed.
+ * Business tab 4 — Calendar. Every approved (confirmed/completed) booking laid
+ * out across the three standard views (month / week / day, week by default).
+ * Tapping a booking opens it for detail and cancellation. The feed is real —
+ * /owner/calendar across all the owner's resources; cancel hits /bookings/{id}.
  */
-import { useMemo, useState } from "react";
-import { CalendarX2, Clock, Users } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Clock, Users } from "lucide-react";
 import { useOwner } from "@/context/owner-context";
 import { Skeleton } from "@/components/skeleton";
 import { Modal } from "@/components/modal";
 import { Button } from "@/components/ui/button";
 import { BookingCalendar } from "@/components/business/booking-calendar";
-import { demoBookings, type DemoBooking } from "@/lib/business-demo";
+import { cancelBooking, getOwnerCalendar, getOwnerServices, ApiError } from "@/api";
+import type { OwnerBooking, OwnerServiceSummary } from "@/types/domain";
+import type { DemoBooking } from "@/lib/business-demo";
+import { ownerBookingToCal } from "@/lib/owner-view";
 import { formatBookingWhen, formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -27,17 +30,51 @@ const STATUS_CLASS: Record<DemoBooking["status"], string> = {
 };
 
 export default function CalendarPage() {
-  const { ready, useCase, seed } = useOwner();
+  const { ready, vocab } = useOwner();
   const tz = browserTz();
-  const bookings = useMemo(() => demoBookings(useCase, seed, tz), [useCase, seed, tz]);
+  const [raw, setRaw] = useState<OwnerBooking[]>([]);
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<DemoBooking | null>(null);
   const [cancelled, setCancelled] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
 
-  if (!ready) return <Skeleton className="h-96 w-full" />;
+  useEffect(() => {
+    let cancel = false;
+    Promise.all([
+      getOwnerCalendar().catch(() => [] as OwnerBooking[]),
+      getOwnerServices().catch(() => [] as OwnerServiceSummary[]),
+    ]).then(([bookings, services]) => {
+      if (cancel) return;
+      setRaw(bookings);
+      setNames(Object.fromEntries(services.map((s) => [s.id, s.name])));
+      setLoading(false);
+    });
+    return () => {
+      cancel = true;
+    };
+  }, []);
 
-  const shown = bookings.map((b) =>
-    cancelled.has(b.id) ? { ...b, status: "completed" as const } : b,
+  const bookings = useMemo(
+    () => raw.filter((b) => !cancelled.has(b.id)).map((b) => ownerBookingToCal(b, names[b.serviceId])),
+    [raw, names, cancelled],
   );
+
+  async function doCancel(id: string) {
+    setBusy(true);
+    try {
+      await cancelBooking(id);
+      setCancelled((prev) => new Set(prev).add(id));
+      setSelected(null);
+    } catch (e) {
+      // Surface the backend's reason inline in the modal footer.
+      alert(e instanceof ApiError ? e.message : "Couldn't cancel that booking.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!ready || loading) return <Skeleton className="h-96 w-full" />;
 
   return (
     <section className="space-y-4 py-2">
@@ -46,7 +83,13 @@ export default function CalendarPage() {
         <p className="text-sm text-muted-foreground">Your confirmed bookings across every offer.</p>
       </div>
 
-      <BookingCalendar bookings={shown} timezone={tz} defaultView="week" onOpen={setSelected} />
+      {bookings.length === 0 ? (
+        <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+          {vocab.copy.noAvailability}
+        </p>
+      ) : (
+        <BookingCalendar bookings={bookings} timezone={tz} defaultView="week" onOpen={setSelected} />
+      )}
 
       <Modal open={!!selected} onClose={() => setSelected(null)} title="Booking">
         {selected ? (
@@ -56,23 +99,18 @@ export default function CalendarPage() {
                 <h3 className="font-semibold">{selected.title}</h3>
                 <p className="text-sm text-muted-foreground">{selected.client}</p>
               </div>
-              <span
-                className={cn(
-                  "shrink-0 rounded-full px-2.5 py-1 text-xs font-medium capitalize",
-                  STATUS_CLASS[cancelled.has(selected.id) ? "completed" : selected.status],
-                )}
-              >
-                {cancelled.has(selected.id) ? "cancelled" : selected.status}
+              <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-medium capitalize", STATUS_CLASS[selected.status])}>
+                {selected.status}
               </span>
             </div>
 
             <dl className="space-y-2 text-sm">
               <Row icon={<Clock className="size-4" aria-hidden />}>
-                {formatBookingWhen(selected.startUtc, selected.endUtc, browserTz())}
+                {formatBookingWhen(selected.startUtc, selected.endUtc, tz)}
               </Row>
-              {useCase.partyNoun && selected.partySize > 1 ? (
+              {vocab.partyNoun && selected.partySize > 1 ? (
                 <Row icon={<Users className="size-4" aria-hidden />}>
-                  {selected.partySize} {useCase.partyNoun}
+                  {selected.partySize} {vocab.partyNoun}
                 </Row>
               ) : null}
               <Row icon={<span className="grid size-4 place-items-center text-xs">€</span>}>
@@ -90,26 +128,18 @@ export default function CalendarPage() {
               <Button
                 size="sm"
                 variant="destructive"
-                isDisabled={cancelled.has(selected.id)}
-                onPress={() => {
-                  setCancelled((prev) => new Set(prev).add(selected.id));
-                  setSelected(null);
-                }}
+                isDisabled={busy || selected.status === "completed"}
+                onPress={() => doCancel(selected.id)}
               >
                 Cancel booking
               </Button>
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Messaging and reschedule land when the backend booking feed is wired in.
+              Messaging and reschedule are coming to the owner console next.
             </p>
           </div>
         ) : null}
       </Modal>
-
-      <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <CalendarX2 className="size-3.5" aria-hidden />
-        Demo bookings — the live owner-wide feed is coming from the backend.
-      </p>
     </section>
   );
 }
