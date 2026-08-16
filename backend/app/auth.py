@@ -117,9 +117,29 @@ def _jwks_client() -> PyJWKClient:
     """Cached client for the project's JSON Web Key Set — the public keys that
     verify asymmetric (ES256/RS256) access tokens. Supabase's newer projects
     sign with rotating asymmetric keys (a `kid` in the header) rather than the
-    legacy HS256 shared secret; this fetches the matching public key by `kid`."""
+    legacy HS256 shared secret; this fetches the matching public key by `kid`.
+
+    `lifespan` bounds how long a fetched JWK set is trusted before a refetch, so
+    a rotated key is eventually picked up on its own; `_decode_asymmetric` also
+    forces a refresh on a verification failure for immediate recovery."""
     base = os.environ["SUPABASE_URL"].rstrip("/")
-    return PyJWKClient(f"{base}/auth/v1/.well-known/jwks.json")
+    return PyJWKClient(f"{base}/auth/v1/.well-known/jwks.json", lifespan=300)
+
+
+def _decode_asymmetric(token: str, alg: str, *, refresh: bool = True) -> dict:
+    """Verify an ES256/RS256 token against the project's JWKS. On a key/signature
+    failure, drop the cached JWK set and retry once — this recovers from a stale
+    cache after Supabase rotates its signing keys, which would otherwise 401
+    perfectly valid tokens until the process restarts. A genuinely bad token
+    fails the retry too and still raises."""
+    try:
+        signing_key = _jwks_client().get_signing_key_from_jwt(token)
+        return jwt.decode(token, signing_key.key, algorithms=[alg], audience=_AUDIENCE)
+    except (jwt.PyJWKClientError, jwt.InvalidSignatureError):
+        if refresh:
+            _jwks_client.cache_clear()  # next call rebuilds the client + refetches the JWK set
+            return _decode_asymmetric(token, alg, refresh=False)
+        raise
 
 
 def _decode_token(token: str) -> dict:
@@ -129,8 +149,7 @@ def _decode_token(token: str) -> dict:
     alg = jwt.get_unverified_header(token).get("alg", "HS256")
     if alg == "HS256":
         return jwt.decode(token, _jwt_secret(), algorithms=["HS256"], audience=_AUDIENCE)
-    signing_key = _jwks_client().get_signing_key_from_jwt(token)
-    return jwt.decode(token, signing_key.key, algorithms=[alg], audience=_AUDIENCE)
+    return _decode_asymmetric(token, alg)
 
 
 def require_user(

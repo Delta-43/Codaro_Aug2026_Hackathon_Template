@@ -78,7 +78,11 @@ _Prioritised. Snapshot, not a living doc — regenerate via the pipeline._
   `demo@codaro.app` / `Codaro-Demo-2026` (customer) and `owner@codaro.app` /
   `Codaro-Owner-2026` (business — owns the demo provider "Vistula Auto"). A
   hidden `holds@codaro.app` user owns the "already booked" occupancy.
-- [ ] **JWKS cache across key rotation**: `auth._jwks_client` is process-cached;
-  a long-running server can serve a stale JWK set and 401 otherwise-valid tokens
-  after Supabase rotates signing keys (observed once; a backend restart clears
-  it). Consider tuning `PyJWKClient` lifespan / forcing a refetch on kid-miss.
+- [x] **JWKS cache across key rotation** — hardened. `_decode_asymmetric` now
+  drops the cached JWK set and retries once on a key/signature failure (recovers
+  from a rotated signing key without a restart), and the client has a 300s
+  `lifespan`. Verified: happy path + a simulated stale-key failure that recovers.
+  - Minor residual: the first 1–2 auth requests right after a `docker restart`
+    can 401 while the JWKS fetch warms up (Docker outbound-network cold start,
+    not the code) — clears within a couple seconds. A startup pre-warm was left
+    out to keep the offline test suite network-free.
