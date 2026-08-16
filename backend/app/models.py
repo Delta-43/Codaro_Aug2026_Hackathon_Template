@@ -136,18 +136,3 @@ class SlotUpdate(BaseModel):
     ends_at: str | None = None
     capacity: int | None = None
     metadata: dict | None = None
-
-
-class BookingCreate(BaseModel):
-    slot_id: str
-    # Booking ownership is derived from the verified auth token, not trusted
-    # from the body (see backend/CLAUDE.md "Auth"). These fields are accepted
-    # for backward-compatibility but ignored — the router overwrites them with
-    # the token's email / user id.
-    client_email: str | None = None
-    client_id: str | None = None
-    metadata: dict = Field(default_factory=dict)
-
-
-class RescheduleRequest(BaseModel):
-    new_slot_id: str

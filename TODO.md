@@ -28,7 +28,7 @@ _Prioritised. Snapshot, not a living doc — regenerate via the pipeline._
 - [x] `CLAUDE.md`, `backend/CLAUDE.md`, `frontend/CLAUDE.md`, `supabase/CLAUDE.md`
   updated to the Provider→Service→Resource domain, per-service rules, camelCase
   contract, new tables/endpoints, and ES256+JWKS auth. (`frontend/CLAUDE.md` now
-  points at `src/` + the retired `_legacy/` files.)
+  points at `src/`.)
 - [x] Account page copy fixed ("in-memory"/"no password auth" → real auth +
   backend persistence).
 
