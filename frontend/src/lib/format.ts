@@ -46,18 +46,6 @@ export function formatDate(
   }).format(new Date(iso));
 }
 
-/** Full label with zone, e.g. "Fri 14 Mar, 09:00–10:00 CEST". */
-export function formatDateTimeRange(
-  startUtc: string,
-  endUtc: string,
-  timeZone: string,
-  opts: { weekday?: boolean; withYear?: boolean } = { weekday: true },
-): string {
-  const date = formatDate(startUtc, timeZone, opts);
-  const range = formatTimeRange(startUtc, endUtc, timeZone);
-  return `${date}, ${range} ${zoneAbbrev(startUtc, timeZone)}`;
-}
-
 /** Currency from minor units, e.g. 4200 EUR → "€42.00". */
 export function formatMoney(minorUnits: number, currency: string): string {
   return new Intl.NumberFormat("en-GB", {
