@@ -3,9 +3,7 @@
 ## Role
 
 Next.js 14 (App Router) + Tailwind v4 + `react-aria-components` UI. The live app
-is **`frontend/src/`**; the earlier prototype (`app/`, `lib/domain.tsx`,
-`lib/api.ts`, `lib/auth.tsx`, `app/dashboard`, `app/owner`) is retired under
-`frontend/_legacy/`. See root [CLAUDE.md](../CLAUDE.md) for the architecture and
+is **`frontend/src/`**. See root [CLAUDE.md](../CLAUDE.md) for the architecture and
 [backend/CLAUDE.md](../backend/CLAUDE.md) for the API this talks to.
 
 ## Domain + files
