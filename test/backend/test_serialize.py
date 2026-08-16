@@ -432,6 +432,33 @@ def test_booking_cancelled_at_is_serialized():
     assert out["cancelledAtUtc"] == "2026-05-05T00:00:00.000Z"
 
 
+def test_booking_include_client_adds_client_email_only_when_true():
+    row = _booking_row()
+    row["client_email"] = "guest@example.com"
+
+    # Default (client-facing): no clientEmail leaked.
+    default = S.serialize_booking(
+        row, slot_ids=["s1"], start_utc=FUTURE, end_utc=FUTURE, now=NOW
+    )
+    assert "clientEmail" not in default
+    assert set(default) == BOOKING_KEYS
+
+    # Owner view: additive clientEmail present alongside the full Booking shape.
+    owner_view = S.serialize_booking(
+        row, slot_ids=["s1"], start_utc=FUTURE, end_utc=FUTURE, now=NOW, include_client=True
+    )
+    assert set(owner_view) == BOOKING_KEYS | {"clientEmail"}
+    assert owner_view["clientEmail"] == "guest@example.com"
+
+
+def test_booking_include_client_defaults_missing_email_to_empty_string():
+    # Booking row without a client_email column -> "" (never KeyError/None).
+    out = S.serialize_booking(
+        _booking_row(), slot_ids=["s1"], start_utc=FUTURE, end_utc=FUTURE, now=NOW, include_client=True
+    )
+    assert out["clientEmail"] == ""
+
+
 # --- serialize_user --------------------------------------------------------
 
 USER_KEYS = {

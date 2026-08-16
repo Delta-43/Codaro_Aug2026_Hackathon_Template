@@ -32,7 +32,7 @@ test/
     test_rules.py           # rules.py: window/capacity + effective_service_rules + within_cutoff
     # --- integration tests (real endpoints, fake Supabase, stubbed auth) ---
     test_health_config.py   # /health, /config, config-pivot behaviour
-    test_resources.py       # /resources reads + owner CRUD + analytics
+    test_resources.py       # /resources reads + owner CRUD + analytics (owner-scoped) + /{id}/bookings
     test_slots.py           # /slots + /slots/occupancy + owner CRUD + buffer rule
     test_bookings.py        # create/list(scope)/get/reschedule/cancel/review + cutoff/capacity
     test_providers.py       # /providers discovery (search/by-code) + follow/unfollow + owner create/patch/mine
@@ -176,7 +176,7 @@ path the UI calls exists on the FastAPI app (method-aware) and that the
 
 ## Current state
 
-`python -m pytest test/backend -q` from the repo root: **227 passed**
+`python -m pytest test/backend -q` from the repo root: **237 passed**
 (0 failures, 0 xfail). `python -m pytest test/` adds the 8 live e2e tests, which
 skip without `SUPABASE_URL`/`SUPABASE_ANON_KEY`.
 

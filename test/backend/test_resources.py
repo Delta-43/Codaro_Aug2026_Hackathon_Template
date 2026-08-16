@@ -182,3 +182,94 @@ def test_analytics_requires_owner(client, db, auth):
     auth(role="client")
     res = make_resource(db, "R")
     assert client.get(f"/resources/{res['id']}/analytics").status_code == 403
+
+
+def test_analytics_of_another_owners_resource_is_403(client, db, auth):
+    # Tightened: analytics now goes through _owned_resource, so an owner can no
+    # longer view a resource stamped with a different owner_id.
+    auth(role="owner")  # DEFAULT_OWNER_ID
+    res = make_resource(db, "Not mine", owner_id="99999999-9999-9999-9999-999999999999")
+    assert client.get(f"/resources/{res['id']}/analytics").status_code == 403
+
+
+# --- owner-gated resource bookings (GET /resources/{id}/bookings) ----------
+
+
+def test_resource_bookings_without_a_token_is_401(client, db):
+    res = make_resource(db, "R")
+    assert client.get(f"/resources/{res['id']}/bookings").status_code == 401
+
+
+def test_resource_bookings_as_client_is_403(client, db, auth):
+    auth(role="client")
+    res = make_resource(db, "R")
+    assert client.get(f"/resources/{res['id']}/bookings").status_code == 403
+
+
+def test_resource_bookings_of_another_owners_resource_is_403(client, db, auth):
+    auth(role="owner")  # DEFAULT_OWNER_ID
+    res = make_resource(db, "Not mine", owner_id="99999999-9999-9999-9999-999999999999")
+    assert client.get(f"/resources/{res['id']}/bookings").status_code == 403
+
+
+def test_resource_bookings_unknown_resource_is_404(client, db, auth):
+    auth(role="owner")
+    assert client.get("/resources/nope/bookings").status_code == 404
+
+
+def test_resource_bookings_empty_when_no_slots(client, db, auth):
+    auth(role="owner")  # DEFAULT_OWNER_ID
+    # An owned resource with no slots/bookings returns [].
+    res = make_resource(db, "Idle", owner_id="22222222-2222-2222-2222-222222222222")
+    resp = client.get(f"/resources/{res['id']}/bookings")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_resource_bookings_returns_bookings_with_client_email(client, db, auth):
+    auth(role="owner")  # DEFAULT_OWNER_ID; make_catalog stamps the same owner_id
+    cat = make_catalog(db, capacity=2, slot_capacity=2)
+    make_booking(
+        db,
+        slots=[cat["slot"]],
+        service=cat["service"],
+        party_size=1,
+        client_email="rider@example.com",
+        reference="BK-OWN001",
+    )
+
+    resp = client.get(f"/resources/{cat['resource']['id']}/bookings")
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert len(rows) == 1
+    booking = rows[0]
+    # A full serialized Booking shape plus the additive clientEmail field.
+    assert {"id", "reference", "userId", "slotIds", "startUtc", "status"} <= set(booking)
+    assert "clientEmail" in booking
+    assert booking["clientEmail"] == "rider@example.com"
+    assert booking["reference"] == "BK-OWN001"
+    assert booking["slotIds"] == [cat["slot"]["id"]]
+
+
+def test_resource_bookings_sorted_by_start_desc(client, db, auth):
+    auth(role="owner")  # DEFAULT_OWNER_ID
+    cat = make_catalog(db, capacity=2, slot_capacity=2)
+    resource_id = cat["resource"]["id"]
+    # A second, later slot on the same owned resource.
+    later_slot = make_slot(
+        db,
+        resource_id,
+        service_id=cat["service"]["id"],
+        hours_ahead=96,
+        capacity=2,
+    )
+    make_booking(
+        db, slots=[cat["slot"]], service=cat["service"], reference="BK-EARLY", client_email="a@x.com"
+    )
+    make_booking(
+        db, slots=[later_slot], service=cat["service"], reference="BK-LATE", client_email="b@x.com"
+    )
+
+    rows = client.get(f"/resources/{resource_id}/bookings").json()
+    # startUtc descending: the later slot's booking comes first.
+    assert [r["reference"] for r in rows] == ["BK-LATE", "BK-EARLY"]

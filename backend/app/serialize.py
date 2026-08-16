@@ -218,6 +218,7 @@ def serialize_booking(
     end_utc: Any,
     review: Optional[dict] = None,
     now: Optional[datetime] = None,
+    include_client: bool = False,
 ) -> dict:
     md = row.get("metadata") or {}
     review_out = None
@@ -227,7 +228,7 @@ def serialize_booking(
             "text": review.get("text") or "",
             "createdAtUtc": iso_utc(review.get("created_at") or review.get("createdAtUtc")),
         }
-    return {
+    out = {
         "id": row["id"],
         "reference": md.get("reference", ""),
         "userId": row.get("client_id") or md.get("user_id") or "",
@@ -246,6 +247,10 @@ def serialize_booking(
         "changeHistory": _change_history(md),
         "review": review_out,
     }
+    if include_client:
+        # Owner-only view: who booked. An additive field (never sent to clients).
+        out["clientEmail"] = row.get("client_email") or ""
+    return out
 
 
 def serialize_user(

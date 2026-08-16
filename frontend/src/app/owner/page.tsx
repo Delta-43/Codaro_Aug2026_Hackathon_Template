@@ -19,8 +19,10 @@ import {
   createSlot,
   getMyProviders,
   getResourceAnalytics,
+  getResourceBookings,
   getResources,
   getServices,
+  type OwnerBooking,
   type ResourceAnalytics,
 } from "@/api";
 import type { BookingModel, Provider, Resource, Service } from "@/types/domain";
@@ -377,8 +379,17 @@ function CreateResourceForm({ serviceId, shared, onCreated }: {
   );
 }
 
+const STATUS_CLASS: Record<string, string> = {
+  confirmed: "text-primary",
+  completed: "text-muted-foreground",
+  cancelled: "text-destructive",
+};
+
 function UnitRow({ resource }: { resource: Resource }) {
   const [stats, setStats] = useState<ResourceAnalytics | null>(null);
+  const [bookings, setBookings] = useState<OwnerBooking[] | null>(null);
+  const [showBookings, setShowBookings] = useState(false);
+
   const load = useCallback(async () => {
     try {
       setStats(await getResourceAnalytics(resource.id));
@@ -390,11 +401,36 @@ function UnitRow({ resource }: { resource: Resource }) {
     load();
   }, [load]);
 
+  const loadBookings = useCallback(async () => {
+    try {
+      setBookings(await getResourceBookings(resource.id));
+    } catch {
+      setBookings([]);
+    }
+  }, [resource.id]);
+
+  async function toggleBookings() {
+    const next = !showBookings;
+    setShowBookings(next);
+    if (next && bookings === null) await loadBookings();
+  }
+
   return (
     <li className="rounded-xl border border-border bg-card px-3 py-2">
       <div className="flex items-center justify-between gap-3">
         <span className="text-sm font-medium">{resource.name}</span>
-        <AddSlots resourceId={resource.id} onAdded={load} />
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="xs" onPress={toggleBookings}>
+            {showBookings ? "Hide" : "Bookings"}
+          </Button>
+          <AddSlots
+            resourceId={resource.id}
+            onAdded={() => {
+              load();
+              if (showBookings) loadBookings();
+            }}
+          />
+        </div>
       </div>
       {stats && (
         <p className="mt-1 text-xs text-muted-foreground">
@@ -402,6 +438,27 @@ function UnitRow({ resource }: { resource: Resource }) {
           {Math.round((stats.occupancy_rate || 0) * 100)}% booked · {stats.booked_count}/
           {stats.total_capacity} seats
         </p>
+      )}
+      {showBookings && (
+        <ul className="mt-2 space-y-1 border-t border-border pt-2">
+          {bookings === null ? (
+            <li className="text-xs text-muted-foreground">Loading…</li>
+          ) : bookings.length === 0 ? (
+            <li className="text-xs text-muted-foreground">No bookings yet.</li>
+          ) : (
+            bookings.map((b) => (
+              <li key={b.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+                <span className="font-medium">{b.reference}</span>
+                <span className="text-muted-foreground">{b.clientEmail}</span>
+                <span className="text-muted-foreground">
+                  {new Date(b.startUtc).toLocaleDateString()}
+                </span>
+                {b.partySize > 1 && <span className="text-muted-foreground">×{b.partySize}</span>}
+                <span className={STATUS_CLASS[b.status] ?? ""}>{b.status}</span>
+              </li>
+            ))
+          )}
+        </ul>
       )}
     </li>
   );

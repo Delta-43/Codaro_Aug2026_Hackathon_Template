@@ -235,6 +235,14 @@ export function getResourceAnalytics(id: ID): Promise<ResourceAnalytics> {
   return request(`/resources/${id}/analytics`);
 }
 
+/** Bookings on one of the owner's resources — the standard Booking plus the
+ *  client email (owner-only). */
+export type OwnerBooking = Booking & { clientEmail?: string };
+
+export function getResourceBookings(id: ID): Promise<OwnerBooking[]> {
+  return request(`/resources/${id}/bookings`);
+}
+
 export function createProvider(input: {
   name: string;
   publicCode?: string;

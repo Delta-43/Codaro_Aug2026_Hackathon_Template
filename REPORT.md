@@ -84,7 +84,9 @@ current vertical from a service's booking model.
   `createSlot`).
 - **Owner area** (`src/app/owner/`): role-gated dashboard to set up a business
   end to end — create provider → service (per-service rules) → units → open
-  slots. An owner-created business is immediately in the customer catalog.
+  slots — and monitor it: per-unit occupancy + an expandable bookings list
+  (reference/client/date/status, owner-scoped by `_owned_resource`). An
+  owner-created business is immediately in the customer catalog.
 - **Mock deleted**: `mockStore.ts`, `latency.ts`, `storeTypes.ts`, `seed/*`.
   `verticals.ts` is now pure UI vocabulary.
 

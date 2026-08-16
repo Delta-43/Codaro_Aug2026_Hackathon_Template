@@ -163,8 +163,9 @@ def _resolve_selection(
 # --- enrichment ------------------------------------------------------------
 
 
-def _enrich(db, uc, bookings: list[dict]) -> list[dict]:
-    """Serialize bookings with their slot ids, span, and review, batched."""
+def _enrich(db, uc, bookings: list[dict], *, include_client: bool = False) -> list[dict]:
+    """Serialize bookings with their slot ids, span, and review, batched.
+    `include_client=True` adds the booking's client email (owner-only view)."""
     ids = [b["id"] for b in bookings]
     sids_map = _slot_ids_map(uc, ids)
     all_sids = {s for b in bookings for s in (sids_map.get(b["id"]) or [b["slot_id"]])}
@@ -178,7 +179,13 @@ def _enrich(db, uc, bookings: list[dict]) -> list[dict]:
         ordered, start, end = _ordered_span(sids, time_map)
         out.append(
             serialize_booking(
-                b, slot_ids=ordered, start_utc=start, end_utc=end, review=reviews.get(b["id"]), now=now
+                b,
+                slot_ids=ordered,
+                start_utc=start,
+                end_utc=end,
+                review=reviews.get(b["id"]),
+                now=now,
+                include_client=include_client,
             )
         )
     return out

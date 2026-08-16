@@ -41,14 +41,15 @@ _Prioritised. Snapshot, not a living doc — regenerate via the pipeline._
   browser end-to-end (owner-created business appears in customer search). Covered
   by 23 new backend tests (suite: 227 passing). Owner demo login:
   `owner@codaro.app` / `Codaro-Owner-2026`.
-  - Per-unit **activity/occupancy** is now shown on the dashboard (slots ·
-    % booked · booked/capacity, via `GET /resources/{id}/analytics`).
+  - Per-unit **activity** is shown on the dashboard: occupancy (slots · % booked
+    · booked/capacity via `GET /resources/{id}/analytics`) and an expandable
+    **bookings list** (reference · client email · date · status via the new
+    `GET /resources/{id}/bookings`).
+  - **Authz tightened**: `_owned_resource` now scopes both the analytics and
+    bookings endpoints to the caller's own resource (403 otherwise) — closes the
+    earlier "any owner can view any resource" gap.
   - Remaining owner polish (not built): edit/delete of existing providers/
-    services/units, a per-booking list view, and richer resource
-    attributes/images in the create form. Minor authz gap:
-    `GET /resources/{id}/analytics` is owner-gated but doesn't verify the
-    resource belongs to the calling owner (any owner can view any resource's
-    numbers) — tighten if owners become mutually untrusted.
+    services/units, and richer resource attributes/images in the create form.
 - [ ] **Provider search `near`** is a case-insensitive city substring computed in
   Python over all providers (fine at demo scale). Add real geo/pagination if the
   catalog grows.
