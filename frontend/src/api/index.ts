@@ -133,6 +133,19 @@ const patch = (path: string, body: unknown) =>
 
 const del = (path: string) => request(path, { method: "DELETE" });
 
+// --- config / facets -------------------------------------------------------
+
+/** Which search facets the current catalog supports — derived server-side from
+ *  the seeded data (`GET /config` → `search.facets`), so the filter UI pivots
+ *  automatically. Defaults to all-on if the field is absent (older backend). */
+export type SearchFacets = { price: boolean; distance: boolean; rating: boolean };
+
+export async function getSearchFacets(): Promise<SearchFacets> {
+  const cfg = await request<{ search?: { facets?: Partial<SearchFacets> } }>("/config");
+  const f = cfg.search?.facets ?? {};
+  return { price: f.price ?? true, distance: f.distance ?? true, rating: f.rating ?? true };
+}
+
 // --- discovery -------------------------------------------------------------
 
 export function searchProviders(q: {

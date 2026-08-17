@@ -28,6 +28,8 @@ PROVIDER_KEYS = {
     "location",
     "rating",
     "reviewCount",
+    "priceFromMinorUnits",
+    "currency",
     "links",
     "publicCode",
     "serviceIds",
@@ -41,6 +43,24 @@ def test_search_lists_serialized_providers(client, db):
     assert len(rows) == 1
     assert rows[0]["publicCode"] == "VISTULA-4471"
     assert rows[0]["serviceIds"]  # the service is linked
+
+
+def test_search_exposes_price_from_cheapest_service(client, db):
+    p = make_provider(db, "Vistula Auto", category_id="economy")
+    make_service(db, p["id"], "Premium", price_minor_units=9000, currency="PLN")
+    make_service(db, p["id"], "Compact", price_minor_units=4500, currency="USD")
+    rows = client.get("/providers").json()
+    assert len(rows) == 1
+    # cheapest service wins, carrying its own currency.
+    assert rows[0]["priceFromMinorUnits"] == 4500
+    assert rows[0]["currency"] == "USD"
+
+
+def test_search_price_from_is_null_without_services(client, db):
+    make_provider(db, "Empty", category_id="economy")
+    rows = client.get("/providers").json()
+    assert rows[0]["priceFromMinorUnits"] is None
+    assert rows[0]["currency"] == ""
 
 
 def test_search_filters_by_category(client, db):

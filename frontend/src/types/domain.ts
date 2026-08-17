@@ -39,6 +39,8 @@ export interface Provider {
   location: { city: string; country: string; lat: number; lng: number };
   rating: number; // 0–5
   reviewCount: number;
+  priceFromMinorUnits: number | null; // cheapest service; null when none priced
+  currency: string; // ISO 4217 for priceFromMinorUnits ("" when none)
   links: { label: string; url: string }[];
   publicCode: string; // e.g. "HERTZ-4471" — used by code entry and QR scan
   serviceIds: ID[];

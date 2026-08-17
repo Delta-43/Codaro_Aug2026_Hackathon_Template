@@ -52,6 +52,7 @@ REAL_CONFIG_PATH = REPO_ROOT / "domain.config.json"
 # at import time holds its own reference, so each must be patched individually.
 _SUPABASE_MODULES = (
     app_db,
+    app_main,
     seed_module,
     users_module,
     bookings_router,

@@ -22,8 +22,12 @@ router = APIRouter(prefix="/providers", tags=["providers"])
 def _all_serialized(db) -> list[dict]:
     sums, counts = discovery.review_aggregates(db)
     svc = discovery.service_ids_by_provider(db)
+    price = discovery.price_from_by_provider(db)
     rows = db.table("providers").select("*").execute().data or []
-    return [discovery.build_provider(r, svc_by_prov=svc, sums=sums, counts=counts) for r in rows]
+    return [
+        discovery.build_provider(r, svc_by_prov=svc, sums=sums, counts=counts, price_by_prov=price)
+        for r in rows
+    ]
 
 
 @router.get("")
@@ -92,7 +96,11 @@ def my_providers(owner: AuthUser = Depends(require_owner)):
     rows = db.table("providers").select("*").eq("owner_id", owner.id).execute().data or []
     sums, counts = discovery.review_aggregates(db)
     svc = discovery.service_ids_by_provider(db)
-    return [discovery.build_provider(r, svc_by_prov=svc, sums=sums, counts=counts) for r in rows]
+    price = discovery.price_from_by_provider(db)
+    return [
+        discovery.build_provider(r, svc_by_prov=svc, sums=sums, counts=counts, price_by_prov=price)
+        for r in rows
+    ]
 
 
 @router.post("")
@@ -137,7 +145,10 @@ def update_provider(
     updated = enforce_rls_write(updated, entity="provider")
     sums, counts = discovery.review_aggregates(db)
     svc = discovery.service_ids_by_provider(db)
-    return discovery.build_provider(updated[0], svc_by_prov=svc, sums=sums, counts=counts)
+    price = discovery.price_from_by_provider(db)
+    return discovery.build_provider(
+        updated[0], svc_by_prov=svc, sums=sums, counts=counts, price_by_prov=price
+    )
 
 
 def _provider_avatar_key(provider_id: str) -> str:
@@ -285,7 +296,10 @@ def get_provider(provider_id: str):
         raise api_error(NOT_FOUND, "That provider no longer exists.")
     sums, counts = discovery.review_aggregates(db)
     svc = discovery.service_ids_by_provider(db)
-    return discovery.build_provider(row, svc_by_prov=svc, sums=sums, counts=counts)
+    price = discovery.price_from_by_provider(db)
+    return discovery.build_provider(
+        row, svc_by_prov=svc, sums=sums, counts=counts, price_by_prov=price
+    )
 
 
 @router.post("/{provider_id}/follow")

@@ -5,6 +5,7 @@ import type { Provider } from "@/types/domain";
 import { useVertical } from "@/context/app-context";
 import { AvatarImg } from "@/components/avatar-img";
 import { distanceFromHome } from "@/lib/geo";
+import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /** A search result. Followed providers get a distinct highlighted treatment. */
@@ -12,10 +13,15 @@ export function ProviderCard({
   provider,
   isFollowed,
   onOpen,
+  showPrice = true,
+  showDistance = true,
 }: {
   provider: Provider;
   isFollowed: boolean;
   onOpen: (p: Provider) => void;
+  /** Facet gates — a free/remote vertical hides price/distance on the card. */
+  showPrice?: boolean;
+  showDistance?: boolean;
 }) {
   const vertical = useVertical();
   const category =
@@ -50,10 +56,25 @@ export function ProviderCard({
             {provider.rating.toFixed(1)}
           </span>
           <span>({provider.reviewCount})</span>
-          <span aria-hidden>·</span>
-          <span>
-            {provider.location.city} · {distanceFromHome(provider.location)}
-          </span>
+          {provider.location.city || showDistance ? (
+            <>
+              <span aria-hidden>·</span>
+              <span>
+                {[
+                  provider.location.city,
+                  showDistance ? distanceFromHome(provider.location) : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            </>
+          ) : null}
+          {showPrice && provider.priceFromMinorUnits != null ? (
+            <>
+              <span aria-hidden>·</span>
+              <span>from {formatMoney(provider.priceFromMinorUnits, provider.currency)}</span>
+            </>
+          ) : null}
         </div>
       </div>
     </button>

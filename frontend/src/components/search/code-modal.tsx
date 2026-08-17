@@ -1,18 +1,20 @@
 "use client";
 
 /**
- * Demo QR scanner. No real camera permission is requested — a simulated
- * viewfinder with a few tappable mock targets that resolve to seeded providers
- * via getProviderByCode (the same path a real scan would take). Labelled
- * honestly as a demo.
+ * "Enter a code" — the single entry point for resolving a provider by its
+ * publicCode, whether typed or scanned. Both paths go through the same
+ * getProviderByCode call (a real scan would too); the demo scan is a set of
+ * tappable seeded codes, labelled honestly as a demo. Replaces the separate
+ * inline code field + QR modal so the search toolbar stays compact.
  */
 import { useState } from "react";
 import { QrCode } from "lucide-react";
 import type { Provider } from "@/types/domain";
 import { getProviderByCode } from "@/api";
 import { Modal } from "@/components/modal";
+import { CodeEntry } from "@/components/search/code-entry";
 
-export function QrScannerModal({
+export function CodeModal({
   open,
   onClose,
   targets,
@@ -37,16 +39,28 @@ export function QrScannerModal({
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Scan a code">
-      <p className="mb-3 text-xs text-muted-foreground">
-        Demo scanner — no camera is used. Tap a code below to simulate a scan.
+    <Modal open={open} onClose={onClose} title="Enter a code">
+      {/* Type it */}
+      <p className="mb-2 text-xs text-muted-foreground">
+        Enter a provider code to jump straight to them.
       </p>
+      <CodeEntry onResolved={onResolved} />
 
-      <div className="relative mx-auto mb-4 grid aspect-square max-w-[240px] place-items-center overflow-hidden rounded-xl border border-border bg-muted/40">
+      {/* …or scan it (demo) */}
+      <div className="my-4 flex items-center gap-3 text-xs text-muted-foreground">
+        <span className="h-px flex-1 bg-border" />
+        or scan a code
+        <span className="h-px flex-1 bg-border" />
+      </div>
+
+      <div className="relative mx-auto mb-4 grid aspect-square max-w-[180px] place-items-center overflow-hidden rounded-xl border border-border bg-muted/40">
         <div className="pointer-events-none absolute inset-5 rounded-lg border-2 border-primary/60" />
         <div className="pointer-events-none absolute inset-x-7 top-7 h-0.5 animate-pulse bg-primary" />
-        <QrCode className="size-16 text-muted-foreground/40" aria-hidden />
+        <QrCode className="size-14 text-muted-foreground/40" aria-hidden />
       </div>
+      <p className="mb-2 text-xs text-muted-foreground">
+        Demo scanner — no camera is used. Tap a code to simulate a scan.
+      </p>
 
       <div className="space-y-2">
         {targets.slice(0, 3).map((t) => (

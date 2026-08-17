@@ -110,6 +110,8 @@ def serialize_provider(
     service_ids: Iterable[str] = (),
     review_sum: float = 0.0,
     review_count: int = 0,
+    price_from: Optional[int] = None,
+    currency: str = "",
 ) -> dict:
     md = row.get("metadata") or {}
     loc = md.get("location") or {}
@@ -140,6 +142,11 @@ def serialize_provider(
         },
         "rating": round(eff_rating, 1),
         "reviewCount": eff_count,
+        # Cheapest of the provider's services, so results can be ordered by price
+        # without fetching each service. null when the provider has no priced
+        # service (nothing to sort on); `currency` is that service's currency.
+        "priceFromMinorUnits": price_from,
+        "currency": currency or "",
         "links": md.get("links") or [],
         "publicCode": row.get("public_code") or "",
         "serviceIds": list(service_ids),
