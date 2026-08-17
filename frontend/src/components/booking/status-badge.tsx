@@ -19,6 +19,14 @@ const STATUS: Record<BookingStatus, { label: string; className: string }> = {
     label: "Cancelled",
     className: "bg-destructive/10 text-destructive",
   },
+  pending: {
+    label: "Pending",
+    className: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  },
+  rejected: {
+    label: "Declined",
+    className: "bg-destructive/10 text-destructive",
+  },
 };
 
 export function StatusBadge({

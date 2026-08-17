@@ -108,6 +108,21 @@ def test_rescheduled_is_treated_as_confirmed():
     assert S.effective_booking_status("rescheduled", FUTURE, now=NOW) == "confirmed"
 
 
+def test_pending_passes_through_even_in_the_future():
+    assert S.effective_booking_status("pending", FUTURE, now=NOW) == "pending"
+
+
+def test_pending_past_is_not_auto_completed():
+    # A pending request whose slot elapsed is still 'pending' (the owner acts on
+    # it) — it is NOT silently completed by elapsed time.
+    assert S.effective_booking_status("pending", PAST, now=NOW) == "pending"
+
+
+def test_rejected_passes_through_in_past_and_future():
+    assert S.effective_booking_status("rejected", FUTURE, now=NOW) == "rejected"
+    assert S.effective_booking_status("rejected", PAST, now=NOW) == "rejected"
+
+
 # --- serialize_provider ----------------------------------------------------
 
 PROVIDER_KEYS = {
@@ -198,6 +213,7 @@ SERVICE_KEYS = {
     "priceMinorUnits",
     "currency",
     "cancellationCutoffHours",
+    "autoApprove",
     "resourceIds",
 }
 
@@ -236,6 +252,24 @@ def test_service_missing_description_becomes_empty_string():
     row = _service_row()
     row["description"] = None
     assert S.serialize_service(row)["description"] == ""
+
+
+def test_service_auto_approve_defaults_true_when_absent():
+    row = _service_row()
+    row["metadata"] = {}  # no auto_approve key
+    assert S.serialize_service(row)["autoApprove"] is True
+
+
+def test_service_auto_approve_reflects_metadata_false():
+    row = _service_row()
+    row["metadata"] = {"auto_approve": False}
+    assert S.serialize_service(row)["autoApprove"] is False
+
+
+def test_service_auto_approve_metadata_true():
+    row = _service_row()
+    row["metadata"] = {"auto_approve": True}
+    assert S.serialize_service(row)["autoApprove"] is True
 
 
 # --- serialize_resource ----------------------------------------------------

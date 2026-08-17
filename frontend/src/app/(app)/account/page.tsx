@@ -1,146 +1,136 @@
 "use client";
 
 /**
- * Tab 5 — Account. Profile editing (name / email / timezone via updateUser →
- * PATCH /me), sign-out, a stubbed payment row, the demo panel (backend vertical
- * switch + reseed), and a help/version footer.
+ * Customer tab 5 — Profile. The user's public profile: businesses screen a
+ * customer before accepting a booking (rating, reviews left by businesses,
+ * membership), so users are motivated to keep a good profile too. Mirrors the
+ * business Profile: a cog (top-right) opens the User Settings Panel. Editable
+ * account details + preferences now live there, not here.
  */
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { CreditCard } from "lucide-react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { BadgeCheck, Settings, Star } from "lucide-react";
 import { useApp } from "@/context/app-context";
 import { useAuth } from "@/lib/auth";
 import { AvatarImg } from "@/components/avatar-img";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/skeleton";
-import { ProfileForm } from "@/components/account/profile-form";
-import { ThemeToggle } from "@/components/account/theme-toggle";
-import { VERTICAL_IDS, VERTICALS } from "@/config/verticals";
-import type { VerticalId } from "@/types/domain";
+import { AvatarImg } from "@/components/avatar-img";
+import { getMyReputation } from "@/api";
+import type { ClientReputation } from "@/types/domain";
+import { avatarDataUri } from "@/lib/business-demo";
 
-const APP_VERSION = "demo build";
-
-export default function AccountPage() {
-  const { ready, user, verticalId, switchVertical, reseed } = useApp();
-  const { signOut } = useAuth();
-  const router = useRouter();
-  const [pending, setPending] = useState<null | "switch" | "reset">(null);
-
-  async function onSignOut() {
-    await signOut();
-    router.replace("/login");
+function whenLabel(iso: string | null): string {
+  if (!iso) return "";
+  try {
+    return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" }).format(new Date(iso));
+  } catch {
+    return "";
   }
+}
 
-  async function onSwitch(id: VerticalId) {
-    if (id === verticalId || pending) return;
-    setPending("switch");
-    try {
-      await switchVertical(id);
-      router.push("/search"); // reset navigation on vertical change
-    } finally {
-      setPending(null);
-    }
-  }
+const EMPTY_REP: ClientReputation = { score: 0, count: 0, reviews: [] };
 
-  async function onReset() {
-    if (pending) return;
-    setPending("reset");
-    try {
-      await reseed();
-      router.push("/search");
-    } finally {
-      setPending(null);
-    }
-  }
+export default function ProfilePage() {
+  const { ready, user } = useApp();
+  const [rep, setRep] = useState<ClientReputation>(EMPTY_REP);
+
+  useEffect(() => {
+    let cancelled = false;
+    getMyReputation()
+      .then((r) => !cancelled && setRep(r))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!ready || !user) return <Skeleton className="h-96 w-full" />;
 
   return (
     <section className="space-y-8 py-6">
       <header className="flex items-center gap-3">
         <AvatarImg src={user?.avatarUrl} name={user?.displayName} alt="" className="size-14" />
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg font-semibold tracking-tight">
-            {user?.displayName ?? "…"}
-            {user?.verified ? (
-              <span className="ml-2 align-middle text-xs font-medium text-primary">Verified</span>
-            ) : null}
+          <h1 className="flex items-center gap-1.5 truncate text-xl font-semibold tracking-tight">
+            {user.displayName}
+            {user.verified ? <BadgeCheck className="size-5 fill-primary text-card" aria-label="Verified" /> : null}
           </h1>
-          <p className="truncate text-sm text-muted-foreground">{user?.email}</p>
+          <p className="truncate text-sm text-muted-foreground">{user.email}</p>
+          <p className="mt-1 flex items-center gap-1 text-sm">
+            <Star className="size-3.5 fill-amber-400 text-amber-400" aria-hidden />
+            <span className="font-medium">{rep.score.toFixed(1)}</span>
+            <span className="text-muted-foreground">· {rep.count} reviews from businesses</span>
+          </p>
         </div>
-        <ThemeToggle />
-        <Button variant="outline" size="sm" onPress={onSignOut}>
-          Sign out
-        </Button>
-      </header>
+        <Link
+          href="/account/settings"
+          aria-label="Settings"
+          className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <Settings className="size-5" aria-hidden />
+        </Link>
+      </div>
 
-      {/* Profile */}
-      {ready && user ? (
-        <ProfileForm user={user} />
-      ) : (
-        <Skeleton className="h-72 w-full" />
-      )}
-
-      {/* Payment method (stub) */}
-      <div className="rounded-xl border border-border bg-card p-4">
-        <h2 className="text-sm font-semibold">Payment method</h2>
-        <div className="mt-3 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="grid size-9 place-items-center rounded-lg bg-muted text-muted-foreground">
-              <CreditCard className="size-4" aria-hidden />
+      {/* Reputation */}
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <div className="flex items-center gap-4">
+          <div className="text-center">
+            <div className="text-3xl font-semibold tracking-tight">{rep.score.toFixed(1)}</div>
+            <div className="mt-0.5 flex justify-center">
+              {[0, 1, 2, 3, 4].map((i) => (
+                <Star
+                  key={i}
+                  className={`size-3.5 ${i < Math.round(rep.score) ? "fill-amber-400 text-amber-400" : "fill-muted text-muted"}`}
+                  aria-hidden
+                />
+              ))}
             </div>
-            <p className="text-sm text-muted-foreground">No payment method on file</p>
           </div>
-          <Button variant="outline" size="sm" isDisabled>
-            Add
-          </Button>
+          <p className="text-sm text-muted-foreground">
+            Businesses rate you after each booking. A strong profile means faster approvals and a warmer welcome.
+          </p>
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">
-          Payments are out of scope for this demo — bookings are confirmed without charge.
-        </p>
       </div>
 
-      {/* Demo panel */}
-      <div className="rounded-xl border border-border bg-card p-4">
-        <h2 className="text-sm font-semibold">Demo</h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Switching vertical reseeds the backend demo data and resets navigation.
-        </p>
-
-        <div className="mt-3">
-          <p className="mb-2 text-xs font-medium text-muted-foreground">Vertical</p>
-          <div className="flex flex-wrap gap-2">
-            {VERTICAL_IDS.map((id) => (
-              <Button
-                key={id}
-                variant={id === verticalId ? "default" : "outline"}
-                size="sm"
-                isDisabled={pending !== null}
-                onPress={() => onSwitch(id)}
-              >
-                {VERTICALS[id].label}
-              </Button>
+      {/* Reviews */}
+      <div>
+        <h2 className="mb-2 text-sm font-semibold">Reviews from businesses</h2>
+        {rep.reviews.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-xs text-muted-foreground">
+            No reviews yet — businesses rate you after a completed booking.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {rep.reviews.map((rv, i) => (
+              <li key={i} className="rounded-2xl border border-border bg-card p-3">
+                <div className="flex items-center gap-2">
+                  <AvatarImg src={avatarDataUri(rv.author)} alt="" className="size-8" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-medium">{rv.author}</span>
+                      <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
+                        <Star className="size-3 fill-amber-400 text-amber-400" aria-hidden />
+                        {rv.rating.toFixed(1)}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-muted-foreground">{whenLabel(rv.createdAtUtc)}</span>
+                  </div>
+                </div>
+                {rv.text ? <p className="mt-2 text-sm text-muted-foreground">{rv.text}</p> : null}
+              </li>
             ))}
-          </div>
-        </div>
-
-        <div className="mt-4 flex items-center gap-3">
-          <Button variant="secondary" size="sm" isDisabled={pending !== null} onPress={onReset}>
-            {pending === "reset" ? "Resetting…" : "Reset demo data"}
-          </Button>
-        </div>
-
-        <p className="mt-4 text-xs text-muted-foreground">
-          Provider-side availability management is planned for a later iteration.
-        </p>
+          </ul>
+        )}
       </div>
 
-      {/* Help / version */}
-      <footer className="flex items-center justify-between gap-3 px-1 text-xs text-muted-foreground">
-        <span>
-          <span className="text-foreground">Service</span>
-          <span className="text-primary">.com</span> · {APP_VERSION}
-        </span>
-        <span>Signed in with Supabase — bookings persist in the backend.</span>
-      </footer>
+      <p className="text-[11px] text-muted-foreground">
+        Manage your account in{" "}
+        <Link href="/account/settings" className="text-primary hover:underline">
+          Settings
+        </Link>
+        .
+      </p>
     </section>
   );
 }

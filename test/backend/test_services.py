@@ -27,6 +27,7 @@ SERVICE_KEYS = {
     "priceMinorUnits",
     "currency",
     "cancellationCutoffHours",
+    "autoApprove",
     "resourceIds",
 }
 
@@ -111,7 +112,24 @@ def test_create_service_as_owner_returns_serialized_service(client, db, auth):
     assert body["currency"] == "PLN"
     assert body["cancellationCutoffHours"] == 12
     assert body["imageUrl"] == "http://img/compact.png"
+    assert body["autoApprove"] is True  # default when omitted
     assert body["resourceIds"] == []  # no resources linked yet
+
+
+def test_create_service_with_auto_approve_false_persists_to_metadata(client, db, auth):
+    auth(role="owner")
+    p = make_provider(db, "P")
+    resp = client.post(
+        "/services",
+        json={"providerId": p["id"], "name": "By request", "autoApprove": False},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["autoApprove"] is False
+    # auto_approve is NOT a column — it rides in services.metadata like image_url.
+    stored = db.get_row("services", body["id"])
+    assert stored["metadata"]["auto_approve"] is False
+    assert "auto_approve" not in stored  # never a column
 
 
 def test_create_service_defaults_persist_as_columns(client, db, auth):
@@ -179,6 +197,26 @@ def test_patch_service_image_url_writes_to_metadata(client, db, auth):
     assert resp.status_code == 200
     assert resp.json()["imageUrl"] == "http://img/new.png"
     assert db.get_row("services", svc["id"])["metadata"]["image_url"] == "http://img/new.png"
+
+
+def test_patch_service_toggles_auto_approve_and_merges_metadata(client, db, auth):
+    auth(role="owner")
+    p = make_provider(db, "P")
+    # Seed a service that already has an image_url in metadata + default auto-approve.
+    svc = make_service(db, p["id"], "S", metadata={"image_url": "http://img/keep.png"})
+    resp = client.patch(f"/services/{svc['id']}", json={"autoApprove": False})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["autoApprove"] is False
+    assert body["imageUrl"] == "http://img/keep.png"  # not dropped by the merge
+    stored = db.get_row("services", svc["id"])
+    assert stored["metadata"]["auto_approve"] is False
+    assert stored["metadata"]["image_url"] == "http://img/keep.png"
+
+    # Toggling back to True merges again (still keeps image_url).
+    back = client.patch(f"/services/{svc['id']}", json={"autoApprove": True})
+    assert back.json()["autoApprove"] is True
+    assert db.get_row("services", svc["id"])["metadata"]["image_url"] == "http://img/keep.png"
 
 
 def test_patch_service_empty_body_returns_serialized_existing(client, db, auth):

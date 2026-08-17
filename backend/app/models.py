@@ -43,6 +43,14 @@ class ReviewReq(CamelModel):
     text: str = ""
 
 
+class ClientReviewReq(CamelModel):
+    """POST /bookings/{id}/client-review — an owner rating the customer after a
+    completed booking (feeds the customer's reputation)."""
+
+    rating: int
+    text: str = ""
+
+
 class UserPatch(CamelModel):
     """PATCH /me — a partial User. Only these keys are honored; role/verified
     are not self-editable."""
@@ -94,6 +102,9 @@ class ServiceCreate(CamelModel):
     currency: str = "EUR"
     cancellation_cutoff_hours: int = 24
     image_url: str | None = None
+    # Non-column fields (ride in services.metadata): auto_approve gates whether
+    # new bookings confirm immediately or land as pending requests.
+    auto_approve: bool = True
 
 
 class ServiceUpdate(CamelModel):
@@ -107,6 +118,7 @@ class ServiceUpdate(CamelModel):
     currency: str | None = None
     cancellation_cutoff_hours: int | None = None
     image_url: str | None = None
+    auto_approve: bool | None = None
 
 
 class ResourceCreate(BaseModel):

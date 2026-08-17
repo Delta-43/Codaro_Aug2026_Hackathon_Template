@@ -51,6 +51,10 @@ itself is hosted Supabase (Postgres), not a local container.
 - `booking_slots` — multi-slot join `(booking_id, slot_id)` (composite PK).
 - `reviews` — one per completed booking (`booking_id`, `provider_id`, `rating`,
   `text`); provider aggregates are computed from these.
+- `client_reviews` — a provider's rating of a **customer** after a completed
+  booking (`booking_id` unique, `client_id`, `provider_id`, `rating`, `text`).
+  Public read; owner-only insert. Feeds the customer's reputation
+  (`GET /me/reputation`) and the owner-side request screening.
 - `follows` — `(user_id, provider_id)` composite PK.
 - `profiles` — engine `role` (`owner`|`client`), auto-provisioned by the
   `handle_new_user()` trigger from `raw_user_meta_data->>'role'`.

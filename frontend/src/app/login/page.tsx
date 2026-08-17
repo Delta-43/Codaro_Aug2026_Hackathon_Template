@@ -1,27 +1,25 @@
 "use client";
 
 import { Suspense, useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/lib/auth";
 
-// Temporary Demo Mode (issue #23) — the seeded demo accounts. Lets us jump
-// straight into a working space to review changes without creating an account
-// or typing credentials. Providers mode is intentionally thin for now; the
-// owner surface is only just being built out. Remove before production; these
-// are the same credentials the backend seeds (backend/seed.py).
+// Temporary Demo Mode (issue #23) — the seeded demo accounts. One-click entry
+// into a working space, no credentials to type. These live on the main
+// (customer) sign-in only; the business sign-in page has no demo shortcuts.
 const DEMO_USER = { email: "demo@codaro.app", password: "Codaro-Demo-2026" };
-const DEMO_PROVIDER = { email: "owner@codaro.app", password: "Codaro-Owner-2026" };
+const DEMO_BUSINESS = { email: "owner@codaro.app", password: "Codaro-Owner-2026" };
 
 /**
- * Login / sign-up — the front door. Backed by Supabase Auth via useAuth(); on
- * success the whole app becomes available (the (app) group is gated on a
- * session). A signed-in visitor is bounced straight to the app.
+ * Customer sign-in — the default front door. Business owners tap "I'm a
+ * business!" to go to the dedicated business sign-in page (`/login/business`).
  */
 export default function LoginPage() {
-  // useSearchParams needs a Suspense boundary for the production build.
   return (
     <Suspense fallback={null}>
       <LoginForm />
@@ -34,27 +32,19 @@ function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const next = params.get("next") || "/search";
-  // Owners land in the owner area; everyone else at their requested destination.
   const destination = role === "owner" ? "/owner" : next;
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [asOwner, setAsOwner] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  // Already signed in (or just signed in) → leave the login screen. This is the
-  // single redirect authority; it re-runs when the session/role resolves, so the
-  // owner-vs-customer destination is always correct.
   useEffect(() => {
     if (!loading && session) router.replace(destination);
   }, [loading, session, destination, router]);
 
-  // One-click entry with a seeded demo account. Goes through the real Supabase
-  // sign-in (real JWT + RLS), so it's a shortcut, not a bypass — the redirect
-  // useEffect above takes over once the session lands (owners → /owner).
   async function enterDemoMode(account: { email: string; password: string }) {
     setError(null);
     setNotice(null);
@@ -74,16 +64,10 @@ function LoginForm() {
     setNotice(null);
     setBusy(true);
     try {
-      // On success the session updates and the redirect useEffect (role-aware)
-      // takes the user to /owner or their destination — no redirect here.
       if (mode === "signin") {
         await signIn(email, password);
       } else {
-        const { needsConfirmation } = await signUp(
-          email,
-          password,
-          asOwner ? "owner" : "client",
-        );
+        const { needsConfirmation } = await signUp(email, password, "client");
         if (needsConfirmation) {
           setNotice("Check your inbox to confirm your email, then sign in.");
           setMode("signin");
@@ -111,8 +95,7 @@ function LoginForm() {
 
         {!configured && (
           <p className="mb-4 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            Auth is not configured. Set NEXT_PUBLIC_SUPABASE_URL and
-            NEXT_PUBLIC_SUPABASE_ANON_KEY.
+            Auth is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.
           </p>
         )}
 
@@ -142,31 +125,24 @@ function LoginForm() {
             />
           </div>
 
-          {mode === "signup" && (
-            <label className="flex items-center gap-2 text-sm text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={asOwner}
-                onChange={(e) => setAsOwner(e.target.checked)}
-                className="size-4 rounded border-border accent-primary"
-              />
-              I&apos;m a business (owner account)
-            </label>
-          )}
-
           {error && (
-            <p className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
+            <p className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
           )}
-          {notice && (
-            <p className="rounded-xl bg-primary/10 px-3 py-2 text-sm text-primary">{notice}</p>
-          )}
+          {notice && <p className="rounded-xl bg-primary/10 px-3 py-2 text-sm text-primary">{notice}</p>}
 
           <Button type="submit" size="lg" isDisabled={busy || !configured} className="w-full">
             {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
           </Button>
         </form>
+
+        {/* Full redirect to the dedicated business sign-in. */}
+        <Link
+          href="/login/business"
+          className="mt-4 flex w-full items-center justify-center gap-1 text-base font-bold tracking-tight text-foreground transition-colors hover:text-primary"
+        >
+          I&apos;m a business!
+          <ChevronRight className="size-4" aria-hidden />
+        </Link>
 
         <div className="mt-4 text-center text-sm text-muted-foreground">
           {mode === "signin" ? (
@@ -202,14 +178,9 @@ function LoginForm() {
           )}
         </div>
 
-        {/* Temporary Demo Mode (issue #23) — developer entry at the foot of the
-            card. Each button does a one-click sign-in with a seeded demo account
-            so changes can be reviewed without logging in. Providers mode is still
-            thin (owner surface under construction). Remove before production. */}
+        {/* Demo shortcuts — main page only (issue #23). */}
         <div className="mt-6 space-y-2 border-t border-border pt-5 text-center">
-          <p className="text-xs text-muted-foreground">
-            For developers, check out our website
-          </p>
+          <p className="text-xs text-muted-foreground">For developers, check out our website</p>
           <Button
             type="button"
             variant="secondary"
@@ -218,17 +189,17 @@ function LoginForm() {
             isDisabled={busy || !configured}
             className="w-full"
           >
-            {busy ? "Please wait…" : "Demo Mode For Users"}
+            {busy ? "Please wait…" : "Demo Mode for Users"}
           </Button>
           <Button
             type="button"
             variant="outline"
             size="lg"
-            onPress={() => enterDemoMode(DEMO_PROVIDER)}
+            onPress={() => enterDemoMode(DEMO_BUSINESS)}
             isDisabled={busy || !configured}
             className="w-full"
           >
-            {busy ? "Please wait…" : "Demo Mode For Providers"}
+            {busy ? "Please wait…" : "Demo Mode for Businesses"}
           </Button>
         </div>
       </div>

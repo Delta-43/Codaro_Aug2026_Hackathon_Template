@@ -24,7 +24,8 @@ the frontend's exact contract (`frontend/src/types/domain.ts`). See root
 | `app/models.py` | Pydantic envelopes; the new request models accept camelCase (`CamelModel`) |
 | `app/meta.py` | Config-driven `metaFields` validator |
 | `app/discovery.py`, `app/users.py` | Aggregation helpers (rating/link arrays) and `User` assembly |
-| `app/routers/*.py` | `providers`, `services`, `resources`, `slots`, `availability`, `bookings`, `me`, `demo` |
+| `app/routers/*.py` | `providers`, `services`, `resources`, `slots`, `availability`, `bookings`, `me`, `owner`, `demo` |
+| `app/routers/owner.py` | Business-mode aggregation: `/owner/dashboard` `/owner/services` `/owner/requests` `/owner/calendar` (owner-gated, scoped to the caller's providers) |
 | `seed.py`, `seed_data.py` | Three-vertical demo seeding; `seed_vertical(id)`, `active_vertical()`, `seed_if_empty()` |
 
 ## Conventions
@@ -79,7 +80,9 @@ superseded by the per-service flow in `bookings.py`. Parse all timestamps throug
   via `optional_user`):** `GET /providers` (search text/category/near,
   followed-first), `GET /providers/by-code/{code}`, `GET /providers/{id}`;
   `GET /services?provider_id`, `GET /services/{id}`;
-  `GET /resources?service_id` (active-only).
+  `GET /resources?service_id` (active-only). Services carry `autoApprove` (from
+  `metadata.auto_approve`, default `true`); owner create/PATCH set it (a
+  non-column field routed to `services.metadata`, like `imageUrl`).
 - **Availability:** `GET /availability?service_id&resource_id&from&to` →
   `DayAvailability[]` grouped in the viewer's timezone;
   `GET /month-density?...&month` → `MonthDensityCell[]`. Status/occupancy derived
@@ -88,8 +91,34 @@ superseded by the per-service flow in `bookings.py`. Parse all timestamps throug
   create; `GET /bookings?scope=upcoming|past|all` (RLS scopes to own/owner,
   completed-in-past derived); `GET /bookings/{id}`; reschedule (`newSlotIds`,
   atomic slot swap + change history); idempotent cancel; `POST /{id}/review`.
+  Create honours the service's `autoApprove`: `true` (default) → `confirmed`
+  immediately; `false` → `pending` (a request the owner acts on). Owner-only
+  `POST /{id}/approve` (pending→confirmed, capacity re-checked; pending holds
+  none) and `POST /{id}/reject` (pending→rejected, idempotent) gate on the
+  booking's provider being the caller's.
+- **Booking status.** Wire `BookingStatus` is now
+  `confirmed | cancelled | completed | pending | rejected`. `pending`/`rejected`
+  pass through `effective_booking_status` unchanged (a pending request is never
+  auto-completed by elapsed time); `slot_occupancy` still counts only
+  `confirmed`, so pending never holds a seat.
+- **Owner / business dashboard (`require_owner`, scoped to the caller's own
+  providers):** `GET /owner/dashboard` (badge provider, three glanceable
+  numbers — upcoming-by-service, month-over-month satisfaction delta, revenue
+  this month — this week's bookings, top pending requests); `GET /owner/services`
+  (each service + `stats`: upcoming/past/total bookings, pending, revenue,
+  avgRating); `GET /owner/requests` (every pending request + a `client`
+  screening card: member-since, history, cancels); `GET /owner/calendar?from&to`
+  (confirmed/completed bookings in a window, default current month). Reads use
+  the service key (system aggregation); shapes are additive owner-only envelopes.
 - **Account:** `GET /me`, `PATCH /me` (writes editable fields to
-  `user_metadata`); `POST /providers/{id}/follow` + `/unfollow` (return the User).
+  `user_metadata`); `GET /me/reputation` (the customer's rating + the reviews
+  businesses left them, from `client_reviews`); `POST /providers/{id}/follow` +
+  `/unfollow` (return the User).
+- **Client reputation:** `POST /bookings/{id}/client-review` (owner, completed
+  bookings only) records a rating of the customer in `client_reviews`; it feeds
+  `GET /me/reputation` and the owner Requests screening card's `rating`.
+  `GET /providers/{id}/reviews` (public) lists a provider's recent reviews for
+  the Profile tab.
 - **Demo:** `GET /demo/vertical` (public), `POST /demo/vertical` + `POST
   /demo/reset` (`require_user`, destructive backend reseed).
 
@@ -119,11 +148,14 @@ Requires `SUPABASE_JWT_SECRET`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`,
 `seed_data.VERTICALS` is the three-vertical config ported verbatim from the
 frontend mock. `seed_vertical(id)` wipes the extended/booking tables and rebuilds
 providers → services → resources → DST-aware slot grids, real occupancy edge
-cases (blocked / full / one-left via a hidden "holds" auth user), and the demo
-user's lifecycle bookings + a review + a follow. Two auth users are provisioned
-via the admin API (`demo@codaro.app`, and the holds user). `seed_if_empty()`
-runs on startup when no providers exist; `active_vertical()` infers the current
-vertical from a service's booking model.
+cases (blocked / full / one-left via a hidden "holds" auth user), the demo
+user's lifecycle bookings + a review + a follow, and **pending requests** on the
+manual-approve primary service (`_seed_requests`) so the owner's Requests tab is
+populated. Auth users provisioned via the admin API: `demo@codaro.app` (client),
+the holds user, `owner@codaro.app` (owns the demo provider — the business login),
+and `prospect@codaro.app` (a fresh client whose request is pending).
+`seed_if_empty()` runs on startup when no providers exist; `active_vertical()`
+infers the current vertical from a service's booking model.
 
 ## Don't
 
@@ -133,8 +165,11 @@ vertical from a service's booking model.
   `profiles`. No parallel users/passwords table.
 - Break the frontend contract in `frontend/src/api/index.ts` — keep paths/params
   and the camelCase shapes; only add.
-- Ship a config-driven default `"pending"` booking status — `slot_occupancy`
-  counts only `confirmed`.
+- Ship a config-driven *default* `"pending"` booking status. `pending` is a
+  **per-service opt-in** (`autoApprove=false`) for the Requests-tab flow, not a
+  global default — auto-approve stays the default and `slot_occupancy` counts
+  only `confirmed`, so a pending request holds no capacity (re-checked at
+  approval).
 
 ## Testing
 
@@ -142,3 +177,17 @@ Don't write tests here. API tests live in `test/` (owned by `test-writer`):
 `test/backend` runs offline (in-memory `FakeSupabase` + a `dependency_overrides`
 auth stub); `test/e2e` runs the full stack against live Supabase. If you change a
 route's contract, note it for `test-writer`. See [test/CLAUDE.md](../test/CLAUDE.md).
+
+**Contract changes for `test-writer` (business mode):**
+- `serialize_service` gained `autoApprove` → update `SERVICE_KEYS` in
+  `test_serialize.py` (and the two `test_services.py` key-set asserts).
+- `BookingStatus` gained `pending`/`rejected` (`effective_booking_status` passes
+  them through) — add cases; frontend `domain.ts` needs the union widened too.
+- New endpoints to cover: `POST /bookings/{id}/approve` + `/reject`
+  (owner-gated, ownership check, pending-only, capacity re-check on approve) and
+  the `/owner/*` router.
+- `app/routers/owner.py` does `from app.db import get_supabase`, so add
+  `owner_router` to `conftest._SUPABASE_MODULES` (it needs no user client) before
+  its endpoints can be exercised offline. `_client_profile` calls
+  `db.auth.admin.get_user_by_id`, which `FakeSupabase` lacks — it degrades
+  gracefully (screening fields fall back), so no fake change is required.
