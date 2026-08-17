@@ -9,7 +9,7 @@
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { useOwner } from "@/context/owner-context";
-import { uploadProviderAvatar, deleteProviderAvatar } from "@/api";
+import { uploadProviderAvatar, deleteProviderAvatar, deleteAccount } from "@/api";
 import { AvatarUpload } from "@/components/account/avatar-upload";
 import { SettingsPanel } from "@/components/settings/settings-panel";
 import { VerifiedScene } from "@/components/business/verified-badge";
@@ -44,6 +44,11 @@ export default function BusinessSettingsPage() {
       displayNameLabel="Business name"
       email={user?.email ?? "—"}
       onSignOut={() => signOut().then(() => router.replace("/login"))}
+      onDeleteAccount={async () => {
+        await deleteAccount();
+        await signOut();
+        router.replace("/login");
+      }}
     />
   );
 }

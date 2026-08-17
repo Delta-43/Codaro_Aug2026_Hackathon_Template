@@ -14,7 +14,7 @@ from app.errors import NOT_FOUND, api_error
 from app.models import ProviderCreate, ProviderUpdate
 from app.routers.resources import delete_resources_for_services
 from app.serialize import iso_utc, serialize_provider
-from app.users import followed_ids, load_user
+from app.users import admin_user_metadata, followed_ids, load_user
 
 router = APIRouter(prefix="/providers", tags=["providers"])
 
@@ -237,21 +237,36 @@ def delete_provider(provider_id: str, owner: AuthUser = Depends(require_owner)):
 @router.get("/{provider_id}/reviews")
 def provider_reviews(provider_id: str, limit: int = 8):
     """Recent reviews for a provider (public read) — powers the profile's Reviews
-    section. Author is derived from the reviewing booking's client email
-    (best-effort; reviews carry no author column). Newest first."""
+    section. Author is the reviewer's self-chosen public display name (never their
+    private email); it falls back to "Guest" when unknown. Newest first."""
     db = get_supabase()
     rows = db.table("reviews").select("*").eq("provider_id", provider_id).execute().data or []
+    # Newest first, then keep only the page we return — so the per-reviewer admin
+    # lookups below are bounded by `limit`, not by the provider's whole review
+    # history (a well-reviewed provider would otherwise fan out hundreds of
+    # sequential admin round trips on every public request).
+    rows.sort(key=lambda r: iso_utc(r.get("created_at")) or "", reverse=True)
+    rows = rows[: max(0, limit)]
+
     booking_ids = [r["booking_id"] for r in rows if r.get("booking_id")]
-    emails: dict[str, str] = {}
+    # Resolve each review's reviewer id from its booking, then that reviewer's
+    # public display_name — GDPR: the private email is never exposed to a public
+    # profile viewer. Best-effort; degrades to "Guest" if a lookup is unavailable.
+    reviewer_by_booking: dict[str, str] = {}
     if booking_ids:
-        brows = db.table("bookings").select("id,client_email").in_("id", booking_ids).execute().data or []
-        emails = {b["id"]: (b.get("client_email") or "") for b in brows}
+        brows = db.table("bookings").select("id,client_id").in_("id", booking_ids).execute().data or []
+        reviewer_by_booking = {b["id"]: (b.get("client_id") or "") for b in brows}
+
+    names: dict[str, str] = {}
+    for client_id in {cid for cid in reviewer_by_booking.values() if cid}:
+        md = admin_user_metadata(db, client_id)
+        names[client_id] = md.get("display_name") or md.get("displayName") or ""
 
     def _author(row: dict) -> str:
-        email = emails.get(row.get("booking_id")) or ""
-        return email.split("@")[0] if email else "Guest"
+        client_id = reviewer_by_booking.get(row.get("booking_id")) or ""
+        return names.get(client_id) or "Guest"
 
-    out = [
+    return [
         {
             "rating": int(r["rating"]),
             "text": r.get("text") or "",
@@ -260,8 +275,6 @@ def provider_reviews(provider_id: str, limit: int = 8):
         }
         for r in rows
     ]
-    out.sort(key=lambda x: x["createdAtUtc"] or "", reverse=True)
-    return out[: max(0, limit)]
 
 
 @router.get("/{provider_id}")

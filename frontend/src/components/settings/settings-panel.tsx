@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/account/theme-toggle";
+import { ConfirmDialog } from "@/components/business/confirm-dialog";
 import { useDemoUseCase } from "@/lib/demo-use-case";
 import { USE_CASE_IDS, USE_CASES } from "@/config/useCases";
 import { cn } from "@/lib/utils";
@@ -35,6 +36,9 @@ export interface SettingsConfig {
   /** Extra persona-specific profile fields (e.g. business bio, user bio). */
   extraProfile?: ReactNode;
   onSignOut: () => void;
+  /** When set, "Delete my data" performs a real erasure (GDPR). The caller is
+   *  responsible for signing out / redirecting once it resolves. */
+  onDeleteAccount?: () => Promise<void>;
 }
 
 export function SettingsPanel(cfg: SettingsConfig) {
@@ -90,15 +94,50 @@ export function SettingsPanel(cfg: SettingsConfig) {
         <Button variant="outline" size="sm" onPress={cfg.onSignOut}>
           <LogOut aria-hidden /> Sign out
         </Button>
-        <button
-          type="button"
-          onClick={() => alert("Account deletion lands with backend support.")}
-          className="mt-3 inline-flex items-center gap-1.5 text-sm text-destructive hover:underline"
-        >
-          <ShieldAlert className="size-4" aria-hidden /> Delete account
-        </button>
+        <DeleteAccount onDeleteAccount={cfg.onDeleteAccount} />
       </Section>
     </section>
+  );
+}
+
+/** GDPR right-to-erasure control. Opens a destructive confirm dialog before
+ *  calling the supplied erasure fn (DELETE /me); the caller signs out +
+ *  redirects on success. Falls back to the honest stub when no handler is wired
+ *  (e.g. a persona without backend deletion yet). */
+function DeleteAccount({ onDeleteAccount }: { onDeleteAccount?: () => Promise<void> }) {
+  const [open, setOpen] = useState(false);
+
+  if (!onDeleteAccount) {
+    return (
+      <button
+        type="button"
+        onClick={() => alert("Account deletion lands with backend support.")}
+        className="mt-3 inline-flex items-center gap-1.5 text-sm text-destructive hover:underline"
+      >
+        <ShieldAlert className="size-4" aria-hidden /> Delete my data
+      </button>
+    );
+  }
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-3 inline-flex items-center gap-1.5 text-sm text-destructive hover:underline"
+      >
+        <ShieldAlert className="size-4" aria-hidden /> Delete my data
+      </button>
+      <ConfirmDialog
+        open={open}
+        title="Delete your account and all your data?"
+        body="This permanently removes your account, bookings, follows and reviews. This cannot be undone."
+        confirmLabel="Yes, delete everything"
+        busyLabel="Deleting…"
+        onConfirm={onDeleteAccount}
+        onClose={() => setOpen(false)}
+      />
+    </>
   );
 }
 

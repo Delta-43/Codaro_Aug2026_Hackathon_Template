@@ -34,6 +34,7 @@ function BusinessLoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+  const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -50,7 +51,7 @@ function BusinessLoginForm() {
       if (mode === "signin") {
         await signIn(email, password);
       } else {
-        const { needsConfirmation } = await signUp(email, password, "owner");
+        const { needsConfirmation } = await signUp(email, password, "owner", agreed);
         if (needsConfirmation) {
           setNotice("Check your inbox to confirm your email, then sign in as a business.");
           setMode("signin");
@@ -118,12 +119,35 @@ function BusinessLoginForm() {
               />
             </div>
 
+            {mode === "signup" && (
+              <label className="flex items-start gap-2 text-sm text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={agreed}
+                  onChange={(e) => setAgreed(e.target.checked)}
+                  className="mt-0.5 size-4 shrink-0 rounded border-border accent-primary"
+                />
+                <span>
+                  I agree to the{" "}
+                  <Link href="/privacy" target="_blank" className="font-medium text-primary hover:underline">
+                    data handling &amp; privacy policy
+                  </Link>
+                  .
+                </span>
+              </label>
+            )}
+
             {error && (
               <p className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
             )}
             {notice && <p className="rounded-xl bg-primary/10 px-3 py-2 text-sm text-primary">{notice}</p>}
 
-            <Button type="submit" size="lg" isDisabled={busy || !configured} className="w-full">
+            <Button
+              type="submit"
+              size="lg"
+              isDisabled={busy || !configured || (mode === "signup" && !agreed)}
+              className="w-full"
+            >
               {busy ? "Please wait…" : mode === "signin" ? "Sign in as a business user" : "Create business account"}
             </Button>
           </form>

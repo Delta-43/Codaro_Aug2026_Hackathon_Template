@@ -247,6 +247,12 @@ export function deleteAvatar(): Promise<User> {
   return del("/me/avatar") as Promise<User>;
 }
 
+/** GDPR erasure — permanently delete the signed-in user's account and all their
+ *  data. The caller should sign out and redirect afterwards. */
+export function deleteAccount(): Promise<void> {
+  return del("/me") as Promise<void>;
+}
+
 /** The signed-in customer's reputation as businesses see it (score + reviews
  *  providers left after completed bookings). */
 export function getMyReputation(): Promise<ClientReputation> {
@@ -488,6 +494,7 @@ if (typeof window !== "undefined") {
     updateUser,
     uploadAvatar,
     deleteAvatar,
+    deleteAccount,
     getActiveVertical,
     setVertical,
     resetDemoData,
