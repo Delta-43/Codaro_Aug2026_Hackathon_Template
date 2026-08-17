@@ -8,7 +8,7 @@
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/app-context";
 import { useAuth } from "@/lib/auth";
-import { updateUser, uploadAvatar, deleteAvatar } from "@/api";
+import { updateUser, uploadAvatar, deleteAvatar, deleteAccount } from "@/api";
 import { AvatarUpload } from "@/components/account/avatar-upload";
 import { Skeleton } from "@/components/skeleton";
 import { SettingsPanel } from "@/components/settings/settings-panel";
@@ -40,6 +40,11 @@ export default function UserSettingsPage() {
       }}
       email={user.email}
       onSignOut={() => signOut().then(() => router.replace("/login"))}
+      onDeleteAccount={async () => {
+        await deleteAccount();
+        await signOut();
+        router.replace("/login");
+      }}
     />
   );
 }

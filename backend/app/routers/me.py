@@ -4,8 +4,9 @@ self-editable). `POST /me/avatar` / `DELETE /me/avatar` upload/remove the
 profile picture (Supabase Storage `avatars` bucket, see supabase/schema.sql)
 and write the resulting URL into the same `avatar_url` field. All return the
 full User shape."""
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, Response, UploadFile
 
+from app import gdpr
 from app.auth import AuthUser, require_user
 from app.avatars import remove_avatar, store_avatar
 from app.db import get_supabase
@@ -22,6 +23,15 @@ _EDITABLE = ("display_name", "timezone", "avatar_url")
 @router.get("/me")
 def get_me(user: AuthUser = Depends(require_user)):
     return load_user(user)
+
+
+@router.delete("/me", status_code=204)
+def delete_me(user: AuthUser = Depends(require_user)):
+    """GDPR right to erasure — permanently remove every record tied to the
+    signed-in user and delete their auth account. Idempotent (a repeat call is a
+    no-op). Runs the erasure with the service key; see `app.gdpr.erase_user`."""
+    gdpr.erase_user(get_supabase(), user)
+    return Response(status_code=204)
 
 
 @router.get("/me/reputation")

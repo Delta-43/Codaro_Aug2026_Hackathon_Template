@@ -111,9 +111,12 @@ superseded by the per-service flow in `bookings.py`. Parse all timestamps throug
   (confirmed/completed bookings in a window, default current month). Reads use
   the service key (system aggregation); shapes are additive owner-only envelopes.
 - **Account:** `GET /me`, `PATCH /me` (writes editable fields to
-  `user_metadata`); `GET /me/reputation` (the customer's rating + the reviews
-  businesses left them, from `client_reviews`); `POST /providers/{id}/follow` +
-  `/unfollow` (return the User).
+  `user_metadata`); `DELETE /me` (GDPR erasure — `app.gdpr.erase_user` removes
+  the user's bookings/follows/`client_reviews`, their avatar, and — for owners —
+  their owned providers + every booking under them, then deletes the auth
+  account; idempotent, service-key, returns 204); `GET /me/reputation` (the
+  customer's rating + the reviews businesses left them, from `client_reviews`);
+  `POST /providers/{id}/follow` + `/unfollow` (return the User).
 - **Client reputation:** `POST /bookings/{id}/client-review` (owner, completed
   bookings only) records a rating of the customer in `client_reviews`; it feeds
   `GET /me/reputation` and the owner Requests screening card's `rating`.
@@ -186,6 +189,12 @@ route's contract, note it for `test-writer`. See [test/CLAUDE.md](../test/CLAUDE
 - New endpoints to cover: `POST /bookings/{id}/approve` + `/reject`
   (owner-gated, ownership check, pending-only, capacity re-check on approve) and
   the `/owner/*` router.
+- `DELETE /me` (GDPR erasure, `app/gdpr.py`): 204; idempotent (second call no-ops);
+  removes the caller's bookings/follows/`client_reviews`; owner variant also drops
+  their owned providers + those providers' bookings. `erase_user` is best-effort
+  (each step wrapped in try/except), so it degrades cleanly on the offline fake.
+- `GET /providers/{id}/reviews` `author` is now the reviewer's **display name**
+  (`user_metadata`), falling back to `"Guest"` — never the email local-part.
 - `app/routers/owner.py` does `from app.db import get_supabase`, so add
   `owner_router` to `conftest._SUPABASE_MODULES` (it needs no user client) before
   its endpoints can be exercised offline. `_client_profile` calls

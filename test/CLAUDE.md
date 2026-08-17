@@ -192,7 +192,9 @@ empty default `{score:0,count:0,reviews:[]}`, two reviews aggregated to the mean
 user. `test_owner.py`'s request `client` card asserts the two new keys
 (`rating`/`reviewCount`, defaulting to `None`/`0`) and reflects a present
 `client_review`. `test_providers.py` covers the public `GET /providers/{id}/reviews`
-(newest-first, author from the booking's email local part).
+(newest-first, author from the reviewer's self-chosen public display name in
+Supabase `user_metadata`, falling back to `"Guest"` when unknown — never the
+email; offline yields `"Guest"` because the `FakeSupabase` has no `auth.admin`).
 
 Business-mode (owner/provider) coverage:
 - `test_serialize.py` — `serialize_service` now emits `autoApprove`

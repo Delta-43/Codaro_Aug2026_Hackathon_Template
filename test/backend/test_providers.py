@@ -347,7 +347,7 @@ def test_delete_provider_leaves_another_providers_resources(client, db, auth):
 # --- public provider reviews ------------------------------------------------
 
 
-def test_provider_reviews_newest_first_with_author(client, db):
+def test_provider_reviews_newest_first_with_public_display_name(client, db):
     p = make_provider(db, "Acme")
     svc = make_service(db, p["id"], "S")
     s1 = make_slot(db, service_id=svc["id"], hours_ahead=-10)
@@ -369,7 +369,10 @@ def test_provider_reviews_newest_first_with_author(client, db):
 
     rows = client.get(f"/providers/{p['id']}/reviews").json()
     assert [r["rating"] for r in rows] == [5, 3]  # newest first
-    assert [r["author"] for r in rows] == ["grace", "ada"]  # email local part
+    # author is the reviewer's self-chosen public display name (from Supabase
+    # user_metadata), never the email local-part. Offline the FakeSupabase has
+    # no auth.admin, so the name can't be resolved and it falls back to "Guest".
+    assert [r["author"] for r in rows] == ["Guest", "Guest"]
     assert set(rows[0]) == {"rating", "text", "createdAtUtc", "author"}
 
 
