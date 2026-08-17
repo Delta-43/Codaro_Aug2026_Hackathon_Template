@@ -380,3 +380,44 @@ create policy follows_select_own on follows for select using (user_id = auth.uid
 drop policy if exists follows_write_own on follows;
 create policy follows_write_own on follows for all
   using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- ===========================================================================
+-- Storage: avatar uploads (branch 35-profile-picture)
+-- ===========================================================================
+-- Public-read bucket for user avatars, matching the existing precedent that
+-- provider avatar/cover images are already public. Objects are keyed
+-- "{auth.uid()}/avatar" (no extension — Content-Type carries the format), so
+-- there is exactly one possible object per user; the backend uploads/deletes
+-- with the service key (ownership is enforced by deriving the key from the
+-- verified JWT's user id server-side, never client input) — these policies are
+-- defense-in-depth only, same model as the rest of this file.
+--
+-- Bucket/policy DDL can need privilege the direct DB role may not have (like
+-- the auth.users trigger above); guard it the same way so a fresh DB still
+-- gets everything else. If skipped, create the bucket/policies manually via
+-- the Supabase dashboard.
+do $$
+begin
+  insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+  values ('avatars', 'avatars', true, 5242880, array['image/jpeg', 'image/png', 'image/webp'])
+  on conflict (id) do nothing;
+
+  -- No public "select" policy: a public bucket serves individual object reads
+  -- via the /storage/v1/object/public/... endpoint, which bypasses RLS
+  -- entirely, so a broad `select` policy here isn't needed for <img> to work
+  -- and would instead let any authenticated client list/enumerate every
+  -- object (i.e. every user id) in the bucket via storage.objects directly.
+  drop policy if exists avatars_select_all on storage.objects;
+
+  drop policy if exists avatars_select_own on storage.objects;
+  create policy avatars_select_own on storage.objects for select
+    using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+
+  drop policy if exists avatars_write_own on storage.objects;
+  create policy avatars_write_own on storage.objects for all
+    using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text)
+    with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+exception
+  when insufficient_privilege or undefined_table then
+    raise notice 'Skipping avatars storage bucket/policies (no privilege); create manually via the Supabase dashboard.';
+end $$;

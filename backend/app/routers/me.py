@@ -1,13 +1,18 @@
 """Current-user endpoints. `GET /me` assembles the User; `PATCH /me` updates the
 editable profile fields in Supabase `user_metadata` (role/verified are not
-self-editable). Both return the full User shape."""
-from fastapi import APIRouter, Depends
+self-editable). `POST /me/avatar` / `DELETE /me/avatar` upload/remove the
+profile picture (Supabase Storage `avatars` bucket, see supabase/schema.sql)
+and write the resulting URL into the same `avatar_url` field. All return the
+full User shape."""
+from fastapi import APIRouter, Depends, File, UploadFile
 
 from app.auth import AuthUser, require_user
+from app.avatars import remove_avatar, store_avatar
 from app.db import get_supabase
 from app.models import UserPatch
-from app.serialize import iso_utc, serialize_user
-from app.users import followed_ids, load_user, user_metadata
+from app.serialize import iso_utc
+from app.serialize import serialize_user
+from app.users import apply_user_attrs, followed_ids, load_user, user_metadata
 
 router = APIRouter(tags=["me"])
 
@@ -61,16 +66,40 @@ def patch_me(payload: UserPatch, user: AuthUser = Depends(require_user)):
     attrs: dict = {"user_metadata": md}
     if "email" in patch:
         attrs["email"] = patch["email"]
-    try:
-        get_supabase().auth.admin.update_user_by_id(user.id, attrs)
-    except Exception:
-        # Admin update unavailable (e.g. offline) — still reflect the change in
-        # the response so the client's optimistic update holds for this session.
-        pass
+    apply_user_attrs(user.id, attrs)
 
     return serialize_user(
         id=user.id,
         email=patch.get("email", user.email),
         metadata=md,
         followed_provider_ids=followed_ids(user),
+    )
+
+
+def _avatar_key(user_id: str) -> str:
+    return f"{user_id}/avatar"
+
+
+def _write_avatar_url(user: AuthUser, avatar_url: str) -> dict:
+    md = user_metadata(user)
+    md["avatar_url"] = avatar_url
+    apply_user_attrs(user.id, {"user_metadata": md})
+    return md
+
+
+@router.post("/me/avatar")
+async def upload_avatar(file: UploadFile = File(...), user: AuthUser = Depends(require_user)):
+    avatar_url = await store_avatar(file, _avatar_key(user.id))
+    md = _write_avatar_url(user, avatar_url)
+    return serialize_user(
+        id=user.id, email=user.email, metadata=md, followed_provider_ids=followed_ids(user)
+    )
+
+
+@router.delete("/me/avatar")
+def delete_avatar(user: AuthUser = Depends(require_user)):
+    remove_avatar(_avatar_key(user.id))
+    md = _write_avatar_url(user, "")
+    return serialize_user(
+        id=user.id, email=user.email, metadata=md, followed_provider_ids=followed_ids(user)
     )

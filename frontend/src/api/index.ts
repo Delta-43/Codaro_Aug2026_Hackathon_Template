@@ -107,6 +107,24 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** Like `request`, but for a `FormData` body — the browser must set its own
+ *  multipart boundary, so `Content-Type` is deliberately omitted here. */
+async function requestForm<T>(path: string, method: string, body?: FormData): Promise<T> {
+  const token = await getAccessToken();
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      method,
+      body,
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+  } catch (e) {
+    throw new ApiError("NETWORK", e instanceof Error ? e.message : "Network error.");
+  }
+  if (!res.ok) throw await toApiError(res, method, path);
+  return res.json() as Promise<T>;
+}
+
 const post = (path: string, body?: unknown) =>
   request(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 
@@ -217,6 +235,16 @@ export function getCurrentUser(): Promise<User> {
 
 export function updateUser(patch: Partial<User>): Promise<User> {
   return request("/me", { method: "PATCH", body: JSON.stringify(patch) });
+}
+
+export function uploadAvatar(file: File): Promise<User> {
+  const form = new FormData();
+  form.append("file", file);
+  return requestForm<User>("/me/avatar", "POST", form);
+}
+
+export function deleteAvatar(): Promise<User> {
+  return del("/me/avatar") as Promise<User>;
 }
 
 /** The signed-in customer's reputation as businesses see it (score + reviews
@@ -342,6 +370,17 @@ export function deleteProvider(id: ID): Promise<void> {
   return del(`/providers/${id}`) as Promise<void>;
 }
 
+/** Upload/replace a business's avatar image; returns the updated Provider. */
+export function uploadProviderAvatar(id: ID, file: File): Promise<Provider> {
+  const form = new FormData();
+  form.append("file", file);
+  return requestForm<Provider>(`/providers/${id}/avatar`, "POST", form);
+}
+
+export function deleteProviderAvatar(id: ID): Promise<Provider> {
+  return del(`/providers/${id}/avatar`) as Promise<Provider>;
+}
+
 export function createService(input: {
   providerId: ID;
   name: string;
@@ -447,6 +486,8 @@ if (typeof window !== "undefined") {
     leaveReview,
     getCurrentUser,
     updateUser,
+    uploadAvatar,
+    deleteAvatar,
     getActiveVertical,
     setVertical,
     resetDemoData,

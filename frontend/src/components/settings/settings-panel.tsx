@@ -7,12 +7,15 @@
  * switcher, and a sign-out. Callers pass a small config and (optionally) extra
  * profile fields specific to their persona.
  *
- * Real where it's cheap and safe (name save, notifications, appearance, demo
- * switch, sign out); honest stubs where it needs backend plumbing that isn't
- * here yet (email change, password change, photo upload, account deletion).
+ * Real where it's cheap and safe (name save, photo upload, notifications,
+ * appearance, demo switch, sign out); honest stubs where it needs backend
+ * plumbing that isn't here yet (email change, password change, account
+ * deletion). The `photo` slot carries its own upload affordance: the user
+ * avatar and the business's active-provider avatar are both uploadable (the
+ * caller wires that in), so this template just renders whatever it's handed.
  */
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Bell, Camera, LogOut, Palette, ShieldAlert, Sparkles } from "lucide-react";
+import { Bell, LogOut, Palette, ShieldAlert, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -46,17 +49,7 @@ export function SettingsPanel(cfg: SettingsConfig) {
 
       <Section title="Profile" description="How you appear across the app.">
         <div className="flex items-center gap-4">
-          <div className="relative">
-            {cfg.photo}
-            <button
-              type="button"
-              onClick={() => alert("Photo upload lands with media storage.")}
-              aria-label="Change photo"
-              className="absolute -bottom-1 -right-1 grid size-7 place-items-center rounded-full border border-border bg-card text-muted-foreground shadow-sm hover:text-foreground"
-            >
-              <Camera className="size-3.5" aria-hidden />
-            </button>
-          </div>
+          {cfg.photo}
           <div className="min-w-0 flex-1">
             <p className="truncate font-medium">{cfg.displayName}</p>
             <p className="truncate text-sm text-muted-foreground">{cfg.email}</p>

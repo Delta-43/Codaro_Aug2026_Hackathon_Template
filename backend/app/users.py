@@ -12,6 +12,17 @@ from app.db import get_supabase, get_user_client
 from app.serialize import serialize_user
 
 
+def apply_user_attrs(user_id: str, attrs: dict) -> None:
+    """Persist `attrs` (e.g. {"user_metadata": md} and/or {"email": ...}) via
+    the Supabase Auth admin API. Best-effort: if the admin API is unavailable
+    (e.g. offline), no-op — callers already return the intended state so the
+    client's optimistic update holds for this session."""
+    try:
+        get_supabase().auth.admin.update_user_by_id(user_id, attrs)
+    except Exception:
+        pass
+
+
 def user_metadata(user: AuthUser) -> dict:
     """Fresh `user_metadata` for the user. Prefer the admin API (reflects a
     just-applied PATCH /me) and fall back to the token's claims if unavailable."""

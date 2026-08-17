@@ -9,6 +9,7 @@ export type ApiErrorCode =
   | "NOT_FOUND" // no such entity
   | "CAPACITY_EXCEEDED" // partySize > remaining capacity
   | "INVALID_RANGE" // multi-slot selection not contiguous / wrong length
+  | "VALIDATION_ERROR" // bad avatar upload: wrong type or too large
   | "NETWORK"; // transport failure (reserved; not thrown by mocks)
 
 export class ApiError extends Error {
