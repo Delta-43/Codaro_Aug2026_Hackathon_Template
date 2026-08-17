@@ -93,6 +93,26 @@ def _reviews_map(db, booking_ids: list[str]) -> dict[str, dict]:
     return out
 
 
+def _name_map(db, table: str, ids: set[str]) -> dict[str, str]:
+    """Batch id→name lookup for a table (providers/services). One query for the
+    whole booking list, so the client doesn't fetch each provider/service by id."""
+    ids = {i for i in ids if i}
+    if not ids:
+        return {}
+    rows = db.table(table).select("id,name").in_("id", list(ids)).execute().data or []
+    return {r["id"]: r.get("name") or "" for r in rows}
+
+
+def _names_for(db, md: dict) -> dict:
+    """provider_name/service_name kwargs for a single booking's metadata, so a
+    mutation response embeds the same names the list/get (`_enrich`) paths do."""
+    pid, sid = md.get("provider_id"), md.get("service_id")
+    return {
+        "provider_name": _name_map(db, "providers", {pid}).get(pid, ""),
+        "service_name": _name_map(db, "services", {sid}).get(sid, ""),
+    }
+
+
 def _ordered_span(slot_ids: list[str], time_map: dict[str, tuple]) -> tuple[list[str], str | None, str | None]:
     """Order slot ids by start; return (ordered_ids, first_start, last_end)."""
     known = [sid for sid in slot_ids if sid in time_map]
@@ -171,12 +191,16 @@ def _enrich(db, uc, bookings: list[dict], *, include_client: bool = False) -> li
     all_sids = {s for b in bookings for s in (sids_map.get(b["id"]) or [b["slot_id"]])}
     time_map = _slot_time_map(db, list(all_sids))
     reviews = _reviews_map(db, ids)
+    metas = [b.get("metadata") or {} for b in bookings]
+    prov_names = _name_map(db, "providers", {m.get("provider_id") for m in metas})
+    svc_names = _name_map(db, "services", {m.get("service_id") for m in metas})
     now = _now()
 
     out = []
     for b in bookings:
         sids = sids_map.get(b["id"]) or ([b["slot_id"]] if b.get("slot_id") else [])
         ordered, start, end = _ordered_span(sids, time_map)
+        md = b.get("metadata") or {}
         out.append(
             serialize_booking(
                 b,
@@ -186,6 +210,8 @@ def _enrich(db, uc, bookings: list[dict], *, include_client: bool = False) -> li
                 review=reviews.get(b["id"]),
                 now=now,
                 include_client=include_client,
+                provider_name=prov_names.get(md.get("provider_id"), ""),
+                service_name=svc_names.get(md.get("service_id"), ""),
             )
         )
     return out
@@ -306,7 +332,9 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
     uc.table("booking_slots").insert(
         [{"booking_id": booking["id"], "slot_id": sid} for sid in ordered]
     ).execute()
-    return serialize_booking(booking, slot_ids=ordered, start_utc=start, end_utc=end, review=None)
+    return serialize_booking(
+        booking, slot_ids=ordered, start_utc=start, end_utc=end, review=None, **_names_for(db, metadata)
+    )
 
 
 @router.post("/{booking_id}/reschedule")
@@ -361,7 +389,10 @@ def reschedule_booking(
     )
     updated = enforce_rls_write(updated, entity="booking")
     review = _reviews_map(db, [booking_id]).get(booking_id)
-    return serialize_booking(updated[0], slot_ids=ordered, start_utc=new_start, end_utc=new_end, review=review)
+    return serialize_booking(
+        updated[0], slot_ids=ordered, start_utc=new_start, end_utc=new_end, review=review,
+        **_names_for(db, md),
+    )
 
 
 @router.post("/{booking_id}/cancel")
@@ -373,7 +404,10 @@ def cancel_booking(booking_id: str, user: AuthUser = Depends(require_user)):
 
     if booking["status"] == "cancelled":  # idempotent
         review = _reviews_map(db, [booking_id]).get(booking_id)
-        return serialize_booking(booking, slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end, review=review)
+        return serialize_booking(
+            booking, slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end, review=review,
+            **_names_for(db, booking.get("metadata") or {}),
+        )
 
     if effective_booking_status(booking["status"], cur_end) == "completed":
         raise api_error(CUTOFF_PASSED, "Completed bookings can't be cancelled.")
@@ -397,7 +431,10 @@ def cancel_booking(booking_id: str, user: AuthUser = Depends(require_user)):
         .data
     )
     updated = enforce_rls_write(updated, entity="booking")
-    return serialize_booking(updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end, review=None)
+    return serialize_booking(
+        updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end, review=None,
+        **_names_for(db, md),
+    )
 
 
 @router.post("/{booking_id}/review")
@@ -424,7 +461,10 @@ def review_booking(booking_id: str, payload: ReviewReq, user: AuthUser = Depends
         }
     ).execute()
     review = maybe_row(db.table("reviews").select("*").eq("booking_id", booking_id))
-    return serialize_booking(booking, slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end, review=review)
+    return serialize_booking(
+        booking, slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end, review=review,
+        **_names_for(db, md),
+    )
 
 
 # --- owner request decisions (approve / reject) ----------------------------
@@ -462,7 +502,8 @@ def approve_booking(booking_id: str, owner: AuthUser = Depends(require_owner)):
     updated = enforce_rls_write(updated, entity="booking")
     review = _reviews_map(db, [booking_id]).get(booking_id)
     return serialize_booking(
-        updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end, review=review
+        updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end, review=review,
+        **_names_for(db, md),
     )
 
 
@@ -511,7 +552,10 @@ def reject_booking(booking_id: str, owner: AuthUser = Depends(require_owner)):
     cur_ids, cur_start, cur_end = _span_of(db, booking, uc)
 
     if booking["status"] == "rejected":  # idempotent
-        return serialize_booking(booking, slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end)
+        return serialize_booking(
+            booking, slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end,
+            **_names_for(db, booking.get("metadata") or {}),
+        )
     if booking["status"] != "pending":
         raise api_error(INVALID_RANGE, "Only pending requests can be rejected.")
 
@@ -525,5 +569,6 @@ def reject_booking(booking_id: str, owner: AuthUser = Depends(require_owner)):
     )
     updated = enforce_rls_write(updated, entity="booking")
     return serialize_booking(
-        updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end
+        updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end,
+        **_names_for(db, booking.get("metadata") or {}),
     )

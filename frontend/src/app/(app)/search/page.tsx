@@ -50,7 +50,9 @@ export default function SearchPage() {
   );
 
   // QR targets come from an unfiltered fetch so the scanner always has codes.
-  const allProviders = useAsync(() => searchProviders({}), [followedKey]);
+  // Fetched once on mount — the demo targets don't depend on filters or follow
+  // ordering, so there's no reason to refetch when those change.
+  const allProviders = useAsync(() => searchProviders({}), []);
   const qrTargets = useMemo(() => (allProviders.data ?? []).slice(0, 3), [allProviders.data]);
 
   const followed = new Set(user?.followedProviderIds ?? []);

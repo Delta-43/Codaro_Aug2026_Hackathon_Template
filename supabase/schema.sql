@@ -34,8 +34,15 @@ create table if not exists bookings (
 );
 
 create index if not exists idx_slots_resource_id on slots(resource_id);
+-- Every availability / month-density / calendar read filters slots by a
+-- starts_at time window (slot_occupancy is grouped on it too); without this the
+-- window can't be selectively scanned.
+create index if not exists idx_slots_starts_at on slots(starts_at);
 create index if not exists idx_bookings_slot_id on bookings(slot_id);
 create index if not exists idx_bookings_client_email on bookings(client_email);
+-- Owner-side client screening (owner.py _client_profile) filters bookings by
+-- client_id; only client_email was indexed.
+create index if not exists idx_bookings_client_id on bookings(client_id);
 
 -- ===========================================================================
 -- Extended entities: providers, services, multi-slot bookings, reviews, follows

@@ -103,6 +103,8 @@ export interface Booking {
   userId: ID;
   providerId: ID;
   serviceId: ID;
+  providerName: string; // embedded by the API so a list needn't fetch each provider
+  serviceName: string; // embedded by the API so a list needn't fetch each service
   resourceId: ID;
   slotIds: ID[]; // >1 for multi-slot / multi-day bookings
   startUtc: IsoUtc; // first slot start

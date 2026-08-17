@@ -227,6 +227,8 @@ def serialize_booking(
     review: Optional[dict] = None,
     now: Optional[datetime] = None,
     include_client: bool = False,
+    provider_name: str = "",
+    service_name: str = "",
 ) -> dict:
     md = row.get("metadata") or {}
     review_out = None
@@ -242,6 +244,11 @@ def serialize_booking(
         "userId": row.get("client_id") or md.get("user_id") or "",
         "providerId": md.get("provider_id", ""),
         "serviceId": md.get("service_id", ""),
+        # Names are embedded so a bookings list needn't fetch each provider/
+        # service separately (was an N+1 of heavy per-id calls from the client).
+        # Additive + defaulted: endpoints that don't resolve them send "".
+        "providerName": provider_name,
+        "serviceName": service_name,
         "resourceId": md.get("resource_id", ""),
         "slotIds": list(slot_ids),
         "startUtc": iso_utc(start_utc),
