@@ -245,6 +245,8 @@ export function uploadAvatar(file: File): Promise<User> {
 
 export function deleteAvatar(): Promise<User> {
   return del("/me/avatar") as Promise<User>;
+}
+
 /** The signed-in customer's reputation as businesses see it (score + reviews
  *  providers left after completed bookings). */
 export function getMyReputation(): Promise<ClientReputation> {

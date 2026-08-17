@@ -15,7 +15,6 @@ import { useAuth } from "@/lib/auth";
 import { AvatarImg } from "@/components/avatar-img";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/skeleton";
-import { AvatarImg } from "@/components/avatar-img";
 import { getMyReputation } from "@/api";
 import type { ClientReputation } from "@/types/domain";
 import { avatarDataUri } from "@/lib/business-demo";
@@ -70,7 +69,7 @@ export default function ProfilePage() {
         >
           <Settings className="size-5" aria-hidden />
         </Link>
-      </div>
+      </header>
 
       {/* Reputation */}
       <div className="rounded-2xl border border-border bg-card p-4">
