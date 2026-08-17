@@ -29,7 +29,7 @@ interface ServiceWithMeta {
 }
 
 export default function ProviderPage() {
-  const { activeProvider, vertical, selectService, selectResource } = useApp();
+  const { activeProvider, vertical, selectService, selectResource, singleBusiness } = useApp();
   const router = useRouter();
   const { isFollowing, busy, toggle } = useFollow(activeProvider);
   const [picker, setPicker] = useState<Service | null>(null);
@@ -49,13 +49,15 @@ export default function ProviderPage() {
   }, [activeProvider?.id]);
 
   if (!activeProvider) {
+    // Single mode should always have a provider resolved; if resolution failed
+    // there's nowhere to send the user (no discovery), so drop the Search action.
     return (
       <EmptyState
         icon={<Store className="size-8" aria-hidden />}
         title={vertical.copy.noProviderTitle}
         body={vertical.copy.noProviderBody}
-        actionHref="/search"
-        actionLabel="Go to Search"
+        actionHref={singleBusiness ? undefined : "/search"}
+        actionLabel={singleBusiness ? undefined : "Go to Search"}
       />
     );
   }
@@ -106,22 +108,25 @@ export default function ProviderPage() {
         </span>
       </div>
 
-      {/* Actions */}
-      <div className="mt-4 flex gap-2">
-        <Button
-          variant={isFollowing ? "secondary" : "outline"}
-          isDisabled={busy}
-          onPress={toggle}
-        >
-          {isFollowing ? "Following" : "Follow"}
-        </Button>
-        <Link
-          href="/search"
-          className="inline-flex h-8 items-center rounded-2xl border border-border px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          Switch {vertical.providerNoun.toLowerCase()}
-        </Link>
-      </div>
+      {/* Actions — follow + provider-switching only make sense in the
+          multi-provider marketplace; the single business is implicit. */}
+      {!singleBusiness ? (
+        <div className="mt-4 flex gap-2">
+          <Button
+            variant={isFollowing ? "secondary" : "outline"}
+            isDisabled={busy}
+            onPress={toggle}
+          >
+            {isFollowing ? "Following" : "Follow"}
+          </Button>
+          <Link
+            href="/search"
+            className="inline-flex h-8 items-center rounded-2xl border border-border px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            Switch {vertical.providerNoun.toLowerCase()}
+          </Link>
+        </div>
+      ) : null}
 
       {/* Bio */}
       <p className="mt-5 text-sm leading-relaxed text-foreground/90">{p.bio}</p>

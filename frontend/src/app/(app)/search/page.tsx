@@ -6,6 +6,7 @@
  * top. Tapping a result opens a preview (Follow / Open); Open moves to Tab 2.
  */
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { QrCode, Search as SearchIcon, SlidersHorizontal } from "lucide-react";
 import type { Provider } from "@/types/domain";
 import { getSearchFacets, searchProviders, type SearchFacets } from "@/api";
@@ -30,7 +31,14 @@ const INPUT =
 
 export default function SearchPage() {
   const vertical = useVertical();
-  const { user } = useApp();
+  const { user, singleBusiness } = useApp();
+  const router = useRouter();
+
+  // Provider discovery doesn't exist in single-business mode — the sole business
+  // is implicit. Bounce any stray link/bookmark to the catalog.
+  useEffect(() => {
+    if (singleBusiness) router.replace("/provider");
+  }, [singleBusiness, router]);
 
   const [text, setText] = useState("");
   const [near, setNear] = useState("");

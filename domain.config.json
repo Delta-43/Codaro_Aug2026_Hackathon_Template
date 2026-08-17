@@ -40,5 +40,9 @@
       "distance": true,
       "rating": true
     }
+  },
+  "tenancy": {
+    "mode": "single",
+    "providerCode": "VISTULA-4471"
   }
 }

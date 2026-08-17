@@ -15,6 +15,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -22,8 +23,12 @@ import type { Provider, Resource, Service, User, VerticalId } from "@/types/doma
 import {
   getActiveVertical,
   getCurrentUser,
+  getProviderByCode,
+  getTenancy,
   resetDemoData as apiResetDemoData,
+  searchProviders,
   setVertical as apiSetVertical,
+  type Tenancy,
 } from "@/api";
 import { DEFAULT_VERTICAL, getVertical, type VerticalConfig } from "@/config/verticals";
 
@@ -34,6 +39,11 @@ interface AppContextValue {
   verticalId: VerticalId;
   vertical: VerticalConfig;
   user: User | null;
+
+  /** Single-business pivot (`tenancy.mode === "single"`): the site itself is the
+   *  only business, so the sole provider is auto-locked and provider discovery is
+   *  hidden. False = the multi-provider marketplace. */
+  singleBusiness: boolean;
 
   activeProvider: Provider | null;
   activeService: Service | null;
@@ -60,27 +70,74 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [verticalId, setVerticalId] = useState<VerticalId>(DEFAULT_VERTICAL);
   const [user, setUserState] = useState<User | null>(null);
 
+  // The tenancy mode + sole-business code from `GET /config`. In single mode the
+  // provider is never chosen by the user — it's resolved from this code (or, if
+  // the code isn't in the active vertical, the catalog's first provider).
+  const [singleBusiness, setSingleBusiness] = useState(false);
+  const [soleProviderCode, setSoleProviderCode] = useState<string | null>(null);
+
   const [activeProvider, setActiveProvider] = useState<Provider | null>(null);
   const [activeService, setActiveService] = useState<Service | null>(null);
   const [activeResource, setActiveResource] = useState<Resource | null>(null);
+
+  // Guards the post-await setState in resolveSoleProvider against an unmount
+  // (navigation / sign-out / fast refresh) mid-resolution.
+  const mounted = useRef(true);
+  useEffect(() => {
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
   const refreshUser = useCallback(async () => {
     setUserState(await getCurrentUser());
   }, []);
 
+  // Resolve the one implicit business. The configured code is *authoritative*: it
+  // must point at the platform's own business so the customer catalog and the
+  // owner console never diverge — a code that fails to resolve yields the empty
+  // state (a visible misconfiguration) rather than silently substituting an
+  // unrelated, highest-rated provider. Only when no code is configured do we
+  // best-effort the catalog's first provider.
+  const resolveSoleProvider = useCallback(async (code: string | null) => {
+    let provider: Provider | null = null;
+    try {
+      provider = code
+        ? await getProviderByCode(code)
+        : ((await searchProviders({}))[0] ?? null);
+    } catch {
+      provider = null;
+    }
+    if (!mounted.current) return;
+    setActiveProvider(provider);
+    setActiveService(null);
+    setActiveResource(null);
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [vid, u] = await Promise.all([getActiveVertical(), getCurrentUser()]);
+      // getTenancy must not gate boot: if /config is unreachable, degrade to the
+      // multi-provider marketplace rather than hanging on the not-ready state.
+      const [vid, u, tenancy] = await Promise.all([
+        getActiveVertical(),
+        getCurrentUser(),
+        getTenancy().catch((): Tenancy => ({ mode: "multi", providerCode: null })),
+      ]);
       if (cancelled) return;
       setVerticalId(vid);
       setUserState(u);
+      const single = tenancy.mode === "single";
+      setSingleBusiness(single);
+      setSoleProviderCode(tenancy.providerCode);
+      if (single) await resolveSoleProvider(tenancy.providerCode);
+      if (cancelled) return;
       setReady(true);
     })();
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [resolveSoleProvider]);
 
   const clearActiveProvider = useCallback(() => {
     setActiveProvider(null);
@@ -99,27 +156,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActiveResource(null);
   }, []);
 
+  // After a vertical switch / reseed the locked-in provider is stale. Multi mode
+  // clears it (back to the picker's empty state); single mode re-resolves the new
+  // vertical's sole provider so the catalog is never empty.
+  const resettleProvider = useCallback(async () => {
+    if (singleBusiness) await resolveSoleProvider(soleProviderCode);
+    else clearActiveProvider();
+  }, [singleBusiness, soleProviderCode, resolveSoleProvider, clearActiveProvider]);
+
   const switchVertical = useCallback(
     async (id: VerticalId) => {
       await apiSetVertical(id);
-      clearActiveProvider();
       setVerticalId(id);
+      await resettleProvider();
       await refreshUser();
     },
-    [clearActiveProvider, refreshUser],
+    [resettleProvider, refreshUser],
   );
 
   const reseed = useCallback(async () => {
     await apiResetDemoData();
-    clearActiveProvider();
+    await resettleProvider();
     await refreshUser();
-  }, [clearActiveProvider, refreshUser]);
+  }, [resettleProvider, refreshUser]);
 
   const value: AppContextValue = {
     ready,
     verticalId,
     vertical: getVertical(verticalId),
     user,
+    singleBusiness,
     activeProvider,
     activeService,
     activeResource,

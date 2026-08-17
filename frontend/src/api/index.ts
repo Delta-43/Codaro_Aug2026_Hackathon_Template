@@ -45,7 +45,7 @@ import { getAccessToken } from "@/lib/auth";
 export { ApiError, isApiError } from "@/api/errors";
 export type { ApiErrorCode } from "@/api/errors";
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
 type Query = Record<string, string | number | undefined | null>;
 
@@ -91,7 +91,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = await getAccessToken();
   let res: Response;
   try {
-    res = await fetch(`${BASE}${path}`, {
+    res = await fetch(`${API_BASE}${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",
@@ -113,7 +113,7 @@ async function requestForm<T>(path: string, method: string, body?: FormData): Pr
   const token = await getAccessToken();
   let res: Response;
   try {
-    res = await fetch(`${BASE}${path}`, {
+    res = await fetch(`${API_BASE}${path}`, {
       method,
       body,
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -144,6 +144,28 @@ export async function getSearchFacets(): Promise<SearchFacets> {
   const cfg = await request<{ search?: { facets?: Partial<SearchFacets> } }>("/config");
   const f = cfg.search?.facets ?? {};
   return { price: f.price ?? true, distance: f.distance ?? true, rating: f.rating ?? true };
+}
+
+/** The pivot's tenancy mode. `"single"` collapses the marketplace to one implicit
+ *  business (the site itself): no provider browsing, the sole provider is resolved
+ *  from `providerCode` and locked in automatically. Absent/`"multi"` (the default)
+ *  keeps the multi-provider marketplace. Config passes through `GET /config`
+ *  verbatim, so this reads a top-level key the backend never interprets. */
+export type Tenancy = { mode: "single" | "multi"; providerCode: string | null };
+
+/** Parse the tenancy block from a raw `/config` payload. Shared by the client
+ *  seam (`getTenancy`) and the server-side root redirect (`app/page.tsx`) so the
+ *  shape/parse lives in one place. Defaults to the multi-provider marketplace. */
+export function tenancyFromConfig(cfg: unknown): Tenancy {
+  const t = (cfg as { tenancy?: { mode?: string; providerCode?: string } })?.tenancy ?? {};
+  return {
+    mode: t.mode === "single" ? "single" : "multi",
+    providerCode: t.providerCode ?? null,
+  };
+}
+
+export async function getTenancy(): Promise<Tenancy> {
+  return tenancyFromConfig(await request<unknown>("/config"));
 }
 
 // --- discovery -------------------------------------------------------------
