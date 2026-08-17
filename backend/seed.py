@@ -59,6 +59,8 @@ BOOKING_MODEL_TO_VERTICAL = {
 }
 
 _EXTENDED_TABLES = [
+    "messages",       # child of conversations
+    "conversations",  # child of providers
     "booking_slots",
     "reviews",
     "bookings",
@@ -359,6 +361,8 @@ def seed_vertical(vertical_id: str) -> dict:
         )
         # The demo user's reputation: reviews the provider left about them.
         _seed_client_reviews(db, demo_uid, demo_provider_id)
+        # Working chat threads so both demo logins land on a populated inbox.
+        counts["messages"] = _seed_messages(db, demo_provider_id, demo_uid, owner_uid, provider_ids)
 
     # demo user follows the second provider
     if len(provider_ids) > 1:
@@ -480,6 +484,86 @@ def _seed_client_reviews(db, client_uid, provider_id) -> int:
             made += 1
         except Exception:
             pass  # table may not exist on an older DB — reputation just stays empty
+    return made
+
+
+def _seed_messages(db, demo_provider_id, demo_uid, owner_uid, provider_ids) -> int:
+    """Seed working chat threads so both demo logins open a populated inbox.
+
+    One full two-sided thread between the demo client and the owner on the demo
+    provider (provider 0, which the owner actually owns → RLS valid on both
+    sides), pre-populated with a couple of days of messages that mix directions,
+    include a URL (to exercise the link chip), leave the last message on each
+    side unread (so both inboxes show an unread badge) and use a reply. Plus a
+    couple of one-sided client inquiries to other providers so the client inbox
+    isn't a single thread. Service-key insert (system work bypasses RLS);
+    best-effort so an older DB without the messaging tables just skips."""
+    now = datetime.now(timezone.utc)
+    m = timedelta(minutes=1)
+    hour = timedelta(hours=1)
+    day = timedelta(days=1)
+
+    def _thread(provider_id, client_id, owner_id, msgs) -> int:
+        # msgs: (sender_id, body, created, read_at | None, reply_index | None)
+        conv = db.table("conversations").insert({
+            "provider_id": provider_id,
+            "client_id": client_id,
+            "owner_id": owner_id,
+        }).execute().data[0]
+        ids: list[str] = []
+        last_body, last_at = "", None
+        for sender_id, body, created, read_at, reply_idx in msgs:
+            row = {
+                "conversation_id": conv["id"],
+                "sender_id": sender_id,
+                "body": body,
+                "delivered_at": _iso(created),
+                "created_at": _iso(created),
+            }
+            if read_at is not None:
+                row["read_at"] = _iso(read_at)
+            if reply_idx is not None:
+                row["reply_to_id"] = ids[reply_idx]
+            ids.append(db.table("messages").insert(row).execute().data[0]["id"])
+            last_body, last_at = body, created
+        db.table("conversations").update({
+            "last_message_preview": last_body,
+            "last_message_at": _iso(last_at),
+        }).eq("id", conv["id"]).execute()
+        return len(msgs)
+
+    made = 0
+    c, o = demo_uid, owner_uid
+    # Read receipts on the earlier messages; the two most-recent (one each way)
+    # stay unread, so the client inbox and the owner inbox each show one unread.
+    main = [
+        (c, "Hi! I just booked with you for next week — any chance we could start a little earlier?",
+         now - 2 * day, now - 2 * day + 10 * m, None),
+        (o, "Hi Mara! Of course — we can start 30 minutes earlier. I've noted it on your booking.",
+         now - 2 * day + 5 * m, now - 2 * day + 12 * m, None),
+        (c, "Amazing, thank you so much 🙏", now - 2 * day + 6 * m, now - 2 * day + 12 * m, None),
+        (o, "You're welcome. Here's everything you'll need beforehand: https://service.example.com/welcome-guide",
+         now - 2 * day + 8 * m, now - 2 * day + 20 * m, None),
+        (c, "Perfect, got it — found it straight away.", now - day, now - day + 30 * m, None),
+        (o, "Great! Let me know if anything comes up before then.", now - day + 3 * m, now - day + 30 * m, None),
+        (c, "Will do. One more thing — could I bring a friend along?", now - 5 * hour, None, None),
+        (o, "Absolutely, the more the merrier. I'll update the details.", now - 4 * hour, None, 6),
+    ]
+    try:
+        made += _thread(demo_provider_id, c, o, main)
+    except Exception:
+        return made  # messaging tables absent (older DB) — skip cleanly
+
+    inquiries = [
+        [(demo_uid, "Hi! Do you have any availability this weekend?", now - 3 * day, None, None),
+         (demo_uid, "Would love to book if it works out 😊", now - 3 * day + 2 * m, None, None)],
+        [(demo_uid, "Hello — would it be possible to move my booking to next month?", now - 6 * hour, None, None)],
+    ]
+    for provider_id, msgs in zip(provider_ids[1:3], inquiries):
+        try:
+            made += _thread(provider_id, demo_uid, None, msgs)
+        except Exception:
+            pass
     return made
 
 

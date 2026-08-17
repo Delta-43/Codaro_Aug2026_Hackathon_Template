@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/skeleton";
 import { EmptyState } from "@/components/empty-state";
 import { BookingCard } from "@/components/booking/booking-card";
+import { MessagingSection } from "@/components/messaging/messaging-section";
 import { cn } from "@/lib/utils";
 
 type Scope = "upcoming" | "past";
@@ -32,6 +33,9 @@ export default function BookingsPage() {
   return (
     <section className="space-y-4 py-4">
       <h1 className="text-xl font-semibold tracking-tight md:sr-only">Bookings</h1>
+
+      {/* Inbox — the client's conversations with the businesses they book. */}
+      <MessagingSection basePath="/bookings/messages" />
 
       {/* Scope toggle */}
       <div className="inline-flex rounded-lg border border-border bg-card p-0.5">

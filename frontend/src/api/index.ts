@@ -15,9 +15,11 @@
 import type {
   Booking,
   ClientReputation,
+  Conversation,
   DayAvailability,
   ID,
   IsoUtc,
+  Message,
   MonthDensityCell,
   OwnerBooking,
   OwnerDashboard,
@@ -238,6 +240,48 @@ export function cancelBooking(id: ID): Promise<Booking> {
 
 export function leaveReview(id: ID, rating: number, text: string): Promise<Booking> {
   return post(`/bookings/${id}/review`, { rating, text }) as Promise<Booking>;
+}
+
+// --- messaging -------------------------------------------------------------
+// The durable send/read/delete/list path; live delivery rides Supabase Realtime
+// (see hooks/use-conversation-realtime). Identity is derived from the token.
+
+/** The current user's conversations, most-recent first, enriched with the other
+ *  party and an unread count. */
+export function getConversations(): Promise<Conversation[]> {
+  return request("/conversations");
+}
+
+/** A single thread with its other party + unread count (for the thread header). */
+export function getConversation(id: ID): Promise<Conversation> {
+  return request(`/conversations/${id}`);
+}
+
+/** Ordered messages in a thread (404s a non-participant via RLS). */
+export function getMessages(id: ID): Promise<Message[]> {
+  return request(`/conversations/${id}/messages`);
+}
+
+/** Send a message; the server stamps sender + delivered_at. Returns the row. */
+export function sendMessage(id: ID, body: string, replyToId?: ID): Promise<Message> {
+  return post(`/conversations/${id}/messages`, { body, replyToId }) as Promise<Message>;
+}
+
+/** Mark the other party's unread messages in this thread as read. */
+export function markConversationRead(id: ID): Promise<{ conversationId: ID; readCount: number }> {
+  return post(`/conversations/${id}/read`) as Promise<{ conversationId: ID; readCount: number }>;
+}
+
+/** Soft-delete one of the caller's own messages. Returns the updated (blanked) row. */
+export function deleteMessage(id: ID, messageId: ID): Promise<Message> {
+  return del(`/conversations/${id}/messages/${messageId}`) as Promise<Message>;
+}
+
+/** Find-or-create a thread with a provider. Client path: pass just `providerId`
+ *  ("message this business"). Owner path: also pass the customer's `clientId`
+ *  ("message this customer") — the caller must own the provider. */
+export function startConversation(providerId: ID, clientId?: ID): Promise<Conversation> {
+  return post("/conversations", { providerId, clientId }) as Promise<Conversation>;
 }
 
 // --- account & demo --------------------------------------------------------

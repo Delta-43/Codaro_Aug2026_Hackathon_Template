@@ -7,13 +7,21 @@
  * /owner/calendar across all the owner's resources; cancel hits /bookings/{id}.
  */
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Clock, Star, Users } from "lucide-react";
 import { useOwner } from "@/context/owner-context";
 import { Skeleton } from "@/components/skeleton";
 import { Modal } from "@/components/modal";
 import { Button } from "@/components/ui/button";
 import { BookingCalendar } from "@/components/business/booking-calendar";
-import { cancelBooking, getOwnerCalendar, getOwnerServices, rateClient, ApiError } from "@/api";
+import {
+  cancelBooking,
+  getOwnerCalendar,
+  getOwnerServices,
+  rateClient,
+  startConversation,
+  ApiError,
+} from "@/api";
 import type { OwnerBooking, OwnerServiceSummary } from "@/types/domain";
 import type { DemoBooking } from "@/lib/business-demo";
 import { ownerBookingToCal } from "@/lib/owner-view";
@@ -31,6 +39,7 @@ const STATUS_CLASS: Record<DemoBooking["status"], string> = {
 
 export default function CalendarPage() {
   const { ready, vocab } = useOwner();
+  const router = useRouter();
   const tz = browserTz();
   const [raw, setRaw] = useState<OwnerBooking[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
@@ -38,6 +47,22 @@ export default function CalendarPage() {
   const [selected, setSelected] = useState<DemoBooking | null>(null);
   const [cancelled, setCancelled] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [messaging, setMessaging] = useState(false);
+
+  // Open (or resume) the thread with this booking's customer, then jump to it.
+  async function messageClient() {
+    const booking = raw.find((b) => b.id === selected?.id);
+    if (!booking) return;
+    setMessaging(true);
+    try {
+      const conv = await startConversation(booking.providerId, booking.userId);
+      router.push(`/owner/requests/messages/${conv.id}`);
+    } catch (e) {
+      alert(e instanceof ApiError ? e.message : "Couldn't open that conversation.");
+    } finally {
+      setMessaging(false);
+    }
+  }
 
   useEffect(() => {
     let cancel = false;
@@ -119,7 +144,7 @@ export default function CalendarPage() {
             </dl>
 
             <div className="flex flex-wrap gap-2 border-t border-border pt-3">
-              <Button size="sm" variant="outline" isDisabled>
+              <Button size="sm" variant="outline" isDisabled={messaging} onPress={messageClient}>
                 Message client
               </Button>
               <Button size="sm" variant="outline" isDisabled>
@@ -137,7 +162,7 @@ export default function CalendarPage() {
             {selected.status === "completed" ? <RateClient bookingId={selected.id} clientName={selected.client} /> : null}
 
             <p className="text-[11px] text-muted-foreground">
-              Messaging and reschedule are coming to the owner console next.
+              Reschedule is coming to the owner console next.
             </p>
           </div>
         ) : null}
