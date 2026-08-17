@@ -45,6 +45,9 @@ interface OwnerContextValue {
   scene: string;
   setActiveProviderId: (id: string) => void;
   refreshProviders: () => Promise<void>;
+  /** Replace one already-loaded provider in place (e.g. after an avatar edit),
+   *  without a refetch that could transiently blank the list. */
+  replaceProvider: (provider: Provider) => void;
 }
 
 const OwnerContext = createContext<OwnerContextValue | null>(null);
@@ -87,6 +90,10 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
     if (typeof window !== "undefined") localStorage.setItem(PID_KEY, id);
   }, []);
 
+  const replaceProvider = useCallback((provider: Provider) => {
+    setProviders((list) => list?.map((p) => (p.id === provider.id ? provider : p)) ?? list);
+  }, []);
+
   const activeProvider = providers?.find((p) => p.id === pid) ?? providers?.[0] ?? null;
 
   const value: OwnerContextValue = {
@@ -98,6 +105,7 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
     scene: VERTICAL_SCENE[vertical] ?? "grad-amber",
     setActiveProviderId,
     refreshProviders,
+    replaceProvider,
   };
 
   return <OwnerContext.Provider value={value}>{children}</OwnerContext.Provider>;

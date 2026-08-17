@@ -8,7 +8,7 @@
  */
 import { useState } from "react";
 import type { User } from "@/types/domain";
-import { isApiError, updateUser } from "@/api";
+import { isApiError, updateUser, uploadAvatar, deleteAvatar } from "@/api";
 import { useApp } from "@/context/app-context";
 import { AvatarUpload } from "@/components/account/avatar-upload";
 import { Button } from "@/components/ui/button";
@@ -78,7 +78,13 @@ export function ProfileForm({ user }: { user: User }) {
       <h2 className="text-sm font-semibold">Profile</h2>
 
       <div className="mt-3 flex items-center gap-3">
-        <AvatarUpload avatarUrl={user.avatarUrl} name={user.displayName} className="size-14" />
+        <AvatarUpload
+          avatarUrl={user.avatarUrl}
+          name={user.displayName}
+          className="size-14"
+          onUpload={async (file) => setUser(await uploadAvatar(file))}
+          onRemove={async () => setUser(await deleteAvatar())}
+        />
         <p className="text-xs text-muted-foreground">
           Your details are used across bookings. There&apos;s no password — you&apos;re identified
           by email.

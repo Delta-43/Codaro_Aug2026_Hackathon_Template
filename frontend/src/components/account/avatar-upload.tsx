@@ -8,8 +8,7 @@
  */
 import { useRef, useState } from "react";
 import { Camera, Trash2 } from "lucide-react";
-import { isApiError, uploadAvatar, deleteAvatar } from "@/api";
-import { useApp } from "@/context/app-context";
+import { isApiError } from "@/api";
 import { AvatarImg } from "@/components/avatar-img";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -20,12 +19,17 @@ export function AvatarUpload({
   avatarUrl,
   name,
   className,
+  onUpload,
+  onRemove,
 }: {
   avatarUrl: string;
   name: string;
   className?: string;
+  /** Persist the chosen file (e.g. POST the avatar) and apply the new state. */
+  onUpload: (file: File) => Promise<void>;
+  /** Clear the avatar (e.g. DELETE it) and apply the new state. */
+  onRemove: () => Promise<void>;
 }) {
-  const { setUser } = useApp();
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +39,7 @@ export function AvatarUpload({
     setBusy(true);
     setError(null);
     try {
-      setUser(await uploadAvatar(file));
+      await onUpload(file);
     } catch (e) {
       setError(isApiError(e) ? e.message : "Couldn't upload your photo.");
     } finally {
@@ -47,7 +51,7 @@ export function AvatarUpload({
     setBusy(true);
     setError(null);
     try {
-      setUser(await deleteAvatar());
+      await onRemove();
     } catch (e) {
       setError(isApiError(e) ? e.message : "Couldn't remove your photo.");
     } finally {
@@ -70,20 +74,30 @@ export function AvatarUpload({
             if (file) void handleFile(file);
           }}
         />
+        {/* Camera always opens the picker (upload or one-tap replace); the
+            trash badge appears only when there's a photo to remove. */}
         <Button
           variant="outline"
           size="icon-sm"
           isDisabled={busy}
-          onPress={() => (hasPhoto ? void handleRemove() : inputRef.current?.click())}
-          aria-label={hasPhoto ? "Remove profile photo" : "Upload profile photo"}
+          onPress={() => inputRef.current?.click()}
+          aria-label={hasPhoto ? "Change profile photo" : "Upload profile photo"}
           className="absolute -right-1 -bottom-1 size-8 rounded-full border-2 border-background bg-background p-0 shadow-sm dark:bg-background"
         >
-          {hasPhoto ? (
-            <Trash2 className="size-3.5 text-destructive" />
-          ) : (
-            <Camera className="size-3.5" />
-          )}
+          <Camera className="size-3.5" />
         </Button>
+        {hasPhoto ? (
+          <Button
+            variant="outline"
+            size="icon-sm"
+            isDisabled={busy}
+            onPress={() => void handleRemove()}
+            aria-label="Remove profile photo"
+            className="absolute -right-1 -top-1 size-8 rounded-full border-2 border-background bg-background p-0 shadow-sm dark:bg-background"
+          >
+            <Trash2 className="size-3.5 text-destructive" />
+          </Button>
+        ) : null}
       </div>
       {error ? <span className="text-xs text-destructive">{error}</span> : null}
     </div>

@@ -23,7 +23,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { useOwner } from "@/context/owner-context";
-import { VerifiedScene } from "@/components/business/verified-badge";
+import { BusinessBadge } from "@/components/business/verified-badge";
 import { Button } from "@/components/ui/button";
 
 interface Tab {
@@ -101,7 +101,8 @@ export function BusinessShell({ children }: { children: ReactNode }) {
           className="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 hover:bg-muted"
           aria-label="Settings"
         >
-          <VerifiedScene scene={scene} size="sm" />
+          {/* activeProvider comes from useOwner, so an avatar edit re-renders here. */}
+          <BusinessBadge avatarUrl={activeProvider?.avatarUrl} scene={scene} size="sm" />
           <span className="max-w-[10rem] truncate text-sm">{businessName}</span>
         </Link>
       </header>

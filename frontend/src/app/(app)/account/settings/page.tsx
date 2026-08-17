@@ -8,8 +8,8 @@
 import { useRouter } from "next/navigation";
 import { useApp } from "@/context/app-context";
 import { useAuth } from "@/lib/auth";
-import { updateUser } from "@/api";
-import { AvatarImg } from "@/components/avatar-img";
+import { updateUser, uploadAvatar, deleteAvatar } from "@/api";
+import { AvatarUpload } from "@/components/account/avatar-upload";
 import { Skeleton } from "@/components/skeleton";
 import { SettingsPanel } from "@/components/settings/settings-panel";
 
@@ -23,7 +23,15 @@ export default function UserSettingsPage() {
   return (
     <SettingsPanel
       variant="user"
-      photo={<AvatarImg src={user.avatarUrl} alt="" className="size-16" />}
+      photo={
+        <AvatarUpload
+          avatarUrl={user.avatarUrl}
+          name={user.displayName}
+          className="size-16"
+          onUpload={async (file) => setUser(await uploadAvatar(file))}
+          onRemove={async () => setUser(await deleteAvatar())}
+        />
+      }
       displayName={user.displayName}
       displayNameLabel="Display name"
       onSaveDisplayName={async (value) => {

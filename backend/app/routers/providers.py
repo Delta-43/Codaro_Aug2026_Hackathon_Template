@@ -4,10 +4,11 @@ Public reads (search, by-id, by-code) go through the service key and are
 personalised (followed-first ordering) only when a valid token is present.
 Follow/unfollow require a user and write through the RLS-scoped client.
 """
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 
 from app import discovery
 from app.auth import AuthUser, enforce_rls_write, optional_user, require_owner, require_user
+from app.avatars import remove_avatar, store_avatar
 from app.db import get_supabase, get_user_client, maybe_row
 from app.errors import NOT_FOUND, api_error
 from app.models import ProviderCreate, ProviderUpdate
@@ -134,6 +135,76 @@ def update_provider(
     sums, counts = discovery.review_aggregates(db)
     svc = discovery.service_ids_by_provider(db)
     return discovery.build_provider(updated[0], svc_by_prov=svc, sums=sums, counts=counts)
+
+
+def _provider_avatar_key(provider_id: str) -> str:
+    return f"provider/{provider_id}/avatar"
+
+
+def _owned_provider(db, provider_id: str, owner: AuthUser) -> dict:
+    """Fetch the provider, 404 if gone, 403 if it isn't the caller's."""
+    existing = maybe_row(db.table("providers").select("*").eq("id", provider_id))
+    if existing is None:
+        raise api_error(NOT_FOUND, "That provider no longer exists.")
+    if existing.get("owner_id") != owner.id:
+        raise HTTPException(403, "You can only manage your own businesses.")
+    return existing
+
+
+def _write_provider_avatar(db, owner: AuthUser, existing: dict, avatar_url: str) -> dict:
+    """Persist `avatar_url` into the provider's metadata (RLS-scoped write) and
+    return the freshly built provider (rating/reviewCount blended, as PATCH does).
+    Aggregates are scoped to this one provider — an avatar change doesn't need a
+    repo-wide reviews/services scan."""
+    md = {**(existing.get("metadata") or {}), "avatar_url": avatar_url}
+    updated = (
+        get_user_client(owner.token)
+        .table("providers")
+        .update({"metadata": md})
+        .eq("id", existing["id"])
+        .execute()
+        .data
+    )
+    updated = enforce_rls_write(updated, entity="provider")
+    row = updated[0]
+    reviews = db.table("reviews").select("rating").eq("provider_id", row["id"]).execute().data or []
+    services = db.table("services").select("id").eq("provider_id", row["id"]).execute().data or []
+    return serialize_provider(
+        row,
+        service_ids=[s["id"] for s in services],
+        review_sum=sum(float(r["rating"]) for r in reviews),
+        review_count=len(reviews),
+    )
+
+
+@router.post("/{provider_id}/avatar")
+async def upload_provider_avatar(
+    provider_id: str, file: UploadFile = File(...), owner: AuthUser = Depends(require_owner)
+):
+    """Upload/replace a business's avatar (owner-gated, own-provider only). Stored
+    in the avatars bucket keyed by provider id; the public URL lands in
+    providers.metadata.avatar_url, so it shows on the business's cards/profile."""
+    db = get_supabase()
+    existing = _owned_provider(db, provider_id, owner)
+    key = _provider_avatar_key(provider_id)
+    avatar_url = await store_avatar(file, key)
+    try:
+        return _write_provider_avatar(db, owner, existing, avatar_url)
+    except Exception:
+        # The bytes are already in storage but metadata didn't get the new URL;
+        # drop the just-uploaded object so it isn't orphaned.
+        remove_avatar(key)
+        raise
+
+
+@router.delete("/{provider_id}/avatar")
+def delete_provider_avatar(provider_id: str, owner: AuthUser = Depends(require_owner)):
+    """Remove a business's avatar — deletes the object and clears
+    metadata.avatar_url (falls back to initials on the cards/profile)."""
+    db = get_supabase()
+    existing = _owned_provider(db, provider_id, owner)
+    remove_avatar(_provider_avatar_key(provider_id))
+    return _write_provider_avatar(db, owner, existing, "")
 
 
 @router.delete("/{provider_id}", status_code=204)

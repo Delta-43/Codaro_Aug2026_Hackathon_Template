@@ -14,7 +14,7 @@ import { useOwner } from "@/context/owner-context";
 import { Skeleton } from "@/components/skeleton";
 import { AvatarImg } from "@/components/avatar-img";
 import { BusinessArt } from "@/components/business/business-art";
-import { VerifiedScene } from "@/components/business/verified-badge";
+import { BusinessBadge } from "@/components/business/verified-badge";
 import { getProviderReviews } from "@/api";
 import type { ProviderReview } from "@/types/domain";
 import { avatarDataUri } from "@/lib/business-demo";
@@ -69,7 +69,7 @@ export default function ProfilePage() {
             <Settings className="size-5" aria-hidden />
           </Link>
           <div className="absolute -bottom-8 left-4">
-            <VerifiedScene scene={scene} size="lg" />
+            <BusinessBadge avatarUrl={p.avatarUrl} scene={scene} size="lg" />
           </div>
         </div>
         <div className="px-4 pb-4 pt-10">

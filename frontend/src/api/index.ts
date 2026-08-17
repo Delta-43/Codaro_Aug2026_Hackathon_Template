@@ -370,6 +370,17 @@ export function deleteProvider(id: ID): Promise<void> {
   return del(`/providers/${id}`) as Promise<void>;
 }
 
+/** Upload/replace a business's avatar image; returns the updated Provider. */
+export function uploadProviderAvatar(id: ID, file: File): Promise<Provider> {
+  const form = new FormData();
+  form.append("file", file);
+  return requestForm<Provider>(`/providers/${id}/avatar`, "POST", form);
+}
+
+export function deleteProviderAvatar(id: ID): Promise<Provider> {
+  return del(`/providers/${id}/avatar`) as Promise<Provider>;
+}
+
 export function createService(input: {
   providerId: ID;
   name: string;
