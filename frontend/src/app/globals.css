@@ -127,9 +127,31 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Hide the main page scrollbar (scrolling still works). Nested containers
+   * opt in via the `no-scrollbar` utility below. */
+  html,
+  body {
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* legacy Edge/IE */
+  }
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none; /* WebKit (Chrome/Safari) */
+  }
   /* --pointer: pointer cursor on enabled buttons. */
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
+  }
+}
+
+/* --no-scrollbar: opt-in utility to hide the visual scrollbar on a specific
+ * scroll container while keeping scroll behavior. Apply the class deliberately
+ * rather than stripping the scrollbar affordance app-wide. */
+@utility no-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* legacy Edge/IE */
+  &::-webkit-scrollbar {
+    display: none; /* WebKit (Chrome/Safari) */
   }
 }
