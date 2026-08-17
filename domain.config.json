@@ -33,5 +33,12 @@
   "metaFields": {
     "resources": [],
     "bookings": []
+  },
+  "search": {
+    "facets": {
+      "price": true,
+      "distance": true,
+      "rating": true
+    }
   }
 }

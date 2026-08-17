@@ -176,9 +176,32 @@ path the UI calls exists on the FastAPI app (method-aware) and that the
 
 ## Current state
 
-`python -m pytest test/backend -q` from the repo root: **319 passed**
+`python -m pytest test/backend -q` from the repo root: **335 passed**
 (0 failures, 0 xfail). `python -m pytest test/` adds the 8 live e2e tests, which
 skip without `SUPABASE_URL`/`SUPABASE_ANON_KEY`.
+
+Search-facets coverage (the resolved `search.facets` block on `GET /config` +
+`POST /config/reload`, from `main._config_with_facets` → `discovery.search_facets`):
+the endpoint resolves each facet as `derived AND declared.get(key, True)` — live
+catalog derivation decides what's *possible*, and `domain.config.json`'s optional
+`search.facets` can only force a facet OFF (a declared `true`/omitted defers to
+derivation). `test_discovery.py` (new) unit-tests `search_facets(db)` against the
+offline `FakeSupabase` — empty catalog → `{price:False, distance:False,
+rating:True}`, priced service + real coords → all-True, all-free → `price:False`,
+missing/zero `metadata.location` → `distance:False`, `any`-semantics over
+services/providers, null price treated as free, and `rating` always True.
+`test_health_config.py` covers it through the real endpoints: the two config
+tests that formerly asserted full file equality now strip the `search` block from
+BOTH sides (the on-disk config carries its own `search` now) and assert the three
+boolean facet keys separately; `/config` and `/config/reload` expose the map; a
+live-catalog test flips `price`/`distance` on by seeding a priced service and a
+provider with coordinates; and two override tests prove the AND-merge — a
+declared `distance:false` vetoes distance while an omitted `price` still reflects
+derivation, and declaring every facet `true` against an empty catalog cannot
+conjure price/distance on. Those endpoint tests need the app to read the fake db,
+so `app_main` is in `conftest._SUPABASE_MODULES` (main.py does
+`from app.db import get_supabase`; without the patch the endpoint hit the invalid
+URL and fell back to all-True).
 
 Provider price-from coverage (the `priceFromMinorUnits`/`currency` keys added to
 `serialize_provider`): `PROVIDER_KEYS` in both `test_serialize.py` and

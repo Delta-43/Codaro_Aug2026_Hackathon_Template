@@ -56,6 +56,25 @@ def resource_ids_by_service(db) -> dict[str, list[str]]:
     return by
 
 
+def search_facets(db) -> dict[str, bool]:
+    """Which search facets the current catalog actually supports — derived from
+    the seeded data so the filter UI pivots automatically, with no hand-kept
+    flags. A free niche seeds no priced services → `price` off; a remote niche
+    seeds no real coordinates → `distance` off; those sliders/sort keys then
+    never render. `rating` is always offered (every provider carries one)."""
+    services = db.table("services").select("price_minor_units").execute().data or []
+    has_price = any(int(s.get("price_minor_units") or 0) > 0 for s in services)
+
+    providers = db.table("providers").select("metadata").execute().data or []
+
+    def has_coords(row: dict) -> bool:
+        loc = (row.get("metadata") or {}).get("location") or {}
+        return bool(loc) and (float(loc.get("lat") or 0) != 0 or float(loc.get("lng") or 0) != 0)
+
+    has_distance = any(has_coords(p) for p in providers)
+    return {"price": has_price, "distance": has_distance, "rating": True}
+
+
 def build_provider(row, *, svc_by_prov, sums, counts, price_by_prov=None) -> dict:
     price_from, currency = (price_by_prov or {}).get(row["id"], (None, ""))
     return serialize_provider(
