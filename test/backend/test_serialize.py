@@ -369,6 +369,8 @@ BOOKING_KEYS = {
     "userId",
     "providerId",
     "serviceId",
+    "providerName",
+    "serviceName",
     "resourceId",
     "slotIds",
     "startUtc",
@@ -428,6 +430,31 @@ def test_booking_key_set_and_span():
     assert out["status"] == "confirmed"
     assert out["cancelledAtUtc"] is None
     assert out["review"] is None
+    # Names default to "" when the endpoint doesn't resolve them.
+    assert out["providerName"] == ""
+    assert out["serviceName"] == ""
+
+
+def test_booking_provider_and_service_names_passed_through():
+    out = S.serialize_booking(
+        _booking_row(),
+        slot_ids=["s1"],
+        start_utc=FUTURE,
+        end_utc=FUTURE,
+        provider_name="Vistula Rentals",
+        service_name="City Cruiser",
+        now=NOW,
+    )
+    assert out["providerName"] == "Vistula Rentals"
+    assert out["serviceName"] == "City Cruiser"
+
+
+def test_booking_provider_and_service_names_default_to_empty():
+    out = S.serialize_booking(
+        _booking_row(), slot_ids=["s1"], start_utc=FUTURE, end_utc=FUTURE, now=NOW
+    )
+    assert out["providerName"] == ""
+    assert out["serviceName"] == ""
 
 
 def test_booking_change_history_is_camelcased():

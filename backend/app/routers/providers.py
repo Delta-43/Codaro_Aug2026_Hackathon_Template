@@ -13,7 +13,7 @@ from app.errors import NOT_FOUND, api_error
 from app.models import ProviderCreate, ProviderUpdate
 from app.routers.resources import delete_resources_for_services
 from app.serialize import iso_utc, serialize_provider
-from app.users import load_user
+from app.users import followed_ids, load_user
 
 router = APIRouter(prefix="/providers", tags=["providers"])
 
@@ -49,7 +49,10 @@ def search_providers(
         return True
 
     result = [p for p in provs if match(p)]
-    followed: set[str] = set(load_user(user)["followedProviderIds"]) if user else set()
+    # Only the follow set is needed here — call followed_ids directly rather than
+    # load_user, which would also hit the auth admin API for user_metadata we
+    # never read (one wasted remote round trip on every signed-in search).
+    followed: set[str] = set(followed_ids(user)) if user else set()
     result.sort(key=lambda p: (0 if p["id"] in followed else 1, -p["rating"]))
     return result
 
