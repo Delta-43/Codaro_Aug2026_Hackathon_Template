@@ -136,6 +136,8 @@ PROVIDER_KEYS = {
     "location",
     "rating",
     "reviewCount",
+    "priceFromMinorUnits",
+    "currency",
     "links",
     "publicCode",
     "serviceIds",
@@ -196,6 +198,86 @@ def test_provider_defaults_when_metadata_sparse():
     assert out["location"] == {"city": "", "country": "", "lat": 0, "lng": 0}
     assert out["links"] == []
     assert out["coverUrl"] is None
+
+
+def test_provider_price_from_defaults_to_none_and_empty_currency():
+    # No price aggregate passed (provider has no priced service) → null price,
+    # empty currency.
+    out = S.serialize_provider(_provider_row(), service_ids=["s1"])
+    assert out["priceFromMinorUnits"] is None
+    assert out["currency"] == ""
+
+
+def test_provider_price_from_carries_min_price_and_currency():
+    out = S.serialize_provider(
+        _provider_row(), service_ids=["s1"], price_from=4500, currency="PLN"
+    )
+    assert out["priceFromMinorUnits"] == 4500
+    assert out["currency"] == "PLN"
+
+
+def test_provider_price_from_zero_currency_still_defaults_empty():
+    # A falsy currency ("") stays "", never None — the wire contract is str.
+    out = S.serialize_provider(_provider_row(), price_from=0, currency="")
+    assert out["priceFromMinorUnits"] == 0
+    assert out["currency"] == ""
+
+
+# --- discovery: price_from_by_provider + build_provider --------------------
+
+
+def test_discovery_price_from_picks_cheapest_service_currency():
+    from app import discovery as D
+
+    class _Table:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def select(self, *_a, **_k):
+            return self
+
+        def execute(self):
+            return type("R", (), {"data": self._rows})()
+
+    class _DB:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def table(self, _name):
+            return _Table(self._rows)
+
+    rows = [
+        {"provider_id": "prov-1", "price_minor_units": 9000, "currency": "PLN"},
+        {"provider_id": "prov-1", "price_minor_units": 4500, "currency": "USD"},
+        {"provider_id": "prov-1", "price_minor_units": 7000, "currency": "PLN"},
+        {"provider_id": "prov-2", "price_minor_units": 1200, "currency": "EUR"},
+    ]
+    by = D.price_from_by_provider(_DB(rows))
+    # cheapest of prov-1 wins, carrying that service's currency.
+    assert by["prov-1"] == (4500, "USD")
+    assert by["prov-2"] == (1200, "EUR")
+
+    # build_provider threads it onto the serialized Provider...
+    p1 = D.build_provider(
+        {"id": "prov-1", "name": "P1"},
+        svc_by_prov={"prov-1": ["s1", "s2"]},
+        sums={},
+        counts={},
+        price_by_prov=by,
+    )
+    assert p1["priceFromMinorUnits"] == 4500
+    assert p1["currency"] == "USD"
+
+    # ...and a provider absent from the map falls back to null / "".
+    p3 = D.build_provider(
+        {"id": "prov-3", "name": "P3"},
+        svc_by_prov={},
+        sums={},
+        counts={},
+        price_by_prov=by,
+    )
+    assert p3["priceFromMinorUnits"] is None
+    assert p3["currency"] == ""
 
 
 # --- serialize_service -----------------------------------------------------

@@ -5,6 +5,7 @@ import type { Provider } from "@/types/domain";
 import { useVertical } from "@/context/app-context";
 import { AvatarImg } from "@/components/avatar-img";
 import { distanceFromHome } from "@/lib/geo";
+import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /** A search result. Followed providers get a distinct highlighted treatment. */
@@ -54,6 +55,12 @@ export function ProviderCard({
           <span>
             {provider.location.city} · {distanceFromHome(provider.location)}
           </span>
+          {provider.priceFromMinorUnits != null ? (
+            <>
+              <span aria-hidden>·</span>
+              <span>from {formatMoney(provider.priceFromMinorUnits, provider.currency)}</span>
+            </>
+          ) : null}
         </div>
       </div>
     </button>

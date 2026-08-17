@@ -176,9 +176,20 @@ path the UI calls exists on the FastAPI app (method-aware) and that the
 
 ## Current state
 
-`python -m pytest test/backend -q` from the repo root: **311 passed**
+`python -m pytest test/backend -q` from the repo root: **319 passed**
 (0 failures, 0 xfail). `python -m pytest test/` adds the 8 live e2e tests, which
 skip without `SUPABASE_URL`/`SUPABASE_ANON_KEY`.
+
+Provider price-from coverage (the `priceFromMinorUnits`/`currency` keys added to
+`serialize_provider`): `PROVIDER_KEYS` in both `test_serialize.py` and
+`test_providers.py` now include the two keys. `test_serialize.py` asserts the
+defaults (`None`/`""` with no aggregate, `0`/`""` for a falsy currency), the
+pass-through of `price_from=`/`currency=`, and a discovery-level case that
+`discovery.price_from_by_provider` picks the cheapest service's price+currency
+across multiple services and `build_provider` threads it onto the wire shape
+(absent provider → `None`/`""`). `test_providers.py` covers the same via the real
+`/providers` route (cheapest service wins; `null`/`""` for a provider with no
+services).
 
 Client-reputation coverage (the `client_reviews` table + businesses rating
 customers): `FakeSupabase.BASE_TABLES` now includes `client_reviews` (defaults +
