@@ -20,3 +20,7 @@ frontend/.env.local
 
 # Local scratch / experiments (never commit)
 sandbox/
+
+# Benchmark run output (see benchmark/CLAUDE.md "One folder per run")
+benchmark/results/*
+!benchmark/results/.gitkeep

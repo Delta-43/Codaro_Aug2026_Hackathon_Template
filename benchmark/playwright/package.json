@@ -1,0 +1,12 @@
+{
+  "name": "codaro-benchmark-playwright",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Device/network performance matrix for the Codaro booking engine frontend.",
+  "scripts": {
+    "benchmark": "node benchmark.js"
+  },
+  "dependencies": {
+    "playwright": "1.48.0"
+  }
+}

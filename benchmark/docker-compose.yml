@@ -1,0 +1,42 @@
+# One-off benchmark runners, invoked by `make benchmark` (never left running).
+# network_mode: host so they can reach the app stack at localhost:8000/:3000
+# exactly like a browser/client on this machine would — this relies on
+# Linux's native Docker networking and won't work unmodified on Docker
+# Desktop (Mac/Windows).
+#
+# RUN_NAME (set by run.sh via report/run_context.py, one shared value for the
+# whole run) namespaces each run into its own results/<RUN_NAME>/ folder.
+services:
+  k6:
+    image: grafana/k6:latest
+    network_mode: host
+    # SUPABASE_URL/SUPABASE_ANON_KEY (for the booking_write scenario's direct
+    # GoTrue login — see k6/api-load-test.js) come from the same file the
+    # backend container itself uses, so there's no separate credentials copy
+    # to keep in sync.
+    env_file:
+      - ../backend/.env
+    environment:
+      BASE_URL: http://localhost:8000
+      PEAK_VUS: ${PEAK_VUS:-10}
+      BOOKING_WRITE_VUS: ${BOOKING_WRITE_VUS:-}
+      BENCH_EMAIL: ${BENCH_EMAIL:-bench-customer-1@codaro.bench}
+      BENCH_PASSWORD: ${BENCH_PASSWORD:-Codaro-Bench-2026}
+    volumes:
+      - ./k6:/scripts:ro
+      - ./results/${RUN_NAME:-adhoc}:/results
+    command: run --out json=/results/k6-events.jsonl /scripts/api-load-test.js
+
+  playwright-bench:
+    build:
+      context: .
+      dockerfile: Dockerfile.playwright
+    network_mode: host
+    environment:
+      BASE_URL: http://localhost:3000
+      OUTPUT: /bench/results/playwright-results.json
+      NAV_TIMEOUT_MS: ${NAV_TIMEOUT_MS:-45000}
+      BENCH_EMAIL: ${BENCH_EMAIL:-bench-customer-1@codaro.bench}
+      BENCH_PASSWORD: ${BENCH_PASSWORD:-Codaro-Bench-2026}
+    volumes:
+      - ./results/${RUN_NAME:-adhoc}:/bench/results

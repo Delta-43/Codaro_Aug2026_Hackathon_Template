@@ -1,0 +1,15 @@
+# Playwright's official image ships Node + Chromium/Firefox/WebKit with all
+# OS-level dependencies preinstalled, so no host installs are needed to run
+# the device/network benchmark matrix. The tag here MUST match the exact
+# "playwright" version pinned in package.json — the npm package and the
+# image's prebuilt browser binaries have to be the same version.
+FROM mcr.microsoft.com/playwright:v1.48.0-jammy
+
+WORKDIR /bench
+
+COPY playwright/package.json ./
+RUN npm install
+
+COPY playwright/benchmark.js ./
+
+ENTRYPOINT ["node", "benchmark.js"]
