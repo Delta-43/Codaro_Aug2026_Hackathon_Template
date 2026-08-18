@@ -15,9 +15,6 @@ from helpers import (
     iso_in,
     make_booking,
     make_catalog,
-    make_client_review,
-    make_resource,
-    make_service,
     make_slot,
 )
 

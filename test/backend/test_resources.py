@@ -12,7 +12,6 @@ from helpers import (
     make_booking,
     make_catalog,
     make_resource,
-    make_service,
     make_slot,
 )
 

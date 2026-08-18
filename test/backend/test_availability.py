@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from helpers import iso_in, make_booking, make_provider, make_resource, make_service, make_slot
+from helpers import make_booking, make_provider, make_resource, make_service, make_slot
 
 
 def _catalog(db, *, capacity=3):

@@ -8,9 +8,9 @@ that sums party size across confirmed bookings via `booking_slots`.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
-from helpers import iso_in, make_booking, make_catalog, make_resource, make_service, make_slot
+from helpers import iso_in, make_booking, make_catalog, make_resource, make_slot
 
 
 # --- reads -----------------------------------------------------------------
