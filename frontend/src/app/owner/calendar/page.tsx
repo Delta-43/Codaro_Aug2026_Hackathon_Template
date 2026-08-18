@@ -35,7 +35,7 @@ const STATUS_CLASS: Record<DemoBooking["status"], string> = {
 };
 
 export default function CalendarPage() {
-  const { ready, vocab } = useOwner();
+  const { ready, vocab, capability } = useOwner();
   const router = useRouter();
   const tz = browserTz();
   const [raw, setRaw] = useState<OwnerBooking[]>([]);
@@ -156,7 +156,9 @@ export default function CalendarPage() {
                 Cancel booking
               </Button>
             </div>
-            {selected.status === "completed" ? <RateClient bookingId={selected.id} clientName={selected.client} /> : null}
+            {selected.status === "completed" && capability("reviews") ? (
+              <RateClient bookingId={selected.id} clientName={selected.client} />
+            ) : null}
 
             <p className="text-[11px] text-muted-foreground">
               Reschedule is coming to the owner console next.

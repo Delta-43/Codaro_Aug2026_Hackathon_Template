@@ -29,7 +29,7 @@ interface ServiceWithMeta {
 }
 
 export default function ProviderPage() {
-  const { activeProvider, vertical, selectService, selectResource, singleBusiness } = useApp();
+  const { activeProvider, vertical, selectService, selectResource, singleBusiness, capability } = useApp();
   const router = useRouter();
   const { isFollowing, busy, toggle } = useFollow(activeProvider);
   const [picker, setPicker] = useState<Service | null>(null);
@@ -132,9 +132,12 @@ export default function ProviderPage() {
       </div>
 
       {/* Actions — follow + provider-switching only make sense in the
-          multi-provider marketplace; the single business is implicit. */}
+          multi-provider marketplace; the single business is implicit. Follow is
+          additionally gated on `capabilities.follows`, which the backend already
+          refuses, so the button would otherwise 404. */}
       {!singleBusiness ? (
         <div className="mt-4 flex gap-2">
+          {capability("follows") ? (
           <Button
             variant={isFollowing ? "secondary" : "outline"}
             isDisabled={busy}
@@ -142,6 +145,7 @@ export default function ProviderPage() {
           >
             {isFollowing ? "Following" : "Follow"}
           </Button>
+          ) : null}
           <Link
             href="/search"
             className="inline-flex h-8 items-center rounded-2xl border border-border px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"

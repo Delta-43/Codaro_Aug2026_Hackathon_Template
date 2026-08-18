@@ -43,7 +43,7 @@ export function BookingDetail({
   resourceName: string;
   tz: string;
 }) {
-  const { vertical } = useApp();
+  const { vertical, capability } = useApp();
   const [booking, setBooking] = useState<Booking>(initial);
   const [mode, setMode] = useState<"detail" | "reschedule">("detail");
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -201,8 +201,9 @@ export function BookingDetail({
         </div>
       ) : null}
 
-      {/* Review (completed only) */}
-      {booking.status === "completed" ? (
+      {/* Review (completed only, and only where reviews are enabled — the
+          backend refuses the write, so showing this would 404 on submit) */}
+      {booking.status === "completed" && capability("reviews") ? (
         <div className="mt-6">
           <ReviewForm booking={booking} tz={tz} onReviewed={setBooking} />
         </div>

@@ -604,8 +604,15 @@ def review_client(booking_id: str, payload: ClientReviewReq, owner: AuthUser = D
     if effective_booking_status(booking["status"], cur_end) != "completed":
         raise api_error(NOT_FOUND, "You can only rate a customer after the booking is completed.")
 
-    rating = max(1, min(5, round(payload.rating)))
     md = booking.get("metadata") or {}
+    # Same gate as the customer-facing review above. Without it `capabilities.
+    # reviews: false` refused one direction and accepted the other, and these
+    # rows feed the customer's public reputation (`GET /me/reputation`).
+    service = maybe_row(db.table("services").select("*").eq("id", md.get("service_id")))
+    if not capability("reviews", service):
+        raise api_error(NOT_FOUND, "Reviews are not enabled here.")
+
+    rating = max(1, min(5, round(payload.rating)))
     # One review per booking: clear any prior (service key) then insert through
     # the owner's client so RLS's client_reviews_insert_owner enforces.
     db.table("client_reviews").delete().eq("booking_id", booking_id).execute()

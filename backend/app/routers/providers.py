@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 from app import discovery
 from app.auth import AuthUser, enforce_rls_write, optional_user, require_owner, require_user
 from app.avatars import remove_avatar, store_avatar
-from app.db import get_supabase, get_user_client, maybe_row
+from app.db import UNIQUE_VIOLATION_CODE, get_supabase, get_user_client, maybe_row
 from app.config import get_config
 from app.errors import NOT_FOUND, VALIDATION_ERROR, api_error
 from app.meta import merged_metadata
@@ -331,8 +331,12 @@ def follow_provider(provider_id: str, user: AuthUser = Depends(require_user)):
         get_user_client(user.token).table("follows").insert(
             {"user_id": user.id, "provider_id": provider_id}
         ).execute()
-    except Exception:
-        pass  # primary-key conflict → already following; follow is idempotent
+    except Exception as exc:  # noqa: BLE001 - re-raised unless it is the PK conflict
+        # Only "already following" is benign. Swallowing everything reported a
+        # 200 for an RLS denial or a dropped connection, so the button flipped to
+        # "Following" for a row that was never written.
+        if getattr(exc, "code", None) != UNIQUE_VIOLATION_CODE:
+            raise
     return load_user(user)
 
 

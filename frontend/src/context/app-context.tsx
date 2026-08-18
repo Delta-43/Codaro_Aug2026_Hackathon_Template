@@ -28,6 +28,7 @@ import {
   resetDemoData as apiResetDemoData,
   searchProviders,
   setVertical as apiSetVertical,
+  type Capabilities,
   type PivotConfig,
 } from "@/api";
 import { DEFAULT_VERTICAL, getVertical, type VerticalConfig } from "@/config/verticals";
@@ -45,6 +46,11 @@ interface AppContextValue {
    *  only business, so the sole provider is auto-locked and provider discovery is
    *  hidden. False = the multi-provider marketplace. */
   singleBusiness: boolean;
+
+  /** `capabilities.<name>` from the pivot file, defaulting to ON for a name the
+   *  config does not mention. Gate a surface on this wherever the backend gates
+   *  the matching write, or the user gets a control that 404s. */
+  capability: (name: string) => boolean;
 
   activeProvider: Provider | null;
   activeService: Service | null;
@@ -75,6 +81,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // provider is never chosen by the user — it's resolved from this code (or, if
   // the code isn't in the active vertical, the catalog's first provider).
   const [singleBusiness, setSingleBusiness] = useState(false);
+  const [capabilities, setCapabilities] = useState<Capabilities>({});
   const [soleProviderCode, setSoleProviderCode] = useState<string | null>(null);
 
   const [activeProvider, setActiveProvider] = useState<Provider | null>(null);
@@ -128,6 +135,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           (): PivotConfig => ({
             tenancy: { mode: "multi", providerCode: null },
             location: { origin: null, distanceUnit: "km", timezone: "UTC" },
+            // /config unreachable: leave every capability ON. The backend is
+            // still the authority and refuses anything actually disabled.
+            capabilities: {},
           }),
         ),
       ]);
@@ -136,6 +146,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setUserState(u);
       // Distances render from the pivot file's origin/unit, not a hardcoded city.
       setGeoSettings(pivot.location);
+      setCapabilities(pivot.capabilities);
       const { tenancy } = pivot;
       const single = tenancy.mode === "single";
       setSingleBusiness(single);
@@ -174,6 +185,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     else clearActiveProvider();
   }, [singleBusiness, soleProviderCode, resolveSoleProvider, clearActiveProvider]);
 
+  // Unknown name -> true: the config lists only what it turns off, and the
+  // backend refuses the write regardless. This mirrors rules.capability().
+  const capability = useCallback(
+    (name: string) => capabilities[name] !== false,
+    [capabilities],
+  );
+
   const switchVertical = useCallback(
     async (id: VerticalId) => {
       await apiSetVertical(id);
@@ -196,6 +214,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     vertical: getVertical(verticalId),
     user,
     singleBusiness,
+    capability,
     activeProvider,
     activeService,
     activeResource,

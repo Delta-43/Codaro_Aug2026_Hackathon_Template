@@ -17,7 +17,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from app.config import get_config
-from app.config_schema import deep_merge, validate_overrides
+from app.config_schema import DEFAULTS, deep_merge, validate_overrides
 
 
 log = logging.getLogger(__name__)
@@ -116,7 +116,7 @@ def _buffer(minutes, ctx) -> None:
 # unbookable. Wire it once the seed horizon and the config agree.
 RULES = {
     "booking.create": {"leadTimeMinutes": _lead_time},
-    "booking.change": {"cancellationWindowHours": _cancellation_window},
+    "booking.change": {},
     "booking.approve": {},
     "booking.cancel": {},
     "slot.create": {"bufferMinutes": _buffer},
@@ -133,9 +133,19 @@ RULES = {
 # Dispatching `_capacity` here as well would re-apply `min(capacity, maxPerSlot)`
 # and cap every shared-capacity slot at the global default of 1, breaking group
 # bookings. The validator stays for `check_capacity()` and its tests.
+#
+# `cancellationWindowHours`: enforced, but by the OTHER path — the service
+# resolver maps it to `cancellationCutoffHours` (see `_SERVICE_RULE_MAP`) and the
+# cancel/reschedule routes call `within_cutoff()`. It sat under a
+# `"booking.change"` event that no router ever dispatches, so the registry
+# advertised a second enforcement point that could never fire and a new key added
+# beside it would have been a silent no-op. `_cancellation_window` is the same
+# rule with a `<` where `within_cutoff` has `>=`; dispatching it would
+# double-enforce on a subtly different boundary.
 UNDISPATCHED = {
     "advanceBookingWindowDays": _advance_window,
     "maxBookingsPerSlot": _capacity,
+    "cancellationWindowHours": _cancellation_window,
 }
 
 
@@ -393,6 +403,14 @@ def capability(name: str, service: dict | None = None) -> bool:
     the surfaces that have no backend yet are listed as unbuilt in
     `scripts/check_pivots.py` rather than pretended to be gated here.
     """
+    # Fail LOUD on an unknown name. `.get(name, True)` meant a typo in a gate
+    # (`capability("review", ...)`) silently permitted the write forever — the
+    # one failure mode a gate must not have.
+    if name not in DEFAULTS["capabilities"]:
+        raise KeyError(
+            f"unknown capability {name!r}; declare it in config_schema.DEFAULTS"
+            f"['capabilities'] first. Known: {sorted(DEFAULTS['capabilities'])}"
+        )
     if service is not None:
         return bool(effective_service_config(service)["capabilities"].get(name, True))
     return bool(get_config()["capabilities"].get(name, True))
