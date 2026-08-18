@@ -97,6 +97,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // (navigation / sign-out / fast refresh) mid-resolution.
   const mounted = useRef(true);
   useEffect(() => {
+    // Re-arm on every mount, not just the first. Strict Mode (on by default in
+    // Next's App Router) runs effects mount -> cleanup -> mount again on the
+    // same instance, and refs survive that cycle — so without this the cleanup
+    // latched `mounted.current` to false before the second mount and the guard
+    // in `resolveSoleProvider` bailed for the rest of the dev session, leaving
+    // single-business deployments stuck on the "no business" empty state.
+    mounted.current = true;
     return () => {
       mounted.current = false;
     };
