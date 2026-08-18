@@ -120,8 +120,12 @@ export function SceneBackground() {
           100% { transform: translate(60px, -220px) rotate(160deg); opacity: 0; }
         }
 
+        /* ">" scroll-affordance chevrons: a gentle horizontal nudge */
+        .landing-nudge { animation: landing-nudge 1.3s ease-in-out infinite; }
+        @keyframes landing-nudge { 0%,100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
+
         @media (prefers-reduced-motion: reduce) {
-          .landing-sun, .landing-aurora-glow, .landing-curtain { animation: none; }
+          .landing-sun, .landing-aurora-glow, .landing-curtain, .landing-nudge { animation: none; }
           .landing-petal { animation: none; opacity: 0; }
         }
       `}</style>

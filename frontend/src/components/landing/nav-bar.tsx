@@ -65,7 +65,7 @@ export function NavBar({ authed }: { authed: boolean }) {
               key={l.href}
               href={l.href}
               onClick={(e) => smoothScroll(e, l.href)}
-              className="shrink-0 whitespace-nowrap rounded-full px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="shrink-0 origin-center whitespace-nowrap rounded-full px-3 py-1.5 text-sm text-muted-foreground transition-all duration-200 ease-out hover:scale-110 hover:bg-muted hover:text-foreground"
             >
               {l.label}
             </a>
@@ -76,15 +76,18 @@ export function NavBar({ authed }: { authed: boolean }) {
           type="button"
           aria-label="More links"
           onClick={() => linksRef.current?.scrollBy({ left: 120, behavior: "smooth" })}
-          className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground md:hidden"
+          className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground transition-transform duration-200 ease-out hover:scale-125 hover:text-foreground md:hidden"
         >
-          <ChevronRight className="size-4" aria-hidden />
+          <ChevronRight className="landing-nudge size-4" aria-hidden />
         </button>
         <div className="flex shrink-0 items-center gap-1">
           <ThemeToggle />
           <Link
             href={authed ? "/search" : "/login"}
-            className={cn(buttonVariants({ size: "sm" }), "rounded-full px-4")}
+            className={cn(
+              buttonVariants({ size: "sm" }),
+              "origin-center rounded-full px-4 transition-transform duration-200 ease-out hover:scale-105",
+            )}
           >
             {authed ? "Open app" : "Login"}
           </Link>

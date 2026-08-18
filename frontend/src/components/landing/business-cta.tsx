@@ -31,7 +31,10 @@ export function BusinessCta({ authed }: { authed: boolean }) {
           </div>
           <Link
             href={authed ? "/search" : "/login"}
-            className={cn(buttonVariants({ size: "lg" }), "gap-1.5 rounded-full px-6")}
+            className={cn(
+              buttonVariants({ size: "lg" }),
+              "origin-center gap-1.5 rounded-full px-6 transition-transform duration-200 ease-out hover:scale-105",
+            )}
           >
             {authed ? "Open app" : "Sign in"}
             <ArrowRight className="size-4" aria-hidden />

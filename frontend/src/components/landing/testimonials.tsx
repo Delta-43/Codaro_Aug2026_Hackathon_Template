@@ -126,9 +126,9 @@ export function Testimonials() {
                 type="button"
                 aria-label="Scroll reviews"
                 onClick={() => scrollRef.current?.scrollBy({ left: 320, behavior: "smooth" })}
-                className="pointer-events-auto grid size-8 place-items-center rounded-full border border-white/30 bg-background/60 text-foreground shadow-sm ring-1 ring-inset ring-white/20 backdrop-blur-md"
+                className="pointer-events-auto grid size-8 origin-center place-items-center rounded-full border border-white/30 bg-background/60 text-foreground shadow-sm ring-1 ring-inset ring-white/20 backdrop-blur-md transition-transform duration-200 ease-out hover:scale-125"
               >
-                <ChevronRight className="size-4" aria-hidden />
+                <ChevronRight className="landing-nudge size-4" aria-hidden />
               </button>
             </div>
           </div>

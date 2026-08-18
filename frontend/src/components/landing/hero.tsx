@@ -35,7 +35,10 @@ export function Hero({ authed }: { authed: boolean }) {
             <div className="mt-8 flex justify-center">
               <Link
                 href={authed ? "/search" : "/login"}
-                className={cn(buttonVariants({ size: "lg" }), "gap-1.5 rounded-full px-6")}
+                className={cn(
+                  buttonVariants({ size: "lg" }),
+                  "origin-center gap-1.5 rounded-full px-6 transition-transform duration-200 ease-out hover:scale-105",
+                )}
               >
                 {authed ? "Open app" : "Get Started"}
                 <ArrowRight className="size-4" aria-hidden />
