@@ -572,7 +572,6 @@ def _inject_edge_cases(db, primary, tz, holds_uid, provider_id, currency) -> int
     — a one-seat-left slot. Occupancy is made real via holds bookings."""
     service_id = primary["id"]
     price = primary["spec"]["priceMinorUnits"]
-    dur = primary["spec"]["slotDurationMinutes"]
     now = datetime.now(timezone.utc)
 
     resource_ids = [r["id"] for r in primary["resources"]]

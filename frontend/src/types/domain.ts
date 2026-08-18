@@ -155,8 +155,9 @@ export interface OwnerBooking extends Booking {
   clientEmail?: string;
 }
 
-/** Screening card for a client requesting a booking (Requests tab). */
-export interface RequestClient {
+/** Screening card for a client requesting a booking (Requests tab).
+ *  Not exported: only reached through `OwnerRequest.client`. */
+interface RequestClient {
   id: ID;
   displayName: string;
   email: string;

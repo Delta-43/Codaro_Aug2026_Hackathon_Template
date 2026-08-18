@@ -22,7 +22,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "backend"))
 
-from app.config_schema import normalize, validate  # noqa: E402
+from app.config_schema import check_shape, normalize, validate  # noqa: E402
 
 
 def check(path: Path) -> list[str]:
@@ -36,8 +36,16 @@ def check(path: Path) -> list[str]:
     if not isinstance(raw, dict):
         return [f"{path} must contain a JSON object at the top level."]
 
-    # Validate what the engine will actually resolve — defaults applied and the
-    # v1 `rules`/`search` aliases folded in — so a v1 file still passes.
+    # Mirror the backend's load order exactly (see `app/config.py`): shape first,
+    # because normalize()/validate() assume each block is the right *kind* of
+    # thing and a malformed one (e.g. `"timing": []`) escapes them as a raw
+    # TypeError. Without this, a config could pass CI and still fail at startup.
+    shape_errors = check_shape(raw)
+    if shape_errors:
+        return shape_errors
+
+    # Then validate what the engine will actually resolve — defaults applied and
+    # the v1 `rules`/`search` aliases folded in — so a v1 file still passes.
     return validate(normalize(raw))
 
 

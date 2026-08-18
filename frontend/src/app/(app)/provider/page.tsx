@@ -9,7 +9,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ChevronRight, ExternalLink, MessagesSquare, Star, Store } from "lucide-react";
+import { ChevronRight, ExternalLink, MessagesSquare as _MessagesSquare, Star, Store } from "lucide-react";
 import type { Resource, Service } from "@/types/domain";
 import { ApiError, getResources, getServices, startConversation } from "@/api";
 import { useApp } from "@/context/app-context";
@@ -33,10 +33,18 @@ export default function ProviderPage() {
   const router = useRouter();
   const { isFollowing, busy, toggle } = useFollow(activeProvider);
   const [picker, setPicker] = useState<Service | null>(null);
-  const [messaging, setMessaging] = useState(false);
+  // `_messaging` / `_messageProvider` / `_MessagesSquare` are a complete
+  // "message this business" handler that no button renders yet. Kept on purpose
+  // — wiring it up is a product decision, not cleanup — and underscore-prefixed
+  // because that is what eslint's no-unused-vars treats as intentionally unused.
+  // tsc is NOT part of that deal: `noUnusedLocals` exempts `_`-prefixed
+  // parameters but not locals, so it would flag `_messageProvider` regardless of
+  // the name. That flag is deliberately off in tsconfig.json for this reason —
+  // turning it on means wiring this handler up or deleting it.
+  const [_messaging, setMessaging] = useState(false);
 
   // Open (or resume) the client's thread with this business, then jump to it.
-  async function messageProvider() {
+  async function _messageProvider() {
     if (!activeProvider) return;
     setMessaging(true);
     try {

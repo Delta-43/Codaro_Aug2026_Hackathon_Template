@@ -83,7 +83,7 @@ export function todayStr(tz: string): string {
   return `${p.year}-${pad(p.month)}-${pad(p.day)}`;
 }
 
-export function startOfDayUtcIso(dateStr: string, tz: string): string {
+function startOfDayUtcIso(dateStr: string, tz: string): string {
   const c = parse(dateStr);
   return wallToUtc(c.y, c.m, c.d, 0, 0, tz).toISOString();
 }

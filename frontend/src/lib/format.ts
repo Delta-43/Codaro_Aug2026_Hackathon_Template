@@ -95,12 +95,12 @@ export function formatBookingWhen(startUtc: string, endUtc: string, timeZone: st
 }
 
 /** Hours from now until `iso` (negative if past). */
-export function hoursUntil(iso: string): number {
+function hoursUntil(iso: string): number {
   return (ms(iso) - Date.now()) / 3_600_000;
 }
 
 /** The moment change/cancel closes: `start - cutoffHours`. */
-export function cutoffInstant(startUtc: string, cutoffHours: number): string {
+function cutoffInstant(startUtc: string, cutoffHours: number): string {
   return new Date(ms(startUtc) - cutoffHours * 3_600_000).toISOString();
 }
 

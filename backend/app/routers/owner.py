@@ -326,7 +326,6 @@ def owner_dashboard(owner: AuthUser = Depends(require_owner)):
     else:
         delta_pct = 100 if this_month else 0
 
-    primary = scope.primary_provider()
     serialized_providers = scope.serialized_providers()
     primary_serialized = serialized_providers[0] if serialized_providers else None
 

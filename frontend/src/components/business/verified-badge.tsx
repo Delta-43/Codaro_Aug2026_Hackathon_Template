@@ -10,7 +10,7 @@ import { AvatarImg } from "@/components/avatar-img";
 import { BusinessArt } from "@/components/business/business-art";
 import { cn } from "@/lib/utils";
 
-export function VerifiedAvatar({
+function VerifiedAvatar({
   src,
   alt,
   size = "md",

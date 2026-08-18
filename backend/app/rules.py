@@ -6,9 +6,9 @@ never needs a refactor — just a new config key, a ~4-line validator and one
 registry entry. Deleting a key from the config disables its rule with no code
 change: that is the pivot story.
 
-Routers call :func:`apply_rules(event, ctx)` — never a validator directly —
-except :func:`check_cancellation_window` / :func:`check_capacity`, kept as
-thin wrappers because the tests and routers import them by name.
+Routers call :func:`apply_rules(event, ctx)` — never a validator directly.
+:func:`check_cancellation_window` / :func:`check_capacity` are thin wrappers
+kept for the test suite, which imports them by name; no router calls them.
 """
 from __future__ import annotations
 
