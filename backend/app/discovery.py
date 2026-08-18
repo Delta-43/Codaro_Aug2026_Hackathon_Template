@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from app.serialize import serialize_provider, serialize_resource, serialize_service
+from app.serialize import serialize_provider, serialize_service
 
 
 def review_aggregates(db) -> tuple[dict[str, float], dict[str, int]]:
