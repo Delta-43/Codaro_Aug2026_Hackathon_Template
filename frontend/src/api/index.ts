@@ -45,9 +45,8 @@ import { ApiError, type ApiErrorCode } from "@/api/errors";
 import { getAccessToken } from "@/lib/auth";
 
 export { ApiError, isApiError } from "@/api/errors";
-export type { ApiErrorCode } from "@/api/errors";
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
 type Query = Record<string, string | number | undefined | null>;
 
@@ -155,10 +154,9 @@ export async function getSearchFacets(): Promise<SearchFacets> {
  *  verbatim, so this reads a top-level key the backend never interprets. */
 export type Tenancy = { mode: "single" | "multi"; providerCode: string | null };
 
-/** Parse the tenancy block from a raw `/config` payload. Shared by the client
- *  seam (`getTenancy`) and the server-side root redirect (`app/page.tsx`) so the
- *  shape/parse lives in one place. Defaults to the multi-provider marketplace. */
-export function tenancyFromConfig(cfg: unknown): Tenancy {
+/** Parse the tenancy block from a raw `/config` payload, so the shape/parse
+ *  lives in one place. Defaults to the multi-provider marketplace. */
+function tenancyFromConfig(cfg: unknown): Tenancy {
   const t = (cfg as { tenancy?: { mode?: string; providerCode?: string } })?.tenancy ?? {};
   return {
     mode: t.mode === "single" ? "single" : "multi",
@@ -175,13 +173,13 @@ export async function getTenancy(): Promise<Tenancy> {
  *  hardcoded to Warsaw/km in `lib/geo.ts` before v2 of the config. `timezone` is
  *  the business's own zone, used as the availability fallback for a visitor who
  *  has not signed in (who previously always got UTC). */
-export type LocationConfig = {
+type LocationConfig = {
   origin: { city?: string; lat: number; lng: number } | null;
   distanceUnit: "km" | "mi";
   timezone: string;
 };
 
-export function locationFromConfig(cfg: unknown): LocationConfig {
+function locationFromConfig(cfg: unknown): LocationConfig {
   const l =
     (cfg as {
       location?: {
@@ -400,27 +398,6 @@ export function getMyProviders(): Promise<Provider[]> {
   return request("/providers/mine");
 }
 
-/** Owner analytics for one resource, computed server-side from occupancy +
- *  bookings (snake_case — it's an aggregate, not a domain entity). */
-export type ResourceAnalytics = {
-  total_slots: number;
-  total_capacity: number;
-  booked_count: number;
-  available_count: number;
-  occupancy_rate: number;
-  bookings_by_status: Record<string, number>;
-};
-
-export function getResourceAnalytics(id: ID): Promise<ResourceAnalytics> {
-  return request(`/resources/${id}/analytics`);
-}
-
-/** Bookings on one of the owner's resources — the standard Booking plus the
- *  client email (owner-only). `OwnerBooking` is defined in @/types/domain. */
-export function getResourceBookings(id: ID): Promise<OwnerBooking[]> {
-  return request(`/resources/${id}/bookings`);
-}
-
 // --- business-mode aggregation (the five owner tabs) -----------------------
 
 /** Dashboard: badge provider, the three glanceable numbers, this week's
@@ -475,27 +452,6 @@ export function getProviderReviews(id: ID, limit = 8): Promise<ProviderReview[]>
   return request(`/providers/${id}/reviews${qs({ limit })}`);
 }
 
-type ProviderInput = {
-  name: string;
-  publicCode?: string;
-  categoryId?: string;
-  tagline?: string;
-  bio?: string;
-  location?: { city: string; country: string; lat: number; lng: number };
-};
-
-export function createProvider(input: ProviderInput): Promise<Provider> {
-  return post("/providers", input) as Promise<Provider>;
-}
-
-export function updateProvider(id: ID, patchBody: Partial<ProviderInput>): Promise<Provider> {
-  return patch(`/providers/${id}`, patchBody) as Promise<Provider>;
-}
-
-export function deleteProvider(id: ID): Promise<void> {
-  return del(`/providers/${id}`) as Promise<void>;
-}
-
 /** Upload/replace a business's avatar image; returns the updated Provider. */
 export function uploadProviderAvatar(id: ID, file: File): Promise<Provider> {
   const form = new FormData();
@@ -541,55 +497,6 @@ export function updateService(
 
 export function deleteService(id: ID): Promise<void> {
   return del(`/services/${id}`) as Promise<void>;
-}
-
-export function createResource(input: {
-  serviceId: ID;
-  name: string;
-  description?: string;
-  capacity: number;
-  attributes?: { label: string; value: string }[];
-}): Promise<Resource> {
-  return post("/resources", {
-    name: input.name,
-    description: input.description,
-    metadata: {
-      service_id: input.serviceId,
-      capacity: input.capacity,
-      active: true,
-      attributes: input.attributes ?? [],
-    },
-  }) as Promise<Resource>;
-}
-
-/** Update a unit. `metadata` is merged server-side, so passing `{capacity}`
- *  alone is safe (owner_id / service_id are preserved). */
-export function updateResource(
-  id: ID,
-  patchBody: { name?: string; capacity?: number },
-): Promise<Resource> {
-  const body: { name?: string; metadata?: { capacity: number } } = {};
-  if (patchBody.name !== undefined) body.name = patchBody.name;
-  if (patchBody.capacity !== undefined) body.metadata = { capacity: patchBody.capacity };
-  return patch(`/resources/${id}`, body) as Promise<Resource>;
-}
-
-export function deleteResource(id: ID): Promise<void> {
-  return del(`/resources/${id}`) as Promise<void>;
-}
-
-/** Create one slot. `startsAt` is UTC ISO; the backend derives `ends_at` from
- *  the service's slot duration and defaults capacity from the resource. */
-export function createSlot(input: {
-  resourceId: ID;
-  startsAt: IsoUtc;
-  capacity?: number;
-}): Promise<unknown> {
-  return post("/slots", {
-    resource_id: input.resourceId,
-    starts_at: input.startsAt,
-    capacity: input.capacity,
-  });
 }
 
 // --- dev convenience -------------------------------------------------------

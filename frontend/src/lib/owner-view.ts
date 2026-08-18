@@ -7,7 +7,7 @@ import type { DemoBooking } from "@/lib/business-demo";
 import type { OwnerBooking } from "@/types/domain";
 
 /** The customer's short name from their email local-part (owner-only field). */
-export function clientName(email?: string): string {
+function clientName(email?: string): string {
   const local = (email || "").split("@")[0];
   return local || "Guest";
 }

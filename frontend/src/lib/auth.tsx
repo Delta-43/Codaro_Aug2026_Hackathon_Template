@@ -20,7 +20,7 @@ import { getSupabase, isAuthConfigured } from "@/lib/supabase";
  *  a hardcoded "Owner"/"Customer". Anything other than "owner" is a client. */
 export type EngineRole = "owner" | "client";
 
-export function roleOf(user: User | null | undefined): EngineRole {
+function roleOf(user: User | null | undefined): EngineRole {
   const raw =
     (user?.app_metadata as Record<string, unknown> | undefined)?.role ??
     (user?.user_metadata as Record<string, unknown> | undefined)?.role;
