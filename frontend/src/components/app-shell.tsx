@@ -12,7 +12,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { CalendarDays, CircleUser, Search, Store, Ticket, type LucideIcon } from "lucide-react";
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/context/app-context";
 import { AvatarImg } from "@/components/avatar-img";
@@ -40,7 +40,27 @@ function isActive(pathname: string, href: string): boolean {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, activeProvider, singleBusiness } = useApp();
+  const { user, ready, refreshUser, activeProvider, singleBusiness } = useApp();
+  const [retrying, setRetrying] = useState(false);
+
+  // AuthGate has already established a session, so a finished boot with no
+  // profile means `/me` failed. Boot degrades each leg independently rather than
+  // hanging, which is right — but every downstream surface then substitutes a
+  // default, and `user?.timezone ?? "UTC"` on the bookings, calendar and booking
+  // detail pages would render real appointment times in the wrong zone with
+  // nothing on screen to say so. Stop here instead, and offer a way out.
+  const profileFailed = ready && !user;
+
+  async function retryProfile() {
+    setRetrying(true);
+    try {
+      await refreshUser();
+    } catch {
+      /* still failing — stay on this screen so the retry remains available */
+    } finally {
+      setRetrying(false);
+    }
+  }
   const { signOut } = useAuth();
 
   // Single-business mode has no provider discovery: drop the Search tab and make
@@ -119,7 +139,22 @@ export function AppShell({ children }: { children: ReactNode }) {
         </span>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-2 md:px-6 md:pb-10">{children}</main>
+      <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-2 md:px-6 md:pb-10">
+        {profileFailed ? (
+          <div className="mt-10 rounded-xl border border-border bg-card p-6 text-center">
+            <h1 className="text-base font-semibold">We couldn&apos;t load your profile</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              You&apos;re signed in, but your account details didn&apos;t load. Times and
+              bookings are hidden rather than shown in the wrong timezone.
+            </p>
+            <Button className="mt-4" onPress={retryProfile} isDisabled={retrying}>
+              {retrying ? "Retrying…" : "Try again"}
+            </Button>
+          </div>
+        ) : (
+          children
+        )}
+      </main>
 
       {/* Mobile bottom tab bar */}
       <nav
