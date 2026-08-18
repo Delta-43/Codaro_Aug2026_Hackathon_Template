@@ -9,7 +9,13 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 from app import discovery
 from app.auth import AuthUser, enforce_rls_write, optional_user, require_owner, require_user
 from app.avatars import remove_avatar, store_avatar
-from app.db import UNIQUE_VIOLATION_CODE, get_supabase, get_user_client, maybe_row
+from app.db import (
+    RLS_DENIED_CODE,
+    UNIQUE_VIOLATION_CODE,
+    get_supabase,
+    get_user_client,
+    maybe_row,
+)
 from app.config import get_config
 from app.errors import NOT_FOUND, VALIDATION_ERROR, api_error
 from app.meta import merged_metadata
@@ -328,15 +334,30 @@ def follow_provider(provider_id: str, user: AuthUser = Depends(require_user)):
     if maybe_row(get_supabase().table("providers").select("id").eq("id", provider_id)) is None:
         raise api_error(NOT_FOUND, "That provider no longer exists.")
     try:
-        get_user_client(user.token).table("follows").insert(
-            {"user_id": user.id, "provider_id": provider_id}
-        ).execute()
-    except Exception as exc:  # noqa: BLE001 - re-raised unless it is the PK conflict
-        # Only "already following" is benign. Swallowing everything reported a
-        # 200 for an RLS denial or a dropped connection, so the button flipped to
-        # "Following" for a row that was never written.
-        if getattr(exc, "code", None) != UNIQUE_VIOLATION_CODE:
-            raise
+        inserted = (
+            get_user_client(user.token)
+            .table("follows")
+            .insert({"user_id": user.id, "provider_id": provider_id})
+            .execute()
+            .data
+        )
+    except Exception as exc:  # noqa: BLE001 - narrowed by code below
+        code = getattr(exc, "code", None)
+        if code == UNIQUE_VIOLATION_CODE:
+            return load_user(user)  # already following; follow is idempotent
+        if code == RLS_DENIED_CODE:
+            # The raising form of an RLS refusal. Give it the same 403 as the
+            # empty-result form below, rather than letting a postgrest APIError
+            # escape as a bare 500 with no envelope.
+            raise HTTPException(
+                403, "Not permitted: row-level security denied this follow write."
+            ) from exc
+        raise
+    # RLS can also refuse by returning no rows instead of raising, which is what
+    # every other write in this codebase guards with `enforce_rls_write`. Without
+    # it the endpoint returned 200 and the button flipped to "Following" for a
+    # row that was never written.
+    enforce_rls_write(inserted, entity="follow")
     return load_user(user)
 
 

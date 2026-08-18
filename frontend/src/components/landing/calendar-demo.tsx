@@ -30,6 +30,8 @@ const TZ = "Europe/Warsaw";
 type Zoom = "Month" | "Week" | "Day";
 
 const SERVICE: Service = {
+  // Landing-page fixture: nothing is disabled, so an empty block reads as ON.
+  capabilities: {},
   id: "svc-demo",
   providerId: "prov-demo",
   name: "Demo service",

@@ -35,10 +35,14 @@ const STATUS_CLASS: Record<DemoBooking["status"], string> = {
 };
 
 export default function CalendarPage() {
-  const { ready, vocab, capability } = useOwner();
+  const { ready, vocab } = useOwner();
   const router = useRouter();
   const tz = browserTz();
   const [raw, setRaw] = useState<OwnerBooking[]>([]);
+  // serviceId -> whether reviews are on for THAT service. The routers gate
+  // `capability("reviews", service)` per service, so the global block is not
+  // enough to decide whether this control would 404.
+  const [reviewsByService, setReviewsByService] = useState<Record<string, boolean>>({});
   const [names, setNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<DemoBooking | null>(null);
@@ -70,12 +74,20 @@ export default function CalendarPage() {
       if (cancel) return;
       setRaw(bookings);
       setNames(Object.fromEntries(services.map((s) => [s.id, s.name])));
+      setReviewsByService(
+        Object.fromEntries(services.map((s) => [s.id, s.capabilities.reviews !== false])),
+      );
       setLoading(false);
     });
     return () => {
       cancel = true;
     };
   }, []);
+
+  const reviewable = useMemo(
+    () => Object.fromEntries(raw.map((b) => [b.id, reviewsByService[b.serviceId] !== false])),
+    [raw, reviewsByService],
+  );
 
   const bookings = useMemo(
     () => raw.filter((b) => !cancelled.has(b.id)).map((b) => ownerBookingToCal(b, names[b.serviceId])),
@@ -156,7 +168,7 @@ export default function CalendarPage() {
                 Cancel booking
               </Button>
             </div>
-            {selected.status === "completed" && capability("reviews") ? (
+            {selected.status === "completed" && reviewable[selected.id] ? (
               <RateClient bookingId={selected.id} clientName={selected.client} />
             ) : null}
 

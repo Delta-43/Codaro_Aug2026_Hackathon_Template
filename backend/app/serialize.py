@@ -26,6 +26,7 @@ from typing import Any, Iterable, Optional
 from app.clock import now_utc
 from app.rules import (
     effective_auto_approve,
+    effective_service_config,
     effective_service_pricing,
     effective_service_rules,
 )
@@ -195,6 +196,11 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
         # from a `timing.confirmation` override reported `autoApprove: true` on the
         # wire while actually creating pending bookings.
         "autoApprove": effective_auto_approve(row),
+        # Resolved per service, because `capabilities` is in OVERRIDABLE_BLOCKS
+        # and the routers gate on `capability(name, service)`. Serving only the
+        # global block over /config left the client unable to see a per-service
+        # override, so it rendered a review control the API then refused.
+        "capabilities": effective_service_config(row)["capabilities"],
         "resourceIds": list(resource_ids),
     }
 

@@ -199,9 +199,6 @@ function locationFromConfig(cfg: unknown): LocationConfig {
   };
 }
 
-/** Everything `AppProvider` needs from the pivot file, in ONE request. Boot used
- *  to call `/config` for tenancy alone; this keeps the round-trip count the same
- *  while also picking up the location block. */
 /** The on/off spine from the pivot file. A false capability must hide the UI
  *  surface AND make the backend refuse the write — the backend half was wired
  *  first, so the client read none of this and showed surfaces that 404'd.
@@ -217,6 +214,9 @@ function capabilitiesFromConfig(cfg: unknown): Capabilities {
   return out;
 }
 
+/** Everything `AppProvider` needs from the pivot file, in ONE request. Boot used
+ *  to call `/config` for tenancy alone; this keeps the round-trip count the same
+ *  while also picking up the location block. */
 export type PivotConfig = {
   tenancy: Tenancy;
   location: LocationConfig;

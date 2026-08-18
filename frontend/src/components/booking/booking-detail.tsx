@@ -43,7 +43,7 @@ export function BookingDetail({
   resourceName: string;
   tz: string;
 }) {
-  const { vertical, capability } = useApp();
+  const { vertical } = useApp();
   const [booking, setBooking] = useState<Booking>(initial);
   const [mode, setMode] = useState<"detail" | "reschedule">("detail");
   const [cancelOpen, setCancelOpen] = useState(false);
@@ -202,8 +202,9 @@ export function BookingDetail({
       ) : null}
 
       {/* Review (completed only, and only where reviews are enabled — the
-          backend refuses the write, so showing this would 404 on submit) */}
-      {booking.status === "completed" && capability("reviews") ? (
+          backend refuses the write, so showing this would 404 on submit).
+          Read off THIS service, not the global block: the gate is per service. */}
+      {booking.status === "completed" && service.capabilities.reviews !== false ? (
         <div className="mt-6">
           <ReviewForm booking={booking} tz={tz} onReviewed={setBooking} />
         </div>

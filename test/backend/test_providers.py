@@ -130,6 +130,41 @@ def test_follow_is_idempotent(client, db, auth):
     assert second["followedProviderIds"].count(p["id"]) == 1
 
 
+def test_follow_reports_403_when_rls_drops_the_write(client, db, auth, monkeypatch):
+    """RLS refuses a write in two shapes: it raises, or it returns no rows. Only
+    the raising one was handled, so a silently-dropped insert still returned 200
+    and the UI showed "Following" for a row that was never written. Every other
+    write in the codebase guards the empty-result form with `enforce_rls_write`."""
+    auth(role="client")
+    p = make_provider(db, "P")
+
+    real_table = db.table
+
+    def _empty_insert(name):
+        builder = real_table(name)
+        if name == "follows":
+            real_insert = builder.insert
+
+            def _insert(*args, **kwargs):
+                q = real_insert(*args, **kwargs)
+                real_execute = q.execute
+
+                def _execute():
+                    resp = real_execute()
+                    resp.data = []  # RLS filtered the returned representation
+                    return resp
+
+                q.execute = _execute
+                return q
+
+            builder.insert = _insert
+        return builder
+
+    monkeypatch.setattr(db, "table", _empty_insert)
+    resp = client.post(f"/providers/{p['id']}/follow")
+    assert resp.status_code == 403
+
+
 def test_follow_unknown_provider_is_404(client, db, auth):
     auth(role="client")
     assert client.post("/providers/nope/follow").status_code == 404

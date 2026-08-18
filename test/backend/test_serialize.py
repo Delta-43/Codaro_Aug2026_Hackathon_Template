@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 import pytest
 
 from app import serialize as S
-from app.rules import effective_auto_approve
+from app.rules import capability, effective_auto_approve
 
 # A fixed "now" so the time-dependent ladders are deterministic.
 NOW = datetime(2026, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
@@ -297,6 +297,7 @@ SERVICE_KEYS = {
     "currency",
     "cancellationCutoffHours",
     "autoApprove",
+    "capabilities",
     "resourceIds",
 }
 
@@ -369,6 +370,26 @@ def test_service_auto_approve_key_still_wins_over_a_confirmation_override():
     row = _service_row()
     row["metadata"] = {"timing": {"confirmation": "request_approve"}, "auto_approve": True}
     assert S.serialize_service(row)["autoApprove"] is True
+
+
+def test_service_capabilities_are_resolved_per_service_not_global():
+    """The routers gate `capability(name, service)`, which resolves a service's
+    own `metadata.capabilities` over the global block. Serving only the global
+    block left the client unable to see a per-service override, so it rendered a
+    review control the API then refused with a 404."""
+    row = _service_row()
+    row["metadata"] = {"capabilities": {"reviews": False}}
+    out = S.serialize_service(row)
+    assert out["capabilities"]["reviews"] is False
+    # and it agrees with the gate the router actually applies
+    assert capability("reviews", row) is False
+
+
+def test_service_capabilities_fall_back_to_the_global_block():
+    row = _service_row()
+    row["metadata"] = {}
+    assert S.serialize_service(row)["capabilities"]["reviews"] is True
+    assert capability("reviews", row) is True
 
 
 def test_service_auto_approve_follows_the_global_confirmation_mode(domain_config):
