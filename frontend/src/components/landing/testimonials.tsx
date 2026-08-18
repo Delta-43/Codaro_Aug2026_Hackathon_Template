@@ -50,8 +50,23 @@ const REVIEWS: Review[] = [
     message:
       "service.com is amazing because I really like programming, crocs and also my hackathon group, yayyy",
   },
-  { kind: "placeholder" },
-  { kind: "placeholder" },
+  {
+    kind: "review",
+    name: "Debadeep Chaudhury",
+    role: "Software Engineer",
+    initials: "DC",
+    rating: 5,
+    message: "Dis da bomb",
+  },
+  {
+    kind: "review",
+    name: "Peter P.",
+    role: "Had a life",
+    initials: "PP",
+    rating: 5,
+    message:
+      "service.com changed everything about my life — it optimized our booking rates to 300% 📈. Now I don't need to sleep 😴 because I have to serve my customers 😤",
+  },
 ];
 
 export function Testimonials() {

@@ -109,6 +109,11 @@ export function SceneBackground() {
           animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
           animation-iteration-count: infinite;
           animation-direction: alternate;
+          /* Adopt the dim first-keyframe state during animation-delay, so a
+             curtain doesn't flash at full base brightness for its delay (up
+             to 3s) right after switching into dark mode. */
+          animation-fill-mode: backwards;
+          opacity: .28;
         }
         /* Gentler, more organic drift — small skew, soft opacity breathing */
         @keyframes landing-curtain-wave {

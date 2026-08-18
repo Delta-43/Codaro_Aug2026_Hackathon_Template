@@ -49,9 +49,11 @@ export function NavBar({ authed }: { authed: boolean }) {
   return (
     <nav className="fixed inset-x-0 top-4 z-50 flex justify-center px-4">
       <div className="flex w-full max-w-3xl items-center gap-2 rounded-full border border-border/60 bg-background/70 px-3 py-2 shadow-sm backdrop-blur-xl">
+        {/* Logo hidden on mobile — the nav pill is too tight there once the
+            scroll chevrons + links + Login are in. Shows from md up. */}
         <Link
           href="/"
-          className="inline-block shrink-0 origin-left px-2 text-sm font-semibold tracking-tight text-foreground transition-transform duration-200 ease-out hover:scale-110"
+          className="hidden shrink-0 origin-left px-2 text-sm font-semibold tracking-tight text-foreground transition-transform duration-200 ease-out hover:scale-110 md:inline-block"
         >
           service<span className="text-primary">.com</span>
         </Link>
