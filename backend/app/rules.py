@@ -12,6 +12,7 @@ thin wrappers because the tests and routers import them by name.
 """
 from __future__ import annotations
 
+import copy as _copy
 from datetime import datetime, timedelta, timezone
 
 from app.config import get_config
@@ -66,6 +67,18 @@ def _advance_window(days, ctx) -> None:
         )
 
 
+def _lead_time(minutes, ctx) -> None:
+    """Minimum notice: reject a booking made fewer than `minutes` before the
+    start. 0 disables it, same convention as bufferMinutes."""
+    if not minutes:
+        return
+    starts_at = parse_ts(ctx["slot_starts_at"])
+    if starts_at - datetime.now(timezone.utc) < timedelta(minutes=minutes):
+        raise RuleViolation(
+            f"This {_term('slot').lower()} needs at least {minutes} minutes' notice."
+        )
+
+
 def _buffer(minutes, ctx) -> None:
     """Reject a slot that overlaps another slot of the same resource once each
     is padded by ``bufferMinutes`` on both sides."""
@@ -86,20 +99,49 @@ def _buffer(minutes, ctx) -> None:
 
 # -- registry: event -> {config key -> validator} ------------------------
 
+# Events a router may dispatch. An event with an empty map is a live extension
+# point: adding `"someNewKey": _some_validator` here plus the key under `timing`
+# in domain.config.json makes the rule enforce, and deleting the config key
+# disables it again — no router change either way. That is the escape hatch the
+# README promises, and it is why this registry exists rather than a pile of ifs.
+#
+# `advanceBookingWindowDays` is registered but deliberately NOT dispatched: the
+# demo seed lays down slots 56 days out (seed_data.py grids) while the shipped
+# config allows 30, so enforcing it today would make half the seeded calendar
+# unbookable. Wire it once the seed horizon and the config agree.
 RULES = {
-    "booking.create": {
-        "maxBookingsPerSlot": _capacity,
-        "advanceBookingWindowDays": _advance_window,
-    },
+    "booking.create": {"leadTimeMinutes": _lead_time},
     "booking.change": {"cancellationWindowHours": _cancellation_window},
+    "booking.approve": {},
+    "booking.cancel": {},
     "slot.create": {"bufferMinutes": _buffer},
+    "inventory.reserve": {},
+    "inventory.return": {},
+    "payment.due": {},
+}
+
+# Registered, not dispatched.
+#
+# `advanceBookingWindowDays`: see the note above (56-day seed vs 30-day config).
+# `maxBookingsPerSlot`: capacity is enforced upstream by `_resolve_selection` +
+# the `slot_occupancy` view, which understand party size and multi-slot holds.
+# Dispatching `_capacity` here as well would re-apply `min(capacity, maxPerSlot)`
+# and cap every shared-capacity slot at the global default of 1, breaking group
+# bookings. The validator stays for `check_capacity()` and its tests.
+UNDISPATCHED = {
+    "advanceBookingWindowDays": _advance_window,
+    "maxBookingsPerSlot": _capacity,
 }
 
 
 def apply_rules(event: str, ctx: dict) -> None:
     """Run every configured validator for ``event``. Absent/None config keys
-    are skipped gracefully — deleting a key disables its rule."""
-    configured = get_config().get("rules", {})
+    are skipped gracefully — deleting a key disables its rule.
+
+    Reads `timing` (the v2 home of these numbers). `config_schema.normalize`
+    mirrors the same values into the deprecated `rules` block, so a v1 config
+    file resolves identically."""
+    configured = get_config().get("timing", {})
     for key, validator in RULES.get(event, {}).items():
         if configured.get(key) is not None:
             validator(configured[key], ctx)
@@ -110,14 +152,14 @@ def apply_rules(event: str, ctx: dict) -> None:
 
 def check_cancellation_window(slot_starts_at: str | datetime) -> None:
     _cancellation_window(
-        get_config()["rules"]["cancellationWindowHours"],
+        get_config()["timing"]["cancellationWindowHours"],
         {"slot_starts_at": slot_starts_at},
     )
 
 
 def check_capacity(booked_count: int, capacity: int) -> None:
     _capacity(
-        get_config()["rules"]["maxBookingsPerSlot"],
+        get_config()["timing"]["maxBookingsPerSlot"],
         {"booked_count": booked_count, "capacity": capacity},
     )
 
@@ -131,16 +173,59 @@ def check_capacity(booked_count: int, capacity: int) -> None:
 # rules". This is the single place that merge happens; routers read the resolved
 # dict, never raw service columns, so the fallback behaviour lives in one spot.
 
-# service column -> (global config key or None, hard default)
+# resolved name -> (service column, dotted config path or None, hard default)
+#
+# v1 could only point at a key inside `rules`, which is why price, currency and
+# min/max slots had no config path at all. Paths are now dotted and resolved
+# against the whole config, so every one of these has a global default a pivot
+# can set. The service column still wins where it is set.
 _SERVICE_RULE_MAP = {
-    "slotDurationMinutes": ("slot_duration_minutes", "slotDurationMinutes", 30),
-    "cancellationCutoffHours": ("cancellation_cutoff_hours", "cancellationWindowHours", 24),
-    "minSlotsPerBooking": ("min_slots_per_booking", None, 1),
-    "maxSlotsPerBooking": ("max_slots_per_booking", None, 1),
-    "priceMinorUnits": ("price_minor_units", None, 0),
-    "currency": ("currency", None, "EUR"),
+    "slotDurationMinutes": ("slot_duration_minutes", "timing.slotDurationMinutes", 30),
+    "cancellationCutoffHours": ("cancellation_cutoff_hours", "timing.cancellationWindowHours", 24),
+    "minSlotsPerBooking": ("min_slots_per_booking", "booking.duration.minUnits", 1),
+    "maxSlotsPerBooking": ("max_slots_per_booking", "booking.duration.maxUnits", 1),
+    "priceMinorUnits": ("price_minor_units", "pricing.rate.amountMinorUnits", 0),
+    "currency": ("currency", "pricing.currency", "EUR"),
     "bookingModel": ("booking_model", None, "one_to_one"),
 }
+
+# The v2 blocks a service may override wholesale via `services.metadata.<block>`.
+# `terms`/`copy`/`theme` are deliberately absent: presentation stays global for
+# now (per-service vocabulary is a frontend change, not a backend one).
+OVERRIDABLE_BLOCKS = (
+    "booking",
+    "pricing",
+    "payments",
+    "inventory",
+    "location",
+    "timing",
+    "recurrence",
+    "entitlements",
+    "capabilities",
+)
+
+
+def _dig(tree: dict, path: str):
+    """Resolve a dotted path, returning None if any hop is missing."""
+    node = tree
+    for part in path.split("."):
+        if not isinstance(node, dict) or part not in node:
+            return None
+        node = node[part]
+    return node
+
+
+def _merge(base: dict, override) -> dict:
+    """Deep-merge `override` onto a copy of `base`. Lists replace wholesale."""
+    out = _copy.deepcopy(base)
+    if not isinstance(override, dict):
+        return out
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(out.get(key), dict):
+            out[key] = _merge(out[key], value)
+        else:
+            out[key] = value
+    return out
 
 
 def effective_service_rules(service: dict | None) -> dict:
@@ -148,14 +233,64 @@ def effective_service_rules(service: dict | None) -> dict:
     `domain.config.json` default, else a hard fallback. Keys are the frontend's
     camelCase names."""
     svc = service or {}
-    g = get_config().get("rules", {})
+    cfg = get_config()
     out: dict = {}
-    for name, (col, global_key, default) in _SERVICE_RULE_MAP.items():
+    for name, (col, path, default) in _SERVICE_RULE_MAP.items():
         value = svc.get(col)
-        if value is None and global_key is not None:
-            value = g.get(global_key)
+        if value is None and path is not None:
+            value = _dig(cfg, path)
         out[name] = value if value is not None else default
     return out
+
+
+def effective_service_config(service: dict | None) -> dict:
+    """The full v2 config as it applies to ONE service.
+
+    Same precedence idea as `effective_service_rules`, lifted from single keys to
+    whole blocks: `services.metadata.<block>` deep-merges over the global block.
+    This is what makes a marketplace work — two businesses on the same deployment
+    can price, gate and schedule completely differently without either of them
+    touching `domain.config.json`.
+    """
+    cfg = get_config()
+    metadata = (service or {}).get("metadata") or {}
+    resolved = {}
+    for block in OVERRIDABLE_BLOCKS:
+        resolved[block] = _merge(cfg.get(block) or {}, metadata.get(block))
+    return resolved
+
+
+def effective_service_pricing(service: dict | None) -> dict:
+    """The `pricing` block for one service, with the legacy columns folded in.
+
+    `services.price_minor_units` / `.currency` remain the source of truth for a
+    service that has not opted into a richer model, so an un-pivoted deployment
+    prices exactly as it did before. An explicit `services.metadata.pricing`
+    overrides them.
+    """
+    svc = service or {}
+    pricing = effective_service_config(svc)["pricing"]
+    declared = ((svc.get("metadata") or {}).get("pricing")) or {}
+
+    if _dig(declared, "rate.amountMinorUnits") is None and svc.get("price_minor_units") is not None:
+        pricing["rate"] = {**pricing.get("rate", {}), "amountMinorUnits": svc["price_minor_units"]}
+    if declared.get("currency") is None and svc.get("currency"):
+        pricing["currency"] = svc["currency"]
+    return pricing
+
+
+def effective_auto_approve(service: dict | None) -> bool:
+    """Whether a new booking confirms immediately or lands as a pending request.
+
+    `services.metadata.auto_approve` still wins (it is what the owner's toggle
+    writes); `timing.confirmation` supplies the default, so a niche whose whole
+    model is request-then-approve sets it once in the pivot file instead of on
+    every service.
+    """
+    metadata = (service or {}).get("metadata") or {}
+    if "auto_approve" in metadata:
+        return bool(metadata["auto_approve"])
+    return effective_service_config(service)["timing"].get("confirmation") != "request_approve"
 
 
 def within_cutoff(slot_starts_at: str | datetime, cutoff_hours, now: datetime | None = None) -> bool:

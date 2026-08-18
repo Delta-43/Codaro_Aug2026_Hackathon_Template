@@ -2,12 +2,15 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import discovery
-from app.config import clear_config_cache, get_config
+from app.auth import AuthUser, require_owner
+from app.config import clear_config_cache, get_config, load_config
+from app.config_schema import ConfigError
 from app.db import get_supabase
+from app.errors import VALIDATION_ERROR, api_error
 from app.routers import (
     availability,
     bookings,
@@ -85,15 +88,22 @@ def _config_with_facets() -> dict:
         derived = discovery.search_facets(get_supabase())
     except Exception:
         derived = {"price": True, "distance": True, "rating": True}
-    existing = cfg.get("search") if isinstance(cfg.get("search"), dict) else {}
+    existing = cfg.get("discovery") if isinstance(cfg.get("discovery"), dict) else {}
     declared = existing.get("facets") if isinstance(existing.get("facets"), dict) else {}
     # A hand-edited config could set a facet to any value; coerce to a bool so a
     # typo can't 500 /config. Only an explicit `false` forces a facet off.
-    facets = {
+    resolved = {
         key: bool(value) and declared.get(key, True) is not False
         for key, value in derived.items()
     }
-    return {**cfg, "search": {**existing, "facets": facets}}
+    # `discovery.facets` carries the v2 set (it also declares `availability` and
+    # `unitKind`, which derivation has no opinion on); `search.facets` keeps the
+    # three-key v1 shape so an older client never sees a facet it can't render.
+    return {
+        **cfg,
+        "discovery": {**existing, "facets": {**declared, **resolved}},
+        "search": {**(cfg.get("search") or {}), "facets": resolved},
+    }
 
 
 @app.get("/config")
@@ -102,7 +112,18 @@ def config():
 
 
 @app.post("/config/reload")
-def reload_config():
-    """Instant pivot: drop the cached config and return the fresh file."""
+def reload_config(owner: AuthUser = Depends(require_owner)):
+    """Instant pivot: drop the cached config and return the fresh file.
+
+    Two changes from v1. It is **owner-gated** — this is a control-plane endpoint
+    that re-reads a file off disk, and it was open to anyone. And the fresh file
+    is parsed and validated *before* the good cache is dropped, so a typo made
+    mid-pivot returns a 422 listing every problem instead of swapping a broken
+    config into a running app.
+    """
+    try:
+        load_config()
+    except ConfigError as e:
+        raise api_error(VALIDATION_ERROR, str(e), status=422)
     clear_config_cache()
     return _config_with_facets()

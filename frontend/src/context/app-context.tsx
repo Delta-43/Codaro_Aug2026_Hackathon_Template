@@ -24,13 +24,14 @@ import {
   getActiveVertical,
   getCurrentUser,
   getProviderByCode,
-  getTenancy,
+  getPivotConfig,
   resetDemoData as apiResetDemoData,
   searchProviders,
   setVertical as apiSetVertical,
-  type Tenancy,
+  type PivotConfig,
 } from "@/api";
 import { DEFAULT_VERTICAL, getVertical, type VerticalConfig } from "@/config/verticals";
+import { setGeoSettings } from "@/lib/geo";
 
 interface AppContextValue {
   /** False until the first user/vertical fetch resolves. */
@@ -117,16 +118,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      // getTenancy must not gate boot: if /config is unreachable, degrade to the
-      // multi-provider marketplace rather than hanging on the not-ready state.
-      const [vid, u, tenancy] = await Promise.all([
+      // The pivot config must not gate boot: if /config is unreachable, degrade to
+      // the multi-provider marketplace (and default geo) rather than hanging on the
+      // not-ready state.
+      const [vid, u, pivot] = await Promise.all([
         getActiveVertical(),
         getCurrentUser(),
-        getTenancy().catch((): Tenancy => ({ mode: "multi", providerCode: null })),
+        getPivotConfig().catch(
+          (): PivotConfig => ({
+            tenancy: { mode: "multi", providerCode: null },
+            location: { origin: null, distanceUnit: "km", timezone: "UTC" },
+          }),
+        ),
       ]);
       if (cancelled) return;
       setVerticalId(vid);
       setUserState(u);
+      // Distances render from the pivot file's origin/unit, not a hardcoded city.
+      setGeoSettings(pivot.location);
+      const { tenancy } = pivot;
       const single = tenancy.mode === "single";
       setSingleBusiness(single);
       setSoleProviderCode(tenancy.providerCode);

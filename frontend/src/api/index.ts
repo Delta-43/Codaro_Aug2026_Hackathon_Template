@@ -168,6 +168,47 @@ export async function getTenancy(): Promise<Tenancy> {
   return tenancyFromConfig(await request<unknown>("/config"));
 }
 
+/** The pivot's location settings. `origin` is the point search distances are
+ *  measured from and `distanceUnit` the unit they render in — both were
+ *  hardcoded to Warsaw/km in `lib/geo.ts` before v2 of the config. `timezone` is
+ *  the business's own zone, used as the availability fallback for a visitor who
+ *  has not signed in (who previously always got UTC). */
+export type LocationConfig = {
+  origin: { city?: string; lat: number; lng: number } | null;
+  distanceUnit: "km" | "mi";
+  timezone: string;
+};
+
+export function locationFromConfig(cfg: unknown): LocationConfig {
+  const l =
+    (cfg as {
+      location?: {
+        origin?: { city?: string; lat?: number; lng?: number } | null;
+        distanceUnit?: string;
+        timezone?: string;
+      };
+    })?.location ?? {};
+  const o = l.origin;
+  return {
+    origin:
+      o && typeof o.lat === "number" && typeof o.lng === "number"
+        ? { city: o.city, lat: o.lat, lng: o.lng }
+        : null,
+    distanceUnit: l.distanceUnit === "mi" ? "mi" : "km",
+    timezone: l.timezone || "UTC",
+  };
+}
+
+/** Everything `AppProvider` needs from the pivot file, in ONE request. Boot used
+ *  to call `/config` for tenancy alone; this keeps the round-trip count the same
+ *  while also picking up the location block. */
+export type PivotConfig = { tenancy: Tenancy; location: LocationConfig };
+
+export async function getPivotConfig(): Promise<PivotConfig> {
+  const cfg = await request<unknown>("/config");
+  return { tenancy: tenancyFromConfig(cfg), location: locationFromConfig(cfg) };
+}
+
 // --- discovery -------------------------------------------------------------
 
 export function searchProviders(q: {

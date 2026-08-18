@@ -20,7 +20,7 @@ import { ProviderCard } from "@/components/search/provider-card";
 import { ProviderPreview } from "@/components/search/provider-preview";
 import { CodeModal } from "@/components/search/code-modal";
 import { FilterSheet } from "@/components/search/filter-sheet";
-import { distanceKm, REFERENCE_LOCATION } from "@/lib/geo";
+import { distanceKm, geoOrigin } from "@/lib/geo";
 import { ORDER_KEYS, ORDER_META, type OrderKey, type SortDir } from "@/lib/order-by";
 import { cn } from "@/lib/utils";
 
@@ -100,7 +100,7 @@ export default function SearchPage() {
     const prices = all
       .map((p) => p.priceFromMinorUnits)
       .filter((v): v is number => v != null);
-    const dists = all.map((p) => distanceKm(REFERENCE_LOCATION, p.location));
+    const dists = all.map((p) => distanceKm(geoOrigin(), p.location));
     const priceLo = prices.length ? Math.min(...prices) : 0;
     const priceHi = prices.length ? Math.max(...prices) : 0;
     return {
@@ -125,7 +125,7 @@ export default function SearchPage() {
       if (minRating > 0 && p.rating < minRating) return false;
       if (maxPrice != null && (p.priceFromMinorUnits == null || p.priceFromMinorUnits > maxPrice))
         return false;
-      if (maxDist != null && distanceKm(REFERENCE_LOCATION, p.location) > maxDist) return false;
+      if (maxDist != null && distanceKm(geoOrigin(), p.location) > maxDist) return false;
       return true;
     });
     return list.sort((a, b) => {

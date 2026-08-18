@@ -29,9 +29,12 @@ test/
     test_serialize.py       # serialize.py: every serializer's key set; slot/booking status; iso_utc
     test_resolve_selection.py  # bookings._resolve_selection: all branches -> ApiError code
     test_errors.py          # errors.api_error status/code mapping
-    test_rules.py           # rules.py: window/capacity + effective_service_rules + within_cutoff
+    test_rules.py           # rules.py: window/capacity + effective_service_rules/config/pricing
+                            #   + effective_auto_approve + within_cutoff
+    test_config_schema.py   # config_schema: normalize (defaults, v1 aliasing) + validate
+    test_pricing.py         # pricing.quote/match_tier: v1 parity, periods, tiers, fees, caps, deposit
     # --- integration tests (real endpoints, fake Supabase, stubbed auth) ---
-    test_health_config.py   # /health, /config, config-pivot behaviour
+    test_health_config.py   # /health, /config (normalized tree), owner-gated /config/reload
     test_resources.py       # /resources reads + owner CRUD + analytics (owner-scoped) + /{id}/bookings
     test_slots.py           # /slots + /slots/occupancy + owner CRUD + buffer rule
     test_bookings.py        # create/list(scope)/get/reschedule/cancel/review + cutoff/capacity
@@ -154,7 +157,10 @@ path the UI calls exists on the FastAPI app (method-aware) and that the
 - Rule values come from a per-test copy of the config: use the
   `domain_config(rules={...})` fixture to prove behaviour is config-driven,
   and `use_real_config` to assert against the repo's actual
-  `domain.config.json`.
+  `domain.config.json`. The fixture writes a **raw** file, so it goes through
+  `config_schema.normalize()` + `validate()` on load — a section it sets must be
+  a *valid* config, and `domain_config()` returns the raw dict, not the resolved
+  tree (wrap it in `normalize()` when you need the resolved one).
 - This directory must not modify anything outside `test/`.
 
 ## Coverage target (from the README's Track B checklist)
@@ -176,9 +182,209 @@ path the UI calls exists on the FastAPI app (method-aware) and that the
 
 ## Current state
 
-`python -m pytest test/backend -q` from the repo root: **335 passed**
-(0 failures, 0 xfail). `python -m pytest test/` adds the 8 live e2e tests, which
-skip without `SUPABASE_URL`/`SUPABASE_ANON_KEY`.
+`python -m pytest test/backend -q` from the repo root: **792 passed**
+(0 failures, **no xfails left**). `python -m pytest test/` adds the 8 live e2e
+tests, which skip without `SUPABASE_URL`/`SUPABASE_ANON_KEY`.
+
+The former `strict=True` xfail pair (`config_schema._enum` raising `TypeError`
+on an unhashable value) is **gone**: `_enum` now type-guards
+(`isinstance(value, (dict, list, set, bytearray)) or value not in allowed`), so
+those cases are asserted as real behaviour instead of pinned as a gap — see
+"Enum type-guard + distanceBand shape checks" below.
+
+## Domain config v2 coverage
+
+v2 (`backend/app/config_schema.py` + `backend/app/pricing.py`) made three
+deliberate contract changes; the suite was updated to reflect them rather than
+to preserve the old assertions.
+
+1. **`/config` serves the NORMALIZED tree, not the file verbatim.**
+   `test_health_config.py` no longer asserts dict equality against the raw file.
+   `test_config_serves_the_normalized_tree_of_the_file_it_was_pointed_at` walks
+   the declared file recursively and asserts every value *survives*
+   normalization (normalization may only add defaults), plus that every
+   `DEFAULTS` block got filled in for the v1 fixture.
+   `test_repo_config_endpoint_matches_the_file_on_disk` compares against
+   `normalize(json.load(file))` with the derived `search`/`discovery` facet maps
+   stripped from both sides, and a sibling test pins that `domain.config.json`
+   is a **normalize fixpoint** (so the file an operator reads is exactly what
+   the engine resolves).
+2. **`POST /config/reload` is owner-gated and validates before swapping.**
+   The two reload tests now take the `auth` fixture and run `auth(role="owner")`.
+   New: 401 with no token, 403 for a signed-in client, 200 for an owner, and a
+   422 `VALIDATION_ERROR` for a broken file — asserting every problem is listed
+   at once AND that the previously cached good config is still served afterwards
+   (a bad file must not take the app down). Malformed JSON is a 422 too, not a 500.
+3. **`maxBookingsPerSlot: 0` is now an invalid config.** The parametrized
+   `test_capacity_uses_min_of_row_capacity_and_config` case that wrote 0 into a
+   config file was split in two: one test calls `config_schema.validate` directly
+   to prove 0 is rejected at load, the other calls the `rules._capacity`
+   validator directly to keep pinning the `min(capacity, max_per_slot)`
+   arithmetic without an unloadable file.
+
+New coverage added for v2:
+
+- **`test_config_schema.py`** (217 tests) — `normalize`: a v1-only file resolves
+  and stays valid, every v2 block is filled from `DEFAULTS`, partial blocks merge
+  key-by-key, **lists replace rather than merge**, `DEFAULTS`/input are never
+  mutated, and `normalize` is idempotent on `{}`, the fixture and both shipped
+  configs (which are also asserted to be fixpoints). The `rules` <-> `timing`
+  alias is pinned **in both directions** for all five keys with the precedence
+  explicit-`timing` -> explicit-`rules` -> default, and `search.facets` (3 keys)
+  <-> `discovery.facets` (5 keys) likewise, including that a v2-only facet never
+  leaks into the v1 shape. `tenancy.selfOnboarding` defaults to `mode == "multi"`
+  and an explicit value is never overwritten. `validate`: reports **all**
+  problems at once, every enum path, non-IANA `location.timezone`,
+  `location.default` outside `location.modes`, non-3-letter currency,
+  `tenancy.mode == "single"` without `providerCode`, `capabilities.payments:false`
+  with a non-`none` `payments.flow`, bad/`select`-without-options/missing-key
+  metaFields, `"string"` accepted as an alias for `"text"`, and the numeric
+  guards (including `maxBookingsPerSlot >= 1`).
+- **`test_pricing.py`** (166 tests) — `quote`/`match_tier`. v1 parity is
+  parametrized over slots x party x price so a refactor cannot silently reprice
+  the catalog. Then: every `rate.per` (`booking`/`slot`/`hour`/`day`/`night`/
+  `week`/`month`/`person`/`unit`), whole-unit periods billing by **started**
+  unit while `hour` stays fractional, `per: "person"` not double-counting,
+  `chargePerPerson:false` as the shared-unit case, weighted `person_units`;
+  tiers by `partySize`/`timeOfDay` (including a window that **wraps midnight**)/
+  `zone`/`bookingIndex`/`subjectField`, config order as precedence, an unknown
+  `appliesWhen` clause failing **closed**, and `validFrom`/`validUntil` sales
+  windows; secondary rate; fees flat/percent(bps)/distanceBand incl. compounding
+  order; `caps.perBookingMinorUnits` (applied after fees, with the negative
+  `cap` breakdown line); deposits percent/flat, both clamped to the total and
+  derived from the *capped* total; plus coercion robustness (string/null
+  amounts, non-dict entries, unknown period) so a hand-edited config cannot 500
+  the booking path.
+  **Period vs. unit separation** (a fixed bug, re-pinned as the new contract):
+  `day`/`night`/`week`/`month` derive their quantity from `duration_minutes`
+  ALONE — a `unit_count` in the ctx is ignored (parametrized over all four
+  periods x four counts, asserting an identical total *and* breakdown with and
+  without it, and that a zero/absent duration still floors at one unit rather
+  than falling back to `unit_count`). `per: "unit"` is the only reader of
+  `unit_count` (and defaults to 1), and it ignores `duration_minutes` in turn.
+  The regression that motivated it — warehouse pallet-space, `rate` 300/unit +
+  `secondaryRate` 1000/week, ctx `unit_count=20, duration_minutes=40320` — pins
+  BOTH breakdown lines (`base` 6000, `secondary` 4000) and the 10000 total,
+  because the old behaviour (20 pallets billed as 20 weeks) can be invisible in
+  the total alone.
+- **`test_rules.py`** — `effective_service_config` (returns the nine overridable
+  blocks and no presentation blocks; `services.metadata.<block>` deep-merges over
+  the global block; lists replace; the cached global config is never mutated),
+  `effective_service_pricing` (the `price_minor_units`/`currency` columns still
+  win, a declared `metadata.pricing` beats them, a partial one lets the columns
+  supply the rest), the new dotted config paths behind `_SERVICE_RULE_MAP`
+  (price/currency/min/max slots), and `effective_auto_approve`
+  (`timing.confirmation` as the default, `metadata.auto_approve` and a
+  per-service `metadata.timing.confirmation` as overrides).
+- **`test_bookings.py`** — the router's pricing seam through the real endpoint:
+  `price_breakdown` (list) + `deposit_minor_units` (int) stamped into booking
+  metadata on create, default pricing still matching the v1 formula end to end,
+  a service pricing per night / with `chargePerPerson:false` / with a tier /
+  with a fee via `services.metadata.pricing`, the global `pricing` block applying
+  when the service columns are null, and **reschedule re-quoting** (price,
+  currency rewritten over a stale value, breakdown replaced, deposit
+  recomputed). Plus `timing.confirmation: "request_approve"` making every new
+  booking `pending`, with `metadata.auto_approve` still overriding it.
+- **`test_availability.py`** — the `?tz=` -> user timezone ->
+  **`location.timezone`** -> UTC fallback chain, using a 23:00 UTC slot that
+  lands on the next local day in `Asia/Tokyo`: an anonymous viewer gets the
+  business's day, an explicit `?tz=` and a signed-in user's timezone each win
+  over it, `/month-density` uses the same chain, a config with no `location`
+  block still groups in UTC, a bogus `location.timezone` cannot even load
+  (validation), and an unparseable `?tz=` (raw user input) degrades to UTC
+  rather than 500.
+- **`test_slots.py`** — `slots.py` reads `get_config()["timing"]` now, so
+  declaring the slot defaults/buffer on either the v1 `rules` path or the v2
+  `timing` path must produce identical slots.
+
+Enforcement coverage added after the v2 pass (three behaviours that were
+declared-but-dead and are now live):
+
+- **`timing.leadTimeMinutes` (minimum notice)** — `test_rules.py` unit-tests
+  `rules._lead_time` (0/None disables it, a start inside the window raises with
+  the configured number **and** the config's `terms.slot` vocabulary in the
+  message, a start outside it and a past start), then the same verdicts through
+  `apply_rules("booking.create", ...)` parametrized over four config/offset
+  pairs, plus that the untouched fixture config leaves the event a no-op and
+  that declaring the key on the deprecated v1 `rules` path does **not** enforce
+  it (it is not one of the five aliased keys). `test_bookings.py` drives the
+  real `POST /bookings`: a 10-minutes-out slot still books on the default
+  config (0 = off, so the rule is not a silent behaviour change), a booking
+  inside the window is **400 / `INVALID_RANGE`** with the number in the
+  message, one outside it is 200, a rejected attempt persists no booking /
+  `booking_slots` / occupancy, the same slot flips verdict when only the config
+  changes, and `leadTimeMinutes` does **not** gate `/reschedule` (that event
+  owns `cancellationWindowHours`).
+- **`maxBookingsPerSlot` is `rules.UNDISPATCHED`, not a `booking.create` rule**
+  — `test_rules.py` pins `RULES["booking.create"] == {"leadTimeMinutes":
+  _lead_time}`, that no event's map contains `maxBookingsPerSlot`, the exact
+  contents of `UNDISPATCHED`, that dispatched and undispatched keys are
+  disjoint, and the arithmetic that makes the exclusion necessary
+  (`_capacity(1, {booked_count: 4, capacity: 8})` raises). `test_bookings.py`
+  is the regression that actually protects it: with the shipped
+  `maxBookingsPerSlot: 1`, a party of 5 books a capacity-8 slot, and two
+  different customers put 4 + 3 heads into the same capacity-8 slot (the second
+  is what fails if `_capacity` is ever re-registered), while a party of 8 into
+  a 7-seat slot is still `CAPACITY_EXCEEDED` — the row's capacity binds, the
+  config number does not.
+- **`validate()` now checks the list-of-descriptor blocks** —
+  `test_config_schema.py` covers `pricing.fees` (every valid kind; unknown kind
+  incl. the motivating `"percentage"` typo; `percent` without/with a negative
+  `rateBps`; `distanceBand` with missing/empty `bands`; `flat` with a
+  missing/negative `amountMinorUnits`; an omitted kind defaulting to flat;
+  non-object entries; every bad entry reported with its index),
+  `pricing.deposit.kind`, `payments.schedule[i]` (key/kind/value + non-object),
+  `booking.options[i]` (key/type/`select`-without-`choices` + the boolean
+  default), `recurrence.patterns[i]`, `entitlements.plans[i]`, and
+  `booking.party.min > max`; plus one test that every one of those problems is
+  reported in a single pass, and equality assertions pinning `FEE_KINDS` /
+  `DEPOSIT_KINDS` / `OPTION_TYPES` / `RECURRENCE_PATTERNS`.
+  `test_pricing.py` supplies the motive: `_fee_amount`/`quote` show a
+  `kind: "percentage"` fee contributing **0** with no breakdown line (and that
+  no unrecognised kind ever fails loudly), so the validator is the only thing
+  between a typo and a permanently under-charged booking. `test_health_config.py`
+  proves the checks are wired into the load path, not just callable: a fee typo
+  + a choice-less select option make `POST /config/reload` a 422 naming both
+  entries while the last good config keeps serving.
+- **Declared-but-unenforced inventory** — `pricing.caps.perDayMinorUnits`,
+  `payments.noShowFee` and `timing.approvalWindowHours` are deliberately inert.
+  `test_config_schema.py` pins the *list* rather than any behaviour: each key is
+  declared in `DEFAULTS`, is mentioned by **no** non-comment line in
+  `backend/app/**` outside `config_schema.py`, and carries an "enforc…" comment
+  within the five lines above its declaration. Two controls
+  (`timing.leadTimeMinutes` → `rules.py`, `pricing.caps.perBookingMinorUnits` →
+  `pricing.py`) prove the source scan can actually see enforcement. If one of
+  the three gets wired up the test fails — the signal to move it out of the list
+  and write real behaviour tests.
+
+Enum type-guard + `distanceBand` shape checks (two validator fixes made after
+the first pass; the tests that encoded the old behaviour were rewritten, not
+kept):
+
+- **`_enum` type-guards before the membership test.** `test_config_schema.py`
+  asserts the real behaviour now: a dict/list in a *list* enum position
+  (`recurrence.patterns: [{"every": "week"}]`) and in a *scalar* one
+  (`booking.unitKind`, `pricing.rate.per`, `pricing.model`,
+  `booking.granularity`, `payments.flow`, `location.modes[i]`, `tenancy.mode`)
+  is a normal listed error naming the path, the guard does not short-circuit the
+  rest of the pass, and `config.load_config` raises **`ConfigError`, not
+  `TypeError`**, for a file containing one. `test_health_config.py` covers the
+  endpoint half: `POST /config/reload` on such a file is the documented **422
+  `VALIDATION_ERROR`** (was a 500) with the last-good config still served.
+- **`pricing.fees[i].bands` is shape-checked.** `bands` must be a **non-empty
+  list** — missing / `None` / `[]` / `"10km"` / `0` / a bare object all produce
+  `pricing.fees[i].bands must be a non-empty list for a distanceBand fee` (the
+  truthy non-list cases used to pass validation and then price as 0, because
+  `pricing._fee_amount` iterates `fee.get("bands") or []`). Each entry must be
+  an object with `feeMinorUnits` (int >= 0) and an optional `maxKm` (int >= 0 or
+  `null`); every bad entry is reported with its index. A valid multi-band ladder
+  ending in the `{"maxKm": null, ...}` catch-all validates clean **and** is
+  priced through `pricing.quote` in the same test — a distance beyond every
+  numbered band charges the catch-all, a distance inside one charges that band.
+
+The point-2 finding is deliberately left pinned as-is: `pricing._fee_amount`
+treats a falsy `kind` as flat while `validate` rejects it — the validator is
+intentionally stricter than the pricer.
 
 Search-facets coverage (the resolved `search.facets` block on `GET /config` +
 `POST /config/reload`, from `main._config_with_facets` → `discovery.search_facets`):
