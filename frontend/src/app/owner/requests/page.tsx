@@ -14,6 +14,7 @@ import { Check, Clock, ShieldCheck, Star, TriangleAlert, Users, X } from "lucide
 import { useOwner } from "@/context/owner-context";
 import { Skeleton } from "@/components/skeleton";
 import { AvatarImg } from "@/components/avatar-img";
+import { MessagingSection } from "@/components/messaging/messaging-section";
 import { Button } from "@/components/ui/button";
 import {
   approveBooking,
@@ -117,6 +118,9 @@ export default function RequestsPage() {
           New requests skip this queue and are confirmed on arrival. Turn off to screen each one.
         </div>
       ) : null}
+
+      {/* Inbox — the business's conversations with its customers. */}
+      <MessagingSection basePath="/owner/requests/messages" />
 
       {requests.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
