@@ -1,0 +1,12 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/app/**/{page,layout,template,loading,error,not-found,route,default}.{ts,tsx}",
+    "src/app/icon.svg"
+  ],
+  "project": ["src/**/*.{ts,tsx}"],
+  "ignoreDependencies": [
+    "tw-animate-css",
+    "tailwindcss"
+  ]
+}
