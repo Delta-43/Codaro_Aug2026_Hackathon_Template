@@ -16,9 +16,9 @@ user` — built so a completely different niche can be adopted via config +
 seed data instead of a rewrite. Multi-slot bookings, party size, reviews,
 follows, search, day-availability and month-density all ride on that neutral
 spine. Stack: **Next.js 14 + Tailwind** frontend, **FastAPI** backend, hosted
-**Supabase (Postgres + Auth)**. See `README.md` for the full run instructions,
-`Project_Summary.md` for the original brief, and `REPORT.md` for the current
-frontend⇄backend wiring snapshot.
+**Supabase (Postgres + Auth)**. See `README.md` for the full run instructions and
+`REPORT.md` for the frontend⇄backend wiring snapshot (a regenerated snapshot —
+re-run the pipeline rather than trusting it blind).
 
 The pivot mechanism: `domain.config.json` (now **v2**, `configVersion: 2`) holds
 the engine's **vocabulary + global defaults**. v1's five sections (`terms`,
