@@ -5,7 +5,8 @@
  * Times carry a timezone indicator so the viewer always knows the zone (§4).
  */
 
-const ms = (iso: string) => new Date(iso).getTime();
+/** Epoch millis for a UTC ISO instant. */
+export const ms = (iso: string) => new Date(iso).getTime();
 
 /** e.g. "09:00" in the given zone (24h). */
 export function formatTime(iso: string, timeZone: string): string {
@@ -46,12 +47,43 @@ export function formatDate(
   }).format(new Date(iso));
 }
 
-/** Currency from minor units, e.g. 4200 EUR → "€42.00". */
+/** Currency from minor units, e.g. 4200 EUR → "€42.00".
+ *
+ *  The divisor is the CURRENCY's own exponent, not a hardcoded 100. Minor units
+ *  are only hundredths in currencies that have two decimal places: JPY has none
+ *  (¥4200 is 4200 minor units, not ¥42) and KWD has three, so every price on a
+ *  pivot outside the two-decimal world rendered wrong by two orders of
+ *  magnitude. `Intl` already knows each currency's exponent — which is also why
+ *  `pricing.currencyExponent` stays a config-side declaration and is not plumbed
+ *  through every call site to get this right. */
+const exponentOf = (currency: string): number => {
+  try {
+    return (
+      new Intl.NumberFormat("en-GB", { style: "currency", currency }).resolvedOptions()
+        .maximumFractionDigits ?? 2
+    );
+  } catch {
+    return 2; // an unknown/invalid code — assume the common case
+  }
+};
+
+/** Minor units → the major amount a person types into a price field, and back.
+ *  Same exponent rule as `formatMoney` — the owner's price editor did its own
+ *  `/100` and `Math.round(x * 100)`, so on a zero-decimal currency it displayed
+ *  a hundredth of the price and then SAVED a hundred times what was typed. */
+export function toMajorUnits(minorUnits: number, currency: string): number {
+  return minorUnits / 10 ** exponentOf(currency);
+}
+
+export function toMinorUnits(major: number, currency: string): number {
+  return Math.round(major * 10 ** exponentOf(currency));
+}
+
 export function formatMoney(minorUnits: number, currency: string): string {
   return new Intl.NumberFormat("en-GB", {
     style: "currency",
     currency,
-  }).format(minorUnits / 100);
+  }).format(minorUnits / 10 ** exponentOf(currency));
 }
 
 /** Human duration from minutes: 60→"1h", 90→"1h 30m", 1440→"1 day", 4320→"3 days". */
@@ -137,4 +169,24 @@ export function timeAgo(iso: string, timeZone = "UTC"): string {
   const days = Math.floor(hrs / 24);
   if (days < 7) return `${days}d`;
   return formatDate(iso, timeZone);
+}
+
+/** A short calendar date in the VIEWER's own locale and zone — deliberately
+ *  unlike `formatDate`, which pins en-GB and takes an explicit `timeZone`.
+ *  Used for profile/member-since style dates where the exact zone is noise.
+ *  Empty string for null or unparseable input, so callers can render it raw.
+ *  Was duplicated byte-for-byte in owner/profile and the account page. */
+export function whenLabel(iso: string | null): string {
+  if (!iso) return "";
+  try {
+    return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" }).format(new Date(iso));
+  } catch {
+    return "";
+  }
+}
+
+/** The viewer's IANA zone, falling back to UTC where Intl is unavailable (SSR).
+ *  Was defined three times across the owner pages. */
+export function browserTz(): string {
+  return typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
 }

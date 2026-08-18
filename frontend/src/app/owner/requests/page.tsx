@@ -25,7 +25,7 @@ import {
   ApiError,
 } from "@/api";
 import type { OwnerRequest, OwnerServiceSummary } from "@/types/domain";
-import { formatBookingWhen, formatMoney } from "@/lib/format";
+import { browserTz, formatBookingWhen, formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type Decision = "approved" | "rejected";
@@ -182,7 +182,7 @@ function RequestCard({
   decision?: Decision;
   onDecide: (d: Decision) => void;
 }) {
-  const browserTz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
+  const tz = browserTz();
   const flagged = r.client.cancelledWithProvider > 0;
   const settled = decision;
 
@@ -233,7 +233,7 @@ function RequestCard({
           </p>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
-              <Clock className="size-3.5" aria-hidden /> {formatBookingWhen(r.startUtc, r.endUtc, browserTz)}
+              <Clock className="size-3.5" aria-hidden /> {formatBookingWhen(r.startUtc, r.endUtc, tz)}
             </span>
             {partyNoun && r.partySize > 1 ? (
               <span className="inline-flex items-center gap-1">

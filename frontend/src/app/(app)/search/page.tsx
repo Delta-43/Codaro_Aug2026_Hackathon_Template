@@ -23,11 +23,9 @@ import { FilterSheet } from "@/components/search/filter-sheet";
 import { distanceKm, geoOrigin } from "@/lib/geo";
 import { ORDER_KEYS, ORDER_META, type OrderKey, type SortDir } from "@/lib/order-by";
 import { cn } from "@/lib/utils";
+import { SEARCH_INPUT } from "@/components/search/field-class";
 
 const ALL_FACETS: SearchFacets = { price: true, distance: true, rating: true };
-
-const INPUT =
-  "h-11 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30";
 
 export default function SearchPage() {
   const vertical = useVertical();
@@ -192,7 +190,7 @@ export default function SearchPage() {
             onChange={(e) => setText(e.target.value)}
             placeholder={vertical.searchPlaceholder}
             aria-label={vertical.searchPlaceholder}
-            className={cn(INPUT, "pr-[4.75rem]")}
+            className={cn(SEARCH_INPUT, "pr-[4.75rem]")}
           />
           <Button
             variant="ghost"

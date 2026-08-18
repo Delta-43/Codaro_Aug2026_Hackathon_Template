@@ -18,15 +18,7 @@ import { BusinessBadge } from "@/components/business/verified-badge";
 import { getProviderReviews } from "@/api";
 import type { ProviderReview } from "@/types/domain";
 import { avatarDataUri } from "@/lib/business-demo";
-
-function whenLabel(iso: string | null): string {
-  if (!iso) return "";
-  try {
-    return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" }).format(new Date(iso));
-  } catch {
-    return "";
-  }
-}
+import { whenLabel } from "@/lib/format";
 
 export default function ProfilePage() {
   const { ready, activeProvider, scene, vocab } = useOwner();

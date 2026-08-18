@@ -8,33 +8,11 @@
  * collapse on mobile, leaving just the logo + button.
  */
 import Link from "next/link";
-import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { useTheme } from "next-themes";
-import { ChevronLeft, ChevronRight, Moon, Sun } from "lucide-react";
+import { useRef, type MouseEvent } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-function ThemeToggle({ className }: { className?: string }) {
-  const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  const isDark = mounted && resolvedTheme === "dark";
-
-  return (
-    <button
-      type="button"
-      aria-label={isDark ? "Switch to day" : "Switch to night"}
-      title={isDark ? "Day" : "Night"}
-      onClick={() => setTheme(isDark ? "light" : "dark")}
-      className={cn(
-        "grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-        className,
-      )}
-    >
-      {isDark ? <Moon className="size-4" aria-hidden /> : <Sun className="size-4" aria-hidden />}
-    </button>
-  );
-}
+import { ThemeToggle } from "@/components/theme-toggle";
 
 const LINKS = [
   { href: "#how", label: "How it works" },
@@ -67,7 +45,7 @@ export function NavBar({ authed }: { authed: boolean }) {
         </Link>
         {/* Theme toggle sits on the LEFT below lg (where there's no logo), so
             the links stay centered; on desktop it lives in the right cluster. */}
-        <ThemeToggle className="lg:hidden" />
+        <ThemeToggle className="shrink-0 lg:hidden" />
         {/* Mobile-only affordance: scroll the links row left. */}
         <button
           type="button"
@@ -110,7 +88,7 @@ export function NavBar({ authed }: { authed: boolean }) {
         </button>
         <div className="flex shrink-0 items-center gap-1">
           {/* Desktop keeps the toggle here on the right, beside Login. */}
-          <ThemeToggle className="hidden lg:grid" />
+          <ThemeToggle className="shrink-0 hidden lg:grid" />
           <Link
             href={authed ? "/search" : "/login"}
             className={cn(

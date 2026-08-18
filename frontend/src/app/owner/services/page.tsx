@@ -23,7 +23,7 @@ import {
   ApiError,
 } from "@/api";
 import type { BookingModel, OwnerServiceSummary } from "@/types/domain";
-import { formatDuration, formatMoney } from "@/lib/format";
+import { formatDuration, formatMoney, toMajorUnits, toMinorUnits } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const MODELS: { id: BookingModel; label: string }[] = [
@@ -246,7 +246,7 @@ function ServiceEditor({
   onDelete: () => void;
 }) {
   const [name, setName] = useState(s.name);
-  const [priceMajor, setPriceMajor] = useState(s.priceMinorUnits / 100);
+  const [priceMajor, setPriceMajor] = useState(toMajorUnits(s.priceMinorUnits, s.currency));
   const [duration, setDuration] = useState(s.slotDurationMinutes);
   const [maxSlots, setMaxSlots] = useState(s.maxSlotsPerBooking);
   const [cutoff, setCutoff] = useState(s.cancellationCutoffHours);
@@ -255,7 +255,7 @@ function ServiceEditor({
 
   const dirty =
     name !== s.name ||
-    Math.round(priceMajor * 100) !== s.priceMinorUnits ||
+    toMinorUnits(priceMajor, s.currency) !== s.priceMinorUnits ||
     duration !== s.slotDurationMinutes ||
     maxSlots !== s.maxSlotsPerBooking ||
     cutoff !== s.cancellationCutoffHours;
@@ -297,7 +297,7 @@ function ServiceEditor({
         onConfirm={() => {
           onSave({
             name,
-            priceMinorUnits: Math.round(priceMajor * 100),
+            priceMinorUnits: toMinorUnits(priceMajor, s.currency),
             slotDurationMinutes: duration,
             maxSlotsPerBooking: Math.max(1, maxSlots),
             cancellationCutoffHours: cutoff,
@@ -309,7 +309,7 @@ function ServiceEditor({
         <p className="text-muted-foreground">You&apos;re updating</p>
         <p className="font-medium">{name}</p>
         <ul className="mt-1 list-disc pl-4 text-xs text-muted-foreground">
-          <li>Price {formatMoney(Math.round(priceMajor * 100), s.currency)}</li>
+          <li>Price {formatMoney(toMinorUnits(priceMajor, s.currency), s.currency)}</li>
           <li>{formatDuration(duration)} per slot · up to {Math.max(1, maxSlots)}</li>
           <li>{cutoff}h cancellation cutoff</li>
         </ul>
@@ -373,7 +373,7 @@ function OfferForm({
       slotDurationMinutes: duration,
       minSlotsPerBooking: 1,
       maxSlotsPerBooking: Math.max(1, maxSlots),
-      priceMinorUnits: Math.round(priceMajor * 100),
+      priceMinorUnits: toMinorUnits(priceMajor, currency),
       currency,
       cancellationCutoffHours: cutoff,
       autoApprove,

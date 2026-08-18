@@ -25,11 +25,8 @@ import {
 import type { OwnerBooking, OwnerServiceSummary } from "@/types/domain";
 import type { DemoBooking } from "@/lib/business-demo";
 import { ownerBookingToCal } from "@/lib/owner-view";
-import { formatBookingWhen, formatMoney } from "@/lib/format";
+import { browserTz, formatBookingWhen, formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
-
-const browserTz = () =>
-  typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
 
 const STATUS_CLASS: Record<DemoBooking["status"], string> = {
   confirmed: "bg-primary/10 text-primary",

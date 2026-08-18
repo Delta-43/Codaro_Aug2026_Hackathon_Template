@@ -28,15 +28,7 @@ import {
   isWithinCutoff,
   zoneAbbrev,
 } from "@/lib/format";
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 py-1.5">
-      <span className="shrink-0 text-sm text-muted-foreground">{label}</span>
-      <span className="text-right text-sm font-medium">{value}</span>
-    </div>
-  );
-}
+import { DetailRow } from "@/components/booking/detail-row";
 
 export function BookingDetail({
   booking: initial,
@@ -124,13 +116,13 @@ export function BookingDetail({
 
       {/* Details */}
       <div className="mt-3 rounded-xl border border-border bg-card p-4">
-        <Row label={vertical.providerNoun} value={provider.name} />
-        <Row label={vertical.serviceNoun} value={service.name} />
-        {resourceName ? <Row label={vertical.resourceNoun} value={resourceName} /> : null}
+        <DetailRow label={vertical.providerNoun} value={provider.name} />
+        <DetailRow label={vertical.serviceNoun} value={service.name} />
+        {resourceName ? <DetailRow label={vertical.resourceNoun} value={resourceName} /> : null}
         <div className="my-1 border-t border-border" />
-        <Row label="When" value={formatBookingWhen(booking.startUtc, booking.endUtc, tz)} />
-        <Row label="Duration" value={formatSpan(slotCount, service.slotDurationMinutes)} />
-        <Row
+        <DetailRow label="When" value={formatBookingWhen(booking.startUtc, booking.endUtc, tz)} />
+        <DetailRow label="Duration" value={formatSpan(slotCount, service.slotDurationMinutes)} />
+        <DetailRow
           label={isShared ? (vertical.partyNoun ?? "Party") : "Party"}
           value={`${booking.partySize}`}
         />

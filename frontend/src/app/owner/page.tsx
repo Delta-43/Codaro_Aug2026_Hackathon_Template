@@ -18,10 +18,7 @@ import { getOwnerDashboard } from "@/api";
 import type { OwnerDashboard, OwnerRequest } from "@/types/domain";
 import type { Metric } from "@/lib/business-demo";
 import { ownerBookingToCal } from "@/lib/owner-view";
-import { formatMoney, formatBookingWhen } from "@/lib/format";
-
-const browserTz = () =>
-  typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
+import { browserTz, formatBookingWhen, formatMoney } from "@/lib/format";
 
 function metricsOf(d: OwnerDashboard): Metric[] {
   const { upcomingBookings: up, clientSatisfaction: sat, revenue: rev } = d.glance;

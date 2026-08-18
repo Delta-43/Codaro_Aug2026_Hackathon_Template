@@ -20,15 +20,7 @@ import {
   zoneAbbrev,
 } from "@/lib/format";
 import { slotRemaining } from "@/components/calendar/slot-pill";
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-4 py-1.5">
-      <span className="shrink-0 text-sm text-muted-foreground">{label}</span>
-      <span className="text-right text-sm font-medium">{value}</span>
-    </div>
-  );
-}
+import { DetailRow } from "@/components/booking/detail-row";
 
 export function ConfirmScreen({
   provider,
@@ -82,13 +74,13 @@ export function ConfirmScreen({
       <h1 className="text-xl font-semibold tracking-tight">Confirm</h1>
 
       <div className="mt-4 rounded-xl border border-border bg-card p-4">
-        <Row label={vertical.providerNoun} value={provider.name} />
-        <Row label={vertical.serviceNoun} value={service.name} />
-        <Row label={vertical.resourceNoun} value={resourceName} />
+        <DetailRow label={vertical.providerNoun} value={provider.name} />
+        <DetailRow label={vertical.serviceNoun} value={service.name} />
+        <DetailRow label={vertical.resourceNoun} value={resourceName} />
         <div className="my-1 border-t border-border" />
-        <Row label="Date" value={dateLabel} />
-        <Row label="Time" value={timeLabel} />
-        <Row label="Duration" value={formatSpan(slots.length, service.slotDurationMinutes)} />
+        <DetailRow label="Date" value={dateLabel} />
+        <DetailRow label="Time" value={timeLabel} />
+        <DetailRow label="Duration" value={formatSpan(slots.length, service.slotDurationMinutes)} />
         {isShared ? (
           <div className="flex items-center justify-between gap-4 py-2">
             <span className="text-sm text-muted-foreground">
@@ -102,7 +94,7 @@ export function ConfirmScreen({
             />
           </div>
         ) : (
-          <Row label="Party" value={`${partySize}`} />
+          <DetailRow label="Party" value={`${partySize}`} />
         )}
       </div>
 
