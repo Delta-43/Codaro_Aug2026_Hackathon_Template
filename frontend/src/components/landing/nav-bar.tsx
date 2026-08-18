@@ -9,7 +9,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useTheme } from "next-themes";
-import { ChevronRight, Moon, Sun } from "lucide-react";
+import { ChevronLeft, ChevronRight, Moon, Sun } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -53,8 +53,17 @@ export function NavBar({ authed }: { authed: boolean }) {
           href="/"
           className="inline-block shrink-0 origin-left px-2 text-sm font-semibold tracking-tight text-foreground transition-transform duration-200 ease-out hover:scale-110"
         >
-          Service<span className="text-primary">.com</span>
+          service<span className="text-primary">.com</span>
         </Link>
+        {/* Mobile-only affordance: scroll the links row left. */}
+        <button
+          type="button"
+          aria-label="Scroll links left"
+          onClick={() => linksRef.current?.scrollBy({ left: -120, behavior: "smooth" })}
+          className="grid size-7 shrink-0 place-items-center rounded-full text-foreground/70 transition-transform duration-200 ease-out hover:scale-125 hover:text-foreground md:hidden"
+        >
+          <ChevronLeft className="landing-nudge-left size-4" aria-hidden />
+        </button>
         {/* Links: horizontally scrollable on mobile (scrollbar hidden), centered on desktop. */}
         <div
           ref={linksRef}
@@ -65,7 +74,7 @@ export function NavBar({ authed }: { authed: boolean }) {
               key={l.href}
               href={l.href}
               onClick={(e) => smoothScroll(e, l.href)}
-              className="shrink-0 origin-center whitespace-nowrap rounded-full px-3 py-1.5 text-sm text-muted-foreground transition-all duration-200 ease-out hover:scale-110 hover:bg-muted hover:text-foreground"
+              className="shrink-0 origin-center whitespace-nowrap rounded-full px-3 py-1.5 text-sm text-foreground/70 transition-all duration-200 ease-out hover:scale-110 hover:bg-muted hover:text-foreground"
             >
               {l.label}
             </a>
@@ -74,9 +83,9 @@ export function NavBar({ authed }: { authed: boolean }) {
         {/* Mobile-only affordance: the links row scrolls sideways. */}
         <button
           type="button"
-          aria-label="More links"
+          aria-label="Scroll links right"
           onClick={() => linksRef.current?.scrollBy({ left: 120, behavior: "smooth" })}
-          className="grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground transition-transform duration-200 ease-out hover:scale-125 hover:text-foreground md:hidden"
+          className="grid size-7 shrink-0 place-items-center rounded-full text-foreground/70 transition-transform duration-200 ease-out hover:scale-125 hover:text-foreground md:hidden"
         >
           <ChevronRight className="landing-nudge size-4" aria-hidden />
         </button>

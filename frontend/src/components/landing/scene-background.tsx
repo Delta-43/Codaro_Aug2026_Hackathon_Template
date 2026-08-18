@@ -44,7 +44,7 @@ export function SceneBackground() {
               left: `${c.left}%`,
               width: `${c.w}%`,
               height: `${c.h}%`,
-              background: `linear-gradient(to bottom, transparent 0%, rgba(${c.c},0.55) 32%, rgba(${c.c},0.45) 58%, transparent 100%)`,
+              background: `linear-gradient(to bottom, transparent 0%, rgba(${c.c},0.4) 30%, rgba(${c.c},0.32) 55%, transparent 92%)`,
               animationDelay: `${c.delay}s`,
               animationDuration: `${c.dur}s`,
             }}
@@ -100,20 +100,21 @@ export function SceneBackground() {
         @keyframes landing-aurora-breathe { 0%,100% { opacity: .5; } 50% { opacity: .95; } }
 
         .landing-curtain {
-          top: -4%;
-          border-radius: 50%;
-          filter: blur(22px);
+          top: -6%;
+          border-radius: 45% 45% 60% 60% / 70% 70% 40% 40%;
+          filter: blur(40px);
           mix-blend-mode: screen;
           transform-origin: top center;
           animation-name: landing-curtain-wave;
-          animation-timing-function: ease-in-out;
+          animation-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
           animation-iteration-count: infinite;
           animation-direction: alternate;
         }
+        /* Gentler, more organic drift — small skew, soft opacity breathing */
         @keyframes landing-curtain-wave {
-          0%   { transform: translateX(-9%) skewX(-11deg) scaleY(0.9);  opacity: .3; }
-          50%  { transform: translateX(9%)  skewX(7deg)   scaleY(1.12); opacity: .85; }
-          100% { transform: translateX(-3%) skewX(-5deg)  scaleY(0.98); opacity: .55; }
+          0%   { transform: translateX(-5%) skewX(-4deg) scaleY(0.92) scaleX(0.96); opacity: .28; }
+          50%  { transform: translateX(4%)  skewX(3deg)  scaleY(1.08) scaleX(1.04); opacity: .62; }
+          100% { transform: translateX(-2%) skewX(-2deg) scaleY(1.0)  scaleX(0.98); opacity: .4; }
         }
 
         /* Petals */
@@ -128,9 +129,11 @@ export function SceneBackground() {
         /* Scroll-affordance chevrons: a gentle horizontal nudge */
         .landing-nudge { animation: landing-nudge 1.3s ease-in-out infinite; }
         @keyframes landing-nudge { 0%,100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
+        .landing-nudge-left { animation: landing-nudge-left 1.3s ease-in-out infinite; }
+        @keyframes landing-nudge-left { 0%,100% { transform: translateX(0); } 50% { transform: translateX(-3px); } }
 
         @media (prefers-reduced-motion: reduce) {
-          .landing-sun, .landing-aurora-glow, .landing-curtain, .landing-nudge { animation: none; }
+          .landing-sun, .landing-aurora-glow, .landing-curtain, .landing-nudge, .landing-nudge-left { animation: none; }
           .landing-petal { animation: none; opacity: 0; }
         }
           `,
