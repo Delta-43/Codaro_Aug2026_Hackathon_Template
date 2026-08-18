@@ -47,12 +47,20 @@ deployment can price, gate and schedule completely differently without either of
 them editing `domain.config.json`.
 
 ```jsonc
-// services.metadata on one service — everything else inherits the global config
+// POST/PATCH /services  ->  stored as services.metadata blocks
 {
-  "pricing": { "model": "per_hour", "chargePerPerson": false,
-               "rate": { "per": "hour", "amountMinorUnits": 1200 } }
+  "config": {
+    "pricing": { "model": "per_hour", "chargePerPerson": false,
+                 "rate": { "per": "hour", "amountMinorUnits": 1200 } }
+  }
 }
 ```
+
+Overrides go through the **same validator as the global file**: an invalid block
+is a 422 on write, and (for seeded or hand-edited rows) is dropped in favour of
+the global block on read — per block, with a warning, so one bad block does not
+poison the rest. `tenancy` is deliberately not overridable: commission and tenant
+verification are platform terms, not a business's to set.
 
 ## 3. Loading, and why it fails loudly
 
@@ -147,6 +155,15 @@ or four. `per: "person"` never double-counts.
 `tiers[].appliesWhen` clauses: `partySize`, `timeOfDay` (handles a window that
 wraps midnight), `zone`, `bookingIndex`, `subjectField`, `distanceKm`. **An
 unknown clause fails closed** — a typo must not widen a discount to everyone.
+
+> **Known mispricing.** A tier is matched once, against the booking's **start**
+> time, and applied to the whole booking. A 17:00-19:00 booking under a
+> 17:00-18:00 happy-hour tier bills entirely at the happy-hour rate. Time-banded
+> pricing that must *split* a booking across bands is not supported — see
+> [PIVOT-COVERAGE.md](PIVOT-COVERAGE.md#what-batch-2-found) (#83).
+
+A deposit clamps differently depending on `refundable`: non-refundable is a
+prepayment and never exceeds the total; refundable is a bond and may.
 
 ### `payments`
 `flow` (`prepay|pay_on_site|invoice_after|split|none`), `payer`

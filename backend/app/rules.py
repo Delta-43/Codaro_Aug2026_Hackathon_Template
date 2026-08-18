@@ -13,9 +13,14 @@ thin wrappers because the tests and routers import them by name.
 from __future__ import annotations
 
 import copy as _copy
+import logging
 from datetime import datetime, timedelta, timezone
 
 from app.config import get_config
+from app.config_schema import validate_overrides
+
+
+log = logging.getLogger(__name__)
 
 
 class RuleViolation(Exception):
@@ -234,13 +239,57 @@ def effective_service_rules(service: dict | None) -> dict:
     camelCase names."""
     svc = service or {}
     cfg = get_config()
+    # An EXPLICIT per-service override outranks the column. The columns are
+    # `NOT NULL DEFAULT`, so resolving them first made every `timing` /
+    # `booking.duration` override permanently inert — accepted with a 200 by the
+    # write gate and then silently ignored by `within_cutoff` and
+    # `_resolve_selection`.
+    declared = surviving_overrides(svc)
     out: dict = {}
     for name, (col, path, default) in _SERVICE_RULE_MAP.items():
-        value = svc.get(col)
+        value = _dig(declared, path) if path is not None else None
+        if value is None:
+            value = svc.get(col)
         if value is None and path is not None:
             value = _dig(cfg, path)
         out[name] = value if value is not None else default
     return out
+
+
+def service_overrides(service: dict | None) -> dict:
+    """The override blocks a service actually declares, ignoring the rest of its
+    metadata (`image_url`, `auto_approve`, ...)."""
+    metadata = (service or {}).get("metadata") or {}
+    return {b: metadata[b] for b in OVERRIDABLE_BLOCKS if isinstance(metadata.get(b), dict)}
+
+
+def service_override_problems(service: dict | None) -> list[str]:
+    """Validation errors in a service's own override blocks. Empty when clean.
+    Exposed so an owner-facing surface can show a business its own bad config
+    instead of it only ever appearing in a server log."""
+    return validate_overrides(service_overrides(service), get_config())
+
+
+def surviving_overrides(service: dict | None) -> dict:
+    """A service's override blocks with any INVALID block removed.
+
+    Single source of truth for "which of this service's overrides actually
+    apply", so the config resolver and the pricing resolver cannot disagree about
+    it — they did, and it silently zeroed prices (see effective_service_pricing).
+    """
+    declared = service_overrides(service)
+    if not declared:
+        return {}
+    problems = validate_overrides(declared, get_config())
+    if not problems:
+        return declared
+    bad = {p.split(".", 1)[0].split("[", 1)[0] for p in problems}
+    log.warning(
+        "service %s has invalid config override(s) in %s; falling back to the "
+        "global block(s). Problems: %s",
+        (service or {}).get("id", "?"), sorted(bad), "; ".join(problems),
+    )
+    return {k: v for k, v in declared.items() if k not in bad}
 
 
 def effective_service_config(service: dict | None) -> dict:
@@ -251,13 +300,21 @@ def effective_service_config(service: dict | None) -> dict:
     This is what makes a marketplace work — two businesses on the same deployment
     can price, gate and schedule completely differently without either of them
     touching `domain.config.json`.
+
+    **Invalid override blocks are dropped, not merged.** The global config is
+    validated at load; per-service overrides were not, so a bad block reached the
+    pricing path unchecked. The write path (`POST`/`PATCH /services`) now rejects
+    them outright, but seeded rows, direct DB edits and anything written before
+    that gate existed still have to be survivable — so a bad block falls back to
+    the global one and is logged, rather than 500-ing a customer's booking over a
+    business's typo. Only the offending block is dropped; the rest still apply.
     """
     cfg = get_config()
-    metadata = (service or {}).get("metadata") or {}
-    resolved = {}
-    for block in OVERRIDABLE_BLOCKS:
-        resolved[block] = _merge(cfg.get(block) or {}, metadata.get(block))
-    return resolved
+    declared = surviving_overrides(service)
+    return {
+        block: _merge(cfg.get(block) or {}, declared.get(block))
+        for block in OVERRIDABLE_BLOCKS
+    }
 
 
 def effective_service_pricing(service: dict | None) -> dict:
@@ -269,8 +326,12 @@ def effective_service_pricing(service: dict | None) -> dict:
     overrides them.
     """
     svc = service or {}
-    pricing = effective_service_config(svc)["pricing"]
-    declared = ((svc.get("metadata") or {}).get("pricing")) or {}
+    # Read the SURVIVING block, not the raw metadata. Reading the raw one meant a
+    # rejected `pricing` override still suppressed the legacy-column fold-in, so a
+    # service with a typo'd block priced at the global default (0 by default)
+    # instead of its own `price_minor_units` — a silent zero-price bug.
+    declared = surviving_overrides(svc).get("pricing") or {}
+    pricing = _merge(get_config().get("pricing") or {}, declared)
 
     if _dig(declared, "rate.amountMinorUnits") is None and svc.get("price_minor_units") is not None:
         pricing["rate"] = {**pricing.get("rate", {}), "amountMinorUnits": svc["price_minor_units"]}

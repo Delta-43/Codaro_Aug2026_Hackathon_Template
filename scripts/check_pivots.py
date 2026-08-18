@@ -32,6 +32,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "backend"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from app.config_schema import normalize, validate  # noqa: E402
 from app.pricing import quote  # noqa: E402
@@ -830,6 +831,13 @@ MULTI += [
 
 ALL = [dict(p, tenancy="single") for p in SINGLE] + [dict(p, tenancy="multi") for p in MULTI]
 
+try:  # batch 2 (#51-100): probes aimed at dimensions batch 1 never varied
+    from pivots_extended import EXTENDED
+
+    ALL += EXTENDED
+except ImportError:
+    pass
+
 
 def run_one(p: dict) -> dict:
     cfg = normalize(deep_merge(base(p["tenancy"]), p["config"]))
@@ -848,11 +856,21 @@ def run_one(p: dict) -> dict:
         and p.get("expect") is not None
         and priced["amountMinorUnits"] != p["expect"]
     )
+    # Some findings live in the deposit, not the total (a refundable bond that
+    # gets silently clamped to the hire fee still quotes the right price).
+    if priced is not None and p.get("expect_deposit") is not None:
+        mispriced = mispriced or priced["depositMinorUnits"] != p["expect_deposit"]
     gaps = [d for d in p.get("depends", []) if d not in ENFORCED]
+    # `expect` is always the business-CORRECT total. When a pivot declares a
+    # `limitation`, a mismatch is the documented proof of that gap rather than a
+    # regression — that distinction is what lets this script stay exit-0 while
+    # still reporting what the schema cannot yet say.
+    known_gap = mispriced and bool(p.get("limitation"))
     return {
         "pivot": p, "config": cfg, "errors": errors, "priced": priced,
         "price_error": price_error, "mispriced": mispriced, "gaps": gaps,
-        "ok": not errors and not price_error and not mispriced,
+        "known_gap": known_gap,
+        "ok": not errors and not price_error and (not mispriced or known_gap),
     }
 
 
@@ -896,10 +914,16 @@ def main() -> int:
     else:
         for r in results:
             p = r["pivot"]
-            mark = "ok  " if r["ok"] else "FAIL"
+            mark = ("gap " if r["known_gap"] else "ok  ") if r["ok"] else "FAIL"
             note = ""
             if r["errors"]:
                 note = f"  <- {len(r['errors'])} config error(s)"
+            elif r["known_gap"]:
+                if p.get("expect_deposit") is not None and r["priced"]["depositMinorUnits"] != p["expect_deposit"]:
+                    note = (f"  GAP deposit {r['priced']['depositMinorUnits']}, "
+                            f"correct is {p['expect_deposit']}")
+                else:
+                    note = f"  GAP quoted {r['priced']['amountMinorUnits']}, correct is {p['expect']}"
             elif r["mispriced"]:
                 note = f"  <- quoted {r['priced']['amountMinorUnits']}, expected {p['expect']}"
             elif p.get("blocked"):
@@ -916,13 +940,16 @@ def main() -> int:
                     print(f"          LIMITATION: {p['limitation']}")
 
     print()
-    print(f"pivots                          : {len(results)} ({len(SINGLE)} single-tenant, {len(MULTI)} marketplace)")
+    n_single = sum(1 for p in ALL if p["tenancy"] == "single")
+    print(f"pivots                          : {len(results)} "
+          f"({n_single} single-tenant, {len(ALL) - n_single} marketplace)")
     correct = [r for r in results if r["priced"] and not r["mispriced"]]
+    gap_results = [r for r in results if r["known_gap"]]
     print(f"expressible in config v2        : {len(expressible)}/{len(results)}")
     print(f"quoted == hand-computed total   : {len(correct)}/{len(results)}")
     print(f"enforced end to end today       : {len(enforced_now)}")
     print(f"awaiting an escape hatch (code) : {len(blocked)}")
-    print(f"schema limitations found        : {len(limits)}")
+    print(f"schema limitations found        : {len(limits)} ({len(gap_results)} proven by a misquote)")
     print(f"unique capability tuples        : {'yes' if not dupes else 'NO — ' + '; '.join(dupes)}")
 
     for r in limits:

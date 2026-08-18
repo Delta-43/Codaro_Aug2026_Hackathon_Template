@@ -104,7 +104,17 @@ class ServiceCreate(CamelModel):
     image_url: str | None = None
     # Non-column fields (ride in services.metadata): auto_approve gates whether
     # new bookings confirm immediately or land as pending requests.
-    auto_approve: bool = True
+    #
+    # None (not True) so an unset value stays UNSET. Defaulting to True stamped
+    # every created service with an explicit metadata key, which `effective_auto_approve`
+    # checks first — making both a `timing.confirmation` override and a
+    # deployment-wide `request_approve` unreachable through the API.
+    auto_approve: bool | None = None
+    # Per-service config overrides, keyed by block name (`pricing`, `timing`,
+    # `inventory`, ...). This is how one business on a marketplace prices or
+    # gates differently from another without touching domain.config.json.
+    # Validated against the same schema as the global file; a bad block is a 422.
+    config: dict | None = None
 
 
 class ServiceUpdate(CamelModel):
@@ -119,6 +129,7 @@ class ServiceUpdate(CamelModel):
     cancellation_cutoff_hours: int | None = None
     image_url: str | None = None
     auto_approve: bool | None = None
+    config: dict | None = None
 
 
 class ResourceCreate(BaseModel):

@@ -40,6 +40,12 @@ test/
     test_bookings.py        # create/list(scope)/get/reschedule/cancel/review + cutoff/capacity
     test_providers.py       # /providers discovery (search/by-code) + follow/unfollow + owner create/patch/mine
     test_services.py        # /services reads + derived resourceIds + owner create/patch
+    test_service_config_overrides.py  # per-service config overrides:
+                            #   validate_overrides + surviving_overrides +
+                            #   effective_service_config/_pricing's drop-invalid-block,
+                            #   POST/PATCH /services `config` (422), auto_approve vs
+                            #   timing.confirmation, + a real booking priced by the
+                            #   service's own pricing
     test_availability.py    # /availability + /month-density
     test_me.py              # GET/PATCH /me
     test_frontend_contract.py  # frontend/src/api paths + error codes vs the live route table
@@ -182,8 +188,9 @@ path the UI calls exists on the FastAPI app (method-aware) and that the
 
 ## Current state
 
-`python -m pytest test/backend -q` from the repo root: **792 passed**
-(0 failures, **no xfails left**). `python -m pytest test/` adds the 8 live e2e
+`python -m pytest test/backend -q` from the repo root: **1006 passed**
+(0 failures, **no xfails left**, and **no known gaps pinned** — the four that
+were are now asserted as fixed behaviour, see below). `python -m pytest test/` adds the 8 live e2e
 tests, which skip without `SUPABASE_URL`/`SUPABASE_ANON_KEY`.
 
 The former `strict=True` xfail pair (`config_schema._enum` raising `TypeError`
@@ -191,6 +198,152 @@ on an unhashable value) is **gone**: `_enum` now type-guards
 (`isinstance(value, (dict, list, set, bytearray)) or value not in allowed`), so
 those cases are asserted as real behaviour instead of pinned as a gap — see
 "Enum type-guard + distanceBand shape checks" below.
+
+## Per-service config overrides (`test_service_config_overrides.py`, 169 tests)
+
+`validate()` only ever ran on the global `domain.config.json` at load, so the
+per-service override blocks (`services.metadata.<block>`, consumed by
+`rules.effective_service_config`) reached the pricing and scheduling paths
+unvalidated — a service could carry a `pricing` block that quoted real money with
+no schema check — and the feature was unreachable anyway, because the API only
+wrote `image_url`/`auto_approve` into service metadata. One file covers the whole
+seam, schema -> rules -> route -> booking:
+
+- **`config_schema.validate_overrides`** — a valid block in each of the nine
+  overridable blocks reports `[]`; `None`/`{}`/unknown top-level keys report `[]`
+  without suppressing a sibling block's errors; every enum position, the
+  `"percentage"` fee-kind typo, malformed fee descriptors (missing `rateBps` /
+  `amountMinorUnits` / `bands`, non-object entry), a bad `booking.party` range and
+  a choice-less select option are reported with their path (indexed errors keep
+  their `[i]`); all problems come back in one pass; a partial block merges over
+  the base instead of replacing it; neither DEFAULTS nor the argument is mutated.
+  Also pinned: the function validates any block that exists in `DEFAULTS`
+  (including `terms`/`tenancy`) — restricting the set is the *router's* job.
+
+  **Attribution is a diff, not a path filter.** `validate_overrides(overrides,
+  base=None)` merges onto the deployment's resolved config (`get_config()`,
+  passed by `rules.service_override_problems`, `rules.surviving_overrides` and
+  `services._config_overrides`; DEFAULTS is only the no-config fallback) and
+  keeps exactly the errors the override *introduces* — those `validate(base)`
+  does not already produce. Both halves are covered:
+  - *Already in the base ⇒ blamed on nobody.* Proved by breaking the base
+    (`monkeypatch.setitem(DEFAULTS["tenancy"], "mode", "single")`, and a
+    malformed `DEFAULTS["timing"]["blackouts"]`): a `pricing`-only override hears
+    nothing about `tenancy.providerCode`, and **neither does a caller that
+    declares `tenancy` itself** — a pre-existing defect of the deployment is not
+    the override's fault (the load path is what must catch it, re-asserted in the
+    same test). New problems raised by the same call still surface.
+  - *Introduced by the override ⇒ reported even when it names another block.*
+    The motivating case: on a `capabilities.payments: false` +
+    `payments.flow: "none"` deployment, an override declaring only
+    `payments.flow: "prepay"` produces the `capabilities.payments is false ...`
+    error. The old leading-segment filter dropped it as "undeclared", so the
+    write gate accepted the contradiction `validate()` exists to prevent. Covered
+    at unit level and through the real `POST /services` (422 naming it, nothing
+    written; the same block is a 200 on a payments-enabled deployment), plus the
+    reverse direction (declaring `capabilities` alone) and a broken-base window
+    whose *new* bad entry — a different list, or index 1 of the same list — is
+    still reported.
+  - *An explicit `base` differs from the DEFAULTS fallback.*
+    `location.modes: ["remote"]` is rejected against DEFAULTS (whose
+    `location.default` is `on_site`) and clean against a deployment that is
+    already remote-first; passing `DEFAULTS`/`None` explicitly reproduces the
+    fallback.
+- **`rules.service_overrides` / `service_override_problems`** — only dict-valued
+  keys in `OVERRIDABLE_BLOCKS` count (`image_url`, `auto_approve`, a `tenancy` or
+  `terms` block and a non-dict `pricing` are all ignored, and an ignored block is
+  neither validated nor merged).
+- **`rules.surviving_overrides`** — the single source of truth for "which of a
+  service's overrides actually apply", read by BOTH `effective_service_config`
+  and `effective_service_pricing` (they used to decide independently and
+  disagreed). Covered directly: a clean service gets every declared block back
+  (identical to `service_overrides`), an invalid one loses only the offending
+  block (including when the error is indexed, `pricing.fees[0].kind`), a service
+  declaring nothing returns `{}` **without calling the validator at all** (spy —
+  it runs twice per booking; the spies take `(overrides, base=None)` since the
+  resolvers pass the deployment config), the drop is logged once naming the
+  service, and
+  stubbing the function moves both resolvers at once (the regression guard).
+- **`rules.effective_service_config`** — per-block isolation (an invalid
+  `pricing` is dropped while a valid `timing` in the SAME service still applies),
+  the fallback equals `get_config()[block]` exactly (equal to, not identical
+  with), a clean override still merges, `service_override_problems` matches
+  exactly the set of dropped blocks, the warning is emitted once on the
+  `app.rules` logger naming the service id + the problem (`caplog`), a clean
+  service logs nothing, and a service declaring **no** blocks never calls the
+  validator at all (spy on `app_rules.validate_overrides` — it runs on the hot
+  booking path). The cost invariant is the zero-call one only: a *declaring*
+  service is no longer pinned to an exact call count (`validate()` legitimately
+  runs twice per `validate_overrides` — baseline + merged); the spy asserts the
+  arguments instead, i.e. that the resolver passes `get_config()` as the base.
+- **Routes** — `POST /services` with a valid `config` persists the blocks into
+  metadata alongside `image_url`/`auto_approve` without widening the wire
+  `Service` shape; an invalid block is a **422** `VALIDATION_ERROR` with the
+  problems in `detail.details.problems` and **nothing written**; an unknown block
+  is a 422 listing the allowed set; **`tenancy` is rejected as an unknown block**
+  (a tenant must not set its own commission), including next to a valid block;
+  401/403 gating still applies and runs *before* config validation. `PATCH`
+  replaces a block **wholesale** (a removed key really goes) while untouched
+  blocks, `image_url` and `auto_approve` survive, config can be patched alongside
+  columns, and a 422 leaves the row byte-identical (not even the valid `name` in
+  the same request lands).
+- **The marketplace claim, end to end** — two services created through the API
+  with identical `priceMinorUnits` columns, one declaring
+  `pricing.rate.per: "night"`, produce bookings of 9900 vs 1000 minor units
+  through the real `POST /bookings`; a configured flat fee + percent deposit show
+  up in `price_breakdown`/`deposit_minor_units`; PATCHing a new pricing block
+  reprices the *next* booking while the earlier one keeps its quote; and a
+  service written with a bad block *before* the gate existed is still bookable,
+  priced by the global block.
+
+### The four former known gaps — now asserted as FIXED
+
+They used to be pinned as warts with a docstring saying what to change; the
+backend changed, so each is a positive assertion now (the docstrings say what the
+old behaviour was, so a regression is recognisable):
+
+1. **Season/blackout errors carry a dotted path.** `validate` walks `seasons` and
+   `blackouts` separately and emits `timing.<list>[i] needs startDate and
+   endDate` (it used to be one pathless sentence covering both lists, which the
+   block-attribution filter dropped). Covered in
+   `test_service_config_overrides.py` — both lists x seven malformed shapes,
+   per-entry indices in a multi-entry list, the two lists indexed independently,
+   a malformed window not suppressing the block's other problems, and a
+   `monkeypatch`ed broken DEFAULTS proving the error is still only blamed on a
+   caller that declared `timing` — and at the load path in
+   `test_config_schema.py` (same matrix through `validate` + `load_config`
+   raising `ConfigError`). `POST /services` with a malformed `seasons`/
+   `blackouts` window is now one of the 422 cases.
+2. **`effective_service_pricing` reads the SURVIVING block.** A service with
+   `price_minor_units = 4500` and a typo'd `pricing` block prices at **4500** —
+   pinned as exactly that, and explicitly not 0 (the old silent-zero: the
+   rejected block's `rate.amountMinorUnits` suppressed the legacy-column
+   fold-in) and not the block's bogus 9900. Siblings: no column → the global
+   amount (the fix must not invent a price), a *valid* block still beating the
+   columns, and the legacy-row booking test now pins `priceMinorUnits == 1000`
+   instead of merely `!= 9900`.
+3. **`auto_approve` is only written when it is sent.**
+   `ServiceCreate.auto_approve` is `bool | None = None`, so a bare `POST
+   /services` writes `metadata == {}` (it used to stamp `auto_approve: true`,
+   which shadowed `timing.confirmation` forever), an explicit `true`/`false`
+   writes the key, and a service created with
+   `config={"timing": {"confirmation": "request_approve"}}` and no `autoApprove`
+   lands a real booking as **`pending`**. An explicit `autoApprove: true`
+   alongside the override still wins.
+4. **`serialize_service` uses `effective_auto_approve(row)`.** Wire and booking
+   path agree: `timing.confirmation: request_approve` + no `auto_approve` key →
+   `autoApprove: false`; an explicit key still wins; a plain service is still
+   `true`; an *invalid* `timing` override falls back to `true`. Same three cases
+   at unit level in `test_serialize.py` (plus the global-`confirmation` case via
+   `domain_config`), and a subprocess test pinning that `app.serialize`'s new
+   `from app.rules import ...` is not a circular import.
+
+**The 3+4 pairing, end to end** (`test_the_wire_and_the_booking_path_agree_on_a_by_request_service`)
+— a service created with only the confirmation override reports
+`autoApprove: false` on `GET /services/{id}` **and** produces a `pending`
+booking through the real `POST /bookings` (persisted as `pending`, holding no
+capacity per `/slots/occupancy`). Before the fix both halves were wrong in the
+same direction, so neither alone would have caught it.
 
 ## Domain config v2 coverage
 
@@ -224,7 +377,7 @@ to preserve the old assertions.
 
 New coverage added for v2:
 
-- **`test_config_schema.py`** (217 tests) — `normalize`: a v1-only file resolves
+- **`test_config_schema.py`** (235 tests) — `normalize`: a v1-only file resolves
   and stays valid, every v2 block is filled from `DEFAULTS`, partial blocks merge
   key-by-key, **lists replace rather than merge**, `DEFAULTS`/input are never
   mutated, and `normalize` is idempotent on `{}`, the fixture and both shipped
@@ -240,7 +393,7 @@ New coverage added for v2:
   with a non-`none` `payments.flow`, bad/`select`-without-options/missing-key
   metaFields, `"string"` accepted as an alias for `"text"`, and the numeric
   guards (including `maxBookingsPerSlot >= 1`).
-- **`test_pricing.py`** (166 tests) — `quote`/`match_tier`. v1 parity is
+- **`test_pricing.py`** (189 tests) — `quote`/`match_tier`. v1 parity is
   parametrized over slots x party x price so a refactor cannot silently reprice
   the catalog. Then: every `rate.per` (`booking`/`slot`/`hour`/`day`/`night`/
   `week`/`month`/`person`/`unit`), whole-unit periods billing by **started**
@@ -251,8 +404,8 @@ New coverage added for v2:
   `appliesWhen` clause failing **closed**, and `validFrom`/`validUntil` sales
   windows; secondary rate; fees flat/percent(bps)/distanceBand incl. compounding
   order; `caps.perBookingMinorUnits` (applied after fees, with the negative
-  `cap` breakdown line); deposits percent/flat, both clamped to the total and
-  derived from the *capped* total; plus coercion robustness (string/null
+  `cap` breakdown line); deposits percent/flat, derived from the *capped* total,
+  with **`refundable` selecting how they clamp** (see below); plus coercion robustness (string/null
   amounts, non-dict entries, unknown period) so a hand-edited config cannot 500
   the booking path.
   **Period vs. unit separation** (a fixed bug, re-pinned as the new contract):
@@ -382,6 +535,22 @@ kept):
   priced through `pricing.quote` in the same test — a distance beyond every
   numbered band charges the catch-all, a distance inside one charges that band.
 
+**Deposit clamping is branch-selected by `refundable`** (`pricing._deposit`, a
+deliberate behaviour change — the old code clamped both kinds to the total). A
+NON-refundable deposit is a *prepayment*, so it can never exceed the price; a
+refundable one is a *damage bond*, which routinely can (a 300 bond on a 200 tool
+hire). `test_pricing.py`'s deposit section covers both: `refundable: False`
+clamps a 150% percent and an above-total flat value down to the total (and every
+share at or below 100% is untouched by the clamp), while `refundable: True`
+returns a 30000 flat bond on a 20000 hire and 1.5x the total for a 150% bond.
+Both branches floor at 0 for a negative/unparseable `value` (parametrized over
+kind x refundable), `enabled: False` wins over both, and one test pins the
+**default** explicitly — `DEFAULTS["pricing"]["deposit"]["refundable"]` is
+`true`, so a config enabling a deposit without naming `refundable` gets the
+unclamped bond branch (it normalizes, validates clean and prices 30000 on a
+20000 total). No booking-level assertion in `test_bookings.py` crosses the
+clamp (its deposits are 20% and 50% of the total), so those were left alone.
+
 The point-2 finding is deliberately left pinned as-is: `pricing._fee_amount`
 treats a falsy `kind` as flat while `validate` rejects it — the validator is
 intentionally stricter than the pricer.
@@ -438,7 +607,10 @@ email; offline yields `"Guest"` because the `FakeSupabase` has no `auth.admin`).
 
 Business-mode (owner/provider) coverage:
 - `test_serialize.py` — `serialize_service` now emits `autoApprove`
-  (`SERVICE_KEYS` updated; default `True`, `False` from `metadata.auto_approve`);
+  (`SERVICE_KEYS` updated; default `True`, `False` from `metadata.auto_approve`,
+  and — since the fix — `False` from a `timing.confirmation: request_approve`
+  override with no `auto_approve` key, because it delegates to
+  `rules.effective_auto_approve`);
   `effective_booking_status` passes `pending`/`rejected` through unchanged
   (a past-end pending is NOT auto-completed).
 - `test_services.py` — `SERVICE_KEYS` updated; owner create with

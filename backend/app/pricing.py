@@ -289,12 +289,21 @@ def _apply_caps(caps: dict, total: int, breakdown: list) -> int:
 
 
 def _deposit(deposit: dict, total: int) -> int:
+    """A deposit is one of two different things, and they clamp differently.
+
+    A NON-refundable deposit is a prepayment — part of the price — so it can
+    never exceed the total. A REFUNDABLE deposit is a damage bond: a hold that
+    is returned, and routinely larger than the hire fee (a 300 bond on a 200
+    tool hire). Clamping that to the total silently under-secures the asset,
+    which is how a pivot testing exactly this case (#98) caught it.
+    """
     if not deposit.get("enabled"):
         return 0
     value = _int(deposit.get("value"))
-    if deposit.get("kind") == "flat":
-        return min(value, total)
-    return min(round(total * value / 100), total)
+    amount = value if deposit.get("kind") == "flat" else round(total * value / 100)
+    if deposit.get("refundable"):
+        return max(0, amount)
+    return min(max(0, amount), total)
 
 
 # -- coercion ------------------------------------------------------------

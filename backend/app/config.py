@@ -18,7 +18,7 @@ import os
 from functools import lru_cache
 from pathlib import Path
 
-from app.config_schema import ConfigError, normalize, validate
+from app.config_schema import ConfigError, check_shape, normalize, validate
 
 DEFAULT_CONFIG_PATH = Path(__file__).resolve().parents[2] / "domain.config.json"
 
@@ -42,8 +42,18 @@ def load_config(path: Path | None = None) -> dict:
     if not isinstance(raw, dict):
         raise ConfigError(f"{path} must contain a JSON object at the top level.")
 
-    config = normalize(raw)
-    errors = validate(config)
+    # Shape first: normalize/validate index into each block assuming it is the
+    # type DEFAULTS declares, so a malformed one has to be caught before them or
+    # it escapes as a raw TypeError/AttributeError instead of a ConfigError.
+    errors = check_shape(raw)
+    if not errors:
+        try:
+            config = normalize(raw)
+            errors = validate(config)
+        except ConfigError:
+            raise
+        except Exception as e:  # backstop: no shape bug may escape as a 500
+            errors = [f"could not be read: {type(e).__name__}: {e}"]
     if errors:
         listed = "\n  - ".join(errors)
         raise ConfigError(

@@ -31,7 +31,9 @@ const INPUT =
 
 export default function SearchPage() {
   const vertical = useVertical();
-  const { user, singleBusiness } = useApp();
+  // `ready` flips only after AppProvider has applied the pivot file's
+  // location settings, so it is the signal that `geoOrigin()` is final.
+  const { user, singleBusiness, ready } = useApp();
   const router = useRouter();
 
   // Provider discovery doesn't exist in single-business mode — the sole business
@@ -111,7 +113,10 @@ export default function SearchPage() {
       distHi: dists.length ? Math.max(1, Math.ceil(Math.max(...dists))) : 0,
       hasDistance: dists.length > 0 && Math.max(...dists) > 0,
     };
-  }, [allProviders.data]);
+    // `ready` is a dependency because `geoOrigin()` is module state with no React
+    // subscription: without it these bounds keep the pre-boot fallback origin for
+    // the life of the page.
+  }, [allProviders.data, ready]);
 
   const followed = new Set(user?.followedProviderIds ?? []);
 
@@ -139,7 +144,9 @@ export default function SearchPage() {
     });
     // followedKey stands in for the `followed` set (rebuilt each render).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results.data, orderBy, dir, followedKey, minRating, maxPrice, maxDist]);
+    // `ready` for the same reason as `bounds`: the maxDist filter calls
+    // geoOrigin(), which is not reactive.
+  }, [results.data, orderBy, dir, followedKey, minRating, maxPrice, maxDist, ready]);
 
   // Clicking the active order toggles its direction; a different order switches
   // to it at its natural "best-first" direction.

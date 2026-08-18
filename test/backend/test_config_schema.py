@@ -493,6 +493,62 @@ def test_validate_rejects_an_out_of_range_number(patch, path):
     assert any(path in problem for problem in problems), (path, problems)
 
 
+# --- timing.seasons / timing.blackouts -------------------------------------
+# Each entry is reported on its own, with `timing.<list>[i]` in the message. The
+# path is not cosmetic: it is how an owner-facing surface points at the row that
+# is actually broken, and how `rules.surviving_overrides` decides which block to
+# drop. The old pathless phrasing ("timing seasons/blackouts entry 0 needs...")
+# named no block at all, so the per-service override path could not attribute it.
+
+
+@pytest.mark.parametrize("key", ["seasons", "blackouts"])
+@pytest.mark.parametrize(
+    "window",
+    [
+        {},
+        {"startDate": "2026-01-01"},
+        {"endDate": "2026-03-01"},
+        {"startDate": "", "endDate": "2026-03-01"},
+        {"startDate": "2026-01-01", "endDate": ""},
+        "2026-01-01/2026-03-01",
+        None,
+    ],
+)
+def test_a_malformed_timing_window_is_rejected_with_its_indexed_path(key, window):
+    assert validate(normalize({"timing": {key: [window]}})) == [
+        f"timing.{key}[0] needs startDate and endDate"
+    ]
+
+
+@pytest.mark.parametrize("key", ["seasons", "blackouts"])
+def test_a_well_formed_timing_window_validates_clean(key):
+    assert validate(
+        normalize({"timing": {key: [{"startDate": "2026-01-01", "endDate": "2026-03-01"}]}})
+    ) == []
+
+
+def test_the_two_timing_window_lists_are_enumerated_independently():
+    good = {"startDate": "2026-01-01", "endDate": "2026-03-01"}
+    problems = validate(
+        normalize({"timing": {"seasons": [good, {}], "blackouts": [{}, good, {"startDate": "x"}]}})
+    )
+    assert set(problems) == {
+        "timing.seasons[1] needs startDate and endDate",
+        "timing.blackouts[0] needs startDate and endDate",
+        "timing.blackouts[2] needs startDate and endDate",
+    }
+
+
+def test_a_config_file_with_a_malformed_window_cannot_load(tmp_path):
+    config_file = tmp_path / "domain.config.json"
+    config_file.write_text(
+        json.dumps({"domain": "test", "timing": {"blackouts": [{"startDate": "2026-12-24"}]}})
+    )
+    with pytest.raises(ConfigError) as excinfo:
+        load_config(config_file)
+    assert "timing.blackouts[0]" in str(excinfo.value)
+
+
 def test_a_min_duration_above_the_max_is_rejected():
     problems = validate(normalize({"booking": {"duration": {"minUnits": 5, "maxUnits": 2}}}))
     assert any("minUnits must not exceed" in problem for problem in problems), problems

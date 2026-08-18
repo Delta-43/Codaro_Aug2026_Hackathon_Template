@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 import pytest
 
 from app import serialize as S
+from app.rules import effective_auto_approve
 
 # A fixed "now" so the time-dependent ladders are deterministic.
 NOW = datetime(2026, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
@@ -354,6 +355,33 @@ def test_service_auto_approve_metadata_true():
     assert S.serialize_service(row)["autoApprove"] is True
 
 
+def test_service_auto_approve_follows_a_per_service_confirmation_override():
+    """`serialize_service` delegates to `rules.effective_auto_approve` (it used to
+    read `metadata.auto_approve` directly), so the wire field cannot disagree with
+    the booking path for a service gated by `timing.confirmation` alone."""
+    row = _service_row()
+    row["metadata"] = {"timing": {"confirmation": "request_approve"}}
+    assert S.serialize_service(row)["autoApprove"] is False
+    assert effective_auto_approve(row) is False
+
+
+def test_service_auto_approve_key_still_wins_over_a_confirmation_override():
+    row = _service_row()
+    row["metadata"] = {"timing": {"confirmation": "request_approve"}, "auto_approve": True}
+    assert S.serialize_service(row)["autoApprove"] is True
+
+
+def test_service_auto_approve_follows_the_global_confirmation_mode(domain_config):
+    """No per-service block at all: the deployment-wide `timing.confirmation`
+    decides what the wire reports."""
+    domain_config(timing={"confirmation": "request_approve"})
+    row = _service_row()
+    row["metadata"] = {}
+    assert S.serialize_service(row)["autoApprove"] is False
+    domain_config(timing={"confirmation": "instant"})
+    assert S.serialize_service(row)["autoApprove"] is True
+
+
 # --- serialize_resource ----------------------------------------------------
 
 RESOURCE_KEYS = {
@@ -640,3 +668,26 @@ def test_user_display_name_falls_back_to_email_local_part():
     assert out["timezone"] == "UTC"
     assert out["verified"] is False
     assert out["followedProviderIds"] == []
+
+
+# --- import graph ----------------------------------------------------------
+
+
+def test_serialize_can_be_imported_on_its_own_without_a_circular_import():
+    """`serialize_service` reaches into `app.rules` for `effective_auto_approve`,
+    and `app.rules` imports `app.config`/`app.config_schema` — a cycle here would
+    only show up as an ImportError on the first module to be imported in a fresh
+    process (never in this suite, where conftest has already imported both). Pin
+    it in a subprocess so the claim is actually tested.
+    """
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    backend = Path(__file__).resolve().parents[2] / "backend"
+    for module in ("app.serialize", "app.rules"):
+        proc = subprocess.run(
+            [sys.executable, "-c", f"import {module}"],
+            cwd=str(backend), capture_output=True, text=True,
+        )
+        assert proc.returncode == 0, (module, proc.stderr)

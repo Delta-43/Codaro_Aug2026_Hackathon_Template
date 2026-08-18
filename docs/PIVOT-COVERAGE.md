@@ -9,11 +9,15 @@ python3 scripts/check_pivots.py -v     # + per-pivot gaps
 python3 scripts/check_pivots.py --md   # the table below
 ```
 
-`scripts/check_pivots.py` expresses 50 deliberately different businesses as real
+`scripts/check_pivots.py` expresses 100 deliberately different businesses as real
 `domain.config.json` fragments, runs each through the actual
 `app.config_schema.validate()` and `app.pricing.quote()`, and asserts the quoted
 total against a hand-computed figure. It exits non-zero if any pivot fails to
-validate, misprices, or duplicates another's capability tuple.
+validate, misprices unexpectedly, or duplicates another's capability tuple.
+
+Pivots #1-50 live in `scripts/check_pivots.py`; #51-100 in
+`scripts/pivots_extended.py`. A pivot may declare a `limitation`, which marks a
+known gap: the mismatch is then reported as `gap`, not a regression.
 
 It separates two questions that are easy to conflate:
 
@@ -28,15 +32,28 @@ the roadmap, and saying so plainly is the point of this document.
 
 ## Results
 
-| Measure | Result |
-|---|---|
-| Pivots defined | **50** (25 single-tenant, 25 marketplace) |
-| Expressible in config v2 | **50 / 50** |
-| Quoted total == hand-computed total | **50 / 50** |
-| Capability tuples unique (the design's hard constraint) | **yes** |
-| Fully enforced end to end today | **0** |
-| Blocked on a code-level escape hatch | **13** |
-| Schema limitations found | **1** (open) |
+| Measure | Batch 1 (#1-50) | Both batches (#1-100) |
+|---|---|---|
+| Pivots defined | 50 | **100** (55 single-tenant, 45 marketplace) |
+| Expressible in config v2 | 50 / 50 | **100 / 100** |
+| Quoted total == hand-computed total | 50 / 50 | **97 / 100** |
+| Capability tuples unique (the design's hard constraint) | yes | **yes** |
+| Fully enforced end to end today | 0 | **13** |
+| Blocked on a code-level escape hatch | 13 | **13** |
+| Schema limitations found | 1 | **33** (3 proven by a misquote) |
+
+**The two batches do different jobs.** Batch 1 walks the nine design axes
+(bookable unit, pricing, inventory, duration, location, party, prerequisites,
+timing, money flow) and asks *can the schema describe this business?* — the
+answer is yes, 50 times over.
+
+Batch 2 was written after those axes were exhausted (`party` has three values,
+`location` five, and 24 of the first 50 were `on_site`; more permutations would
+prove nothing). It instead probes dimensions batch 1 never varied — currency
+exponents, rounding, tax, refund policy, eligibility arithmetic, cross-service
+composition, resource-level pricing, marketplace economics — chosen because each
+is both a plausible business *and* somewhere the schema might not reach. That is
+where all 32 new limitations came from.
 
 **"0 fully enforced" needs context and should not be read as failure.** These 50
 were chosen to stress the abstraction, so every one of them leans on at least one
@@ -97,6 +114,80 @@ added because only one of the 50 pivots needs it, and the design rule is that a
 field must earn its place across at least two — so it is recorded here rather
 than built.
 
+## What batch 2 found
+
+Three pivots **misquote** — the engine returns a confidently wrong number rather
+than refusing. Those are the serious ones:
+
+| # | Pivot | Quoted | Correct | Why |
+|---|---|---|---|---|
+| 59 | B2B Training | 80000 | 96000 | No `tax` concept anywhere, so VAT-exclusive pricing is unreachable |
+| 62 | Gift voucher florist | 6500 | 1500 | `entitlements.plans[]` has no monetary balance and `quote()` takes no redemption input |
+| 83 | Happy-hour crossing a band | 3000 | 4500 | Tier matching reads the **start time only**, so a 17:00-19:00 booking bills entirely at the 17:00-18:00 rate |
+
+**#83 is the most dangerous finding in either batch.** It is not a missing
+feature — it is a silent mispricing in a configuration that validates cleanly and
+looks correct. Any business with time-banded pricing (off-peak gyms, happy hours,
+night rates) will undercharge on every booking that spans a boundary. Fixing it
+means splitting a booking across bands, which changes the shape of `quote()` from
+"one rate" to "a rate per segment".
+
+### Fixed during this exercise
+
+**Per-service overrides were never validated.** `validate()` only ever ran on the
+global file at load, so `services.metadata.<block>` reached the pricing and
+scheduling paths unchecked — a service could carry a `pricing` block that quoted
+real money with no schema check. Worse, the override path was *unreachable*
+through the API (only `image_url` and `auto_approve` were ever written), so the
+marketplace claim — two businesses pricing differently without touching
+`domain.config.json` — was not actually usable. Now `POST`/`PATCH /services` take
+a validated `config` object (422 on a bad block), and the read path drops an
+invalid block in favour of the global one, per block, with a warning.
+`tenancy` is deliberately non-overridable: a tenant setting its own
+`commission.rateBps` would be privilege escalation.
+
+Closing that hole surfaced four more, all fixed:
+
+| Issue | Effect |
+|---|---|
+| A malformed `timing.seasons`/`blackouts` entry produced a **path-less** error message, so the override filter dropped it | Bad windows passed the write gate |
+| `effective_service_pricing` read the **raw** metadata block rather than the surviving one | A service with a typo'd `pricing` block priced at the global default — **a silent zero price**, not even its own column value |
+| `ServiceCreate.auto_approve` defaulted to `True`, stamping the key on every created service | `timing.confirmation` was unreachable through the API, as was a deployment-wide `request_approve` |
+| `serialize_service` read `metadata.auto_approve` directly instead of `effective_auto_approve` | The wire said `autoApprove: true` while the booking path created `pending` bookings |
+
+The zero-price one is the same shape as #83: a config that validates, looks
+correct, and quietly gets the money wrong.
+
+**Refundable bonds were clamped to the total.** `_deposit` did
+`min(value, total)` for every deposit, so a 30000 damage bond on a 20000 tool
+hire silently became 20000 — under-securing the asset. A deposit is two different
+things: a *non-refundable* one is a prepayment and can never exceed the price; a
+*refundable* one is a hold and routinely does. Now branched on `refundable`, with
+`#55` covering the prepayment branch and `#98` the bond branch.
+
+### Themes behind the 32 new limitations
+
+| Theme | Pivots | The gap |
+|---|---|---|
+| **Tax** | 58, 59 | No `tax` block at all. VAT-inclusive quotes the right gross but cannot break out the component; VAT-exclusive is simply wrong. Affects every commercial pivot in both batches. |
+| **Refunds & change policy** | 60, 61, 97 | Cancellation is one binary cutoff shared by cancel *and* reschedule. No graduated refund ladder, no change fee, no way to be free to cancel but paid to rebook. |
+| **Marketplace economics** | 65, 66, 93, 99 | `commission.rateBps` has no base (net? gross? incl. pass-through fees?); no payout schedule to the tenant; `tenancy` is not per-service overridable so commission is global; nothing aggregates across currencies. |
+| **Discounts are inert** | 62, 69, 74, 89 | `entitlements.plans[].discountBps` is never read by `quote()`. Member rates, contract rates and last-minute pricing all work only by smuggling a key through the generic `zone` clause — which the customer could self-select. |
+| **Composition** | 75, 76, 77, 78, 84 | A booking is one service, one resource, contiguous slots. Bundles across services, dependent resources, paired staff, mid-booking resource swaps and two-endpoint journeys are all unrepresentable. |
+| **Scheduling shapes** | 86, 87, 88, 90, 91 | `blackouts[]` are date ranges, so **recurring weekly opening hours cannot be declared at all** — the most common scheduling fact about any business exists only implicitly in which slots got seeded. Seasons carry no overrides, turn time is one number, buffers are static, overbooking is impossible. |
+| **Identity & eligibility** | 67, 73 | A prerequisite is a yes/no gate, so age rules (dob + minAge) need date arithmetic the schema lacks. `booking.subject` is one subject per booking, so three children each needing a waiver and a seat cannot be modelled. |
+| **Capacity** | 85 | A slot has one `capacity` integer; independent pools (ferry passengers vs vehicle decks) need multi-dimensional capacity. |
+| **Discovery & i18n** | 71, 72 | No locale anywhere (`en-GB` is hardcoded in every frontend formatter), and `metaFields` can declare a resource attribute that `discovery.facets` can never filter on. |
+| **Allocation** | 81 | A waitlist is FIFO by construction; ballots and weighted draws have no representation. |
+
+### Ranked by damage
+
+1. **#83 time-band splitting** — silently wrong money, today, in a valid config.
+2. **Tax** — blocks correctness for every B2B and most B2C commerce.
+3. **Weekly opening hours** — every business has them; none can declare them.
+4. **Commission base + per-tenant override** — ambiguous accounting across all 45 marketplace pivots.
+5. **Inert `discountBps`** — a declared field that does nothing, the exact v1 disease this work set out to cure.
+
 ## Pivots blocked on a code-level escape hatch
 
 These 13 express cleanly in config and cannot run without an extension point.
@@ -121,10 +212,12 @@ Hatch IDs match the section in the original plan.
 `E2` (date-range availability) blocks 4 pivots on its own and is the single
 highest-value hatch to build.
 
-## The 50 pivots
+## The pivots
 
 "Engine gap" counts config paths the pivot depends on that have no reader yet, or
 names the escape hatch blocking it.
+
+### Batch 1 — the nine design axes (#1-50)
 
 | # | Pivot | Tenancy | Config valid | Quote | Expected | Engine gap |
 |---|-------|---------|--------------|-------|----------|------------|
@@ -178,6 +271,99 @@ names the escape hatch blocking it.
 | 48 | Removals Reverse Auction | multi | ok | 0 | 0 | E5 |
 | 49 | Pharmacy Click & Collect | multi | ok | 2400 | 2400 | 4 key(s) |
 | 50 | Shared Kitchen Marketplace | multi | ok | 6600 | 6600 | 4 key(s) |
+
+### Batch 2 — probes into unmodelled dimensions (#51-100)
+
+| # | Pivot | Tenancy | Config valid | Quote | Expected | Engine gap |
+|---|-------|---------|--------------|-------|----------|------------|
+| 51 | Shinjuku Capsule Hotel | single | ok | 14400 | 14400 | none — end to end |
+| 52 | Kuwait City Dental | single | ok | 25500 | 25500 | none — end to end |
+| 53 | Percent fee stacked on a cap | single | ok | 5000 | 5000 | none — end to end |
+| 54 | Odd-percent rounding probe | single | ok | 3616 | 3616 | none — end to end |
+| 55 | Prepayment deposit above the total | single | ok | 500 | 500 | none — end to end |
+| 56 | Two tiers both matching | single | ok | 5000 | 5000 | none — end to end |
+| 57 | Free class with a booking fee | single | ok | 150 | 150 | none — end to end |
+| 58 | Sliding VAT-inclusive salon | single | ok | 6000 | 6000 | none — end to end |
+| 59 | B2B Training (VAT exclusive) | multi | ok | 80000 **MISMATCH** | 96000 | 3 key(s) |
+| 60 | Tiered cancellation refunds | single | ok | 24000 | 24000 | none — end to end |
+| 61 | Reschedule-fee physiotherapy | single | ok | 4000 | 4000 | none — end to end |
+| 62 | Gift voucher florist | single | ok | 6500 **MISMATCH** | 1500 | 1 key(s) |
+| 63 | Split-the-bill supper club | single | ok | 16800 | 16800 | 1 key(s) |
+| 64 | Deposit forfeited on no-show | multi | ok | 30000 | 30000 | 2 key(s) |
+| 65 | Commission on the net, not the gross | multi | ok | 9500 | 9500 | 1 key(s) |
+| 66 | Payout schedule to the tenant | multi | ok | 120000 | 120000 | 3 key(s) |
+| 67 | 18+ Wine Tasting | single | ok | 11000 | 11000 | 2 key(s) |
+| 68 | Senior stylist premium | multi | ok | 7000 | 7000 | 1 key(s) |
+| 69 | Members-only squash court | single | ok | 1200 | 1200 | 2 key(s) |
+| 70 | Expiring credential kitesurf school | single | ok | 12000 | 12000 | 2 key(s) |
+| 71 | Language-specific tour guide | multi | ok | 9000 | 9000 | 1 key(s) |
+| 72 | Accessible-only bookings | multi | ok | 8000 | 8000 | 2 key(s) |
+| 73 | Household account (one payer, many users) | single | ok | 5400 | 5400 | 3 key(s) |
+| 74 | Corporate account with negotiated rate | multi | ok | 2100 | 2100 | 2 key(s) |
+| 75 | Spa Day Package | single | ok | 15000 | 15000 | 1 key(s) |
+| 76 | Room requiring a projector | multi | ok | 8000 | 8000 | 3 key(s) |
+| 77 | Two-person massage (paired staff) | single | ok | 14000 | 14000 | 2 key(s) |
+| 78 | Airport transfer (A to B) | multi | ok | 8100 | 8100 | 2 key(s) |
+| 79 | Multi-day festival pass | multi | ok | 24000 | 24000 | 1 key(s) |
+| 80 | Sequential course (8 weeks, one enrolment) | single | ok | 32000 | 32000 | 3 key(s) |
+| 81 | Waiting-list-only allotment of scarce slots | single | ok | 0 | 0 | 3 key(s) |
+| 82 | Overnight shift rota | multi | ok | 19200 | 19200 | 2 key(s) |
+| 83 | Happy-hour crossing the boundary | single | ok | 3000 **MISMATCH** | 4500 | none — end to end |
+| 84 | Resource swap mid-booking | multi | ok | 25000 | 25000 | 3 key(s) |
+| 85 | Ferry with vehicle decks | multi | ok | 3600 | 3600 | 2 key(s) |
+| 86 | Restaurant turn times by daypart | single | ok | 0 | 0 | 2 key(s) |
+| 87 | Cleaner's travel time between jobs | multi | ok | 7500 | 7500 | 2 key(s) |
+| 88 | Peak-season capacity increase | single | ok | 8000 | 8000 | 2 key(s) |
+| 89 | Last-minute discount | multi | ok | 2000 | 2000 | 1 key(s) |
+| 90 | Overbooking-tolerant clinic | single | ok | 3000 | 3000 | 2 key(s) |
+| 91 | Opening hours per weekday | single | ok | 2800 | 2800 | 1 key(s) |
+| 92 | Two-week notice with a hard horizon | single | ok | 9500 | 9500 | 2 key(s) |
+| 93 | Per-tenant commission override | multi | ok | 5000 | 5000 | 1 key(s) |
+| 94 | Tenant-set cancellation policy | multi | ok | 7000 | 7000 | 2 key(s) |
+| 95 | Zero-duration instant service | single | ok | 900 | 900 | none — end to end |
+| 96 | Very large party buyout | multi | ok | 1250000 | 1250000 | 3 key(s) |
+| 97 | Free cancellation, paid rebooking | single | ok | 11000 | 11000 | 1 key(s) |
+| 98 | Deposit that is not part of the price | single | ok | 20000 | 20000 | 2 key(s) |
+| 99 | Cross-border marketplace, mixed currencies | multi | ok | 8500 | 8500 | 1 key(s) |
+| 100 | Same-day pivot: config swap under load | single | ok | 4200 | 4200 | none — end to end |
+
+### Limitation register
+
+| # | Pivot | Limitation |
+|---|---|---|
+| 41 | Warehouse Pallet Space | pricing.secondaryRate ADDS to the base; a genuine units x weeks PRODUCT (20 pallets x 4 weeks) cannot be expressed. Quoted 20x300 + 4x1000 = 10000, not 20x4x300 = 24000. |
+| 58 | Sliding VAT-inclusive salon | Gross total is right, but the schema has NO tax concept: the 1122 VAT component cannot be declared, so no invoice/receipt can break it out and a VAT-exclusive niche (add 23% at checkout) cannot be expressed at all. |
+| 59 | B2B Training (VAT exclusive) | No `tax` block. VAT-exclusive pricing (the norm for B2B) is unreachable: the engine quotes the net 80000 and there is nowhere to declare the 16000. |
+| 60 | Tiered cancellation refunds | Cancellation is a single BINARY cutoff (`cancellationWindowHours`). A graduated refund ladder — the standard for accommodation — cannot be declared; there is no `refundPolicy[]` and no notion of a partial refund anywhere in the schema. |
+| 61 | Reschedule-fee physiotherapy | A reschedule inside the cutoff is refused outright; it cannot be ALLOWED-WITH-A-FEE. There is no `changeFee` and the reschedule path has no way to add a charge. |
+| 62 | Gift voucher florist | `entitlements.plans[]` models credits/memberships but has no monetary balance, so a part-paying gift voucher cannot reduce a quote. quote() has no redemption input at all. |
+| 63 | Split-the-bill supper club | `payments.flow: split` means staged payments by TIME (deposit/balance), not split between PEOPLE. Per-attendee billing of one booking has no representation. |
+| 65 | Commission on the net, not the gross | `commission.rateBps` has no BASE. Whether the platform takes its cut of the net, the gross, or excludes pass-through fees is undefined — a material accounting ambiguity in every one of the 25 marketplace pivots. |
+| 66 | Payout schedule to the tenant | Money OUT is unmodelled. `payments.schedule[]` describes what the customer owes and when; there is no payout schedule to the tenant, so a marketplace cannot state when a business actually gets paid. |
+| 67 | 18+ Wine Tasting | A prerequisite is a yes/no gate. An age RULE (dob + minAge, evaluated at the booking date) cannot be declared — no `minAge`, and metaField `min`/`max` are numeric bounds, not date arithmetic. |
+| 68 | Senior stylist premium | Priced only by abusing the generic `zone` clause. Pricing belongs to the SERVICE; there is no per-RESOURCE price or duration override, so 'this stylist costs more' and 'this stylist is slower' are both inexpressible as data. |
+| 69 | Members-only squash court | `entitlements.plans[].discountBps` exists but quote() never reads an entitlement. Member pricing works only by hand-passing a `zone`; the declared 5000bps discount is inert. |
+| 71 | Language-specific tour guide | No locale/language anywhere. `terms`/`copy` are single-language, the frontend hardcodes `en-GB` in every Intl formatter, and a resource attribute cannot be made filterable — so 'guides who speak German' is neither declarable nor searchable. |
+| 72 | Accessible-only bookings | `metaFields` can DECLARE `step_free` on a resource but nothing can FILTER on it: `discovery.facets` is a fixed three-key set (price/distance/rating), so a metadata-driven facet is impossible without code. |
+| 73 | Household account (one payer, many users) | `booking.subject` is ONE subject per booking. Three children each needing their own waiver and their own seat cannot be modelled — party size is a number, not a list of identified subjects. |
+| 74 | Corporate account with negotiated rate | Customer-specific negotiated rates work only by smuggling an account key through `zone`. There is no customer-segment concept, so the tier list would have to grow one entry per contract and every customer could self-select any of them. |
+| 75 | Spa Day Package | A bundle spanning three DIFFERENT services in one booking is inexpressible: a booking is `service_id` + contiguous slots on ONE resource. The 15000 is a hand-entered flat price with no link to its components. |
+| 76 | Room requiring a projector | `booking.options[]` can add a PRICE but cannot reserve a second resource. A booking that consumes room AND projector capacity simultaneously has no representation — `booking_slots` all belong to one resource. |
+| 77 | Two-person massage (paired staff) | Requires TWO resources held for the same slot. The engine holds one resource per booking, so a paired-staff treatment can only be faked with a composite resource. |
+| 78 | Airport transfer (A to B) | `location` describes ONE place. A journey has an origin and a destination; there is nowhere to put the second, and `serviceArea.radiusKm` is a circle around a single point. |
+| 81 | Waiting-list-only allotment of scarce slots | A waitlist is FIFO by construction (`autoPromote`). A ballot/lottery allocation — random or weighted draw among applicants — has no representation. |
+| 83 | Happy-hour crossing the boundary | Tier matching uses the START time only, so a 17:00-19:00 booking is billed entirely at the happy-hour rate (3000) instead of 1x1500 + 1x3000 = 4500. Time-banded pricing cannot SPLIT a booking across bands — a real mispricing, not just a missing feature. |
+| 84 | Resource swap mid-booking | `_resolve_selection` requires every slot in a booking to share ONE resource. A 5-day hire that swaps units on day 3 (routine in fleet operations) cannot be one booking. |
+| 85 | Ferry with vehicle decks | A slot has ONE `capacity` integer. A sailing with independent passenger and vehicle pools (and a car consuming both) needs multi-dimensional capacity — inexpressible. |
+| 86 | Restaurant turn times by daypart | `slotDurationMinutes` is one number per service. A turn time that differs by daypart (60 at lunch, 90 at dinner) cannot be declared without splitting into two services. |
+| 87 | Cleaner's travel time between jobs | `bufferMinutes` is a FIXED pad applied at slot creation. Travel time between two at-customer jobs depends on the distance between them — a dynamic buffer the schema cannot express. |
+| 88 | Peak-season capacity increase | `timing.seasons[]` can gate availability on/off but carries no OVERRIDES. A season that changes capacity (or price, or duration) has nowhere to say so — seasons are a boolean window, not a settings layer. |
+| 89 | Last-minute discount | No `appliesWhen` clause reads the gap between NOW and the slot START. Last-minute (and its mirror, early-booking) discounts — a staple of yield management — can only be faked by passing a `zone` the customer could choose themselves. |
+| 90 | Overbooking-tolerant clinic | Capacity is a hard ceiling (`available_count >= party`). Deliberate overbooking — standard where no-shows are predictable — needs an overbook allowance the schema does not have. |
+| 91 | Opening hours per weekday | `blackouts[]` are DATE RANGES. Recurring weekly opening hours (closed Mondays, open late Thursdays) — the single most common scheduling fact about any business — cannot be declared; they exist only implicitly in which slots got seeded. |
+| 93 | Per-tenant commission override | `tenancy` is NOT in `OVERRIDABLE_BLOCKS`, so commission is global to the deployment. Negotiating a different rate with an anchor tenant — routine marketplace economics — requires a code change. |
+| 97 | Free cancellation, paid rebooking | One `cancellationCutoffHours` governs BOTH cancel and reschedule (`within_cutoff` is shared). A fare that is freely cancellable but charges to rebook — or the reverse — cannot be expressed. |
+| 99 | Cross-border marketplace, mixed currencies | Per-tenant currency works, but nothing aggregates across currencies: provider `priceFromMinorUnits` picks a min across services regardless of currency, and search price sort/filter compares raw integers — so CHF 85 sorts against HUF 8500. |
 
 ## What is enforced
 

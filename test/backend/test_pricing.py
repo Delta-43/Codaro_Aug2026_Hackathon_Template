@@ -618,14 +618,6 @@ def test_a_percent_deposit_is_a_share_of_the_final_total(percent, expected):
     assert result["depositMinorUnits"] == expected
 
 
-def test_a_percent_deposit_over_a_hundred_is_clamped_to_the_total():
-    block = pricing(
-        rate={"per": "slot", "amountMinorUnits": 10000},
-        deposit={"enabled": True, "kind": "percent", "value": 150, "refundable": True},
-    )
-    assert quote(block, {"slot_count": 1})["depositMinorUnits"] == 10000
-
-
 def test_a_flat_deposit_is_taken_as_declared():
     block = pricing(
         rate={"per": "slot", "amountMinorUnits": 10000},
@@ -634,13 +626,122 @@ def test_a_flat_deposit_is_taken_as_declared():
     assert quote(block, {"slot_count": 1})["depositMinorUnits"] == 2500
 
 
-def test_a_flat_deposit_larger_than_the_booking_is_clamped_to_the_total():
+# ----------------------------------------------------------------------
+# `refundable` selects between two different things
+#
+# A NON-refundable deposit is a PREPAYMENT — part of the price — so it can
+# never exceed the total. A REFUNDABLE deposit is a damage BOND: a hold that
+# comes back, and routinely larger than the hire fee (a 300 bond on a 200 tool
+# hire). Clamping a bond to the total silently under-secures the asset, which
+# is what a hire pivot with a 30000 bond on a 20000 hire exposed.
+# ----------------------------------------------------------------------
+
+
+def test_a_non_refundable_percent_deposit_over_a_hundred_is_clamped_to_the_total():
+    """A prepayment of 150% is nonsense — you cannot pre-pay more than the price."""
+    block = pricing(
+        rate={"per": "slot", "amountMinorUnits": 10000},
+        deposit={"enabled": True, "kind": "percent", "value": 150, "refundable": False},
+    )
+    assert quote(block, {"slot_count": 1})["depositMinorUnits"] == 10000
+
+
+def test_a_non_refundable_flat_deposit_larger_than_the_booking_is_clamped_to_the_total():
     """Never ask for more up front than the booking costs."""
     block = pricing(
         rate={"per": "slot", "amountMinorUnits": 1000},
         deposit={"enabled": True, "kind": "flat", "value": 9999, "refundable": False},
     )
     assert quote(block, {"slot_count": 1})["depositMinorUnits"] == 1000
+
+
+@pytest.mark.parametrize(
+    ("percent", "expected"), [(0, 0), (10, 1000), (50, 5000), (100, 10000)]
+)
+def test_a_non_refundable_percent_deposit_under_the_total_is_untouched_by_the_clamp(
+    percent, expected
+):
+    """The clamp only ever binds above 100% — every share at or below it is
+    the plain arithmetic, identical to the bond branch."""
+    block = pricing(
+        rate={"per": "slot", "amountMinorUnits": 10000},
+        deposit={"enabled": True, "kind": "percent", "value": percent, "refundable": False},
+    )
+    assert quote(block, {"slot_count": 1, "party_size": 1})["depositMinorUnits"] == expected
+
+
+def test_a_refundable_flat_bond_may_exceed_the_total():
+    """The motivating case: a 30000 bond secures a 20000 tool hire. Clamping it
+    to 20000 would hand back a hold worth less than the asset."""
+    block = pricing(
+        rate={"per": "slot", "amountMinorUnits": 20000},
+        deposit={"enabled": True, "kind": "flat", "value": 30000, "refundable": True},
+    )
+    result = quote(block, {"slot_count": 1, "party_size": 1})
+    assert result["amountMinorUnits"] == 20000
+    assert result["depositMinorUnits"] == 30000
+
+
+def test_a_refundable_percent_bond_over_a_hundred_is_not_clamped():
+    """150% of the hire is a legitimate bond, so it prices as 1.5x the total."""
+    block = pricing(
+        rate={"per": "slot", "amountMinorUnits": 10000},
+        deposit={"enabled": True, "kind": "percent", "value": 150, "refundable": True},
+    )
+    result = quote(block, {"slot_count": 1})
+    assert result["amountMinorUnits"] == 10000
+    assert result["depositMinorUnits"] == 15000
+
+
+@pytest.mark.parametrize("refundable", [True, False])
+@pytest.mark.parametrize(
+    ("kind", "value"),
+    [
+        ("flat", -5000),
+        ("percent", -50),
+        ("flat", "nonsense"),
+        ("percent", "nonsense"),
+        ("flat", None),
+        ("percent", None),
+    ],
+)
+def test_neither_branch_can_produce_a_negative_deposit(kind, value, refundable):
+    """A negative or unparseable `value` floors at 0 on both branches — a
+    hand-edited config must never hand money back through the deposit field."""
+    block = pricing(
+        rate={"per": "slot", "amountMinorUnits": 10000},
+        deposit={"enabled": True, "kind": kind, "value": value, "refundable": refundable},
+    )
+    assert quote(block, {"slot_count": 1})["depositMinorUnits"] == 0
+
+
+@pytest.mark.parametrize("refundable", [True, False])
+@pytest.mark.parametrize("kind", ["flat", "percent"])
+def test_a_disabled_deposit_is_zero_whichever_kind_it_would_have_been(kind, refundable):
+    """`enabled` is checked before `refundable` — the bond branch is not a way
+    around the off switch."""
+    block = pricing(
+        rate={"per": "slot", "amountMinorUnits": 10000},
+        deposit={"enabled": True, "kind": kind, "value": 30000, "refundable": refundable},
+    )
+    assert quote(block, {"slot_count": 1})["depositMinorUnits"] > 0
+
+    block["deposit"] = dict(block["deposit"], enabled=False)
+    assert quote(block, {"slot_count": 1})["depositMinorUnits"] == 0
+
+
+def test_the_refundable_default_is_true_so_an_unnamed_deposit_is_a_bond():
+    """This is a behavioural default someone could flip by accident: because
+    `DEFAULTS["pricing"]["deposit"]["refundable"]` is True, a config that turns
+    a deposit on without naming `refundable` gets the UNCLAMPED bond branch."""
+    assert normalize({})["pricing"]["deposit"]["refundable"] is True
+
+    resolved = normalize({"pricing": {"deposit": {"enabled": True, "kind": "flat", "value": 30000}}})
+    assert validate(resolved) == []
+    assert resolved["pricing"]["deposit"]["refundable"] is True
+
+    block = dict(resolved["pricing"], rate={"per": "slot", "amountMinorUnits": 20000})
+    assert quote(block, {"slot_count": 1, "party_size": 1})["depositMinorUnits"] == 30000
 
 
 def test_the_deposit_is_derived_from_the_capped_total_not_the_raw_one():

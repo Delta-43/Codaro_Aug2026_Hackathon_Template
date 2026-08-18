@@ -81,6 +81,29 @@ touching `domain.config.json`. `effective_service_pricing()` folds the legacy
 `metadata.pricing` declares them), and `effective_auto_approve()` lets
 `timing.confirmation` supply the default the owner's per-service toggle overrides.
 
+**Overrides are validated on both paths.** `validate()` runs on the global file
+at load, which for a while left per-service blocks reaching the pricing path
+unchecked — a service could carry a `pricing` block that quoted real money with
+no schema check. Now:
+
+- **Write** — `POST`/`PATCH /services` take a `config` object keyed by block name
+  and run `config_schema.validate_overrides()`; a bad block is a **422** naming
+  the problem, so a business that mistypes its own pricing is told rather than
+  quietly billed at the platform default. Config blocks replace **wholesale per
+  block** on PATCH (a partial deep-merge would make removing a key impossible).
+- **Read** — `effective_service_config` drops an invalid block and falls back to
+  the global one, logging a warning. Only the offending block is dropped: a valid
+  `timing` override survives alongside a rejected `pricing` one. This exists for
+  seeded rows and direct DB edits, not as a substitute for the write gate — a
+  customer's booking must not 500 over a business's typo.
+- **`tenancy` is deliberately not overridable.** Commission and tenant
+  verification are platform terms; a tenant setting its own `commission.rateBps`
+  would be privilege escalation. It is rejected as an unknown block.
+
+`service_override_problems(service)` returns one service's own errors, so an
+owner-facing surface can show a business its bad config instead of it living only
+in a server log.
+
 The **event-keyed registry** (`apply_rules`) is the escape hatch: adding a
 validator + a `timing` key makes a rule enforce, deleting the config key disables
 it, and no router changes either way. It now declares `booking.create`,

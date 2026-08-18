@@ -334,6 +334,30 @@ def normalize(raw: dict | None) -> dict:
 # -- validation ----------------------------------------------------------
 
 
+def check_shape(raw: dict) -> list[str]:
+    """Type-check the top-level blocks BEFORE `normalize()` touches them.
+
+    `normalize()` and `validate()` both assume a block is the shape DEFAULTS says
+    it is. A hand-edited `"timing": []` or `"tenancy": "single"` therefore raised
+    TypeError/AttributeError out of the load path instead of being reported —
+    which turned a typo into a 500 from /config/reload and a traceback at
+    startup, exactly what load-time validation exists to prevent.
+    """
+    errors: list[str] = []
+    for key, value in (raw or {}).items():
+        if key not in DEFAULTS:
+            continue
+        expected = DEFAULTS[key]
+        if isinstance(expected, dict) and not isinstance(value, dict):
+            errors.append(f"{key} must be an object, got {type(value).__name__}")
+        elif isinstance(expected, list) and not isinstance(value, list):
+            errors.append(f"{key} must be a list, got {type(value).__name__}")
+    version = (raw or {}).get("configVersion")
+    if version is not None and (isinstance(version, bool) or not isinstance(version, (int, float))):
+        errors.append(f"configVersion must be a number, got {version!r}")
+    return errors
+
+
 class ConfigError(ValueError):
     """A pivot file that would break the engine. Raised at load, not at request."""
 
@@ -515,9 +539,13 @@ def validate(cfg: dict) -> list[str]:
     _int(errors, timing.get("advanceBookingWindowDays"), "timing.advanceBookingWindowDays", minimum=0)
     _int(errors, timing.get("bufferMinutes"), "timing.bufferMinutes", minimum=0)
     _int(errors, timing.get("leadTimeMinutes"), "timing.leadTimeMinutes", minimum=0)
-    for i, window in enumerate((timing.get("seasons") or []) + (timing.get("blackouts") or [])):
-        if not isinstance(window, dict) or not window.get("startDate") or not window.get("endDate"):
-            errors.append(f"timing seasons/blackouts entry {i} needs startDate and endDate")
+    # These MUST carry a dotted path: `validate_overrides` filters errors by their
+    # leading path segment, so a pathless message is silently dropped and a
+    # malformed window sails through the per-service write gate.
+    for key in ("seasons", "blackouts"):
+        for i, window in enumerate(timing.get(key) or []):
+            if not isinstance(window, dict) or not window.get("startDate") or not window.get("endDate"):
+                errors.append(f"timing.{key}[{i}] needs startDate and endDate")
 
     _enum(errors, cfg["entitlements"].get("kind"), ENTITLEMENT_KINDS, "entitlements.kind")
     _enum(errors, cfg["discovery"].get("mode"), DISCOVERY_MODES, "discovery.mode")
@@ -531,6 +559,43 @@ def validate(cfg: dict) -> list[str]:
 
     errors.extend(validate_meta_fields(cfg.get("metaFields") or {}))
     return errors
+
+
+def validate_overrides(overrides: dict, base: dict | None = None) -> list[str]:
+    """Validate a PARTIAL config — the blocks one service overrides.
+
+    `validate()` only ever ran on the global file at load, so per-service
+    overrides (`services.metadata.<block>`) reached the pricing and scheduling
+    paths completely unchecked. That is the same class of bug as a metaField
+    descriptor that silently validates nothing, except it applies to money.
+
+    The trick is to merge the overrides onto a known-good base and then keep only
+    the errors belonging to a block the caller actually declared — otherwise a
+    service overriding `pricing` would be blamed for the deployment's unrelated
+    `tenancy` settings.
+
+    `base` must be the deployment's own resolved config, because every
+    cross-block invariant depends on it. Validating against DEFAULTS instead got
+    it wrong in both directions: it accepted `payments.flow: "prepay"` on a
+    deployment with `capabilities.payments: false` (the exact contradiction
+    `validate()` exists to catch), and rejected `location.modes: ["remote"]` on a
+    deployment whose `location.default` was already `"remote"`. DEFAULTS remains
+    the fallback so the function is still usable without a loaded config.
+    """
+    if not overrides:
+        return []
+    declared = {k: v for k, v in overrides.items() if k in DEFAULTS}
+    if not declared:
+        return []
+    # Report exactly the errors the override INTRODUCES, by diffing against the
+    # base's own errors. Filtering by the error's leading path segment looked
+    # equivalent but silently dropped cross-block violations: overriding
+    # `payments.flow` on a `capabilities.payments: false` deployment produces an
+    # error named after `capabilities`, which the caller never declared.
+    baseline = base or DEFAULTS
+    before = set(validate(baseline))
+    merged = _deep_merge(_copy.deepcopy(baseline), declared)
+    return [e for e in validate(merged) if e not in before]
 
 
 def validate_meta_fields(meta_fields: dict) -> list[str]:
