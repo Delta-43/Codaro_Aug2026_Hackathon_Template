@@ -20,12 +20,24 @@ spine. Stack: **Next.js 14 + Tailwind** frontend, **FastAPI** backend, hosted
 `Project_Summary.md` for the original brief, and `REPORT.md` for the current
 frontend⇄backend wiring snapshot.
 
-The pivot mechanism: `domain.config.json` holds the engine's **vocabulary +
-global defaults** — `terms`, `copy`, `theme`, `metaFields`, and the `rules`
-that seed each service's defaults. The backend serves it at `GET /config`.
-**Rules are now per-service**: a service's own columns (duration, min/max slots,
-cutoff, price, booking model) win over the config globals — `rules.py`
-`effective_service_rules` is the single merge point. The frontend renders
+The pivot mechanism: `domain.config.json` (now **v2**, `configVersion: 2`) holds
+the engine's **vocabulary + global defaults**. v1's five sections (`terms`,
+`copy`, `theme`, `metaFields`, `rules`) only ever described one kind of business —
+a time-slot calendar with a price per slot. v2 adds the blocks that let the
+*shape* of the offering pivot too: `capabilities`, `booking`, `pricing`,
+`payments`, `inventory`, `location`, `prerequisites`, `timing`, `recurrence`,
+`entitlements`, `discovery`. It is strictly additive — `rules` and `search`
+survive as deprecated aliases kept in sync with `timing` and `discovery`, so a v1
+file still boots. The backend normalizes and **validates** it at load
+(`app/config_schema.py`), so a typo fails at the edit rather than on the next
+booking, and serves it at `GET /config`.
+
+**Config is the default; the service row is the override.** A service's own
+columns (duration, min/max slots, cutoff, price, booking model) win over the
+config globals via `rules.py` `effective_service_rules`, and
+`effective_service_config` lifts the same precedence to whole blocks through
+`services.metadata.<block>` — which is what lets two businesses on one
+marketplace deployment price and gate completely differently. The frontend renders
 vertical vocabulary from `src/config/verticals.ts` (pure UI labels/nouns/copy).
 New domain-specific data goes in each base table's `metadata jsonb` column — no
 migrations at pivot time. `supabase/schema.sql` is treated as frozen/idempotent
@@ -67,7 +79,8 @@ the current verified snapshot.
 | `frontend/` | Next.js app (`frontend/src/`): login + gated `(app)` group (search / calendar / bookings / provider / account), real HTTP API seam | [frontend/CLAUDE.md](frontend/CLAUDE.md) |
 | `supabase/` | `schema.sql` — neutral base tables + extended entities (providers/services/booking_slots/reviews/follows), occupancy view, RLS | [supabase/CLAUDE.md](supabase/CLAUDE.md) |
 | `test/` | Stack + API tests (owned exclusively by the `test-writer` agent, see below) | [test/CLAUDE.md](test/CLAUDE.md) |
-| `domain.config.json` | The pivot file | — |
+| `domain.config.json` | The pivot file (v2) | [docs/PIVOT-SYSTEM.md](docs/PIVOT-SYSTEM.md) |
+| `scripts/check_pivots.py` | 50 pivots run through the real validator + pricing engine | [docs/PIVOT-COVERAGE.md](docs/PIVOT-COVERAGE.md) |
 
 `backend/`, `frontend/`, and `supabase/` are built out **independently** —
 each has its own `CLAUDE.md` with the requirements and conventions for that

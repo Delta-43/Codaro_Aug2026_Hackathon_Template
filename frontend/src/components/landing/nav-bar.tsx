@@ -2,9 +2,10 @@
 
 /**
  * Floating glass nav pill (à la the Haven reference) over the scene. Section
- * links smooth-scroll to the anchors; the primary button is auth-aware
- * (Login → /login, or Open app → /search when signed in). Links collapse on
- * mobile, leaving just the logo + button.
+ * links smooth-scroll to the anchors; `route` links (Docs) are real
+ * navigations, so they go through next/link instead. The primary button is
+ * auth-aware (Login → /login, or Open app → /search when signed in). Links
+ * collapse on mobile, leaving just the logo + button.
  */
 import Link from "next/link";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
@@ -39,7 +40,11 @@ const LINKS = [
   { href: "#how", label: "How it works" },
   { href: "#calendar", label: "Calendar" },
   { href: "#reviews", label: "Reviews" },
+  { href: "/docs", label: "Docs", route: true },
 ];
+
+const LINK_CLASS =
+  "shrink-0 origin-center whitespace-nowrap rounded-full px-3 py-1.5 text-sm text-muted-foreground transition-all duration-200 ease-out hover:scale-110 hover:bg-muted hover:text-foreground";
 
 function smoothScroll(e: MouseEvent<HTMLAnchorElement>, href: string) {
   e.preventDefault();
@@ -77,16 +82,22 @@ export function NavBar({ authed }: { authed: boolean }) {
           ref={linksRef}
           className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] md:justify-center [&::-webkit-scrollbar]:hidden"
         >
-          {LINKS.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
-              onClick={(e) => smoothScroll(e, l.href)}
-              className="shrink-0 origin-center whitespace-nowrap rounded-full px-3 py-1.5 text-sm text-foreground/70 transition-all duration-200 ease-out hover:scale-110 hover:bg-muted hover:text-foreground"
-            >
-              {l.label}
-            </a>
-          ))}
+          {LINKS.map((l) =>
+            l.route ? (
+              <Link key={l.href} href={l.href} className={LINK_CLASS}>
+                {l.label}
+              </Link>
+            ) : (
+              <a
+                key={l.href}
+                href={l.href}
+                onClick={(e) => smoothScroll(e, l.href)}
+                className={LINK_CLASS}
+              >
+                {l.label}
+              </a>
+            ),
+          )}
         </div>
         {/* Mobile-only affordance: the links row scrolls sideways. */}
         <button

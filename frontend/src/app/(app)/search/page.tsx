@@ -6,6 +6,7 @@
  * top. Tapping a result opens a preview (Follow / Open); Open moves to Tab 2.
  */
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { QrCode, Search as SearchIcon, SlidersHorizontal } from "lucide-react";
 import type { Provider } from "@/types/domain";
 import { getSearchFacets, searchProviders, type SearchFacets } from "@/api";
@@ -19,7 +20,7 @@ import { ProviderCard } from "@/components/search/provider-card";
 import { ProviderPreview } from "@/components/search/provider-preview";
 import { CodeModal } from "@/components/search/code-modal";
 import { FilterSheet } from "@/components/search/filter-sheet";
-import { distanceKm, REFERENCE_LOCATION } from "@/lib/geo";
+import { distanceKm, geoOrigin } from "@/lib/geo";
 import { ORDER_KEYS, ORDER_META, type OrderKey, type SortDir } from "@/lib/order-by";
 import { cn } from "@/lib/utils";
 
@@ -30,7 +31,16 @@ const INPUT =
 
 export default function SearchPage() {
   const vertical = useVertical();
-  const { user } = useApp();
+  // `ready` flips only after AppProvider has applied the pivot file's
+  // location settings, so it is the signal that `geoOrigin()` is final.
+  const { user, singleBusiness, ready } = useApp();
+  const router = useRouter();
+
+  // Provider discovery doesn't exist in single-business mode — the sole business
+  // is implicit. Bounce any stray link/bookmark to the catalog.
+  useEffect(() => {
+    if (singleBusiness) router.replace("/provider");
+  }, [singleBusiness, router]);
 
   const [text, setText] = useState("");
   const [near, setNear] = useState("");
@@ -92,7 +102,7 @@ export default function SearchPage() {
     const prices = all
       .map((p) => p.priceFromMinorUnits)
       .filter((v): v is number => v != null);
-    const dists = all.map((p) => distanceKm(REFERENCE_LOCATION, p.location));
+    const dists = all.map((p) => distanceKm(geoOrigin(), p.location));
     const priceLo = prices.length ? Math.min(...prices) : 0;
     const priceHi = prices.length ? Math.max(...prices) : 0;
     return {
@@ -103,7 +113,10 @@ export default function SearchPage() {
       distHi: dists.length ? Math.max(1, Math.ceil(Math.max(...dists))) : 0,
       hasDistance: dists.length > 0 && Math.max(...dists) > 0,
     };
-  }, [allProviders.data]);
+    // `ready` is a dependency because `geoOrigin()` is module state with no React
+    // subscription: without it these bounds keep the pre-boot fallback origin for
+    // the life of the page.
+  }, [allProviders.data, ready]);
 
   const followed = new Set(user?.followedProviderIds ?? []);
 
@@ -117,7 +130,7 @@ export default function SearchPage() {
       if (minRating > 0 && p.rating < minRating) return false;
       if (maxPrice != null && (p.priceFromMinorUnits == null || p.priceFromMinorUnits > maxPrice))
         return false;
-      if (maxDist != null && distanceKm(REFERENCE_LOCATION, p.location) > maxDist) return false;
+      if (maxDist != null && distanceKm(geoOrigin(), p.location) > maxDist) return false;
       return true;
     });
     return list.sort((a, b) => {
@@ -131,7 +144,9 @@ export default function SearchPage() {
     });
     // followedKey stands in for the `followed` set (rebuilt each render).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results.data, orderBy, dir, followedKey, minRating, maxPrice, maxDist]);
+    // `ready` for the same reason as `bounds`: the maxDist filter calls
+    // geoOrigin(), which is not reactive.
+  }, [results.data, orderBy, dir, followedKey, minRating, maxPrice, maxDist, ready]);
 
   // Clicking the active order toggles its direction; a different order switches
   // to it at its natural "best-first" direction.

@@ -47,7 +47,7 @@ import { getAccessToken } from "@/lib/auth";
 export { ApiError, isApiError } from "@/api/errors";
 export type { ApiErrorCode } from "@/api/errors";
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
 type Query = Record<string, string | number | undefined | null>;
 
@@ -93,7 +93,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = await getAccessToken();
   let res: Response;
   try {
-    res = await fetch(`${BASE}${path}`, {
+    res = await fetch(`${API_BASE}${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",
@@ -115,7 +115,7 @@ async function requestForm<T>(path: string, method: string, body?: FormData): Pr
   const token = await getAccessToken();
   let res: Response;
   try {
-    res = await fetch(`${BASE}${path}`, {
+    res = await fetch(`${API_BASE}${path}`, {
       method,
       body,
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -146,6 +146,69 @@ export async function getSearchFacets(): Promise<SearchFacets> {
   const cfg = await request<{ search?: { facets?: Partial<SearchFacets> } }>("/config");
   const f = cfg.search?.facets ?? {};
   return { price: f.price ?? true, distance: f.distance ?? true, rating: f.rating ?? true };
+}
+
+/** The pivot's tenancy mode. `"single"` collapses the marketplace to one implicit
+ *  business (the site itself): no provider browsing, the sole provider is resolved
+ *  from `providerCode` and locked in automatically. Absent/`"multi"` (the default)
+ *  keeps the multi-provider marketplace. Config passes through `GET /config`
+ *  verbatim, so this reads a top-level key the backend never interprets. */
+export type Tenancy = { mode: "single" | "multi"; providerCode: string | null };
+
+/** Parse the tenancy block from a raw `/config` payload. Shared by the client
+ *  seam (`getTenancy`) and the server-side root redirect (`app/page.tsx`) so the
+ *  shape/parse lives in one place. Defaults to the multi-provider marketplace. */
+export function tenancyFromConfig(cfg: unknown): Tenancy {
+  const t = (cfg as { tenancy?: { mode?: string; providerCode?: string } })?.tenancy ?? {};
+  return {
+    mode: t.mode === "single" ? "single" : "multi",
+    providerCode: t.providerCode ?? null,
+  };
+}
+
+export async function getTenancy(): Promise<Tenancy> {
+  return tenancyFromConfig(await request<unknown>("/config"));
+}
+
+/** The pivot's location settings. `origin` is the point search distances are
+ *  measured from and `distanceUnit` the unit they render in — both were
+ *  hardcoded to Warsaw/km in `lib/geo.ts` before v2 of the config. `timezone` is
+ *  the business's own zone, used as the availability fallback for a visitor who
+ *  has not signed in (who previously always got UTC). */
+export type LocationConfig = {
+  origin: { city?: string; lat: number; lng: number } | null;
+  distanceUnit: "km" | "mi";
+  timezone: string;
+};
+
+export function locationFromConfig(cfg: unknown): LocationConfig {
+  const l =
+    (cfg as {
+      location?: {
+        origin?: { city?: string; lat?: number; lng?: number } | null;
+        distanceUnit?: string;
+        timezone?: string;
+      };
+    })?.location ?? {};
+  const o = l.origin;
+  return {
+    origin:
+      o && typeof o.lat === "number" && typeof o.lng === "number"
+        ? { city: o.city, lat: o.lat, lng: o.lng }
+        : null,
+    distanceUnit: l.distanceUnit === "mi" ? "mi" : "km",
+    timezone: l.timezone || "UTC",
+  };
+}
+
+/** Everything `AppProvider` needs from the pivot file, in ONE request. Boot used
+ *  to call `/config` for tenancy alone; this keeps the round-trip count the same
+ *  while also picking up the location block. */
+export type PivotConfig = { tenancy: Tenancy; location: LocationConfig };
+
+export async function getPivotConfig(): Promise<PivotConfig> {
+  const cfg = await request<unknown>("/config");
+  return { tenancy: tenancyFromConfig(cfg), location: locationFromConfig(cfg) };
 }
 
 // --- discovery -------------------------------------------------------------

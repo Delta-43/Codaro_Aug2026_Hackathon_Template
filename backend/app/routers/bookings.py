@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import secrets
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -29,7 +30,16 @@ from app.errors import (
     api_error,
 )
 from app.models import BookingCreateReq, ClientReviewReq, ReviewReq, RescheduleReq
-from app.rules import effective_service_rules, within_cutoff
+from app.pricing import quote
+from app.rules import (
+    RuleViolation,
+    apply_rules,
+    effective_auto_approve,
+    effective_service_config,
+    effective_service_pricing,
+    effective_service_rules,
+    within_cutoff,
+)
 from app.serialize import _parse, effective_booking_status, iso_utc, serialize_booking
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
@@ -284,6 +294,44 @@ def get_booking(booking_id: str, user: AuthUser = Depends(require_user)):
     return _enrich(db, uc, [booking])[0]
 
 
+def _price(service: dict | None, rows: list, party: int) -> dict:
+    """Quote a selection through the config-driven pricing engine.
+
+    v1 computed `priceMinorUnits * len(rows) * party` inline here. The default
+    `pricing` block reproduces that exactly, so an un-pivoted service prices
+    identically — but a service that declares `metadata.pricing` can now bill per
+    hour, per night, per person, by tier, with fees, caps and a deposit.
+
+    `booking_index` (a customer's prior-booking count, for first-session tiers)
+    is not passed yet: it needs a count query on the hot booking path, so it
+    stays unresolved until that is worth paying for.
+    """
+    pricing = effective_service_pricing(service)
+    start, end = _parse(rows[0]["starts_at"]), _parse(rows[-1]["ends_at"])
+    duration = int((end - start).total_seconds() // 60) if start and end else 0
+    tz = _business_tz(service)
+    return quote(
+        pricing,
+        {
+            "slot_count": len(rows),
+            "party_size": party,
+            "duration_minutes": duration,
+            "now": _now(),
+            "start_local": start.astimezone(tz) if start else None,
+        },
+    )
+
+
+def _business_tz(service: dict | None):
+    """The business's own timezone — time-of-day pricing tiers (peak/off-peak)
+    are meaningless in UTC."""
+    name = effective_service_config(service)["location"].get("timezone") or "UTC"
+    try:
+        return ZoneInfo(name)
+    except Exception:
+        return timezone.utc
+
+
 @router.post("")
 def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_user)):
     if not user.email:
@@ -302,14 +350,26 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
     # request the owner acts on in the Requests tab; the default confirms it
     # immediately. Pending holds no capacity (slot_occupancy counts only
     # 'confirmed'), so capacity is re-checked at approval time.
-    auto_approve = bool((service.get("metadata") or {}).get("auto_approve", True))
+    # Config-driven gates for this event. Empty by default (leadTimeMinutes is 0),
+    # so this is a no-op until a pivot turns one on — that is the whole point of
+    # the registry: a new constraint is a config key plus a validator, never a
+    # change here.
+    try:
+        apply_rules("booking.create", {"slot_starts_at": rows[0]["starts_at"]})
+    except RuleViolation as e:
+        raise api_error(INVALID_RANGE, str(e))
+
+    auto_approve = effective_auto_approve(service)
     status = "confirmed" if auto_approve else "pending"
+    priced = _price(service, rows, party)
 
     metadata = {
         "party_size": party,
         "reference": _reference(),
-        "price_minor_units": rules["priceMinorUnits"] * len(rows) * party,
-        "currency": rules["currency"],
+        "price_minor_units": priced["amountMinorUnits"],
+        "currency": priced["currency"],
+        "price_breakdown": priced["breakdown"],
+        "deposit_minor_units": priced["depositMinorUnits"],
         "provider_id": service["provider_id"],
         "service_id": service["id"],
         "resource_id": payload.resource_id,
@@ -371,7 +431,11 @@ def reschedule_booking(
     ).execute()
 
     md["slot_ids"] = ordered
-    md["price_minor_units"] = rules["priceMinorUnits"] * len(rows) * party
+    repriced = _price(service, rows, party)
+    md["price_minor_units"] = repriced["amountMinorUnits"]
+    md["currency"] = repriced["currency"]
+    md["price_breakdown"] = repriced["breakdown"]
+    md["deposit_minor_units"] = repriced["depositMinorUnits"]
     md.setdefault("change_history", []).append(
         {
             "at_utc": iso_utc(_now()),

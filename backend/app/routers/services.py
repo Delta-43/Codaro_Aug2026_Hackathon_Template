@@ -5,8 +5,11 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from app import discovery
 from app.auth import AuthUser, enforce_rls_write, require_owner
 from app.db import get_supabase, get_user_client, maybe_row
-from app.errors import NOT_FOUND, api_error
+from app.config import get_config
+from app.config_schema import validate_overrides
+from app.errors import NOT_FOUND, VALIDATION_ERROR, api_error
 from app.models import ServiceCreate, ServiceUpdate
+from app.rules import OVERRIDABLE_BLOCKS
 from app.routers.resources import delete_resources_for_services
 from app.serialize import serialize_service
 
@@ -25,6 +28,36 @@ def _service_metadata(base: dict | None = None, **fields) -> dict:
         if value is not None:
             md[key] = value
     return md
+
+
+def _config_overrides(config: dict | None) -> dict:
+    """Validate a service's config overrides and return them as metadata blocks.
+
+    The global config is validated at load; these were not, so until now a
+    service could carry a `pricing` block the engine would happily use to quote
+    real money. Rejected here rather than silently dropped at read time — a
+    business that mistypes its own pricing should be told, not quietly billed at
+    the platform default.
+    """
+    if not config:
+        return {}
+    unknown = sorted(set(config) - set(OVERRIDABLE_BLOCKS))
+    if unknown:
+        raise api_error(
+            VALIDATION_ERROR,
+            f"Unknown config block(s): {', '.join(unknown)}. "
+            f"Overridable blocks are: {', '.join(OVERRIDABLE_BLOCKS)}.",
+            status=422,
+        )
+    problems = validate_overrides(config, get_config())
+    if problems:
+        raise api_error(
+            VALIDATION_ERROR,
+            "This service's config overrides are not valid: " + "; ".join(problems),
+            details={"problems": problems},
+            status=422,
+        )
+    return dict(config)
 
 
 def _owned_service(db, service_id: str, owner: AuthUser) -> dict:
@@ -58,7 +91,9 @@ def create_service(payload: ServiceCreate, owner: AuthUser = Depends(require_own
         "currency": payload.currency,
         "cancellation_cutoff_hours": payload.cancellation_cutoff_hours,
         "metadata": _service_metadata(
-            image_url=payload.image_url, auto_approve=payload.auto_approve
+            _config_overrides(payload.config),
+            image_url=payload.image_url,
+            auto_approve=payload.auto_approve,
         ),
     }
     created = get_user_client(owner.token).table("services").insert(row).execute().data
@@ -79,8 +114,14 @@ def update_service(
     # image_url / auto_approve aren't columns — pull them out of the column patch
     # and merge into metadata instead (leaving the rest as real column updates).
     meta_patch = {k: patch.pop(k) for k in _META_FIELDS if k in patch}
-    if meta_patch:
-        patch["metadata"] = _service_metadata(existing.get("metadata") or {}, **meta_patch)
+    # Config blocks replace wholesale per block (a partial deep-merge would make
+    # it impossible to ever remove a key), but untouched blocks are preserved.
+    overrides = _config_overrides(patch.pop("config", None))
+    if meta_patch or overrides:
+        patch["metadata"] = {
+            **_service_metadata(existing.get("metadata") or {}, **meta_patch),
+            **overrides,
+        }
     if not patch:
         return serialize_service(existing)
 

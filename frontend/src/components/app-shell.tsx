@@ -12,7 +12,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { CalendarDays, CircleUser, Search, Store, Ticket, type LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/context/app-context";
 import { AvatarImg } from "@/components/avatar-img";
@@ -40,10 +40,24 @@ function isActive(pathname: string, href: string): boolean {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, activeProvider } = useApp();
+  const { user, activeProvider, singleBusiness } = useApp();
   const { signOut } = useAuth();
 
-  const active = TABS.find((t) => isActive(pathname, t.href)) ?? TABS[0];
+  // Single-business mode has no provider discovery: drop the Search tab and make
+  // the (now implicit) provider's catalog the home tab. Memoized so the array and
+  // its tab objects are allocated only when the mode changes, not every render.
+  const tabs = useMemo(
+    () =>
+      singleBusiness
+        ? TABS.filter((t) => t.href !== "/search").map((t) =>
+            t.href === "/provider" ? { ...t, label: "Home" } : t,
+          )
+        : TABS,
+    [singleBusiness],
+  );
+  const home = singleBusiness ? "/provider" : "/search";
+
+  const active = tabs.find((t) => isActive(pathname, t.href)) ?? tabs[0];
   const heading = pathname.startsWith("/account/settings") ? "Settings" : active.label;
   const showProviderContext = active.href === "/provider" || active.href === "/calendar";
 
@@ -51,12 +65,12 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh md:pl-60">
       {/* Desktop left drawer */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-card px-3 py-4 md:flex">
-        <Link href="/search" className="mb-4 px-3 text-lg font-semibold tracking-tight">
+        <Link href={home} className="mb-4 px-3 text-lg font-semibold tracking-tight">
           <span className="text-foreground">Service</span>
           <span className="text-primary">.com</span>
         </Link>
         <nav className="flex flex-col gap-1">
-          {TABS.map((tab) => (
+          {tabs.map((tab) => (
             <NavItem key={tab.href} tab={tab} active={isActive(pathname, tab.href)} />
           ))}
         </nav>
@@ -108,8 +122,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-2 md:px-6 md:pb-10">{children}</main>
 
       {/* Mobile bottom tab bar */}
-      <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-        {TABS.map((tab) => {
+      <nav
+        className={cn(
+          "fixed inset-x-0 bottom-0 z-30 grid border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden",
+          singleBusiness ? "grid-cols-4" : "grid-cols-5",
+        )}
+      >
+        {tabs.map((tab) => {
           const Icon = tab.icon;
           const activeTab = isActive(pathname, tab.href);
           return (
