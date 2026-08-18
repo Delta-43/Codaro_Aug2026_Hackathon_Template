@@ -75,7 +75,12 @@ export function SceneBackground() {
         ))}
       </div>
 
-      <style>{`
+      {/* Raw CSS via dangerouslySetInnerHTML so SSR and client output match
+          byte-for-byte; an inline style template escapes special chars in the
+          server HTML but not on hydration, which would trip a mismatch. */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
         /* Sun — one soft radial bloom, fully faded edges */
         .landing-sun {
           top: -20%; right: 2%; width: 60%; height: 80%;
@@ -120,7 +125,7 @@ export function SceneBackground() {
           100% { transform: translate(60px, -220px) rotate(160deg); opacity: 0; }
         }
 
-        /* ">" scroll-affordance chevrons: a gentle horizontal nudge */
+        /* Scroll-affordance chevrons: a gentle horizontal nudge */
         .landing-nudge { animation: landing-nudge 1.3s ease-in-out infinite; }
         @keyframes landing-nudge { 0%,100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
 
@@ -128,7 +133,9 @@ export function SceneBackground() {
           .landing-sun, .landing-aurora-glow, .landing-curtain, .landing-nudge { animation: none; }
           .landing-petal { animation: none; opacity: 0; }
         }
-      `}</style>
+          `,
+        }}
+      />
     </div>
   );
 }
