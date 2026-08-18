@@ -127,13 +127,13 @@ export default function DashboardPage() {
 
       {/* Bookings — this week */}
       <div>
-        <SectionHeader title="Bookings" href="/owner/calendar" cta="Full calendar" />
+        <SectionHeader title="Bookings" href="/owner/bookings" cta="Full calendar" />
         <BookingCalendar bookings={week} timezone={tz} defaultView="week" compact onOpen={() => {}} />
       </div>
 
       {/* Requests checklist */}
       <div>
-        <SectionHeader title="Requests to manage" href="/owner/requests" cta="All requests" />
+        <SectionHeader title="Requests to manage" href="/owner/messages" cta="All requests" />
         <RequestChecklist requests={data?.requests ?? []} tz={tz} />
       </div>
     </section>
