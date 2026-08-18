@@ -128,3 +128,87 @@ No regression tests were added: `test/` is the `test-writer` agent's exclusive
 workspace per the 3-agent pipeline, and this session did not run it. The fixes
 above are the natural targets for the next pass — particularly 1, 3 and 7, none
 of which the existing 1006 tests cover.
+
+---
+
+## Second pass — the messaging surface
+
+The sweep above walked the pivot path. This pass took the part it had not
+touched: the messaging feature added in #74, which is the newest code in the
+repo and carries **no tests at all** (`test/backend/` has no `test_messages.py`,
+and `fakes.py` models neither `conversations` nor `messages` — it has no `is_()`
+operator, so `mark_read` could not be driven through it even if a test existed).
+
+Gates after these three fixes, unchanged from before them: `test/` 1017 passed,
+`ruff check .` clean, `tsc --noEmit` clean, `scripts/check_pivots.py` exit 0.
+
+**16. A deleted message went on being displayed in the inbox.**
+`last_message_at`/`last_message_preview` are stamped by the `on_message_insert`
+trigger — an *insert* trigger, so nothing un-stamps them on a soft delete.
+`delete_message` blanked the body (`serialize_message` returns `""` and the
+thread renders "Message deleted"), but `serialize_conversation` passes
+`last_message_preview` through raw and `conversation-list.tsx:59` renders it
+verbatim. So retracting the newest message left its full text sitting in the one
+view that summarises the thread, indefinitely — until some later message
+happened to overwrite it. Exactly the text the user asked to take back.
+`_repoint_preview` now re-points the preview at the latest *surviving* message
+after a delete. `schema.sql` is frozen, so this is an app-side write, which the
+`conversations_update_participant` policy allows.
+
+Two follow-ups from the review, both folded in. The write is a **compare-and-set**
+on the deleted row's `created_at`: it is a read-modify-write racing the very
+trigger it compensates for, and unguarded it would clobber a message the other
+participant sent between our SELECT and our UPDATE, dragging `last_message_at`
+backwards and mis-sorting the thread. Filtering on the value being replaced makes
+that case a no-op — as it also makes deleting a non-latest message, which needs no
+repoint. And when *every* message is deleted only the preview text is cleared:
+`last_message_at` carries ordering rather than content, so clearing it too would
+drop a real conversation to the bottom of the inbox labelled "No messages yet".
+
+**17. Counting unread dragged back the entire message history.**
+`list_conversations` selected `conversation_id,sender_id,read_at,deleted_at` for
+**every message of every thread** the user participates in, then filtered in
+Python to produce one small integer per thread. `get_conversation` did the same
+for one thread. The predicate is now PostgREST's
+(`.neq(sender_id).is_(read_at, null).is_(deleted_at, null)`) and the projection
+drops to a single column — identical arithmetic, but the row count crossing the
+wire goes from "all messages ever" to "the unread ones".
+
+**18. The avatar size limit only applied after the upload was in memory.**
+`store_avatar` checked `len(data) > _MAX_BYTES` *after* `await file.read()`, so an
+oversized upload was copied into a contiguous `bytes` before being rejected. It
+now rejects on the multipart parser's declared `file.size` first; the post-read
+check stays authoritative for when `size` is absent.
+
+An earlier draft of this entry claimed the guard stopped the body reaching disk.
+It does not, and the review caught it: FastAPI awaits `request.form()` while
+resolving the `UploadFile` dependency, so Starlette's `MultiPartParser` has
+already written the whole part to a `SpooledTemporaryFile` before `store_avatar`
+runs — and `max_part_size` caps only *non-file* parts, so nothing bounds a file
+part. `file.size` is knowable precisely because the body was already consumed.
+**The unbounded-upload vector is still open**; closing it needs a Content-Length
+check in middleware or a proxy/server body limit, which is a separate change.
+
+### Noted, not changed
+
+- **`_user_display` is an N+1.** An owner's inbox calls
+  `auth.admin.get_user_by_id` once per distinct customer (cached within a
+  request, not across). `profiles` carries only `email`/`role` — no
+  `display_name`/`avatar_url` — so there is no one-query batch to swap in
+  without either changing what a name resolves to or touching the frozen schema.
+- **GDPR erasure covers messaging by FK cascade, not by code.** `gdpr.py` names
+  no messaging step, but `conversations.client_id` and `messages.sender_id` are
+  both `on delete cascade` on `auth.users`, and `conversations.provider_id`
+  cascades from the provider — so step 6 does carry the threads. The module
+  docstring enumerates what erasure removes and does not mention this; worth a
+  line so a future reader does not read the silence as a gap.
+- **`messages_update_participant` is wider than the router.** The policy lets
+  *either* participant update *any* message in the thread; only the app's
+  `.eq("sender_id", user.id)` filter stops one party soft-deleting the other's
+  messages. Defence-in-depth only — no route exposes it — and narrowing it means
+  touching the frozen schema.
+- No regression tests were added, for the same reason as the first pass: `test/`
+  is the `test-writer` agent's exclusive workspace and this session did not run
+  it. Fixes 16 and 17 were verified against a scratch PostgREST fake outside the
+  repo; a real `test_messages.py` (plus `is_()` on `fakes.py`) is the natural
+  next pass, and would be the suite's first coverage of messaging at all.
