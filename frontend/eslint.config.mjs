@@ -8,7 +8,12 @@ import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 import nextTypeScript from "eslint-config-next/typescript";
 
 export default [
-  { ignores: [".next/**", "node_modules/**", "next-env.d.ts"] },
+  // Allowlist, not a denylist: lint src/ and nothing else. `eslint .` would
+  // otherwise walk the whole frontend/ tree, so any unignored directory that
+  // lands here (build output, a vendored copy, a scratch dir) fails the lint
+  // gate for code that is not the app. Enumerating dirs to ignore cannot cover
+  // the ones nobody has created yet, so ignore everything and re-include src/.
+  { ignores: ["**/*", "!src/**"] },
   ...nextCoreWebVitals,
   ...nextTypeScript,
   {

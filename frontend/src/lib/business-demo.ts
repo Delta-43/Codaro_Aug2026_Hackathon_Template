@@ -86,9 +86,3 @@ export interface DemoBooking {
   priceMinorUnits: number;
   currency: string;
 }
-
-// --- local wall-clock → UTC (DST-aware), so demo times land on nice hours ---
-
-// --- generators -------------------------------------------------------------
-
-// --- customer side: the user's own rating + reviews left by businesses -------

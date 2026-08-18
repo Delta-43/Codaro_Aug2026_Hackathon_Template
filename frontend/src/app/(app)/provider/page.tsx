@@ -36,7 +36,11 @@ export default function ProviderPage() {
   // `_messaging` / `_messageProvider` / `_MessagesSquare` are a complete
   // "message this business" handler that no button renders yet. Kept on purpose
   // — wiring it up is a product decision, not cleanup — and underscore-prefixed
-  // so both tsc (noUnusedLocals) and eslint accept them as intentionally unused.
+  // because that is what eslint's no-unused-vars treats as intentionally unused.
+  // tsc is NOT part of that deal: `noUnusedLocals` exempts `_`-prefixed
+  // parameters but not locals, so it would flag `_messageProvider` regardless of
+  // the name. That flag is deliberately off in tsconfig.json for this reason —
+  // turning it on means wiring this handler up or deleting it.
   const [_messaging, setMessaging] = useState(false);
 
   // Open (or resume) the client's thread with this business, then jump to it.
