@@ -8,8 +8,8 @@
  *
  * Layout: the theme toggle is pinned far-left and the Login button far-right;
  * the section links live in a scrollable middle strip. When the window is wide
- * enough for every link, the strip lays them out `justify-evenly` so they fill
- * the bar evenly (balanced, no dead space) and no chevrons show. When the width
+ * enough for every link, the strip centres them as a group (`safe center`, so
+ * nothing overflows out of reach) and no chevrons show. When the width
  * shrinks and the links no longer fit, the strip scrolls horizontally and small
  * `‹ ›` chevrons appear beside it (in-flow, so they never sit on top of a link)
  * to nudge the strip left/right — dimmed at whichever end you've reached.
@@ -112,10 +112,10 @@ export function NavBar({ authed }: { authed: boolean }) {
           </button>
         )}
 
-        {/* Middle — links. Fills the bar evenly when they fit; scrolls when not. */}
+        {/* Middle — links. Centred as a group when they fit; scrolls when not. */}
         <div
           ref={scrollRef}
-          className="flex min-w-0 flex-1 items-center justify-evenly gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto [justify-content:safe_center] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {LINKS.map((l) =>
             l.route ? (
