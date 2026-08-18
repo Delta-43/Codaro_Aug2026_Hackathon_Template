@@ -43,6 +43,32 @@ class ReviewReq(CamelModel):
     text: str = ""
 
 
+class ClientReviewReq(CamelModel):
+    """POST /bookings/{id}/client-review — an owner rating the customer after a
+    completed booking (feeds the customer's reputation)."""
+
+    rating: int
+    text: str = ""
+
+
+class MessageCreateReq(CamelModel):
+    """POST /conversations/{id}/messages — a single message. `sender_id` and the
+    timestamps are stamped server-side from the token, never the body."""
+
+    body: str
+    reply_to_id: str | None = None
+
+
+class ConversationCreateReq(CamelModel):
+    """POST /conversations — find-or-create a thread. The client path passes only
+    `provider_id` (the caller is the customer). The owner path additionally
+    passes `client_id` (the customer to reach out to); the router verifies the
+    caller owns the provider before creating an owner-side thread."""
+
+    provider_id: str
+    client_id: str | None = None
+
+
 class UserPatch(CamelModel):
     """PATCH /me — a partial User. Only these keys are honored; role/verified
     are not self-editable."""
@@ -94,6 +120,9 @@ class ServiceCreate(CamelModel):
     currency: str = "EUR"
     cancellation_cutoff_hours: int = 24
     image_url: str | None = None
+    # Non-column fields (ride in services.metadata): auto_approve gates whether
+    # new bookings confirm immediately or land as pending requests.
+    auto_approve: bool = True
 
 
 class ServiceUpdate(CamelModel):
@@ -107,6 +136,7 @@ class ServiceUpdate(CamelModel):
     currency: str | None = None
     cancellation_cutoff_hours: int | None = None
     image_url: str | None = None
+    auto_approve: bool | None = None
 
 
 class ResourceCreate(BaseModel):

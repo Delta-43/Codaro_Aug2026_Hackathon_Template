@@ -28,6 +28,8 @@ PROVIDER_KEYS = {
     "location",
     "rating",
     "reviewCount",
+    "priceFromMinorUnits",
+    "currency",
     "links",
     "publicCode",
     "serviceIds",
@@ -41,6 +43,24 @@ def test_search_lists_serialized_providers(client, db):
     assert len(rows) == 1
     assert rows[0]["publicCode"] == "VISTULA-4471"
     assert rows[0]["serviceIds"]  # the service is linked
+
+
+def test_search_exposes_price_from_cheapest_service(client, db):
+    p = make_provider(db, "Vistula Auto", category_id="economy")
+    make_service(db, p["id"], "Premium", price_minor_units=9000, currency="PLN")
+    make_service(db, p["id"], "Compact", price_minor_units=4500, currency="USD")
+    rows = client.get("/providers").json()
+    assert len(rows) == 1
+    # cheapest service wins, carrying its own currency.
+    assert rows[0]["priceFromMinorUnits"] == 4500
+    assert rows[0]["currency"] == "USD"
+
+
+def test_search_price_from_is_null_without_services(client, db):
+    make_provider(db, "Empty", category_id="economy")
+    rows = client.get("/providers").json()
+    assert rows[0]["priceFromMinorUnits"] is None
+    assert rows[0]["currency"] == ""
 
 
 def test_search_filters_by_category(client, db):
@@ -342,6 +362,43 @@ def test_delete_provider_leaves_another_providers_resources(client, db, auth):
     assert db.get_row("resources", other_res["id"]) is not None
     assert db.get_row("services", other_svc["id"]) is not None
     assert db.get_row("providers", other_p["id"]) is not None
+
+
+# --- public provider reviews ------------------------------------------------
+
+
+def test_provider_reviews_newest_first_with_public_display_name(client, db):
+    p = make_provider(db, "Acme")
+    svc = make_service(db, p["id"], "S")
+    s1 = make_slot(db, service_id=svc["id"], hours_ahead=-10)
+    s2 = make_slot(db, service_id=svc["id"], hours_ahead=-5)
+    b1 = make_booking(
+        db, slots=[s1], service={**svc, "provider_id": p["id"]}, client_email="ada@example.com", reference="BK-1"
+    )
+    b2 = make_booking(
+        db, slots=[s2], service={**svc, "provider_id": p["id"]}, client_email="grace@example.com", reference="BK-2"
+    )
+    db.insert_row(
+        "reviews", booking_id=b1["id"], provider_id=p["id"], rating=3, text="ok",
+        created_at="2020-01-01T00:00:00+00:00",
+    )
+    db.insert_row(
+        "reviews", booking_id=b2["id"], provider_id=p["id"], rating=5, text="great",
+        created_at="2030-01-01T00:00:00+00:00",
+    )
+
+    rows = client.get(f"/providers/{p['id']}/reviews").json()
+    assert [r["rating"] for r in rows] == [5, 3]  # newest first
+    # author is the reviewer's self-chosen public display name (from Supabase
+    # user_metadata), never the email local-part. Offline the FakeSupabase has
+    # no auth.admin, so the name can't be resolved and it falls back to "Guest".
+    assert [r["author"] for r in rows] == ["Guest", "Guest"]
+    assert set(rows[0]) == {"rating", "text", "createdAtUtc", "author"}
+
+
+def test_provider_reviews_empty_for_provider_without_reviews(client, db):
+    p = make_provider(db, "Quiet")
+    assert client.get(f"/providers/{p['id']}/reviews").json() == []
 
 
 def make_catalog_owned(db):

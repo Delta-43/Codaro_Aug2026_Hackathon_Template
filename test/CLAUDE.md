@@ -176,9 +176,84 @@ path the UI calls exists on the FastAPI app (method-aware) and that the
 
 ## Current state
 
-`python -m pytest test/backend -q` from the repo root: **259 passed**
+`python -m pytest test/backend -q` from the repo root: **335 passed**
 (0 failures, 0 xfail). `python -m pytest test/` adds the 8 live e2e tests, which
 skip without `SUPABASE_URL`/`SUPABASE_ANON_KEY`.
+
+Search-facets coverage (the resolved `search.facets` block on `GET /config` +
+`POST /config/reload`, from `main._config_with_facets` → `discovery.search_facets`):
+the endpoint resolves each facet as `derived AND declared.get(key, True)` — live
+catalog derivation decides what's *possible*, and `domain.config.json`'s optional
+`search.facets` can only force a facet OFF (a declared `true`/omitted defers to
+derivation). `test_discovery.py` (new) unit-tests `search_facets(db)` against the
+offline `FakeSupabase` — empty catalog → `{price:False, distance:False,
+rating:True}`, priced service + real coords → all-True, all-free → `price:False`,
+missing/zero `metadata.location` → `distance:False`, `any`-semantics over
+services/providers, null price treated as free, and `rating` always True.
+`test_health_config.py` covers it through the real endpoints: the two config
+tests that formerly asserted full file equality now strip the `search` block from
+BOTH sides (the on-disk config carries its own `search` now) and assert the three
+boolean facet keys separately; `/config` and `/config/reload` expose the map; a
+live-catalog test flips `price`/`distance` on by seeding a priced service and a
+provider with coordinates; and two override tests prove the AND-merge — a
+declared `distance:false` vetoes distance while an omitted `price` still reflects
+derivation, and declaring every facet `true` against an empty catalog cannot
+conjure price/distance on. Those endpoint tests need the app to read the fake db,
+so `app_main` is in `conftest._SUPABASE_MODULES` (main.py does
+`from app.db import get_supabase`; without the patch the endpoint hit the invalid
+URL and fell back to all-True).
+
+Provider price-from coverage (the `priceFromMinorUnits`/`currency` keys added to
+`serialize_provider`): `PROVIDER_KEYS` in both `test_serialize.py` and
+`test_providers.py` now include the two keys. `test_serialize.py` asserts the
+defaults (`None`/`""` with no aggregate, `0`/`""` for a falsy currency), the
+pass-through of `price_from=`/`currency=`, and a discovery-level case that
+`discovery.price_from_by_provider` picks the cheapest service's price+currency
+across multiple services and `build_provider` threads it onto the wire shape
+(absent provider → `None`/`""`). `test_providers.py` covers the same via the real
+`/providers` route (cheapest service wins; `null`/`""` for a provider with no
+services).
+
+Client-reputation coverage (the `client_reviews` table + businesses rating
+customers): `FakeSupabase.BASE_TABLES` now includes `client_reviews` (defaults +
+required cols + booking/provider delete-cascade), and `helpers.make_client_review`
+builds rows. `test_bookings.py` covers `POST /bookings/{id}/client-review` —
+owner rates a completed booking (200 + one persisted row), rating clamp (9→5),
+404 for an upcoming booking, 401/403(client)/403(other-owner) gating, and a
+re-review replacing the prior row. `test_me.py` covers `GET /me/reputation` —
+empty default `{score:0,count:0,reviews:[]}`, two reviews aggregated to the mean
+`score` with `author`=provider name newest-first, and scoping to the signed-in
+user. `test_owner.py`'s request `client` card asserts the two new keys
+(`rating`/`reviewCount`, defaulting to `None`/`0`) and reflects a present
+`client_review`. `test_providers.py` covers the public `GET /providers/{id}/reviews`
+(newest-first, author from the reviewer's self-chosen public display name in
+Supabase `user_metadata`, falling back to `"Guest"` when unknown — never the
+email; offline yields `"Guest"` because the `FakeSupabase` has no `auth.admin`).
+
+Business-mode (owner/provider) coverage:
+- `test_serialize.py` — `serialize_service` now emits `autoApprove`
+  (`SERVICE_KEYS` updated; default `True`, `False` from `metadata.auto_approve`);
+  `effective_booking_status` passes `pending`/`rejected` through unchanged
+  (a past-end pending is NOT auto-completed).
+- `test_services.py` — `SERVICE_KEYS` updated; owner create with
+  `autoApprove:false` serializes back false and persists to `services.metadata`
+  (not a column); PATCH toggling `autoApprove` merges metadata (keeps
+  `image_url`).
+- `test_bookings.py` — create on a manual-approve service (`auto_approve=false`)
+  lands `pending` (holds no capacity); owner `POST /bookings/{id}/approve`
+  (pending→confirmed, re-checks capacity → `SLOT_UNAVAILABLE`, 400 if not
+  pending) and `/reject` (pending→rejected, idempotent, 400 if confirmed), each
+  gated 401/403(client)/403(other-owner); a rejected future booking is excluded
+  from `scope=upcoming` but present in `scope=all`.
+- `test_owner.py` (new) — `/owner/dashboard` (shape + per-currency revenue
+  buckets with a dominant-currency headline, count-weighted satisfaction pooled
+  across all the owner's providers, pending count/requests, own-provider scope),
+  `/owner/services` (serialized Service + `providerName` + `stats`),
+  `/owner/requests` (pending-only + `client` screening card, degrading to the
+  email-local-part display name / `memberSinceUtc=None` since `FakeSupabase` has
+  no `auth.admin`), `/owner/calendar` (confirmed/completed only, sorted, default
+  current month), all 401/403-gated. `owner_router` is wired into
+  `conftest._SUPABASE_MODULES`.
 
 Owner/admin DELETE coverage (the metadata-linked cascade + the PATCH-merge fix):
 - `test_providers.py` — `DELETE /providers/{id}`: 401/403(client)/404/403(other

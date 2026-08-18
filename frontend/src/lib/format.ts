@@ -121,3 +121,20 @@ export function formatCutoffPolicy(
 export function isWithinCutoff(startUtc: string, cutoffHours: number): boolean {
   return hoursUntil(startUtc) <= cutoffHours;
 }
+
+/**
+ * Compact relative label for an inbox timestamp, e.g. "now", "5m", "3h", "2d",
+ * then an absolute date for anything older than a week. Zone-agnostic (it's an
+ * elapsed span, not a wall-clock time), so no timezone is needed.
+ */
+export function timeAgo(iso: string, timeZone = "UTC"): string {
+  const diffMs = Date.now() - ms(iso);
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 1) return "now";
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d`;
+  return formatDate(iso, timeZone);
+}

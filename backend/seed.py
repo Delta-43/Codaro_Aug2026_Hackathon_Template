@@ -5,10 +5,14 @@ Ports `frontend/src/api/seed/*` to the backend: it turns the declarative
 DST-aware slot grids, edge-case occupancy (a blocked day, a fully-booked day, a
 one-seat-left slot), plus a demo user's seed bookings + a review + a follow.
 
-Two auth users are provisioned via the Supabase admin API:
+Auth users provisioned via the Supabase admin API:
   * the **demo user** (login below) owns the seed bookings/reviews/follows.
   * a **holds user** owns the "someone else already booked" occupancy so full /
     partial slots are real (occupancy is derived from confirmed bookings).
+  * the **owner** (`owner@codaro.app`) owns the demo provider, so the business
+    dashboard is populated; the primary service is manual-approve.
+  * a **prospect** (`prospect@codaro.app`) — a fresh client whose pending
+    request appears in the owner's Requests tab.
 
 `seed_if_empty()` runs on startup (default vertical when no providers exist);
 `seed_vertical(id)` is the destructive reseed used by `reseed.py` and the demo
@@ -37,6 +41,10 @@ DEMO_EMAIL = "demo@codaro.app"
 DEMO_PASSWORD = "Codaro-Demo-2026"
 OWNER_EMAIL = "owner@codaro.app"
 OWNER_PASSWORD = "Codaro-Owner-2026"
+# A fresh prospective client — appears in the owner's Requests tab as a new
+# member (little history), the counterpart to the established demo user.
+PROSPECT_EMAIL = "prospect@codaro.app"
+PROSPECT_PASSWORD = "Codaro-Prospect-2026"
 _HOLDS_EMAIL = "holds@codaro.app"
 _HOLDS_PASSWORD = secrets.token_urlsafe(18)
 
@@ -51,6 +59,8 @@ BOOKING_MODEL_TO_VERTICAL = {
 }
 
 _EXTENDED_TABLES = [
+    "messages",       # child of conversations
+    "conversations",  # child of providers
     "booking_slots",
     "reviews",
     "bookings",
@@ -229,6 +239,10 @@ def seed_vertical(vertical_id: str) -> dict:
         db, OWNER_EMAIL, OWNER_PASSWORD,
         {"display_name": "Olga Owner", "timezone": tz, "verified": True, "role": "owner"},
     )
+    prospect_uid = _ensure_user(
+        db, PROSPECT_EMAIL, PROSPECT_PASSWORD,
+        {"display_name": "Pedro Prospect", "timezone": tz, "verified": False, "role": "client"},
+    )
 
     counts = {"providers": 0, "services": 0, "resources": 0, "slots": 0, "bookings": 0}
     demo_provider_id = None
@@ -236,7 +250,8 @@ def seed_vertical(vertical_id: str) -> dict:
     provider_ids: list[str] = []
 
     def add_service(
-        provider_id: str, spec: dict, resources: list[dict], owner_id: str | None = None
+        provider_id: str, spec: dict, resources: list[dict], owner_id: str | None = None,
+        auto_approve: bool = True,
     ) -> tuple[str, list[dict]]:
         svc = db.table("services").insert({
             "provider_id": provider_id,
@@ -249,7 +264,12 @@ def seed_vertical(vertical_id: str) -> dict:
             "price_minor_units": spec["priceMinorUnits"],
             "currency": currency,
             "cancellation_cutoff_hours": spec["cancellationCutoffHours"],
-            "metadata": {"image_url": tile_uri(spec["name"], spec["name"])},
+            # auto_approve rides in metadata (no column): the demo's primary
+            # service is manual-approve so the Requests tab has something to act on.
+            "metadata": {
+                "image_url": tile_uri(spec["name"], spec["name"]),
+                "auto_approve": auto_approve,
+            },
         }).execute().data[0]
         counts["services"] += 1
         service_id = svc["id"]
@@ -315,7 +335,12 @@ def seed_vertical(vertical_id: str) -> dict:
         if i == 0:
             demo_provider_id = prov["id"]
             for si, spec in enumerate(cfg["demoServices"]):
-                sid, res_rows = add_service(prov["id"], spec, spec["resources"], owner_id=owner_uid)
+                # The primary service is manual-approve so incoming requests wait
+                # in the owner's Requests tab; the rest auto-approve.
+                sid, res_rows = add_service(
+                    prov["id"], spec, spec["resources"],
+                    owner_id=owner_uid, auto_approve=si != 0,
+                )
                 if si == 0:
                     primary_service = {"id": sid, "spec": spec, "resource": res_rows[0], "resources": res_rows}
         else:
@@ -328,6 +353,16 @@ def seed_vertical(vertical_id: str) -> dict:
         counts["bookings"] += _seed_bookings(
             db, primary_service, demo_provider_id, demo_uid, DEMO_EMAIL, model, currency, tz
         )
+        # Pending requests waiting on the owner (Requests tab): one from the
+        # established demo user, one from a fresh prospect.
+        counts["bookings"] += _seed_requests(
+            db, primary_service, demo_provider_id, model, currency,
+            [(demo_uid, DEMO_EMAIL), (prospect_uid, PROSPECT_EMAIL)],
+        )
+        # The demo user's reputation: reviews the provider left about them.
+        _seed_client_reviews(db, demo_uid, demo_provider_id)
+        # Working chat threads so both demo logins land on a populated inbox.
+        counts["messages"] = _seed_messages(db, demo_provider_id, demo_uid, owner_uid, provider_ids)
 
     # demo user follows the second provider
     if len(provider_ids) > 1:
@@ -373,6 +408,163 @@ def _hold(db, slot, service_id, provider_id, resource_id, party, holds_uid, curr
         },
     }).execute().data[0]
     db.table("booking_slots").insert({"booking_id": booking["id"], "slot_id": slot["id"]}).execute()
+
+
+def _seed_requests(db, primary, provider_id, model, currency, requesters) -> int:
+    """Pending booking requests on the primary (manual-approve) service, so the
+    owner's Requests tab is populated. Each gets a dedicated future slot (pending
+    holds no capacity, so this never collides with real occupancy). Mirrors the
+    shape create_booking would produce, but with status 'pending'."""
+    service_id = primary["id"]
+    spec = primary["spec"]
+    resource_id = primary["resource"]["id"]
+    capacity = primary["resource"]["_capacity"]
+    dur = spec["slotDurationMinutes"]
+    price = spec["priceMinorUnits"]
+    party = 2 if model == "shared_capacity" else 1
+    now = datetime.now(timezone.utc)
+    day = timedelta(days=1)
+
+    made = 0
+    for i, (uid, email) in enumerate(requesters):
+        start = now + (4 + 3 * i) * day + timedelta(hours=2)
+        slot = _insert_dedicated_slot(db, service_id, resource_id, capacity, start, dur)
+        created = now - timedelta(hours=6 + i)
+        booking = db.table("bookings").insert({
+            "slot_id": slot["id"],
+            "client_email": email,
+            "client_id": uid,
+            "status": "pending",
+            "history": [{"status": "pending", "at": _iso(created)}],
+            "metadata": {
+                "party_size": party,
+                "reference": _reference(),
+                "price_minor_units": price * party,
+                "currency": currency,
+                "provider_id": provider_id,
+                "service_id": service_id,
+                "resource_id": resource_id,
+                "user_id": uid,
+                "slot_ids": [slot["id"]],
+                "change_history": [],
+            },
+            "created_at": _iso(created),
+        }).execute().data[0]
+        db.table("booking_slots").insert(
+            {"booking_id": booking["id"], "slot_id": slot["id"]}
+        ).execute()
+        made += 1
+    return made
+
+
+_CLIENT_REVIEW_LINES = [
+    (5, "Punctual, friendly and left everything spotless. A pleasure to host."),
+    (5, "Clear communicator and easy to work with — welcome back any time."),
+    (4, "Respectful of our space and prompt with everything. Highly rated."),
+]
+
+
+def _seed_client_reviews(db, client_uid, provider_id) -> int:
+    """Reviews the provider left about the demo customer → their reputation.
+    Attached to a few of the customer's existing bookings (one review each)."""
+    bookings = db.table("bookings").select("id").eq("client_id", client_uid).execute().data or []
+    now = datetime.now(timezone.utc)
+    made = 0
+    for i, b in enumerate(bookings[:3]):
+        rating, text = _CLIENT_REVIEW_LINES[i % len(_CLIENT_REVIEW_LINES)]
+        try:
+            db.table("client_reviews").insert({
+                "booking_id": b["id"],
+                "client_id": client_uid,
+                "provider_id": provider_id,
+                "rating": rating,
+                "text": text,
+                "created_at": _iso(now - timedelta(days=4 * (i + 1))),
+            }).execute()
+            made += 1
+        except Exception:
+            pass  # table may not exist on an older DB — reputation just stays empty
+    return made
+
+
+def _seed_messages(db, demo_provider_id, demo_uid, owner_uid, provider_ids) -> int:
+    """Seed working chat threads so both demo logins open a populated inbox.
+
+    One full two-sided thread between the demo client and the owner on the demo
+    provider (provider 0, which the owner actually owns → RLS valid on both
+    sides), pre-populated with a couple of days of messages that mix directions,
+    include a URL (to exercise the link chip), leave the last message on each
+    side unread (so both inboxes show an unread badge) and use a reply. Plus a
+    couple of one-sided client inquiries to other providers so the client inbox
+    isn't a single thread. Service-key insert (system work bypasses RLS);
+    best-effort so an older DB without the messaging tables just skips."""
+    now = datetime.now(timezone.utc)
+    m = timedelta(minutes=1)
+    hour = timedelta(hours=1)
+    day = timedelta(days=1)
+
+    def _thread(provider_id, client_id, owner_id, msgs) -> int:
+        # msgs: (sender_id, body, created, read_at | None, reply_index | None)
+        conv = db.table("conversations").insert({
+            "provider_id": provider_id,
+            "client_id": client_id,
+            "owner_id": owner_id,
+        }).execute().data[0]
+        ids: list[str] = []
+        last_body, last_at = "", None
+        for sender_id, body, created, read_at, reply_idx in msgs:
+            row = {
+                "conversation_id": conv["id"],
+                "sender_id": sender_id,
+                "body": body,
+                "delivered_at": _iso(created),
+                "created_at": _iso(created),
+            }
+            if read_at is not None:
+                row["read_at"] = _iso(read_at)
+            if reply_idx is not None:
+                row["reply_to_id"] = ids[reply_idx]
+            ids.append(db.table("messages").insert(row).execute().data[0]["id"])
+            last_body, last_at = body, created
+        db.table("conversations").update({
+            "last_message_preview": last_body,
+            "last_message_at": _iso(last_at),
+        }).eq("id", conv["id"]).execute()
+        return len(msgs)
+
+    made = 0
+    c, o = demo_uid, owner_uid
+    # Read receipts on the earlier messages; the two most-recent (one each way)
+    # stay unread, so the client inbox and the owner inbox each show one unread.
+    main = [
+        (c, "Hi! I just booked with you for next week — any chance we could start a little earlier?",
+         now - 2 * day, now - 2 * day + 10 * m, None),
+        (o, "Hi Mara! Of course — we can start 30 minutes earlier. I've noted it on your booking.",
+         now - 2 * day + 5 * m, now - 2 * day + 12 * m, None),
+        (c, "Amazing, thank you so much 🙏", now - 2 * day + 6 * m, now - 2 * day + 12 * m, None),
+        (o, "You're welcome. Here's everything you'll need beforehand: https://service.example.com/welcome-guide",
+         now - 2 * day + 8 * m, now - 2 * day + 20 * m, None),
+        (c, "Perfect, got it — found it straight away.", now - day, now - day + 30 * m, None),
+        (o, "Great! Let me know if anything comes up before then.", now - day + 3 * m, now - day + 30 * m, None),
+        (c, "Will do. One more thing — could I bring a friend along?", now - 5 * hour, None, None),
+        (o, "Absolutely, the more the merrier. I'll update the details.", now - 4 * hour, None, 6),
+    ]
+    try:
+        made += _thread(demo_provider_id, c, o, main)
+    except Exception:
+        return made  # messaging tables absent (older DB) — skip cleanly
+
+    inquiries = [
+        [(demo_uid, "Hi! Do you have any availability this weekend?", now - 3 * day, None, None),
+         (demo_uid, "Would love to book if it works out 😊", now - 3 * day + 2 * m, None, None)],
+        [(demo_uid, "Hello — would it be possible to move my booking to next month?", now - 6 * hour, None, None)],
+    ]
+    for provider_id, msgs in zip(provider_ids[1:3], inquiries):
+        try:
+            made += _thread(provider_id, demo_uid, None, msgs)
+        except Exception:
+            pass
+    return made
 
 
 def _inject_edge_cases(db, primary, tz, holds_uid, provider_id, currency) -> int:

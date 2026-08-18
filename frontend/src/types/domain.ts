@@ -39,6 +39,8 @@ export interface Provider {
   location: { city: string; country: string; lat: number; lng: number };
   rating: number; // 0–5
   reviewCount: number;
+  priceFromMinorUnits: number | null; // cheapest service; null when none priced
+  currency: string; // ISO 4217 for priceFromMinorUnits ("" when none)
   links: { label: string; url: string }[];
   publicCode: string; // e.g. "HERTZ-4471" — used by code entry and QR scan
   serviceIds: ID[];
@@ -57,6 +59,7 @@ export interface Service {
   priceMinorUnits: number; // per slot
   currency: string; // ISO 4217
   cancellationCutoffHours: number; // no change/cancel inside this window
+  autoApprove: boolean; // false → new bookings land as pending requests
   resourceIds: ID[];
 }
 
@@ -89,7 +92,12 @@ export interface Slot {
   status: SlotStatus; // derived, but sent explicitly — the UI never recomputes it
 }
 
-export type BookingStatus = "confirmed" | "cancelled" | "completed";
+export type BookingStatus =
+  | "confirmed"
+  | "cancelled"
+  | "completed"
+  | "pending" // awaiting owner approval on a manual-approve service
+  | "rejected"; // owner declined the request
 
 export interface Booking {
   id: ID;
@@ -97,6 +105,8 @@ export interface Booking {
   userId: ID;
   providerId: ID;
   serviceId: ID;
+  providerName: string; // embedded by the API so a list needn't fetch each provider
+  serviceName: string; // embedded by the API so a list needn't fetch each service
   resourceId: ID;
   slotIds: ID[]; // >1 for multi-slot / multi-day bookings
   startUtc: IsoUtc; // first slot start
@@ -134,4 +144,123 @@ export type MonthDensityLevel = 0 | 1 | 2 | 3;
 export interface MonthDensityCell {
   date: string; // 'YYYY-MM-DD'
   density: MonthDensityLevel;
+}
+
+// --- business mode (owner) — additive, owner-only shapes -------------------
+// These mirror the backend's /owner/* aggregation envelopes and the owner-only
+// clientEmail on bookings. They are not part of the customer contract.
+
+/** A booking as the owner sees it — the standard Booking plus who booked. */
+export interface OwnerBooking extends Booking {
+  clientEmail?: string;
+}
+
+/** Screening card for a client requesting a booking (Requests tab). */
+export interface RequestClient {
+  id: ID;
+  displayName: string;
+  email: string;
+  avatarUrl: string;
+  memberSinceUtc: IsoUtc | null;
+  totalBookings: number;
+  bookingsWithProvider: number;
+  cancelledWithProvider: number;
+  rating: number | null; // reputation from businesses; null when never rated
+  reviewCount: number;
+}
+
+/** A pending request enriched for the Requests tab. */
+export interface OwnerRequest extends OwnerBooking {
+  client: RequestClient;
+  serviceName: string;
+  providerName: string;
+}
+
+/** One service with its glanceable owner stats (Services tab). */
+export interface OwnerServiceSummary extends Service {
+  providerName: string;
+  stats: {
+    upcomingBookings: number;
+    pastBookings: number;
+    totalBookings: number;
+    pendingRequests: number;
+    revenueMinorUnits: number;
+    currency: string;
+    avgRating: number;
+    reviewCount: number;
+  };
+}
+
+/** The Dashboard aggregation envelope. */
+export interface OwnerDashboard {
+  provider: Provider | null;
+  providers: Provider[];
+  glance: {
+    upcomingBookings: {
+      total: number;
+      byService: { serviceId: ID; serviceName: string; count: number }[];
+    };
+    clientSatisfaction: {
+      currentRating: number;
+      reviewCount: number;
+      deltaPct: number;
+      basis: string;
+    };
+    revenue: {
+      minorUnits: number;
+      currency: string;
+      byCurrency: { currency: string; minorUnits: number }[];
+      bookingCount: number;
+      period: string; // 'YYYY-MM'
+    };
+  };
+  weekBookings: OwnerBooking[];
+  requests: OwnerRequest[];
+  pendingCount: number;
+}
+
+/** A public review with best-effort author (Profile tab). */
+export interface ProviderReview {
+  rating: number;
+  text: string;
+  createdAtUtc: IsoUtc;
+  author: string;
+}
+
+/** A customer's reputation as businesses see it (customer Profile tab). */
+export interface ClientReputation {
+  score: number;
+  count: number;
+  reviews: { author: string; rating: number; text: string; createdAtUtc: IsoUtc | null }[];
+}
+
+// --- messaging — 1:1 conversations between a client and a provider ----------
+// A new entity riding on the neutral spine; both personas share these shapes.
+
+/** One inbox row: the current user's thread with the other party. */
+export interface Conversation {
+  id: ID;
+  providerId: ID;
+  /** Who the current user is talking to — the business (for a client) or the
+   *  customer (for an owner). Resolved server-side across the RLS boundary. */
+  otherParty: { id: ID; name: string; avatarUrl: string | null };
+  lastMessagePreview: string | null;
+  lastMessageAtUtc: IsoUtc | null;
+  unreadCount: number;
+}
+
+/** One message in a thread. `mine` is derived server-side from the viewer, so
+ *  the UI aligns bubbles without knowing ids. A soft-deleted message keeps its
+ *  envelope but blanks `body` (render the placeholder from `deletedAtUtc`). */
+export interface Message {
+  id: ID;
+  conversationId: ID;
+  senderId: ID;
+  body: string;
+  replyToId: ID | null;
+  createdAtUtc: IsoUtc;
+  deliveredAtUtc: IsoUtc | null;
+  readAtUtc: IsoUtc | null;
+  deletedAtUtc: IsoUtc | null;
+  mine: boolean;
 }

@@ -10,11 +10,14 @@
  * Touch targets ≥44px; safe-area insets respected on mobile.
  */
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { CalendarDays, CircleUser, Search, Store, Ticket, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/context/app-context";
+import { AvatarImg } from "@/components/avatar-img";
+import { useAuth } from "@/lib/auth";
+import { Button } from "@/components/ui/button";
 
 interface Tab {
   href: string;
@@ -27,7 +30,7 @@ const TABS: Tab[] = [
   { href: "/provider", label: "Services", icon: Store },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/bookings", label: "Bookings", icon: Ticket },
-  { href: "/account", label: "Account", icon: CircleUser },
+  { href: "/account", label: "Profile", icon: CircleUser },
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -36,9 +39,12 @@ function isActive(pathname: string, href: string): boolean {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, activeProvider } = useApp();
+  const { signOut } = useAuth();
 
   const active = TABS.find((t) => isActive(pathname, t.href)) ?? TABS[0];
+  const heading = pathname.startsWith("/account/settings") ? "Settings" : active.label;
   const showProviderContext = active.href === "/provider" || active.href === "/calendar";
 
   return (
@@ -54,22 +60,37 @@ export function AppShell({ children }: { children: ReactNode }) {
             <NavItem key={tab.href} tab={tab} active={isActive(pathname, tab.href)} />
           ))}
         </nav>
+        <div className="mt-auto px-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full"
+            onPress={() => signOut().then(() => router.replace("/login"))}
+          >
+            Sign out
+          </Button>
+        </div>
       </aside>
 
       {/* Desktop top bar */}
       <header className="sticky top-0 z-20 hidden h-14 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur md:flex">
         <div className="min-w-0">
-          <h1 className="truncate text-sm font-semibold">{active.label}</h1>
+          <h1 className="truncate text-sm font-semibold">{heading}</h1>
           {showProviderContext && activeProvider ? (
             <p className="truncate text-xs text-muted-foreground">{activeProvider.name}</p>
           ) : null}
         </div>
         <Link
-          href="/account"
+          href="/account/settings"
           className="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 hover:bg-muted"
-          aria-label="Account"
+          aria-label="Settings"
         >
-          <Avatar url={user?.avatarUrl} name={user?.displayName} />
+          <AvatarImg
+            src={user?.avatarUrl}
+            name={user?.displayName}
+            alt=""
+            className="size-8"
+          />
           <span className="max-w-[10rem] truncate text-sm">{user?.displayName ?? "Account"}</span>
         </Link>
       </header>
@@ -77,7 +98,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Mobile compact header */}
       <header className="sticky top-0 z-20 flex h-12 items-center border-b border-border bg-background/85 px-4 backdrop-blur pt-[env(safe-area-inset-top)] md:hidden">
         <span className="truncate text-sm font-semibold">
-          {active.label}
+          {heading}
           {showProviderContext && activeProvider ? (
             <span className="ml-2 font-normal text-muted-foreground">{activeProvider.name}</span>
           ) : null}
@@ -127,16 +148,5 @@ function NavItem({ tab, active }: { tab: Tab; active: boolean }) {
       <Icon className="size-4" aria-hidden />
       {tab.label}
     </Link>
-  );
-}
-
-function Avatar({ url, name }: { url?: string; name?: string }) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={url ?? ""}
-      alt={name ?? ""}
-      className="size-8 rounded-full bg-muted object-cover"
-    />
   );
 }

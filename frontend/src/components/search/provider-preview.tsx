@@ -48,7 +48,7 @@ export function ProviderPreview({
   return (
     <Modal open={open} onClose={onClose} title={vertical.providerNoun}>
       <div className="flex items-start gap-3">
-        <AvatarImg src={provider.avatarUrl} alt="" className="size-14 shrink-0" />
+        <AvatarImg src={provider.avatarUrl} name={provider.name} alt="" className="size-14 shrink-0" />
         <div className="min-w-0">
           <h3 className="truncate text-base font-semibold">{provider.name}</h3>
           <p className="truncate text-sm text-muted-foreground">{provider.tagline}</p>

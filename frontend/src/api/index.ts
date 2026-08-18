@@ -14,15 +14,32 @@
  */
 import type {
   Booking,
+  ClientReputation,
+  Conversation,
   DayAvailability,
   ID,
   IsoUtc,
+  Message,
   MonthDensityCell,
+  OwnerBooking,
+  OwnerDashboard,
+  OwnerRequest,
+  OwnerServiceSummary,
   Provider,
+  ProviderReview,
   Resource,
   Service,
   User,
   VerticalId,
+} from "@/types/domain";
+
+export type {
+  ClientReputation,
+  OwnerBooking,
+  OwnerDashboard,
+  OwnerRequest,
+  OwnerServiceSummary,
+  ProviderReview,
 } from "@/types/domain";
 import { ApiError, type ApiErrorCode } from "@/api/errors";
 import { getAccessToken } from "@/lib/auth";
@@ -92,6 +109,24 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** Like `request`, but for a `FormData` body — the browser must set its own
+ *  multipart boundary, so `Content-Type` is deliberately omitted here. */
+async function requestForm<T>(path: string, method: string, body?: FormData): Promise<T> {
+  const token = await getAccessToken();
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}${path}`, {
+      method,
+      body,
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+  } catch (e) {
+    throw new ApiError("NETWORK", e instanceof Error ? e.message : "Network error.");
+  }
+  if (!res.ok) throw await toApiError(res, method, path);
+  return res.json() as Promise<T>;
+}
+
 const post = (path: string, body?: unknown) =>
   request(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 
@@ -99,6 +134,19 @@ const patch = (path: string, body: unknown) =>
   request(path, { method: "PATCH", body: JSON.stringify(body) });
 
 const del = (path: string) => request(path, { method: "DELETE" });
+
+// --- config / facets -------------------------------------------------------
+
+/** Which search facets the current catalog supports — derived server-side from
+ *  the seeded data (`GET /config` → `search.facets`), so the filter UI pivots
+ *  automatically. Defaults to all-on if the field is absent (older backend). */
+export type SearchFacets = { price: boolean; distance: boolean; rating: boolean };
+
+export async function getSearchFacets(): Promise<SearchFacets> {
+  const cfg = await request<{ search?: { facets?: Partial<SearchFacets> } }>("/config");
+  const f = cfg.search?.facets ?? {};
+  return { price: f.price ?? true, distance: f.distance ?? true, rating: f.rating ?? true };
+}
 
 // --- discovery -------------------------------------------------------------
 
@@ -194,6 +242,48 @@ export function leaveReview(id: ID, rating: number, text: string): Promise<Booki
   return post(`/bookings/${id}/review`, { rating, text }) as Promise<Booking>;
 }
 
+// --- messaging -------------------------------------------------------------
+// The durable send/read/delete/list path; live delivery rides Supabase Realtime
+// (see hooks/use-conversation-realtime). Identity is derived from the token.
+
+/** The current user's conversations, most-recent first, enriched with the other
+ *  party and an unread count. */
+export function getConversations(): Promise<Conversation[]> {
+  return request("/conversations");
+}
+
+/** A single thread with its other party + unread count (for the thread header). */
+export function getConversation(id: ID): Promise<Conversation> {
+  return request(`/conversations/${id}`);
+}
+
+/** Ordered messages in a thread (404s a non-participant via RLS). */
+export function getMessages(id: ID): Promise<Message[]> {
+  return request(`/conversations/${id}/messages`);
+}
+
+/** Send a message; the server stamps sender + delivered_at. Returns the row. */
+export function sendMessage(id: ID, body: string, replyToId?: ID): Promise<Message> {
+  return post(`/conversations/${id}/messages`, { body, replyToId }) as Promise<Message>;
+}
+
+/** Mark the other party's unread messages in this thread as read. */
+export function markConversationRead(id: ID): Promise<{ conversationId: ID; readCount: number }> {
+  return post(`/conversations/${id}/read`) as Promise<{ conversationId: ID; readCount: number }>;
+}
+
+/** Soft-delete one of the caller's own messages. Returns the updated (blanked) row. */
+export function deleteMessage(id: ID, messageId: ID): Promise<Message> {
+  return del(`/conversations/${id}/messages/${messageId}`) as Promise<Message>;
+}
+
+/** Find-or-create a thread with a provider. Client path: pass just `providerId`
+ *  ("message this business"). Owner path: also pass the customer's `clientId`
+ *  ("message this customer") — the caller must own the provider. */
+export function startConversation(providerId: ID, clientId?: ID): Promise<Conversation> {
+  return post("/conversations", { providerId, clientId }) as Promise<Conversation>;
+}
+
 // --- account & demo --------------------------------------------------------
 
 export function getCurrentUser(): Promise<User> {
@@ -202,6 +292,28 @@ export function getCurrentUser(): Promise<User> {
 
 export function updateUser(patch: Partial<User>): Promise<User> {
   return request("/me", { method: "PATCH", body: JSON.stringify(patch) });
+}
+
+export function uploadAvatar(file: File): Promise<User> {
+  const form = new FormData();
+  form.append("file", file);
+  return requestForm<User>("/me/avatar", "POST", form);
+}
+
+export function deleteAvatar(): Promise<User> {
+  return del("/me/avatar") as Promise<User>;
+}
+
+/** GDPR erasure — permanently delete the signed-in user's account and all their
+ *  data. The caller should sign out and redirect afterwards. */
+export function deleteAccount(): Promise<void> {
+  return del("/me") as Promise<void>;
+}
+
+/** The signed-in customer's reputation as businesses see it (score + reviews
+ *  providers left after completed bookings). */
+export function getMyReputation(): Promise<ClientReputation> {
+  return request("/me/reputation");
 }
 
 export async function getActiveVertical(): Promise<VerticalId> {
@@ -241,11 +353,63 @@ export function getResourceAnalytics(id: ID): Promise<ResourceAnalytics> {
 }
 
 /** Bookings on one of the owner's resources — the standard Booking plus the
- *  client email (owner-only). */
-export type OwnerBooking = Booking & { clientEmail?: string };
-
+ *  client email (owner-only). `OwnerBooking` is defined in @/types/domain. */
 export function getResourceBookings(id: ID): Promise<OwnerBooking[]> {
   return request(`/resources/${id}/bookings`);
+}
+
+// --- business-mode aggregation (the five owner tabs) -----------------------
+
+/** Dashboard: badge provider, the three glanceable numbers, this week's
+ *  bookings, and the top pending requests — all scoped to the owner's own
+ *  providers, aggregated server-side (/owner/dashboard). */
+export function getOwnerDashboard(): Promise<OwnerDashboard> {
+  return request("/owner/dashboard");
+}
+
+/** Services tab: each owned service with glanceable stats. */
+export function getOwnerServices(): Promise<OwnerServiceSummary[]> {
+  return request("/owner/services");
+}
+
+/** Requests tab: pending requests across the owner's providers, each with a
+ *  client screening card. */
+export function getOwnerRequests(): Promise<OwnerRequest[]> {
+  return request("/owner/requests");
+}
+
+/** Calendar tab: confirmed/completed bookings in a window (defaults to the
+ *  current month), sorted by start. */
+export function getOwnerCalendar(q?: { fromUtc?: IsoUtc; toUtc?: IsoUtc }): Promise<OwnerBooking[]> {
+  return request(`/owner/calendar${qs({ from: q?.fromUtc, to: q?.toUtc })}`);
+}
+
+/** Owner approves a pending request → confirmed (capacity re-checked). */
+export function approveBooking(id: ID): Promise<Booking> {
+  return post(`/bookings/${id}/approve`) as Promise<Booking>;
+}
+
+/** Owner declines a pending request → rejected. */
+export function rejectBooking(id: ID): Promise<Booking> {
+  return post(`/bookings/${id}/reject`) as Promise<Booking>;
+}
+
+/** Owner rates the customer after a completed booking (feeds their reputation). */
+export function rateClient(
+  bookingId: ID,
+  rating: number,
+  text = "",
+): Promise<{ rating: number; text: string; createdAtUtc: IsoUtc | null }> {
+  return post(`/bookings/${bookingId}/client-review`, { rating, text }) as Promise<{
+    rating: number;
+    text: string;
+    createdAtUtc: IsoUtc | null;
+  }>;
+}
+
+/** Recent public reviews for a provider (Profile tab). */
+export function getProviderReviews(id: ID, limit = 8): Promise<ProviderReview[]> {
+  return request(`/providers/${id}/reviews${qs({ limit })}`);
 }
 
 type ProviderInput = {
@@ -269,6 +433,17 @@ export function deleteProvider(id: ID): Promise<void> {
   return del(`/providers/${id}`) as Promise<void>;
 }
 
+/** Upload/replace a business's avatar image; returns the updated Provider. */
+export function uploadProviderAvatar(id: ID, file: File): Promise<Provider> {
+  const form = new FormData();
+  form.append("file", file);
+  return requestForm<Provider>(`/providers/${id}/avatar`, "POST", form);
+}
+
+export function deleteProviderAvatar(id: ID): Promise<Provider> {
+  return del(`/providers/${id}/avatar`) as Promise<Provider>;
+}
+
 export function createService(input: {
   providerId: ID;
   name: string;
@@ -280,6 +455,7 @@ export function createService(input: {
   priceMinorUnits: number;
   currency: string;
   cancellationCutoffHours: number;
+  autoApprove?: boolean;
 }): Promise<Service> {
   return post("/services", input) as Promise<Service>;
 }
@@ -294,6 +470,7 @@ export function updateService(
     maxSlotsPerBooking: number;
     priceMinorUnits: number;
     cancellationCutoffHours: number;
+    autoApprove: boolean;
   }>,
 ): Promise<Service> {
   return patch(`/services/${id}`, patchBody) as Promise<Service>;
@@ -372,6 +549,9 @@ if (typeof window !== "undefined") {
     leaveReview,
     getCurrentUser,
     updateUser,
+    uploadAvatar,
+    deleteAvatar,
+    deleteAccount,
     getActiveVertical,
     setVertical,
     resetDemoData,

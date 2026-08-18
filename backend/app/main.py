@@ -5,12 +5,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app import discovery
 from app.config import clear_config_cache, get_config
+from app.db import get_supabase
 from app.routers import (
     availability,
     bookings,
     demo,
     me,
+    messages,
+    owner,
     providers,
     resources,
     services,
@@ -59,6 +63,8 @@ app.include_router(slots.router)
 app.include_router(availability.router)
 app.include_router(bookings.router)
 app.include_router(me.router)
+app.include_router(messages.router)
+app.include_router(owner.router)
 app.include_router(demo.router)
 
 
@@ -67,13 +73,38 @@ def health():
     return {"status": "ok"}
 
 
+def _config_with_facets() -> dict:
+    """The pivot config plus a resolved `search.facets` map (which filter/sort
+    dimensions the search UI offers). Derivation from live catalog data decides
+    what's *possible* (a free niche → no price, a remote niche → no distance), so
+    any pivot's seed auto-configures the filter UI. `domain.config.json`'s
+    `search.facets` is an optional override that can force a facet **off**
+    (`"distance": false`) — you can't conjure a dimension the data lacks, so a
+    declared `true` just defers to derivation. Best-effort: if the catalog read
+    fails, fall back to all-on rather than break config delivery."""
+    cfg = get_config()
+    try:
+        derived = discovery.search_facets(get_supabase())
+    except Exception:
+        derived = {"price": True, "distance": True, "rating": True}
+    existing = cfg.get("search") if isinstance(cfg.get("search"), dict) else {}
+    declared = existing.get("facets") if isinstance(existing.get("facets"), dict) else {}
+    # A hand-edited config could set a facet to any value; coerce to a bool so a
+    # typo can't 500 /config. Only an explicit `false` forces a facet off.
+    facets = {
+        key: bool(value) and declared.get(key, True) is not False
+        for key, value in derived.items()
+    }
+    return {**cfg, "search": {**existing, "facets": facets}}
+
+
 @app.get("/config")
 def config():
-    return get_config()
+    return _config_with_facets()
 
 
 @app.post("/config/reload")
 def reload_config():
     """Instant pivot: drop the cached config and return the fresh file."""
     clear_config_cache()
-    return get_config()
+    return _config_with_facets()

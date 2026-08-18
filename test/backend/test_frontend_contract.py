@@ -120,6 +120,7 @@ def test_api_error_codes_match_the_backend():
         app_errors.CAPACITY_EXCEEDED,
         app_errors.CUTOFF_PASSED,
         app_errors.INVALID_RANGE,
+        app_errors.VALIDATION_ERROR,
         app_errors.NETWORK,
     }
     assert union == backend, f"frontend {sorted(union)} != backend {sorted(backend)}"

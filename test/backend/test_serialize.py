@@ -108,6 +108,21 @@ def test_rescheduled_is_treated_as_confirmed():
     assert S.effective_booking_status("rescheduled", FUTURE, now=NOW) == "confirmed"
 
 
+def test_pending_passes_through_even_in_the_future():
+    assert S.effective_booking_status("pending", FUTURE, now=NOW) == "pending"
+
+
+def test_pending_past_is_not_auto_completed():
+    # A pending request whose slot elapsed is still 'pending' (the owner acts on
+    # it) — it is NOT silently completed by elapsed time.
+    assert S.effective_booking_status("pending", PAST, now=NOW) == "pending"
+
+
+def test_rejected_passes_through_in_past_and_future():
+    assert S.effective_booking_status("rejected", FUTURE, now=NOW) == "rejected"
+    assert S.effective_booking_status("rejected", PAST, now=NOW) == "rejected"
+
+
 # --- serialize_provider ----------------------------------------------------
 
 PROVIDER_KEYS = {
@@ -121,6 +136,8 @@ PROVIDER_KEYS = {
     "location",
     "rating",
     "reviewCount",
+    "priceFromMinorUnits",
+    "currency",
     "links",
     "publicCode",
     "serviceIds",
@@ -183,6 +200,86 @@ def test_provider_defaults_when_metadata_sparse():
     assert out["coverUrl"] is None
 
 
+def test_provider_price_from_defaults_to_none_and_empty_currency():
+    # No price aggregate passed (provider has no priced service) → null price,
+    # empty currency.
+    out = S.serialize_provider(_provider_row(), service_ids=["s1"])
+    assert out["priceFromMinorUnits"] is None
+    assert out["currency"] == ""
+
+
+def test_provider_price_from_carries_min_price_and_currency():
+    out = S.serialize_provider(
+        _provider_row(), service_ids=["s1"], price_from=4500, currency="PLN"
+    )
+    assert out["priceFromMinorUnits"] == 4500
+    assert out["currency"] == "PLN"
+
+
+def test_provider_price_from_zero_currency_still_defaults_empty():
+    # A falsy currency ("") stays "", never None — the wire contract is str.
+    out = S.serialize_provider(_provider_row(), price_from=0, currency="")
+    assert out["priceFromMinorUnits"] == 0
+    assert out["currency"] == ""
+
+
+# --- discovery: price_from_by_provider + build_provider --------------------
+
+
+def test_discovery_price_from_picks_cheapest_service_currency():
+    from app import discovery as D
+
+    class _Table:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def select(self, *_a, **_k):
+            return self
+
+        def execute(self):
+            return type("R", (), {"data": self._rows})()
+
+    class _DB:
+        def __init__(self, rows):
+            self._rows = rows
+
+        def table(self, _name):
+            return _Table(self._rows)
+
+    rows = [
+        {"provider_id": "prov-1", "price_minor_units": 9000, "currency": "PLN"},
+        {"provider_id": "prov-1", "price_minor_units": 4500, "currency": "USD"},
+        {"provider_id": "prov-1", "price_minor_units": 7000, "currency": "PLN"},
+        {"provider_id": "prov-2", "price_minor_units": 1200, "currency": "EUR"},
+    ]
+    by = D.price_from_by_provider(_DB(rows))
+    # cheapest of prov-1 wins, carrying that service's currency.
+    assert by["prov-1"] == (4500, "USD")
+    assert by["prov-2"] == (1200, "EUR")
+
+    # build_provider threads it onto the serialized Provider...
+    p1 = D.build_provider(
+        {"id": "prov-1", "name": "P1"},
+        svc_by_prov={"prov-1": ["s1", "s2"]},
+        sums={},
+        counts={},
+        price_by_prov=by,
+    )
+    assert p1["priceFromMinorUnits"] == 4500
+    assert p1["currency"] == "USD"
+
+    # ...and a provider absent from the map falls back to null / "".
+    p3 = D.build_provider(
+        {"id": "prov-3", "name": "P3"},
+        svc_by_prov={},
+        sums={},
+        counts={},
+        price_by_prov=by,
+    )
+    assert p3["priceFromMinorUnits"] is None
+    assert p3["currency"] == ""
+
+
 # --- serialize_service -----------------------------------------------------
 
 SERVICE_KEYS = {
@@ -198,6 +295,7 @@ SERVICE_KEYS = {
     "priceMinorUnits",
     "currency",
     "cancellationCutoffHours",
+    "autoApprove",
     "resourceIds",
 }
 
@@ -236,6 +334,24 @@ def test_service_missing_description_becomes_empty_string():
     row = _service_row()
     row["description"] = None
     assert S.serialize_service(row)["description"] == ""
+
+
+def test_service_auto_approve_defaults_true_when_absent():
+    row = _service_row()
+    row["metadata"] = {}  # no auto_approve key
+    assert S.serialize_service(row)["autoApprove"] is True
+
+
+def test_service_auto_approve_reflects_metadata_false():
+    row = _service_row()
+    row["metadata"] = {"auto_approve": False}
+    assert S.serialize_service(row)["autoApprove"] is False
+
+
+def test_service_auto_approve_metadata_true():
+    row = _service_row()
+    row["metadata"] = {"auto_approve": True}
+    assert S.serialize_service(row)["autoApprove"] is True
 
 
 # --- serialize_resource ----------------------------------------------------
@@ -335,6 +451,8 @@ BOOKING_KEYS = {
     "userId",
     "providerId",
     "serviceId",
+    "providerName",
+    "serviceName",
     "resourceId",
     "slotIds",
     "startUtc",
@@ -394,6 +512,31 @@ def test_booking_key_set_and_span():
     assert out["status"] == "confirmed"
     assert out["cancelledAtUtc"] is None
     assert out["review"] is None
+    # Names default to "" when the endpoint doesn't resolve them.
+    assert out["providerName"] == ""
+    assert out["serviceName"] == ""
+
+
+def test_booking_provider_and_service_names_passed_through():
+    out = S.serialize_booking(
+        _booking_row(),
+        slot_ids=["s1"],
+        start_utc=FUTURE,
+        end_utc=FUTURE,
+        provider_name="Vistula Rentals",
+        service_name="City Cruiser",
+        now=NOW,
+    )
+    assert out["providerName"] == "Vistula Rentals"
+    assert out["serviceName"] == "City Cruiser"
+
+
+def test_booking_provider_and_service_names_default_to_empty():
+    out = S.serialize_booking(
+        _booking_row(), slot_ids=["s1"], start_utc=FUTURE, end_utc=FUTURE, now=NOW
+    )
+    assert out["providerName"] == ""
+    assert out["serviceName"] == ""
 
 
 def test_booking_change_history_is_camelcased():

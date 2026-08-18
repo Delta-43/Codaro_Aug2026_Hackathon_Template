@@ -9,9 +9,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ChevronRight, ExternalLink, Star, Store } from "lucide-react";
+import { ChevronRight, ExternalLink, MessagesSquare, Star, Store } from "lucide-react";
 import type { Resource, Service } from "@/types/domain";
-import { getResources, getServices } from "@/api";
+import { ApiError, getResources, getServices, startConversation } from "@/api";
 import { useApp } from "@/context/app-context";
 import { useAsync } from "@/hooks/use-async";
 import { useFollow } from "@/hooks/use-follow";
@@ -33,6 +33,21 @@ export default function ProviderPage() {
   const router = useRouter();
   const { isFollowing, busy, toggle } = useFollow(activeProvider);
   const [picker, setPicker] = useState<Service | null>(null);
+  const [messaging, setMessaging] = useState(false);
+
+  // Open (or resume) the client's thread with this business, then jump to it.
+  async function messageProvider() {
+    if (!activeProvider) return;
+    setMessaging(true);
+    try {
+      const conv = await startConversation(activeProvider.id);
+      router.push(`/bookings/messages/${conv.id}`);
+    } catch (e) {
+      alert(e instanceof ApiError ? e.message : "Couldn't start a conversation.");
+    } finally {
+      setMessaging(false);
+    }
+  }
 
   const data = useAsync<ServiceWithMeta[]>(async () => {
     if (!activeProvider) return [];
@@ -87,7 +102,7 @@ export default function ProviderPage() {
         aria-hidden
       />
       <div className="-mt-8 flex items-end gap-3 px-1">
-        <AvatarImg src={p.avatarUrl} alt="" className="size-20 border-4 border-background" />
+        <AvatarImg src={p.avatarUrl} name={p.name} alt="" className="size-20 border-4 border-background" />
         <div className="min-w-0 flex-1 pb-1">
           <h1 className="truncate text-xl font-semibold tracking-tight">{p.name}</h1>
           <p className="truncate text-sm text-muted-foreground">{p.tagline}</p>
@@ -114,6 +129,10 @@ export default function ProviderPage() {
           onPress={toggle}
         >
           {isFollowing ? "Following" : "Follow"}
+        </Button>
+        <Button variant="outline" isDisabled={messaging} onPress={messageProvider}>
+          <MessagesSquare aria-hidden />
+          Message
         </Button>
         <Link
           href="/search"

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from dataclasses import dataclass
 from functools import lru_cache
 
@@ -56,6 +57,33 @@ class AuthUser:
         return self.role == OWNER_ROLE
 
 
+# Short-lived cache of the trusted engine role keyed by `sub`. Without it,
+# _resolve_role hits Supabase (`profiles`) on EVERY authenticated request — a
+# per-request internet round trip on the hot path of every page.
+#
+# The TTL is deliberately short: it exists to collapse the burst of requests a
+# single page load fires, NOT to hold a role for minutes. Because owner gating
+# (`require_owner`) trusts this value, a longer window would let a revoked/
+# demoted owner keep owner-only access; a few seconds bounds that to roughly one
+# page's worth of requests. Only roles actually read from `profiles` are cached
+# (never the token fallback used on a DB outage), and the cache is size-bounded
+# with expired entries purged, so it can't grow without limit.
+_ROLE_TTL_SECONDS = 5.0
+_ROLE_CACHE_MAX = 4096
+_role_cache: dict[str, tuple[str, float]] = {}
+
+
+def _cache_role(sub: str, role: str, now: float) -> None:
+    """Store a resolved role, keeping the cache bounded: purge expired entries
+    when it fills, and if it's still at the cap, evict the oldest one."""
+    if len(_role_cache) >= _ROLE_CACHE_MAX:
+        for key in [k for k, (_, ts) in _role_cache.items() if now - ts >= _ROLE_TTL_SECONDS]:
+            del _role_cache[key]
+        if len(_role_cache) >= _ROLE_CACHE_MAX:
+            del _role_cache[min(_role_cache, key=lambda k: _role_cache[k][1])]
+    _role_cache[sub] = (role, now)
+
+
 def _resolve_role(sub: str, email: str | None, token_role: str) -> str:
     """The user's *trusted* engine role, read from the `profiles` table (the
     same source `is_owner()` uses in RLS, so backend and DB agree).
@@ -66,28 +94,48 @@ def _resolve_role(sub: str, email: str | None, token_role: str) -> str:
     later admin change is never clobbered — which also makes profiles reliably
     populated even if the DB trigger was skipped for lack of privilege.
 
-    Resilient: if the DB / `profiles` table is unavailable (e.g. offline tests,
-    schema not applied), fall back to the token role rather than failing auth."""
+    Cached per `sub` for `_ROLE_TTL_SECONDS` so a page's burst of requests
+    doesn't each pay a `profiles` round trip. Only DB-resolved roles are cached;
+    the token fallback below is returned but never cached, so a transient outage
+    can't pin a self-asserted role. Resilient: if the DB / `profiles` table is
+    unavailable (e.g. offline tests, schema not applied), fall back to the token
+    role rather than failing auth."""
+    now = time.monotonic()
+    hit = _role_cache.get(sub)
+    if hit is not None and (now - hit[1]) < _ROLE_TTL_SECONDS:
+        return hit[0]
+    role, cacheable = _resolve_role_uncached(sub, email, token_role)
+    if cacheable:
+        _cache_role(sub, role, now)
+    return role
+
+
+def _resolve_role_uncached(sub: str, email: str | None, token_role: str) -> tuple[str, bool]:
+    """The uncached `profiles` lookup + seed-on-first-sight (see `_resolve_role`).
+
+    Returns ``(role, cacheable)``. ``cacheable`` is False only for the token
+    fallback used when `profiles` is unreachable — that self-asserted value must
+    not be pinned in the cache, so it's re-checked on the very next request."""
     try:
         from app.db import get_supabase, maybe_row
 
         client = get_supabase()
         row = maybe_row(client.table("profiles").select("role").eq("id", sub))
         if row and row.get("role"):
-            return row["role"]
+            return row["role"], True
         try:
             client.table("profiles").insert(
                 {"id": sub, "email": email, "role": token_role}
             ).execute()
         except Exception:
             pass  # concurrent request already seeded it — fine
-        return token_role
+        return token_role, True
     except Exception:
         logger.warning(
             "profiles role lookup unavailable; using self-asserted token role.",
             exc_info=False,
         )
-        return token_role
+        return token_role, False
 
 
 def _engine_role(claims: dict) -> str:

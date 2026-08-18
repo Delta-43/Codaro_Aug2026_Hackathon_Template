@@ -84,15 +84,19 @@ def derive_slot_status(
 def effective_booking_status(
     status: str, end_utc: Any, now: Optional[datetime] = None
 ) -> str:
-    """Frontend BookingStatus is confirmed|cancelled|completed. A stored
-    'confirmed' booking whose end is in the past reads as 'completed'."""
+    """Wire BookingStatus is confirmed|cancelled|completed|pending|rejected.
+    A stored 'confirmed' booking whose end is in the past reads as 'completed'.
+    'pending' (awaiting owner approval on a manual-approve service) and
+    'rejected' (owner declined) pass through unchanged — a pending request is
+    never auto-completed just because its slot elapsed; the owner still acts on
+    it (or it's surfaced as stale)."""
     if status == "confirmed":
         end = _parse(end_utc)
         if end is not None and end <= _now(now):
             return "completed"
         return "confirmed"
-    if status == "cancelled":
-        return "cancelled"
+    if status in ("cancelled", "pending", "rejected"):
+        return status
     # 'rescheduled' is only ever a transient/history value; treat as confirmed.
     return "confirmed"
 
@@ -106,6 +110,8 @@ def serialize_provider(
     service_ids: Iterable[str] = (),
     review_sum: float = 0.0,
     review_count: int = 0,
+    price_from: Optional[int] = None,
+    currency: str = "",
 ) -> dict:
     md = row.get("metadata") or {}
     loc = md.get("location") or {}
@@ -136,6 +142,11 @@ def serialize_provider(
         },
         "rating": round(eff_rating, 1),
         "reviewCount": eff_count,
+        # Cheapest of the provider's services, so results can be ordered by price
+        # without fetching each service. null when the provider has no priced
+        # service (nothing to sort on); `currency` is that service's currency.
+        "priceFromMinorUnits": price_from,
+        "currency": currency or "",
         "links": md.get("links") or [],
         "publicCode": row.get("public_code") or "",
         "serviceIds": list(service_ids),
@@ -157,6 +168,10 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
         "priceMinorUnits": row["price_minor_units"],
         "currency": row["currency"],
         "cancellationCutoffHours": row["cancellation_cutoff_hours"],
+        # Owner-controlled: when False, new bookings for this service land as
+        # 'pending' and wait in the Requests tab; when True (default) they
+        # confirm immediately. Rides in metadata (services columns are fixed).
+        "autoApprove": bool(md.get("auto_approve", True)),
         "resourceIds": list(resource_ids),
     }
 
@@ -219,6 +234,8 @@ def serialize_booking(
     review: Optional[dict] = None,
     now: Optional[datetime] = None,
     include_client: bool = False,
+    provider_name: str = "",
+    service_name: str = "",
 ) -> dict:
     md = row.get("metadata") or {}
     review_out = None
@@ -234,6 +251,11 @@ def serialize_booking(
         "userId": row.get("client_id") or md.get("user_id") or "",
         "providerId": md.get("provider_id", ""),
         "serviceId": md.get("service_id", ""),
+        # Names are embedded so a bookings list needn't fetch each provider/
+        # service separately (was an N+1 of heavy per-id calls from the client).
+        # Additive + defaulted: endpoints that don't resolve them send "".
+        "providerName": provider_name,
+        "serviceName": service_name,
         "resourceId": md.get("resource_id", ""),
         "slotIds": list(slot_ids),
         "startUtc": iso_utc(start_utc),
@@ -251,6 +273,50 @@ def serialize_booking(
         # Owner-only view: who booked. An additive field (never sent to clients).
         out["clientEmail"] = row.get("client_email") or ""
     return out
+
+
+def serialize_conversation(
+    row: dict,
+    *,
+    other_party: dict,
+    unread_count: int = 0,
+) -> dict:
+    """A thread as the inbox lists it. `other_party` is the resolved
+    {id, name, avatarUrl} of whoever the current user is talking to (the provider
+    for a client; the customer for an owner) — resolved by the router, since it
+    spans a cross-user lookup RLS can't do."""
+    return {
+        "id": row["id"],
+        "providerId": row["provider_id"],
+        "otherParty": {
+            "id": other_party.get("id") or "",
+            "name": other_party.get("name") or "",
+            "avatarUrl": other_party.get("avatar_url"),
+        },
+        "lastMessagePreview": row.get("last_message_preview"),
+        "lastMessageAtUtc": iso_utc(row.get("last_message_at")),
+        "unreadCount": int(unread_count),
+    }
+
+
+def serialize_message(row: dict, *, me_id: str) -> dict:
+    """A single message. `mine` is derived from the viewer so the UI can align
+    bubbles left/right without knowing ids. A soft-deleted message keeps its
+    envelope (timestamps/receipts) but its body is blanked — the client renders
+    the "Message deleted" placeholder from `deletedAtUtc`."""
+    deleted = row.get("deleted_at") is not None
+    return {
+        "id": row["id"],
+        "conversationId": row["conversation_id"],
+        "senderId": row["sender_id"],
+        "body": "" if deleted else (row.get("body") or ""),
+        "replyToId": row.get("reply_to_id"),
+        "createdAtUtc": iso_utc(row.get("created_at")),
+        "deliveredAtUtc": iso_utc(row.get("delivered_at")),
+        "readAtUtc": iso_utc(row.get("read_at")),
+        "deletedAtUtc": iso_utc(row.get("deleted_at")),
+        "mine": row["sender_id"] == me_id,
+    }
 
 
 def serialize_user(
