@@ -7,7 +7,7 @@
  * horizontal, snap-scrolling row.
  */
 import { useRef } from "react";
-import { ChevronRight, Star } from "lucide-react";
+import { ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";
 import { ScrollCue } from "@/components/landing/scroll-cue";
 
@@ -39,7 +39,7 @@ const REVIEWS: Review[] = [
     initials: "PW",
     rating: 5,
     message:
-      "Service.com is an amazing platform, it offers awesome functionality specifically for ease of use for the business and a user. I really like how flexible and functional it is, and how it makes getting information about what you want super easy. Overall I really recommend Service.com",
+      "service.com is an amazing platform, it offers awesome functionality specifically for ease of use for the business and a user. I really like how flexible and functional it is, and how it makes getting information about what you want super easy. Overall I really recommend service.com",
   },
   {
     kind: "review",
@@ -50,8 +50,23 @@ const REVIEWS: Review[] = [
     message:
       "service.com is amazing because I really like programming, crocs and also my hackathon group, yayyy",
   },
-  { kind: "placeholder" },
-  { kind: "placeholder" },
+  {
+    kind: "review",
+    name: "Debadeep Chaudhury",
+    role: "Software Engineer",
+    initials: "DC",
+    rating: 5,
+    message: "Dis da bomb",
+  },
+  {
+    kind: "review",
+    name: "Peter P.",
+    role: "Had a life",
+    initials: "PP",
+    rating: 5,
+    message:
+      "service.com changed everything about my life — it optimized our booking rates to 300% 📈. Now I don't need to sleep 😴 because I have to serve my customers 😤",
+  },
 ];
 
 export function Testimonials() {
@@ -64,8 +79,8 @@ export function Testimonials() {
           <h2 className="text-center text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             Built for every business — and it shows.
           </h2>
-          <p className="mx-auto mt-3 max-w-md text-center text-muted-foreground">
-            The team that built Service.com, in their own words.
+          <p className="mx-auto mt-3 max-w-md text-center text-foreground/80">
+            The team that built service.com, in their own words.
           </p>
 
           <div className="relative mt-10">
@@ -99,7 +114,7 @@ export function Testimonials() {
                       <span className="block truncate text-sm font-medium text-foreground">
                         {review.name}
                       </span>
-                      <span className="block truncate text-xs text-muted-foreground">
+                      <span className="block truncate text-xs text-foreground/70">
                         {review.role}
                       </span>
                     </span>
@@ -113,18 +128,32 @@ export function Testimonials() {
                   <span className="flex size-9 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground">
                     +
                   </span>
-                  <p className="mt-3 text-sm font-medium text-muted-foreground">
+                  <p className="mt-3 text-sm font-medium text-foreground/70">
                     A teammate&apos;s review, coming soon
                   </p>
                 </div>
                 ),
               )}
             </div>
-            {/* Explicit "scrollable" affordance on the right */}
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex w-16 items-center justify-end bg-gradient-to-l from-background/70 to-transparent pr-1">
+            {/* Scrollable affordance — left. No gradient scrim: in dark mode a
+                `background`-based fade renders as a near-black band the cards
+                scroll under. The chevron carries its own glass bg, so it reads
+                fine on its own. */}
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex w-16 items-center justify-start pl-1">
               <button
                 type="button"
-                aria-label="Scroll reviews"
+                aria-label="Scroll reviews left"
+                onClick={() => scrollRef.current?.scrollBy({ left: -320, behavior: "smooth" })}
+                className="pointer-events-auto grid size-8 origin-center place-items-center rounded-full border border-white/30 bg-background/60 text-foreground shadow-sm ring-1 ring-inset ring-white/20 backdrop-blur-md transition-transform duration-200 ease-out hover:scale-125"
+              >
+                <ChevronLeft className="landing-nudge-left size-4" aria-hidden />
+              </button>
+            </div>
+            {/* Scrollable affordance — right (no dark scrim, see left). */}
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex w-16 items-center justify-end pr-1">
+              <button
+                type="button"
+                aria-label="Scroll reviews right"
                 onClick={() => scrollRef.current?.scrollBy({ left: 320, behavior: "smooth" })}
                 className="pointer-events-auto grid size-8 origin-center place-items-center rounded-full border border-white/30 bg-background/60 text-foreground shadow-sm ring-1 ring-inset ring-white/20 backdrop-blur-md transition-transform duration-200 ease-out hover:scale-125"
               >

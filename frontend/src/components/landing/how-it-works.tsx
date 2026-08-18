@@ -37,7 +37,7 @@ export function HowItWorks() {
           <h2 className="text-center text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             From idea to booking in three steps.
           </h2>
-          <p className="mx-auto mt-3 max-w-md text-center text-muted-foreground">
+          <p className="mx-auto mt-3 max-w-md text-center text-foreground/80">
             The same pipeline, whatever business you run.
           </p>
 
@@ -47,11 +47,11 @@ export function HowItWorks() {
                 <DockItem className="mx-auto flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm hover:bg-primary hover:text-primary-foreground">
                   <step.icon className="size-5" aria-hidden />
                 </DockItem>
-                <p className="mt-4 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                <p className="mt-4 text-xs font-medium uppercase tracking-wide text-foreground/70">
                   Step {i + 1}
                 </p>
                 <h3 className="mt-1 text-lg font-medium text-foreground">{step.title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{step.body}</p>
+                <p className="mt-1.5 text-sm leading-relaxed text-foreground/80">{step.body}</p>
               </div>
             ))}
           </Dock>

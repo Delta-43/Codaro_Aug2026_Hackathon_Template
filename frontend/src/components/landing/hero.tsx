@@ -22,13 +22,13 @@ export function Hero({ authed }: { authed: boolean }) {
           <div>
             <p className="text-sm font-semibold tracking-wide text-primary">
               <span className="inline-block origin-center cursor-pointer transition-transform duration-200 ease-out hover:scale-125">
-                Service.com
+                service.com
               </span>
             </p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
               One booking engine. Built for every business.
             </h1>
-            <p className="mx-auto mt-4 max-w-md text-muted-foreground">
+            <p className="mx-auto mt-4 max-w-md text-foreground/80">
               One engine, infinite businesses — booking, scheduling, and availability, reshaped
               instantly for the business you&apos;re building.
             </p>
