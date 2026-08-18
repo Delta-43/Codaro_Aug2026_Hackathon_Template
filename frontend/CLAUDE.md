@@ -21,6 +21,8 @@ calendar / bookings / account**.
 | `src/lib/auth.tsx` | `<AuthProvider>` / `useAuth()` — session + `role`/`isOwner`, `signIn`/`signUp`/`signOut`; `getAccessToken()` for the seam's Bearer header |
 | `src/components/auth-gate.tsx` | Redirects anonymous visitors to `/login`; holds the app until a session exists |
 | `src/app/login/page.tsx` | Email/password sign-in + sign-up (Supabase Auth) |
+| `src/app/docs/page.tsx` | Public **`domain.config.json` setup guide** (`/docs`), linked from the landing nav pill. Block-by-block: defaults, allowed values, per-service overrides. Defaults are quoted from `backend/app/config_schema.py` `DEFAULTS` (not from the prose docs) — re-check them when the schema changes |
+| `src/components/docs/` | `DocShell` (sticky header + scroll-spy TOC) and the long-form prose primitives the page renders with |
 | `src/app/layout.tsx` | Root layout — wraps the tree in `<AuthProvider>` |
 | `src/app/(app)/layout.tsx` | `<AuthGate>` → `<AppProvider>` → `<AppShell>` (stays mounted across tabs) |
 | `src/context/app-context.tsx` | Current user (`/me`), active vertical, locked-in provider/service/resource |
@@ -84,6 +86,11 @@ reschedule flows special-case the codes for re-pick / disabled-with-reason.
    *Built.*
 6. **Account** (tab 5) — profile edit (`PATCH /me`), sign-out, **Appearance**
    theme toggle (Light / Dark / Smart), demo vertical-switch/reset. *Built.*
+7. **Docs** — `/docs`, ungated like `privacy/`: how to set up
+   `domain.config.json`, block by block (tenancy → capabilities → booking →
+   pricing → payments → timing → location → optional → vocabulary), plus
+   per-service overrides, applying an edit, and what the engine actually
+   enforces today. *Built.*
 
 Owner/admin self-service (creating providers/services from the UI) is not built —
 seeds populate catalog data; see `TODO.md`.
