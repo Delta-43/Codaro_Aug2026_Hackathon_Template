@@ -135,8 +135,11 @@ export function Testimonials() {
                 ),
               )}
             </div>
-            {/* Scrollable affordance — left */}
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex w-16 items-center justify-start bg-gradient-to-r from-background/70 to-transparent pl-1">
+            {/* Scrollable affordance — left. No gradient scrim: in dark mode a
+                `background`-based fade renders as a near-black band the cards
+                scroll under. The chevron carries its own glass bg, so it reads
+                fine on its own. */}
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex w-16 items-center justify-start pl-1">
               <button
                 type="button"
                 aria-label="Scroll reviews left"
@@ -146,8 +149,8 @@ export function Testimonials() {
                 <ChevronLeft className="landing-nudge-left size-4" aria-hidden />
               </button>
             </div>
-            {/* Scrollable affordance — right */}
-            <div className="pointer-events-none absolute inset-y-0 right-0 flex w-16 items-center justify-end bg-gradient-to-l from-background/70 to-transparent pr-1">
+            {/* Scrollable affordance — right (no dark scrim, see left). */}
+            <div className="pointer-events-none absolute inset-y-0 right-0 flex w-16 items-center justify-end pr-1">
               <button
                 type="button"
                 aria-label="Scroll reviews right"
