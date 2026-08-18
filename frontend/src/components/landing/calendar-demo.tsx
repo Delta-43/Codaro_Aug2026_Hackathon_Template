@@ -41,6 +41,7 @@ const SERVICE: Service = {
   priceMinorUnits: 2500,
   currency: "EUR",
   cancellationCutoffHours: 24,
+  autoApprove: true,
   resourceIds: ["res-a"],
 };
 
