@@ -68,7 +68,7 @@ export function GlassPanel({
   return (
     <div
       className={cn(
-        "rounded-3xl border border-white/30 bg-background/20 shadow-lg ring-1 ring-inset ring-white/20 backdrop-blur-md dark:border-white/12 dark:bg-background/15 dark:ring-white/10",
+        "rounded-3xl border border-white/30 bg-background/45 shadow-lg ring-1 ring-inset ring-white/20 backdrop-blur-xl dark:border-white/12 dark:bg-background/15 dark:ring-white/10",
         className,
       )}
     >

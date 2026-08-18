@@ -123,7 +123,7 @@ export function SceneBackground() {
           __html: `
         /* Day↔night crossfade for the stacked scene layers — long + eased so it
            reads as a gradual dusk/dawn rather than a swap. */
-        .scene-fade { transition: opacity 1400ms ease-in-out; will-change: opacity; }
+        .scene-fade { will-change: opacity; }
 
         /* Sun — one soft radial bloom, fully faded edges */
         .landing-sun {

@@ -4,8 +4,9 @@
  * Floating glass nav pill (à la the Haven reference) over the scene. Section
  * links smooth-scroll to the anchors; `route` links (Docs) are real
  * navigations, so they go through next/link instead. The primary button is
- * auth-aware (Login → /login, or Open app → /search when signed in). Links
- * collapse on mobile, leaving just the logo + button.
+ * auth-aware (Login → /login, or Open app → /search when signed in). The theme
+ * toggle sits on the left at every size; links stay centered and scroll
+ * sideways on mobile.
  */
 import Link from "next/link";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
@@ -57,17 +58,10 @@ export function NavBar({ authed }: { authed: boolean }) {
   return (
     <nav className="fixed inset-x-0 top-4 z-50 flex justify-center px-4">
       <div className="flex w-full max-w-3xl items-center gap-2 rounded-full border border-border/60 bg-background/70 px-3 py-2 shadow-sm backdrop-blur-xl">
-        {/* Logo hidden through tablet — the pill is too tight until desktop
-            once the theme toggle, chevrons, links + Login are in. Shows at lg. */}
-        <Link
-          href="/"
-          className="hidden shrink-0 origin-left px-2 text-sm font-semibold tracking-tight text-foreground transition-transform duration-200 ease-out hover:scale-110 lg:inline-block"
-        >
-          service<span className="text-primary">.com</span>
-        </Link>
-        {/* Theme toggle sits on the LEFT below lg (where there's no logo), so
-            the links stay centered; on desktop it lives in the right cluster. */}
-        <ThemeToggle className="lg:hidden" />
+        {/* Theme toggle sits on the LEFT at every size, so the section links
+            stay centered in the pill. The wordmark lives on the hero plate and
+            footer now, so the nav stays compact and consistent across sizes. */}
+        <ThemeToggle />
         {/* Mobile-only affordance: scroll the links row left. */}
         <button
           type="button"
@@ -109,8 +103,6 @@ export function NavBar({ authed }: { authed: boolean }) {
           <ChevronRight className="landing-nudge size-4" aria-hidden />
         </button>
         <div className="flex shrink-0 items-center gap-1">
-          {/* Desktop keeps the toggle here on the right, beside Login. */}
-          <ThemeToggle className="hidden lg:grid" />
           <Link
             href={authed ? "/search" : "/login"}
             className={cn(
