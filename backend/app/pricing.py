@@ -15,7 +15,8 @@ un-pivoted config prices identically to before.
 
 Order of operations, and it matters:
 
-1. pick the per-unit amount — a matching tier overrides `rate.amountMinorUnits`
+1. pick the per-unit amount — a matching tier overrides `rate.amountMinorUnits`,
+   and `model: "free"` zeroes it (fees below still apply)
 2. base = amount x quantity(rate.per) x party factor
 3. + secondary rate (an independent axis, e.g. pallets x weeks)
 4. + fees (flat / percent of subtotal / distance band)
@@ -68,6 +69,18 @@ def quote(pricing: dict, ctx: dict) -> dict:
     tier = match_tier(pricing.get("tiers") or [], ctx)
     if tier is not None and tier.get("amountMinorUnits") is not None:
         amount = _int(tier["amountMinorUnits"])
+
+    # `model` was validated against a nine-value enum and then read by NOTHING —
+    # every total came off `rate.per`, so `"model": "free"` on a config that still
+    # carried a rate charged full price for it. Free zeroes the RATE, not the
+    # booking: a free class with a booking fee is a real pivot (#57), and fees,
+    # caps and the deposit still apply below. The other models need no branch —
+    # fixed / per_hour / per_person / per_unit / tiered / deposit_balance are
+    # exactly what `rate.per`, `tiers` and `deposit` already express; `quote` and
+    # `subscription` need the quote flow and the billing adapter, and are listed
+    # as unbuilt in scripts/check_pivots.py rather than silently priced as fixed.
+    if pricing.get("model") == "free":
+        amount = 0
 
     quantity = _quantity(per, ctx)
     factor = _party_factor(pricing, per, ctx)

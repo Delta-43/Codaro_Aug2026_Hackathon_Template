@@ -109,7 +109,11 @@ DEFAULTS: dict[str, Any] = {
     },
 
     # The on/off spine. A false capability means the UI hides the surface AND the
-    # backend refuses the write — not one without the other.
+    # backend refuses the write — not one without the other. That held for
+    # `reviews` and `follows` only once they were actually gated (they are, in
+    # bookings.py / providers.py); the rest name surfaces that do not exist yet,
+    # so there is nothing to refuse and scripts/check_pivots.py lists them as
+    # unbuilt. Wiring a new capability means writing its gate at the same time.
     "capabilities": {
         "payments": True,
         "inventory": False,
@@ -336,27 +340,41 @@ def normalize(raw: dict | None) -> dict:
 # -- validation ----------------------------------------------------------
 
 
-def check_shape(raw: dict) -> list[str]:
-    """Type-check the top-level blocks BEFORE `normalize()` touches them.
+def check_shape(raw: dict, expected: dict | None = None, prefix: str = "") -> list[str]:
+    """Type-check blocks against DEFAULTS BEFORE `normalize()` touches them.
 
     `normalize()` and `validate()` both assume a block is the shape DEFAULTS says
     it is. A hand-edited `"timing": []` or `"tenancy": "single"` therefore raised
     TypeError/AttributeError out of the load path instead of being reported —
     which turned a typo into a 500 from /config/reload and a traceback at
     startup, exactly what load-time validation exists to prevent.
+
+    It recurses, because the top level was never where the assumption lived:
+    `validate()` indexes `booking["duration"]["mode"]` and `pricing["rate"]["per"]`,
+    so a nested `"duration": 5` escaped the top-level check and hit the same
+    AttributeError. Only keys DEFAULTS declares are inspected — an unknown key is
+    the extension point and passes through, exactly as before.
     """
     errors: list[str] = []
+    expected = DEFAULTS if expected is None else expected
     for key, value in (raw or {}).items():
-        if key not in DEFAULTS:
+        if key not in expected:
             continue
-        expected = DEFAULTS[key]
-        if isinstance(expected, dict) and not isinstance(value, dict):
-            errors.append(f"{key} must be an object, got {type(value).__name__}")
-        elif isinstance(expected, list) and not isinstance(value, list):
-            errors.append(f"{key} must be a list, got {type(value).__name__}")
-    version = (raw or {}).get("configVersion")
-    if version is not None and (isinstance(version, bool) or not isinstance(version, (int, float))):
-        errors.append(f"configVersion must be a number, got {version!r}")
+        want = expected[key]
+        path = f"{prefix}{key}"
+        if isinstance(want, dict):
+            if not isinstance(value, dict):
+                errors.append(f"{path} must be an object, got {type(value).__name__}")
+            else:
+                errors.extend(check_shape(value, want, f"{path}."))
+        elif isinstance(want, list) and not isinstance(value, list):
+            errors.append(f"{path} must be a list, got {type(value).__name__}")
+    if not prefix:
+        version = (raw or {}).get("configVersion")
+        if version is not None and (
+            isinstance(version, bool) or not isinstance(version, (int, float))
+        ):
+            errors.append(f"configVersion must be a number, got {version!r}")
     return errors
 
 
@@ -583,21 +601,33 @@ def validate_overrides(overrides: dict, base: dict | None = None) -> list[str]:
     `validate()` exists to catch), and rejected `location.modes: ["remote"]` on a
     deployment whose `location.default` was already `"remote"`. DEFAULTS remains
     the fallback so the function is still usable without a loaded config.
+
+    Shape is checked first, for the same reason `load_config` checks it before
+    `normalize()`: `validate()` indexes into a block assuming its declared type,
+    so a malformed override (`"pricing": {"rate": 5}`) raised an AttributeError
+    straight out of this function. On the global path that was caught and
+    reported; here it escaped as a 500 from every read that resolves a service.
     """
     if not overrides:
         return []
     declared = {k: v for k, v in overrides.items() if k in DEFAULTS}
     if not declared:
         return []
+    shape = check_shape(declared)
+    if shape:
+        return shape
     # Report exactly the errors the override INTRODUCES, by diffing against the
     # base's own errors. Filtering by the error's leading path segment looked
     # equivalent but silently dropped cross-block violations: overriding
     # `payments.flow` on a `capabilities.payments: false` deployment produces an
     # error named after `capabilities`, which the caller never declared.
     baseline = base or DEFAULTS
-    before = set(validate(baseline))
-    merged = _deep_merge(_copy.deepcopy(baseline), declared)
-    return [e for e in validate(merged) if e not in before]
+    try:
+        before = set(validate(baseline))
+        merged = _deep_merge(_copy.deepcopy(baseline), declared)
+        return [e for e in validate(merged) if e not in before]
+    except Exception as e:  # backstop: no shape bug may escape as a 500
+        return [f"{', '.join(sorted(declared))} could not be read: {type(e).__name__}: {e}"]
 
 
 def validate_meta_fields(meta_fields: dict) -> list[str]:

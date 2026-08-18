@@ -72,6 +72,10 @@ scalar rules, but the config side now takes a **dotted path** into the whole tre
 so price, currency and min/max slots finally have a global default — in v1 they
 had none and could only come from the column.
 
+`serialize_service` reports the **resolved** values, not the raw columns — an
+explicit `metadata.timing` / `metadata.booking` override outranks the column, so
+serving the column advertised one rule while the booking path enforced another.
+
 `effective_service_config(service)` lifts that idea from single keys to whole
 blocks: `services.metadata.<block>` deep-merges over the global block for every
 name in `OVERRIDABLE_BLOCKS`. That is what makes a marketplace work — two
@@ -93,7 +97,15 @@ no schema check. Now:
   block** on PATCH (a partial deep-merge would make removing a key impossible).
 - **Read** — `effective_service_config` drops an invalid block and falls back to
   the global one, logging a warning. Only the offending block is dropped: a valid
-  `timing` override survives alongside a rejected `pricing` one. This exists for
+  `timing` override survives alongside a rejected `pricing` one. Blame is computed
+  **per block** (`rules._problems_by_block` validates each declared block alone).
+  Reading it off the error's leading path segment dropped the wrong block for
+  every cross-block violation — a `payments` override rejected on a
+  `capabilities.payments: false` deployment produces an error named
+  `capabilities`, so the bad block was kept and applied while the log claimed a
+  fallback that never happened. `validate_overrides` also shape-checks first, so a
+  malformed block (`"pricing": {"rate": 5}`) is a listed problem rather than an
+  `AttributeError` 500 out of every read that resolves a service. This exists for
   seeded rows and direct DB edits, not as a substitute for the write gate — a
   customer's booking must not 500 over a business's typo.
 - **`tenancy` is deliberately not overridable.** Commission and tenant
@@ -109,7 +121,11 @@ validator + a `timing` key makes a rule enforce, deleting the config key disable
 it, and no router changes either way. It now declares `booking.create`,
 `booking.change`, `booking.approve`, `booking.cancel`, `slot.create`,
 `inventory.reserve`, `inventory.return` and `payment.due`; empty maps are live
-extension points. `apply_rules` reads `timing`. `advanceBookingWindowDays` sits in
+extension points. `apply_rules(event, ctx, timing)` takes the **resolved** block
+for the service being acted on (`effective_service_config(service)["timing"]`) —
+reading the global block made it the one resolver that skipped the service layer,
+so a per-service `leadTimeMinutes` was accepted on write and enforced by nothing.
+`advanceBookingWindowDays` sits in
 `UNDISPATCHED` on purpose — the seed lays slots 56 days out while the config
 allows 30, so enforcing it today would make half the seeded calendar unbookable.
 Parse all timestamps through `parse_ts()` / `serialize._parse` — never compare
@@ -129,6 +145,15 @@ next to it:
 | `payments.noShowFee` | no payments table exists | the `PaymentAdapter` layer |
 | `timing.approvalWindowHours` | nothing expires a stale request | a scheduled job |
 | `pricing.tiers[].quantityCap` | needs a sold-count | a query |
+| `capabilities.*` except `reviews`/`follows` | those surfaces have no backend yet | the feature, plus its write gate |
+| `pricing.currencyExponent` | rendering uses the currency's own ISO exponent via `Intl` | only a currency `Intl` cannot resolve |
+| `terms.*` (bar `admin`/`slot`), `copy`, `theme` | the frontend takes vocabulary from `src/config/verticals.ts` | E10 per-service vocabulary |
+
+`scripts/check_pivots.py` now **fails** if a `DEFAULTS` leaf appears in neither
+its `ENFORCED` nor its `DECLARED_ONLY` map. That table is the promise that no key
+looks live and does nothing; nothing had been checking it, and 43 paths had
+already slipped through — including all of `copy` and `theme`, the very keys the
+script's own header names as v1's cautionary tale.
 
 `rules.UNDISPATCHED` also holds `maxBookingsPerSlot` **deliberately**: capacity is
 enforced upstream by `_resolve_selection` + `slot_occupancy`, which understand
@@ -153,7 +178,13 @@ yet — it needs a sold-count query, which is a database question.
   request models (`BookingCreateReq`, `RescheduleReq`, `ReviewReq`, `UserPatch`)
   extend `CamelModel` (accept camelCase and snake_case).
 - **`metadata` validated by `meta.py`** from `get_config()["metaFields"][entity]`
-  at request time (lenient on undeclared keys, strict on declared).
+  at request time (lenient on undeclared keys, strict on declared). All five
+  entities with a table accept one: `resources`/`slots` take `metadata` directly,
+  and `providers`/`services`/`bookings` go through `meta.merged_metadata`, which
+  drops engine-owned keys and merges the rest **under** them — so a domain field
+  can never shadow a price, an owner id or a config override block. (Only
+  `resources`/`slots` had an input path before, so a `metaFields.bookings`
+  descriptor — the shipped medical example declares one — validated nothing.)
 - **Booking selection** (`bookings._resolve_selection`) re-checks at commit:
   slots exist, same service+resource, within min/max, **contiguous**, not past,
   capacity>0, `party_size ≤ capacity`, remaining seats ≥ party (crediting back

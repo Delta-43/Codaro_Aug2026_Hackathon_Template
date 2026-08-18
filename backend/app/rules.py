@@ -139,14 +139,21 @@ UNDISPATCHED = {
 }
 
 
-def apply_rules(event: str, ctx: dict) -> None:
+def apply_rules(event: str, ctx: dict, timing: dict | None = None) -> None:
     """Run every configured validator for ``event``. Absent/None config keys
     are skipped gracefully — deleting a key disables its rule.
 
     Reads `timing` (the v2 home of these numbers). `config_schema.normalize`
     mirrors the same values into the deprecated `rules` block, so a v1 config
-    file resolves identically."""
-    configured = get_config().get("timing", {})
+    file resolves identically.
+
+    ``timing`` is the RESOLVED block for the service being acted on — pass
+    ``effective_service_config(service)["timing"]``. Reading the global block
+    unconditionally made this the one resolver that skipped the service layer:
+    `timing` is in `OVERRIDABLE_BLOCKS`, the write gate accepted a service's
+    `leadTimeMinutes`, and then nothing enforced it. Omit it only where there is
+    genuinely no service in scope; the global block is the fallback."""
+    configured = timing if timing is not None else get_config().get("timing", {})
     for key, validator in RULES.get(event, {}).items():
         if configured.get(key) is not None:
             validator(configured[key], ctx)
@@ -266,8 +273,33 @@ def service_overrides(service: dict | None) -> dict:
 def service_override_problems(service: dict | None) -> list[str]:
     """Validation errors in a service's own override blocks. Empty when clean.
     Exposed so an owner-facing surface can show a business its own bad config
-    instead of it only ever appearing in a server log."""
-    return validate_overrides(service_overrides(service), get_config())
+    instead of it only ever appearing in a server log.
+
+    Attributed per block (same source of truth as `surviving_overrides`), so what
+    an owner is shown is exactly the set of blocks that will be ignored."""
+    bad = _problems_by_block(service_overrides(service))
+    return [p for _block, errs in sorted(bad.items()) for p in errs]
+
+
+def _problems_by_block(declared: dict) -> dict[str, list[str]]:
+    """Override problems attributed to the block that actually causes them.
+
+    Each declared block is validated ALONE against the deployment's own config,
+    so the block that introduces an error is the block that gets blamed. Reading
+    the blame off the error's leading path segment instead was wrong for exactly
+    the cross-block violations `validate()` exists to catch: a service declaring
+    `payments: {"flow": "prepay"}` on a `capabilities.payments: false` deployment
+    produces an error named `capabilities` — a block the service never declared,
+    so the bad `payments` block was KEPT and applied while the warning below
+    claimed a fallback that never happened.
+
+    A block absent from the result is clean and safe to merge.
+    """
+    if not declared:
+        return {}
+    cfg = get_config()
+    problems = {b: validate_overrides({b: v}, cfg) for b, v in declared.items()}
+    return {b: errs for b, errs in problems.items() if errs}
 
 
 def surviving_overrides(service: dict | None) -> dict:
@@ -280,14 +312,15 @@ def surviving_overrides(service: dict | None) -> dict:
     declared = service_overrides(service)
     if not declared:
         return {}
-    problems = validate_overrides(declared, get_config())
-    if not problems:
+    bad = _problems_by_block(declared)
+    if not bad:
         return declared
-    bad = {p.split(".", 1)[0].split("[", 1)[0] for p in problems}
     log.warning(
         "service %s has invalid config override(s) in %s; falling back to the "
         "global block(s). Problems: %s",
-        (service or {}).get("id", "?"), sorted(bad), "; ".join(problems),
+        (service or {}).get("id", "?"),
+        sorted(bad),
+        "; ".join(p for errs in bad.values() for p in errs),
     )
     return {k: v for k, v in declared.items() if k not in bad}
 
@@ -352,6 +385,21 @@ def effective_auto_approve(service: dict | None) -> bool:
     if "auto_approve" in metadata:
         return bool(metadata["auto_approve"])
     return effective_service_config(service)["timing"].get("confirmation") != "request_approve"
+
+
+def capability(name: str, service: dict | None = None) -> bool:
+    """Whether `capabilities.<name>` is on for this service (else globally).
+
+    The block was declared, validated and served from the very first v2 commit
+    and read by nothing, so `capabilities.reviews: false` hid the button and left
+    the endpoint wide open — the exact "looks live, does nothing" failure the
+    config's own audit map exists to prevent. Routers call this before the write;
+    the surfaces that have no backend yet are listed as unbuilt in
+    `scripts/check_pivots.py` rather than pretended to be gated here.
+    """
+    if service is not None:
+        return bool(effective_service_config(service)["capabilities"].get(name, True))
+    return bool(get_config()["capabilities"].get(name, True))
 
 
 def within_cutoff(slot_starts_at: str | datetime, cutoff_hours, now: datetime | None = None) -> bool:

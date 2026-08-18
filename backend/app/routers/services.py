@@ -8,6 +8,7 @@ from app.db import get_supabase, get_user_client, maybe_row
 from app.config import get_config
 from app.config_schema import validate_overrides
 from app.errors import NOT_FOUND, VALIDATION_ERROR, api_error
+from app.meta import merged_metadata
 from app.models import ServiceCreate, ServiceUpdate
 from app.rules import OVERRIDABLE_BLOCKS
 from app.routers.resources import delete_resources_for_services
@@ -20,10 +21,18 @@ router = APIRouter(prefix="/services", tags=["services"])
 _META_FIELDS = ("image_url", "auto_approve")
 
 
-def _service_metadata(base: dict | None = None, **fields) -> dict:
+def _service_metadata(base: dict | None = None, *, custom: dict | None = None, **fields) -> dict:
     """Merge the non-column service fields into metadata, dropping keys left
-    unset (None) so a PATCH stays partial."""
+    unset (None) so a PATCH stays partial.
+
+    `custom` is the client's `metaFields.services` data. It goes UNDER everything
+    the engine owns — the `_META_FIELDS` keys and the `OVERRIDABLE_BLOCKS` config
+    blocks — so a domain field can never shadow a config override; `config` stays
+    the only way to declare one."""
     md = dict(base or {})
+    md.update(
+        merged_metadata("services", custom, reserved=_META_FIELDS + tuple(OVERRIDABLE_BLOCKS))
+    )
     for key, value in fields.items():
         if value is not None:
             md[key] = value
@@ -92,6 +101,7 @@ def create_service(payload: ServiceCreate, owner: AuthUser = Depends(require_own
         "cancellation_cutoff_hours": payload.cancellation_cutoff_hours,
         "metadata": _service_metadata(
             _config_overrides(payload.config),
+            custom=payload.metadata,
             image_url=payload.image_url,
             auto_approve=payload.auto_approve,
         ),
@@ -114,12 +124,13 @@ def update_service(
     # image_url / auto_approve aren't columns — pull them out of the column patch
     # and merge into metadata instead (leaving the rest as real column updates).
     meta_patch = {k: patch.pop(k) for k in _META_FIELDS if k in patch}
+    custom = patch.pop("metadata", None)
     # Config blocks replace wholesale per block (a partial deep-merge would make
     # it impossible to ever remove a key), but untouched blocks are preserved.
     overrides = _config_overrides(patch.pop("config", None))
-    if meta_patch or overrides:
+    if meta_patch or overrides or custom:
         patch["metadata"] = {
-            **_service_metadata(existing.get("metadata") or {}, **meta_patch),
+            **_service_metadata(existing.get("metadata") or {}, custom=custom, **meta_patch),
             **overrides,
         }
     if not patch:

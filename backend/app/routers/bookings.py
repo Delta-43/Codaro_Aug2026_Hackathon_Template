@@ -29,11 +29,13 @@ from app.errors import (
     SLOT_UNAVAILABLE,
     api_error,
 )
+from app.meta import merged_metadata
 from app.models import BookingCreateReq, ClientReviewReq, ReviewReq, RescheduleReq
 from app.pricing import quote
 from app.rules import (
     RuleViolation,
     apply_rules,
+    capability,
     effective_auto_approve,
     effective_service_config,
     effective_service_pricing,
@@ -43,6 +45,14 @@ from app.rules import (
 from app.serialize import _parse, effective_booking_status, iso_utc, serialize_booking
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
+
+# Keys `create_booking` writes into `bookings.metadata` itself. A client-supplied
+# `metaFields.bookings` value carrying one of these names is dropped, not merged.
+_ENGINE_BOOKING_KEYS = (
+    "party_size", "reference", "price_minor_units", "currency", "price_breakdown",
+    "deposit_minor_units", "provider_id", "service_id", "resource_id", "user_id",
+    "slot_ids", "change_history", "cancelled_at_utc",
+)
 
 # Reference alphabet — no ambiguous chars (mirrors the mock's BK- references).
 _ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
@@ -355,7 +365,16 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
     # the registry: a new constraint is a config key plus a validator, never a
     # change here.
     try:
-        apply_rules("booking.create", {"slot_starts_at": rows[0]["starts_at"]})
+        apply_rules(
+            "booking.create",
+            {"slot_starts_at": rows[0]["starts_at"]},
+            # THIS service's resolved timing, not the global block. `timing` is in
+            # OVERRIDABLE_BLOCKS and the write gate accepts a per-service
+            # `leadTimeMinutes` — reading the global block here made this the one
+            # resolver that skipped the service layer, so the override was
+            # accepted with a 200 and then enforced by nothing.
+            effective_service_config(service)["timing"],
+        )
     except RuleViolation as e:
         raise api_error(INVALID_RANGE, str(e))
 
@@ -364,6 +383,10 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
     priced = _price(service, rows, party)
 
     metadata = {
+        # `metaFields.bookings` domain data (the shipped medical example declares
+        # a `reason` field) merged UNDER every engine-owned key below, which
+        # always win — a domain field must never be able to rewrite a price.
+        **merged_metadata("bookings", payload.metadata, reserved=_ENGINE_BOOKING_KEYS),
         "party_size": party,
         "reference": _reference(),
         "price_minor_units": priced["amountMinorUnits"],
@@ -511,8 +534,16 @@ def review_booking(booking_id: str, payload: ReviewReq, user: AuthUser = Depends
     if effective_booking_status(booking["status"], cur_end) != "completed":
         raise api_error(NOT_FOUND, "Only completed bookings can be reviewed.")
 
-    rating = max(1, min(5, round(payload.rating)))
     md = booking.get("metadata") or {}
+    # `capabilities.reviews: false` hid the button and left the endpoint wide
+    # open — the block's own contract is that a false capability hides the
+    # surface AND refuses the write. Resolved per service, so one business on a
+    # marketplace can run without reviews.
+    service = maybe_row(db.table("services").select("*").eq("id", md.get("service_id")))
+    if not capability("reviews", service):
+        raise api_error(NOT_FOUND, "Reviews are not enabled here.")
+
+    rating = max(1, min(5, round(payload.rating)))
     # One review per booking: clear any prior (service key — no user delete
     # policy) then insert through the user client (RLS reviews_insert_own).
     db.table("reviews").delete().eq("booking_id", booking_id).execute()

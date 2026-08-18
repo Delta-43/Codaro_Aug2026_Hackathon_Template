@@ -34,7 +34,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "backend"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from app.config_schema import normalize, validate  # noqa: E402
+from app.config_schema import DEFAULTS, normalize, validate  # noqa: E402
 from app.pricing import quote  # noqa: E402
 
 NOW = datetime(2026, 8, 18, 12, 0, tzinfo=timezone.utc)
@@ -53,10 +53,16 @@ ENFORCED = {
     "terms.slot": "rules._term in rule-violation messages",
     "metaFields.resources": "meta.validate_metadata via routers/resources.py",
     "metaFields.slots": "meta.validate_metadata via routers/slots.py",
+    "metaFields.providers": "meta.merged_metadata via routers/providers.py",
+    "metaFields.services": "meta.merged_metadata via routers/services.py",
+    "metaFields.bookings": "meta.merged_metadata via routers/bookings.py",
+    "capabilities.reviews": "bookings.review_booking refuses the write when off",
+    "capabilities.follows": "providers.follow_provider refuses the write when off",
     "tenancy.mode": "frontend routing (single vs marketplace)",
     "tenancy.providerCode": "frontend sole-provider resolution",
+    "tenancy.selfOnboarding": "providers.create_provider — refuses a new business when off",
     "discovery.facets": "main._config_with_facets -> search UI",
-    "location.timezone": "availability._viewer_tz + bookings._business_tz",
+    "location.timezone": "availability._viewer_tz + bookings._business_tz (both per service)",
     "location.origin": "frontend lib/geo.ts distance origin",
     "location.distanceUnit": "frontend lib/geo.ts formatting",
     "timing.slotDurationMinutes": "routers/slots.py + effective_service_rules",
@@ -68,6 +74,7 @@ ENFORCED = {
     "booking.duration.minUnits": "effective_service_rules -> minSlotsPerBooking",
     "booking.duration.maxUnits": "effective_service_rules -> maxSlotsPerBooking",
     "pricing.currency": "pricing.quote",
+    "pricing.model": "pricing.quote — 'free' short-circuits to zero; the rest ARE the rate path",
     "pricing.rate": "pricing.quote",
     "pricing.secondaryRate": "pricing.quote",
     "pricing.tiers": "pricing.quote -> match_tier",
@@ -92,6 +99,11 @@ DECLARED_ONLY = {
     "booking.subject": "subject entity + intake capture",
     "booking.options": "add-on selection at booking time",
     "pricing.caps.perDayMinorUnits": "cross-booking daily total (a query)",
+    # Rendering divides by the CURRENCY's own ISO exponent (Intl knows it), which
+    # is why money is correct in JPY/KWD without reading this key. It would only
+    # ever matter for a currency Intl does not know.
+    "pricing.currencyExponent": "a currency Intl cannot resolve; frontend uses the ISO exponent",
+    "booking.duration.incrementUnits": "availabilityStrategy plugin (E2)",
     "pricing.tiers[].quantityCap": "sold-count query",
     "payments.flow": "PaymentAdapter + payments table (E8)",
     "payments.schedule": "PaymentAdapter (E8)",
@@ -99,7 +111,9 @@ DECLARED_ONLY = {
     "payments.billingCycle": "PaymentAdapter (E8)",
     "payments.noShowFee": "PaymentAdapter (E8)",
     "payments.usageMetered": "bookingLifecycle state machine (E7)",
+    "payments.adapter": "PaymentAdapter (E8) — only 'manual' exists, and it is not wired",
     "inventory.mode": "inventory block + reservation holds",
+    "inventory.reservationWindowMinutes": "reservation holds (needs the inventory block)",
     "inventory.returnRequired": "bookingLifecycle checked_out/returned/overdue (E7)",
     "inventory.loanPeriodHours": "bookingLifecycle (E7)",
     "inventory.overdueFeePerDayMinorUnits": "bookingLifecycle (E7)",
@@ -107,6 +121,7 @@ DECLARED_ONLY = {
     "inventory.ratioConstraint": "derived-capacity resolver",
     "inventory.seatMap": "positional inventory (E3, deferred)",
     "location.modes": "per-service fulfilment UI",
+    "location.default": "per-service fulfilment UI (E4)",
     "location.serviceArea": "travel radius filter + travel buffer",
     "location.fulfilment": "pickup/delivery window logic",
     "location.remote": "meeting-link generation",
@@ -118,9 +133,45 @@ DECLARED_ONLY = {
     "timing.advanceBookingWindowDays": "rules.UNDISPATCHED — seed horizon conflict",
     "recurrence": "booking_series entity + expander (E6)",
     "entitlements": "entitlement_grants + credit spend",
-    "capabilities": "UI gating + write refusal per capability",
+    # `reviews`/`follows` are gated (see ENFORCED). These have no backend surface
+    # to refuse yet, so the block's "hides the UI AND refuses the write" contract
+    # is only half-true for them — say so rather than imply the whole block works.
+    "capabilities.payments": "PaymentAdapter (E8) — nothing to refuse yet",
+    "capabilities.inventory": "inventory block + reservation holds",
+    "capabilities.waitlist": "waitlist_entries (Tier 1)",
+    "capabilities.quotes": "quote flow (E5)",
+    "capabilities.recurrence": "booking_series (E6)",
+    "capabilities.prerequisites": "prerequisite_submissions + confirm gate",
+    "capabilities.entitlements": "entitlement_grants + credit spend",
+    "capabilities.cart": "multi-service cart",
     "discovery.mode": "reverse-auction flow plugin (E5)",
     "discovery.matching": "intake-driven provider matching",
+    "metaFields.subjects": "subject entity does not exist (see booking.subject)",
+    "tenancy.commission": "no platform ledger — nothing computes or charges a commission",
+    "tenancy.tenantVerification": "tenant onboarding review flow",
+    # v1's cautionary tale, still true. `terms.admin` and `terms.slot` have real
+    # readers (see ENFORCED); the rest, all of `copy` and all of `theme`, are
+    # served over /config and rendered by nothing — the frontend takes its
+    # vocabulary from src/config/verticals.ts. Listing them here is the point of
+    # this map: they were previously in NEITHER, so the coverage report claimed
+    # an audit it had not done.
+    "terms.provider": "E10 per-service vocabulary (frontend reads verticals.ts)",
+    "terms.providers": "E10 per-service vocabulary",
+    "terms.service": "E10 per-service vocabulary",
+    "terms.services": "E10 per-service vocabulary",
+    "terms.staff": "E10 per-service vocabulary",
+    "terms.subject": "E10 per-service vocabulary",
+    "terms.party": "E10 per-service vocabulary",
+    "terms.resource": "E10 per-service vocabulary",
+    "terms.resources": "E10 per-service vocabulary",
+    "terms.slots": "E10 per-service vocabulary",
+    "terms.booking": "E10 per-service vocabulary",
+    "terms.bookings": "E10 per-service vocabulary",
+    "terms.client": "E10 per-service vocabulary",
+    "terms.clients": "E10 per-service vocabulary",
+    "terms.admins": "E10 per-service vocabulary",
+    "copy": "config-driven copy layer (frontend strings are literals today)",
+    "theme": "runtime theming (frontend uses its own Tailwind tokens)",
 }
 
 
@@ -885,11 +936,46 @@ def check_flag_uniqueness() -> list[str]:
     return dupes
 
 
+def check_audit_coverage() -> list[str]:
+    """Every leaf in DEFAULTS must be claimed by ENFORCED or DECLARED_ONLY.
+
+    The two maps above are the promise that no key "looks live and does nothing".
+    Nothing checked that the promise was kept, and it had already been broken by
+    43 paths — all of `copy` and `theme` (the very keys the header names as v1's
+    cautionary tale), 13 of 15 `terms`, `pricing.model`, `tenancy.commission` —
+    so the coverage report claimed an audit it had not done. Adding a key to
+    DEFAULTS now fails this script until it is classified.
+    """
+    known = set(ENFORCED) | set(DECLARED_ONLY)
+
+    def leaves(node: dict, prefix: str = ""):
+        for key, value in node.items():
+            path = f"{prefix}{key}"
+            if isinstance(value, dict) and value:
+                yield from leaves(value, path + ".")
+            else:
+                yield path
+
+    def claimed(path: str) -> bool:
+        parts = path.split(".")
+        return any(".".join(parts[:i]) in known for i in range(1, len(parts) + 1))
+
+    # `rules`/`search` are the deprecated v1 mirrors of `timing`/`discovery`;
+    # `configVersion`/`domain` are the file's own identity, not behaviour.
+    skip = ("rules.", "search.", "configVersion", "domain")
+    return [
+        path
+        for path in leaves(DEFAULTS)
+        if not claimed(path) and not path.startswith(skip)
+    ]
+
+
 def main() -> int:
     verbose = "-v" in sys.argv
     markdown = "--md" in sys.argv
     results = [run_one(p) for p in ALL]
     dupes = check_flag_uniqueness()
+    unaudited = check_audit_coverage()
 
     expressible = [r for r in results if not r["errors"]]
     enforced_now = [r for r in results if r["ok"] and not r["gaps"] and not r["pivot"].get("blocked")]
@@ -951,6 +1037,8 @@ def main() -> int:
     print(f"awaiting an escape hatch (code) : {len(blocked)}")
     print(f"schema limitations found        : {len(limits)} ({len(gap_results)} proven by a misquote)")
     print(f"unique capability tuples        : {'yes' if not dupes else 'NO — ' + '; '.join(dupes)}")
+    print(f"config keys audited             : "
+          f"{'all' if not unaudited else f'NO — {len(unaudited)} unclassified'}")
 
     for r in limits:
         print(f"\nLIMITATION  #{r['pivot']['n']} {r['pivot']['name']}\n  {r['pivot']['limitation']}")
@@ -965,7 +1053,12 @@ def main() -> int:
                 print(f"    ! quote raised {r['price_error']}")
             if r["mispriced"]:
                 print(f"    ! quoted {r['priced']['amountMinorUnits']}, expected {r['pivot']['expect']}")
-    return 1 if (broken or dupes) else 0
+    if unaudited:
+        print(f"\n{len(unaudited)} config path(s) in neither ENFORCED nor DECLARED_ONLY:")
+        for path in unaudited:
+            print(f"  - {path}")
+        print("  Classify each one — that is what stops a key looking live and doing nothing.")
+    return 1 if (broken or dupes or unaudited) else 0
 
 
 if __name__ == "__main__":

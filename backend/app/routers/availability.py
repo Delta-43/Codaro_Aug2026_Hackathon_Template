@@ -16,8 +16,8 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Query
 
 from app.auth import AuthUser, optional_user
-from app.config import get_config
-from app.db import get_supabase
+from app.db import get_supabase, maybe_row
+from app.rules import effective_service_config
 from app.serialize import _parse, serialize_slot
 from app.users import user_metadata
 
@@ -31,20 +31,30 @@ def _tz(name: str | None) -> ZoneInfo | timezone:
         return timezone.utc
 
 
-def _viewer_tz(tz: str | None, user: AuthUser | None):
+def _viewer_tz(tz: str | None, user: AuthUser | None, service: dict | None = None):
     """`?tz=` -> the signed-in user's timezone -> the BUSINESS's timezone -> UTC.
 
     The third step is new. Without it an anonymous visitor always saw days
     grouped in UTC, which silently shifts every evening slot into the next day
     for a business east of Greenwich — the calendar looked wrong to exactly the
-    people who had not logged in yet."""
+    people who had not logged in yet.
+
+    "The business" means THIS service's business. Both endpoints here are already
+    scoped to one `service_id`, and `location` is overridable per service, but the
+    global block was read regardless — so pricing honoured a tenant's timezone
+    (`bookings._business_tz`) while the calendar next to it did not, and every
+    marketplace tenant off the platform zone had its days grouped wrong."""
     name = (
         tz
         or (user_metadata(user).get("timezone") if user else None)
-        or (get_config()["location"].get("timezone"))
+        or effective_service_config(service)["location"].get("timezone")
         or "UTC"
     )
     return _tz(name)
+
+
+def _service(db, service_id: str) -> dict | None:
+    return maybe_row(db.table("services").select("*").eq("id", service_id))
 
 
 def _norm_ts(value: str) -> str:
@@ -87,7 +97,7 @@ def availability(
     user: AuthUser | None = Depends(optional_user),
 ):
     db = get_supabase()
-    tzinfo = _viewer_tz(tz, user)
+    tzinfo = _viewer_tz(tz, user, _service(db, service_id))
     rids = _resource_ids(db, service_id, resource_id)
     if not rids:
         return []
@@ -130,7 +140,7 @@ def month_density(
     user: AuthUser | None = Depends(optional_user),
 ):
     db = get_supabase()
-    tzinfo = _viewer_tz(tz, user)
+    tzinfo = _viewer_tz(tz, user, _service(db, service_id))
     year, mon = int(month[:4]), int(month[5:7])
     days_in = _cal.monthrange(year, mon)[1]
 

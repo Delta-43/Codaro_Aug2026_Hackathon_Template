@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 
+from app.rules import effective_service_pricing
 from app.serialize import serialize_provider, serialize_service
 
 
@@ -30,16 +31,32 @@ def service_ids_by_provider(db) -> dict[str, list[str]]:
     return by
 
 
+# The columns `effective_service_pricing` needs to resolve one service's price:
+# the legacy columns plus the `metadata.pricing` block that overrides them.
+_PRICING_COLUMNS = "provider_id,price_minor_units,currency,metadata"
+
+
+def _resolved_price(row: dict) -> tuple[int, str]:
+    """(amount, currency) as the service is ACTUALLY quoted and advertised.
+
+    Reading `price_minor_units` directly skipped `metadata.pricing`, so a service
+    priced only through an override reported 0 here while `serialize_service`
+    reported (and `quote()` charged) the real amount — the provider's
+    `priceFromMinorUnits` and the whole `price` search facet were computed from a
+    number nothing else in the engine used."""
+    pricing = effective_service_pricing(row)
+    return int((pricing.get("rate") or {}).get("amountMinorUnits") or 0), pricing.get("currency") or ""
+
+
 def price_from_by_provider(db) -> dict[str, tuple[int, str]]:
     """(min_price_minor_units, currency) per provider — the cheapest of its
     services, so discovery can expose a provider-level `priceFromMinorUnits`
     for price ordering. Providers with no services are simply absent."""
-    rows = db.table("services").select("provider_id,price_minor_units,currency").execute().data or []
+    rows = db.table("services").select(_PRICING_COLUMNS).execute().data or []
     by: dict[str, tuple[int, str]] = {}
     for r in rows:
         pid = r["provider_id"]
-        price = int(r.get("price_minor_units") or 0)
-        cur = r.get("currency") or ""
+        price, cur = _resolved_price(r)
         if pid not in by or price < by[pid][0]:
             by[pid] = (price, cur)
     return by
@@ -62,8 +79,8 @@ def search_facets(db) -> dict[str, bool]:
     flags. A free niche seeds no priced services → `price` off; a remote niche
     seeds no real coordinates → `distance` off; those sliders/sort keys then
     never render. `rating` is always offered (every provider carries one)."""
-    services = db.table("services").select("price_minor_units").execute().data or []
-    has_price = any(int(s.get("price_minor_units") or 0) > 0 for s in services)
+    services = db.table("services").select(_PRICING_COLUMNS).execute().data or []
+    has_price = any(_resolved_price(s)[0] > 0 for s in services)
 
     providers = db.table("providers").select("metadata").execute().data or []
 
