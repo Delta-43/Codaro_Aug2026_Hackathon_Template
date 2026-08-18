@@ -31,7 +31,7 @@ const STEPS = [
 export function HowItWorks() {
   const { ref, style } = useScrollMotion<HTMLDivElement>();
   return (
-    <section id="how" className="flex min-h-[92vh] snap-start scroll-mt-24 items-center px-4 py-20">
+    <section id="how" className="flex min-h-[92vh] snap-start snap-always scroll-mt-24 items-center px-4 py-20">
       <div ref={ref} style={style} className="mx-auto w-full max-w-4xl">
         <GlassPanel className="px-6 py-12 sm:px-10 sm:py-14">
           <h2 className="text-center text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">

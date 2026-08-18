@@ -73,7 +73,7 @@ export function Testimonials() {
   const { ref, style } = useScrollMotion<HTMLDivElement>();
   const scrollRef = useRef<HTMLDivElement>(null);
   return (
-    <section id="reviews" className="flex min-h-[92vh] snap-start scroll-mt-24 items-center px-4 py-20">
+    <section id="reviews" className="flex min-h-[92vh] snap-start snap-always scroll-mt-24 items-center px-4 py-20">
       <div ref={ref} style={style} className="mx-auto w-full max-w-4xl">
         <GlassPanel className="px-6 py-12 sm:px-10 sm:py-14">
           <h2 className="text-center text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
@@ -92,7 +92,7 @@ export function Testimonials() {
               review.kind === "review" ? (
                 <figure
                   key={review.name}
-                  className="flex w-72 shrink-0 snap-start flex-col rounded-2xl border border-border/60 bg-card/60 p-5 backdrop-blur-sm sm:w-80"
+                  className="flex w-72 shrink-0 snap-start snap-always flex-col rounded-2xl border border-border/60 bg-card/60 p-5 backdrop-blur-sm sm:w-80"
                 >
                   <div className="flex gap-0.5" aria-label={`${review.rating} out of 5 stars`}>
                     {Array.from({ length: review.rating }).map((_, s) => (
@@ -123,7 +123,7 @@ export function Testimonials() {
               ) : (
                 <div
                   key={`placeholder-${i}`}
-                  className="flex w-72 shrink-0 snap-start flex-col items-center justify-center rounded-2xl border border-dashed border-border p-5 text-center sm:w-80"
+                  className="flex w-72 shrink-0 snap-start snap-always flex-col items-center justify-center rounded-2xl border border-dashed border-border p-5 text-center sm:w-80"
                 >
                   <span className="flex size-9 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground">
                     +

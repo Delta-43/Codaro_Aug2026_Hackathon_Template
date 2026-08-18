@@ -16,12 +16,12 @@ import { ScrollCue } from "@/components/landing/scroll-cue";
 export function Hero({ authed }: { authed: boolean }) {
   const { ref, style } = useScrollMotion<HTMLDivElement>();
   return (
-    <section className="flex min-h-[92vh] snap-start items-center px-4 pt-24 pb-12 sm:pt-28">
+    <section className="flex min-h-[92vh] snap-start snap-always items-center px-4 pt-24 pb-12 sm:pt-28">
       <div ref={ref} style={style} className="mx-auto w-full max-w-4xl">
         <GlassPanel className="flex flex-col items-center gap-10 px-6 py-12 text-center sm:px-10 sm:py-14">
           <div>
-            <p className="text-lg font-bold tracking-tight sm:text-xl">
-              <span className="inline-block origin-center cursor-pointer text-primary transition-transform duration-200 ease-out hover:scale-125">
+            <p className="text-xl font-bold tracking-tight text-primary">
+              <span className="inline-block origin-center cursor-pointer transition-transform duration-200 ease-out hover:scale-125">
                 service.com
               </span>
             </p>
