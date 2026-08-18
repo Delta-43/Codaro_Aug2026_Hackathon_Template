@@ -110,8 +110,6 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
 
 export const DEFAULT_VERTICAL: VerticalId = "fleet";
 
-export const VERTICAL_IDS: VerticalId[] = ["fleet", "oneToOne", "group"];
-
 export function getVertical(id: VerticalId): VerticalConfig {
   return VERTICALS[id];
 }

@@ -10,8 +10,7 @@ aliasing) -> `config_schema.validate()` -> cache. A bad file raises `ConfigError
 with every problem listed at once, so the edit fails, not the next booking.
 
 `get_config()` returns the NORMALIZED tree, so every reader can assume every key
-exists. `get_raw_config()` returns the file as written, for tooling that needs to
-show the operator what they actually typed.
+exists.
 """
 import json
 import os
@@ -69,13 +68,5 @@ def get_config() -> dict:
     return load_config()
 
 
-@lru_cache
-def get_raw_config() -> dict:
-    """The pivot file exactly as written, with no defaults applied."""
-    with _config_path().open() as f:
-        return json.load(f)
-
-
 def clear_config_cache() -> None:
     get_config.cache_clear()
-    get_raw_config.cache_clear()

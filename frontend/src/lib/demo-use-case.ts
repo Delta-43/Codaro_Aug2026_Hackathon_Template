@@ -21,11 +21,7 @@ function read(): UseCaseId {
 
 let current: UseCaseId = read();
 
-export function getUseCaseId(): UseCaseId {
-  return current;
-}
-
-export function setUseCaseId(id: UseCaseId): void {
+function setUseCaseId(id: UseCaseId): void {
   current = id;
   if (typeof window !== "undefined") localStorage.setItem(KEY, id);
   subs.forEach((fn) => fn());

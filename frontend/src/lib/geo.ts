@@ -37,10 +37,6 @@ export function geoOrigin(): Point & { city?: string } {
   return origin;
 }
 
-export function distanceUnit(): DistanceUnit {
-  return unit;
-}
-
 const toRad = (deg: number) => (deg * Math.PI) / 180;
 
 /** Great-circle distance in kilometres (haversine). */
@@ -56,7 +52,7 @@ export function distanceKm(a: Point, b: Point): number {
 }
 
 /** Format a kilometre distance in the configured unit. */
-export function formatDistance(km: number): string {
+function formatDistance(km: number): string {
   if (unit === "mi") {
     const mi = km / KM_PER_MILE;
     if (mi < 0.1) return `${Math.round(mi * 5280)} ft`;

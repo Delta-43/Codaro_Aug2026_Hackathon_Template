@@ -5,7 +5,7 @@
 export function Footer() {
   return (
     <footer className="pb-8 pt-2 text-center">
-      <p className="text-sm font-medium text-primary">© {new Date().getFullYear()} Service.com</p>
+      <p className="text-sm font-medium text-primary">© {new Date().getFullYear()} service.com</p>
     </footer>
   );
 }

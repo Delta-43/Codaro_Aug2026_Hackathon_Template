@@ -20,15 +20,15 @@ export function Hero({ authed }: { authed: boolean }) {
       <div ref={ref} style={style} className="mx-auto w-full max-w-4xl">
         <GlassPanel className="flex flex-col items-center gap-10 px-6 py-12 text-center sm:px-10 sm:py-14">
           <div>
-            <p className="text-sm font-semibold tracking-wide text-primary">
-              <span className="inline-block origin-center cursor-pointer transition-transform duration-200 ease-out hover:scale-125">
-                Service.com
+            <p className="text-lg font-bold tracking-tight sm:text-xl">
+              <span className="inline-block origin-center cursor-pointer text-primary transition-transform duration-200 ease-out hover:scale-125">
+                service.com
               </span>
             </p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
               One booking engine. Built for every business.
             </h1>
-            <p className="mx-auto mt-4 max-w-md text-muted-foreground">
+            <p className="mx-auto mt-4 max-w-md text-foreground/80">
               One engine, infinite businesses — booking, scheduling, and availability, reshaped
               instantly for the business you&apos;re building.
             </p>

@@ -121,7 +121,7 @@ export function CalendarDemo() {
           <h2 className="text-center text-2xl font-semibold tracking-tight text-foreground">
             The calendar your customers actually book on.
           </h2>
-          <p className="mx-auto mt-2 max-w-md text-center text-sm text-muted-foreground">
+          <p className="mx-auto mt-2 max-w-md text-center text-sm text-foreground/80">
             Availability, density, and multi-slot booking — the real thing.
           </p>
 
@@ -198,7 +198,7 @@ export function CalendarDemo() {
                     <span className="flex size-6 shrink-0 origin-center items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary shadow-sm transition-all duration-200 ease-out group-hover:scale-150 group-hover:-translate-y-0.5 group-hover:bg-primary group-hover:text-primary-foreground group-hover:shadow-lg">
                       {i + 1}
                     </span>
-                    <p className="text-sm leading-relaxed text-muted-foreground">{step}</p>
+                    <p className="text-sm leading-relaxed text-foreground/80">{step}</p>
                   </li>
                 ))}
               </ol>

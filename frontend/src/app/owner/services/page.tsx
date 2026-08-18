@@ -8,7 +8,7 @@
  * (POST/DELETE /services) — each destructive/edit action gated behind the
  * full-screen "are you sure?" confirm.
  */
-import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { ChevronDown, Plus, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

@@ -1,5 +1,14 @@
 # Codaro Booking Engine — root guide
 
+## Token budget (read first)
+
+Work to finish the task in as few tokens as possible — tokens are the user's
+usage limit. **Screenshots/images are the #1 cost**; prefer text tools and take
+at most one, only when a visual result must be shown. Read narrow (`grep` +
+`sed -n` ranges, not whole files), don't re-read after editing, batch tool
+calls, verify once, and keep prose/commit messages terse. Full rules:
+[docs/token-budget.md](docs/token-budget.md). This applies to every agent.
+
 ## What this is
 
 A generic booking engine — `provider → service → resource → slot → booking →

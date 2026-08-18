@@ -15,8 +15,10 @@ directly.
   boots.
 * **normalize()** — deep-merges a raw file over DEFAULTS, then keeps the v1
   aliases (`rules` <-> `timing`, `search` <-> `discovery`) consistent in *both*
-  directions. A v1 file runs unchanged, and legacy readers
-  (`routers/slots.py`, `rules.apply_rules`) keep seeing the numbers they expect.
+  directions, so a v1 file runs unchanged. Note the engine itself now reads only
+  the v2 keys — `routers/slots.py` and `rules.apply_rules` both go through
+  `timing`, and the frontend reads `search.facets`. The `rules` mirror is kept
+  purely for a v1 *reader*; nothing in this repo consumes it.
 * **validate()** — turns a typo into a load-time error instead of a 500 on
   whichever request happens to read the bad key first. The whole premise of this
   file is that it gets hand-edited under time pressure; failing loudly at the
