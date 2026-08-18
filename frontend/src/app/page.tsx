@@ -1,27 +1,38 @@
-import { redirect } from "next/navigation";
-import { API_BASE, tenancyFromConfig } from "@/api";
+"use client";
 
-// The app opens on the provider discovery Search tab (Tab 1) in the multi-provider
-// marketplace. In the single-business pivot (`tenancy.mode === "single"`) there is
-// no discovery, so it opens straight on the sole business's catalog (/provider).
-// Resolved server-side from GET /config to avoid a client redirect flash — reusing
-// the same base URL + parser as the client seam (see api/index.ts) so the two can't
-// drift. On failure we fall back to the marketplace landing; the boot-time client
-// resolver corrects it, so we log rather than swallow silently.
-async function isSingleBusiness(): Promise<boolean> {
-  try {
-    const res = await fetch(`${API_BASE}/config`, { cache: "no-store" });
-    if (!res.ok) {
-      console.error(`Root redirect: GET /config returned ${res.status}; defaulting to marketplace.`);
-      return false;
-    }
-    return tenancyFromConfig(await res.json()).mode === "single";
-  } catch (e) {
-    console.error("Root redirect: could not reach /config; defaulting to marketplace.", e);
-    return false;
-  }
-}
+/**
+ * Public landing page for anonymous visitors — outside the gated (app) group,
+ * so no AppProvider/useVertical() here. Pitches the engine/product itself,
+ * deliberately vertical-agnostic (see hero.tsx) — the live-demo vertical only
+ * comes back into play in the later "featured providers" section.
+ *
+ * Built section by section (see docs/issues/26-loading-page.md). Full page:
+ * Hero → How it works → Testimonials → Business CTA → Footer.
+ */
+import { useAuth } from "@/lib/auth";
+import { SceneBackground } from "@/components/landing/scene-background";
+import { NavBar } from "@/components/landing/nav-bar";
+import { Hero } from "@/components/landing/hero";
+import { HowItWorks } from "@/components/landing/how-it-works";
+import { CalendarDemo } from "@/components/landing/calendar-demo";
+import { Testimonials } from "@/components/landing/testimonials";
+import { BusinessCta } from "@/components/landing/business-cta";
+import { Footer } from "@/components/landing/footer";
 
-export default async function RootPage() {
-  redirect((await isSingleBusiness()) ? "/provider" : "/search");
+export default function RootPage() {
+  const { session, loading } = useAuth();
+  const authed = !loading && !!session;
+
+  return (
+    <main className="relative h-dvh snap-y snap-mandatory overflow-y-auto scroll-smooth">
+      <SceneBackground />
+      <NavBar authed={authed} />
+      <Hero authed={authed} />
+      <HowItWorks />
+      <CalendarDemo />
+      <Testimonials />
+      <BusinessCta authed={authed} />
+      <Footer />
+    </main>
+  );
 }

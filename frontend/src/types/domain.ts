@@ -233,3 +233,34 @@ export interface ClientReputation {
   count: number;
   reviews: { author: string; rating: number; text: string; createdAtUtc: IsoUtc | null }[];
 }
+
+// --- messaging — 1:1 conversations between a client and a provider ----------
+// A new entity riding on the neutral spine; both personas share these shapes.
+
+/** One inbox row: the current user's thread with the other party. */
+export interface Conversation {
+  id: ID;
+  providerId: ID;
+  /** Who the current user is talking to — the business (for a client) or the
+   *  customer (for an owner). Resolved server-side across the RLS boundary. */
+  otherParty: { id: ID; name: string; avatarUrl: string | null };
+  lastMessagePreview: string | null;
+  lastMessageAtUtc: IsoUtc | null;
+  unreadCount: number;
+}
+
+/** One message in a thread. `mine` is derived server-side from the viewer, so
+ *  the UI aligns bubbles without knowing ids. A soft-deleted message keeps its
+ *  envelope but blanks `body` (render the placeholder from `deletedAtUtc`). */
+export interface Message {
+  id: ID;
+  conversationId: ID;
+  senderId: ID;
+  body: string;
+  replyToId: ID | null;
+  createdAtUtc: IsoUtc;
+  deliveredAtUtc: IsoUtc | null;
+  readAtUtc: IsoUtc | null;
+  deletedAtUtc: IsoUtc | null;
+  mine: boolean;
+}

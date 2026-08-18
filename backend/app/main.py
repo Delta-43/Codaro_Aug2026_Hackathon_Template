@@ -16,6 +16,7 @@ from app.routers import (
     bookings,
     demo,
     me,
+    messages,
     owner,
     providers,
     resources,
@@ -65,6 +66,7 @@ app.include_router(slots.router)
 app.include_router(availability.router)
 app.include_router(bookings.router)
 app.include_router(me.router)
+app.include_router(messages.router)
 app.include_router(owner.router)
 app.include_router(demo.router)
 

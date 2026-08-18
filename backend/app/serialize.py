@@ -286,6 +286,50 @@ def serialize_booking(
     return out
 
 
+def serialize_conversation(
+    row: dict,
+    *,
+    other_party: dict,
+    unread_count: int = 0,
+) -> dict:
+    """A thread as the inbox lists it. `other_party` is the resolved
+    {id, name, avatarUrl} of whoever the current user is talking to (the provider
+    for a client; the customer for an owner) — resolved by the router, since it
+    spans a cross-user lookup RLS can't do."""
+    return {
+        "id": row["id"],
+        "providerId": row["provider_id"],
+        "otherParty": {
+            "id": other_party.get("id") or "",
+            "name": other_party.get("name") or "",
+            "avatarUrl": other_party.get("avatar_url"),
+        },
+        "lastMessagePreview": row.get("last_message_preview"),
+        "lastMessageAtUtc": iso_utc(row.get("last_message_at")),
+        "unreadCount": int(unread_count),
+    }
+
+
+def serialize_message(row: dict, *, me_id: str) -> dict:
+    """A single message. `mine` is derived from the viewer so the UI can align
+    bubbles left/right without knowing ids. A soft-deleted message keeps its
+    envelope (timestamps/receipts) but its body is blanked — the client renders
+    the "Message deleted" placeholder from `deletedAtUtc`."""
+    deleted = row.get("deleted_at") is not None
+    return {
+        "id": row["id"],
+        "conversationId": row["conversation_id"],
+        "senderId": row["sender_id"],
+        "body": "" if deleted else (row.get("body") or ""),
+        "replyToId": row.get("reply_to_id"),
+        "createdAtUtc": iso_utc(row.get("created_at")),
+        "deliveredAtUtc": iso_utc(row.get("delivered_at")),
+        "readAtUtc": iso_utc(row.get("read_at")),
+        "deletedAtUtc": iso_utc(row.get("deleted_at")),
+        "mine": row["sender_id"] == me_id,
+    }
+
+
 def serialize_user(
     *,
     id: str,

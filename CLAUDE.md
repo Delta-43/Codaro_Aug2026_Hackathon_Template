@@ -108,6 +108,15 @@ Re-run the pipeline whenever you want a fresh read on the codebase state —
 `REPORT.md`/`TODO.md` are snapshots, not living docs, so regenerate rather
 than hand-edit them.
 
+## Per-issue documentation
+
+When a Claude Code session finishes work on a GitHub issue, it writes a short
+summary to `docs/issues/<issue#>-<slug>.md` (matching the branch name,
+`<issue#>-<slug>`) covering what changed and why, and also posts the same
+summary in chat, formatted to paste as a GitHub issue comment before opening
+the PR. This keeps a durable trail per issue, independent of the `REPORT.md`/
+`TODO.md` whole-repo snapshots above.
+
 ## Commands
 
 ```bash
