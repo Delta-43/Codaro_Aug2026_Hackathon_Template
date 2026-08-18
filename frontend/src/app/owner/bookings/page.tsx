@@ -51,6 +51,8 @@ export default function BookingsPage() {
   const [selected, setSelected] = useState<DemoBooking | null>(null);
   const [cancelled, setCancelled] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  // Past/upcoming pivot, frozen at mount so re-renders don't reshuffle the list.
+  const [now] = useState(() => Date.now());
   const [messaging, setMessaging] = useState(false);
   const [scope, setScope] = useState<Scope>("upcoming");
 
@@ -93,7 +95,6 @@ export default function BookingsPage() {
 
   // Split the same feed for the list below the calendar. Past = ended or
   // completed; upcoming = everything still ahead, soonest first.
-  const now = Date.now();
   const listed = useMemo(() => {
     const rows = live
       .map((b) => ownerBookingToCal(b, names[b.serviceId]))

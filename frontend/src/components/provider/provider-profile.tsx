@@ -8,7 +8,6 @@
  * a service locks this provider in as the active one, then routes to the calendar
  * — so it works even when the profile shown isn't the one currently locked in.
  */
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ChevronDown, ChevronRight, ExternalLink, MessageSquare, Star } from "lucide-react";
