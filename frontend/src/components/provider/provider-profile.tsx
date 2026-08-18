@@ -1,51 +1,99 @@
 "use client";
 
 /**
- * Tab 2 — Services. In the marketplace this is the customer's followed-businesses
- * home (top-3 strip + quick view + drill-in), handled by <FollowingServices>. In
- * single-business mode, or before the customer follows anyone, it falls back to a
- * single business profile. Booking a service still locks that provider in and
- * moves to the calendar (inside <ProviderProfile>).
+ * One business's public profile — cover, avatar, meta, follow + message actions,
+ * bio, links, and its bookable services. Extracted from the old Services tab so
+ * it can be reused as both the "quick view" under the followed strip (bio
+ * clamped, with a Show full bio affordance) and the full-screen bio view. Booking
+ * a service locks this provider in as the active one, then routes to the calendar
+ * — so it works even when the profile shown isn't the one currently locked in.
  */
-import { Store } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { ChevronDown, ChevronRight, ExternalLink, MessageSquare, Star } from "lucide-react";
+import type { Provider, Resource, Service } from "@/types/domain";
+import { ApiError, getResources, getServices, startConversation } from "@/api";
 import { useApp, useVertical } from "@/context/app-context";
+import { useAsync } from "@/hooks/use-async";
+import { useFollow } from "@/hooks/use-follow";
+import { AvatarImg } from "@/components/avatar-img";
 import { EmptyState } from "@/components/empty-state";
-import { ProviderProfile } from "@/components/provider/provider-profile";
-import { FollowingServices } from "@/components/provider/following-services";
+import { Skeleton } from "@/components/skeleton";
+import { Button } from "@/components/ui/button";
+import { ResourcePicker } from "@/components/provider/resource-picker";
+import { formatDuration, formatMoney } from "@/lib/format";
+import { distanceFromHome } from "@/lib/geo";
+import { cn } from "@/lib/utils";
 
-export default function ProviderPage() {
-  const { activeProvider, vertical, selectService, selectResource, singleBusiness, capability } = useApp();
+interface ServiceWithMeta {
+  service: Service;
+  spots: number | null; // spots per session, for shared_capacity only
+}
+
+export function ProviderProfile({
+  provider: p,
+  clampBio = false,
+  onShowFullBio,
+  showFollow = true,
+}: {
+  provider: Provider;
+  /** Line-clamp the bio and offer a "Show full bio" button (quick-view mode). */
+  clampBio?: boolean;
+  onShowFullBio?: () => void;
+  showFollow?: boolean;
+}) {
+  const vertical = useVertical();
+  const { selectService, selectResource, lockInProvider } = useApp();
   const router = useRouter();
-  const { isFollowing, busy, toggle } = useFollow(activeProvider);
+  const { isFollowing, busy, toggle } = useFollow(p);
   const [picker, setPicker] = useState<Service | null>(null);
-  // `_messaging` / `_messageProvider` / `_MessagesSquare` are a complete
-  // "message this business" handler that no button renders yet. Kept on purpose
-  // — wiring it up is a product decision, not cleanup — and underscore-prefixed
-  // because that is what eslint's no-unused-vars treats as intentionally unused.
-  // tsc is NOT part of that deal: `noUnusedLocals` exempts `_`-prefixed
-  // parameters but not locals, so it would flag `_messageProvider` regardless of
-  // the name. That flag is deliberately off in tsconfig.json for this reason —
-  // turning it on means wiring this handler up or deleting it.
-  const [_messaging, setMessaging] = useState(false);
+  const [messaging, setMessaging] = useState(false);
 
-  // Marketplace + at least one follow → the followed-businesses experience.
-  if (!singleBusiness && followedIds.length > 0) {
-    return <FollowingServices followedIds={followedIds} />;
+  // Open (or resume) the client's thread with this business, then jump to it.
+  async function messageProvider() {
+    setMessaging(true);
+    try {
+      const conv = await startConversation(p.id);
+      router.push(`/messages/${conv.id}`);
+    } catch (e) {
+      alert(e instanceof ApiError ? e.message : "Couldn't start a conversation.");
+    } finally {
+      setMessaging(false);
+    }
   }
 
-  // Single-business mode, or a marketplace customer who follows no one yet: show
-  // the locked-in business profile if there is one.
-  if (activeProvider) {
-    return (
-      <div className="py-4">
-        <ProviderProfile provider={activeProvider} clampBio={false} showFollow={!singleBusiness} />
-      </div>
+  const data = useAsync<ServiceWithMeta[]>(async () => {
+    const services = await getServices(p.id);
+    return Promise.all(
+      services.map(async (service) => ({
+        service,
+        spots:
+          service.bookingModel === "shared_capacity"
+            ? ((await getResources(service.id))[0]?.capacity ?? null)
+            : null,
+      })),
     );
+  }, [p.id]);
+
+  function handleSelect(service: Service) {
+    lockInProvider(p); // the calendar reads the active provider — make it this one
+    selectService(service);
+    if (service.bookingModel === "unit_selection") {
+      setPicker(service);
+    } else {
+      selectResource(null);
+      router.push("/calendar");
+    }
   }
 
-  // Nothing to show. Single mode has no discovery, so drop the Search action.
+  function handlePick(resource: Resource | null) {
+    selectResource(resource);
+    setPicker(null);
+    router.push("/calendar");
+  }
+
   return (
-    <section className="pb-6">
+    <section className="pb-2">
       {/* Cover + avatar */}
       <div
         className="-mx-4 h-32 bg-cover bg-center md:-mx-6 md:rounded-xl"
@@ -72,32 +120,36 @@ export default function ProviderPage() {
         </span>
       </div>
 
-      {/* Actions — follow + provider-switching only make sense in the
-          multi-provider marketplace; the single business is implicit. Follow is
-          additionally gated on `capabilities.follows`, which the backend already
-          refuses, so the button would otherwise 404. */}
-      {!singleBusiness ? (
-        <div className="mt-4 flex gap-2">
-          {capability("follows") ? (
-          <Button
-            variant={isFollowing ? "secondary" : "outline"}
-            isDisabled={busy}
-            onPress={toggle}
-          >
+      {/* Actions — follow + message the business. */}
+      <div className="mt-4 flex flex-wrap gap-2">
+        {showFollow ? (
+          <Button variant={isFollowing ? "secondary" : "outline"} isDisabled={busy} onPress={toggle}>
             {isFollowing ? "Following" : "Follow"}
           </Button>
-          ) : null}
-          <Link
-            href="/search"
-            className="inline-flex h-8 items-center rounded-2xl border border-border px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            Switch {vertical.providerNoun.toLowerCase()}
-          </Link>
-        </div>
-      ) : null}
+        ) : null}
+        <Button variant="outline" isDisabled={messaging} onPress={messageProvider}>
+          <MessageSquare aria-hidden /> Message
+        </Button>
+      </div>
 
       {/* Bio */}
-      <p className="mt-5 text-sm leading-relaxed text-foreground/90">{p.bio}</p>
+      <p
+        className={cn(
+          "mt-5 text-sm leading-relaxed text-foreground/90",
+          clampBio ? "line-clamp-3" : undefined,
+        )}
+      >
+        {p.bio}
+      </p>
+      {clampBio && onShowFullBio ? (
+        <button
+          type="button"
+          onClick={onShowFullBio}
+          className="mt-1 inline-flex items-center gap-0.5 text-sm font-medium text-primary hover:underline"
+        >
+          Show full bio <ChevronDown className="size-4" aria-hidden />
+        </button>
+      ) : null}
 
       {/* Links */}
       {p.links.length > 0 ? (

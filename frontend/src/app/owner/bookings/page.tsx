@@ -1,8 +1,12 @@
-import { redirect } from "next/navigation";
+"use client";
 
 /**
- * Retired route. The owner calendar merged into the Bookings tab (tab 4, calendar
- * on top + list below). Kept as a redirect so old links/bookmarks still resolve.
+ * Business tab 4 — Bookings. Calendar + list merged into one panel: every
+ * approved (confirmed/completed) booking laid out across the three standard
+ * views (month / week / day, week by default) on top, then an Upcoming / Past
+ * list of the same feed below. Tapping either opens a booking for detail,
+ * messaging the customer, and cancellation. The feed is real — /owner/calendar
+ * across all the owner's resources; cancel hits /bookings/{id}.
  */
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -23,8 +27,13 @@ import {
 import type { OwnerBooking, OwnerServiceSummary } from "@/types/domain";
 import type { DemoBooking } from "@/lib/business-demo";
 import { ownerBookingToCal } from "@/lib/owner-view";
-import { browserTz, formatBookingWhen, formatMoney } from "@/lib/format";
+import { formatBookingWhen, formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
+
+type Scope = "upcoming" | "past";
+
+const browserTz = () =>
+  typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
 
 const STATUS_CLASS: Record<DemoBooking["status"], string> = {
   confirmed: "bg-primary/10 text-primary",
@@ -32,21 +41,20 @@ const STATUS_CLASS: Record<DemoBooking["status"], string> = {
   pending: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
 };
 
-export default function CalendarPage() {
-  const { ready, vocab, capability } = useOwner();
+export default function BookingsPage() {
+  const { ready, vocab } = useOwner();
   const router = useRouter();
   const tz = browserTz();
   const [raw, setRaw] = useState<OwnerBooking[]>([]);
-  // serviceId -> whether reviews are on for THAT service. The routers gate
-  // `capability("reviews", service)` per service, so the global block is not
-  // enough to decide whether this control would 404.
-  const [reviewsByService, setReviewsByService] = useState<Record<string, boolean>>({});
   const [names, setNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<DemoBooking | null>(null);
   const [cancelled, setCancelled] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  // Past/upcoming pivot, frozen at mount so re-renders don't reshuffle the list.
+  const [now] = useState(() => Date.now());
   const [messaging, setMessaging] = useState(false);
+  const [scope, setScope] = useState<Scope>("upcoming");
 
   // Open (or resume) the thread with this booking's customer, then jump to it.
   async function messageClient() {
@@ -55,7 +63,7 @@ export default function CalendarPage() {
     setMessaging(true);
     try {
       const conv = await startConversation(booking.providerId, booking.userId);
-      router.push(`/owner/requests/messages/${conv.id}`);
+      router.push(`/owner/messages/${conv.id}`);
     } catch (e) {
       alert(e instanceof ApiError ? e.message : "Couldn't open that conversation.");
     } finally {
@@ -72,9 +80,6 @@ export default function CalendarPage() {
       if (cancel) return;
       setRaw(bookings);
       setNames(Object.fromEntries(services.map((s) => [s.id, s.name])));
-      setReviewsByService(
-        Object.fromEntries(services.map((s) => [s.id, s.capabilities.reviews !== false])),
-      );
       setLoading(false);
     });
     return () => {
@@ -82,27 +87,29 @@ export default function CalendarPage() {
     };
   }, []);
 
-  // Prefer the per-service value; fall back to the global block for any service
-  // the map does not cover. `getOwnerServices()` swallows its own failure, so
-  // without the fallback a failed services call left the map empty and every
-  // booking read as reviewable — showing a control the API then refuses.
-  const reviewable = useMemo(
-    () =>
-      Object.fromEntries(
-        raw.map((b) => [
-          b.id,
-          b.serviceId in reviewsByService
-            ? reviewsByService[b.serviceId]
-            : capability("reviews"),
-        ]),
-      ),
-    [raw, reviewsByService, capability],
+  const live = useMemo(() => raw.filter((b) => !cancelled.has(b.id)), [raw, cancelled]);
+  const bookings = useMemo(
+    () => live.map((b) => ownerBookingToCal(b, names[b.serviceId])),
+    [live, names],
   );
 
-  const bookings = useMemo(
-    () => raw.filter((b) => !cancelled.has(b.id)).map((b) => ownerBookingToCal(b, names[b.serviceId])),
-    [raw, names, cancelled],
-  );
+  // Split the same feed for the list below the calendar. Past = ended or
+  // completed; upcoming = everything still ahead, soonest first.
+  const listed = useMemo(() => {
+    const rows = live
+      .map((b) => ownerBookingToCal(b, names[b.serviceId]))
+      .filter((b) =>
+        scope === "past"
+          ? b.status === "completed" || new Date(b.endUtc).getTime() < now
+          : b.status !== "completed" && new Date(b.endUtc).getTime() >= now,
+      );
+    rows.sort((a, b) => {
+      const da = new Date(a.startUtc).getTime();
+      const db = new Date(b.startUtc).getTime();
+      return scope === "past" ? db - da : da - db;
+    });
+    return rows;
+  }, [live, names, scope, now]);
 
   async function doCancel(id: string) {
     setBusy(true);
@@ -123,7 +130,7 @@ export default function CalendarPage() {
   return (
     <section className="space-y-4 py-2">
       <div>
-        <h1 className="text-lg font-semibold tracking-tight">Calendar</h1>
+        <h1 className="text-lg font-semibold tracking-tight">Bookings</h1>
         <p className="text-sm text-muted-foreground">Your confirmed bookings across every offer.</p>
       </div>
 
@@ -132,7 +139,68 @@ export default function CalendarPage() {
           {vocab.copy.noAvailability}
         </p>
       ) : (
-        <BookingCalendar bookings={bookings} timezone={tz} defaultView="week" onOpen={setSelected} />
+        <>
+          <BookingCalendar bookings={bookings} timezone={tz} defaultView="week" onOpen={setSelected} />
+
+          {/* List of the same feed, split upcoming / past. */}
+          <div className="inline-flex rounded-lg border border-border bg-card p-0.5">
+            {(["upcoming", "past"] as Scope[]).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setScope(s)}
+                aria-pressed={scope === s}
+                className={cn(
+                  "rounded-md px-4 py-1 text-sm font-medium capitalize transition-colors",
+                  scope === s
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+
+          {listed.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
+              No {scope} bookings.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {listed.map((b) => (
+                <li key={b.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(b)}
+                    className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3 text-left transition-colors hover:bg-muted/50"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="truncate font-medium">{b.title}</span>
+                        <span
+                          className={cn(
+                            "shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium capitalize",
+                            STATUS_CLASS[b.status],
+                          )}
+                        >
+                          {b.status}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 truncate text-sm text-muted-foreground">{b.client}</p>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <Clock className="size-3.5" aria-hidden /> {formatBookingWhen(b.startUtc, b.endUtc, tz)}
+                        </span>
+                        <span>{formatMoney(b.priceMinorUnits, b.currency)}</span>
+                      </div>
+                    </div>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
 
       <Modal open={!!selected} onClose={() => setSelected(null)} title="Booking">
@@ -178,9 +246,7 @@ export default function CalendarPage() {
                 Cancel booking
               </Button>
             </div>
-            {selected.status === "completed" && reviewable[selected.id] ? (
-              <RateClient bookingId={selected.id} clientName={selected.client} />
-            ) : null}
+            {selected.status === "completed" ? <RateClient bookingId={selected.id} clientName={selected.client} /> : null}
 
             <p className="text-[11px] text-muted-foreground">
               Reschedule is coming to the owner console next.

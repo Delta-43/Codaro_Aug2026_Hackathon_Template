@@ -1,8 +1,17 @@
-import { redirect } from "next/navigation";
+"use client";
 
 /**
- * Retired route. Requests now live at the top of the permanent Messages tab
- * (tab 3). Kept as a redirect so old links/bookmarks land in the right place.
+ * Business tab 3 — Messages. The permanent hub for everything conversational:
+ * incoming booking requests to screen at the top (a request is the start of a
+ * relationship), then the thread inbox below. The per-business "auto-approve"
+ * switch flips every offer between manual review and instant confirmation
+ * (persisted server-side); with it off, each request is approved or rejected by
+ * hand against the real backend. Each card surfaces the client's screening
+ * signals — membership length, past bookings with you, cancellations. Requests +
+ * actions are the real /owner + /bookings API.
+ *
+ * (Pass 2 will turn an approved request into a live thread and add an Archived
+ * view of rejected/completed relationships.)
  */
 import { useEffect, useMemo, useState } from "react";
 import { Check, Clock, ShieldCheck, Star, TriangleAlert, Users, X } from "lucide-react";
@@ -20,7 +29,7 @@ import {
   ApiError,
 } from "@/api";
 import type { OwnerRequest, OwnerServiceSummary } from "@/types/domain";
-import { browserTz, formatBookingWhen, formatMoney } from "@/lib/format";
+import { formatBookingWhen, formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 type Decision = "approved" | "rejected";
@@ -32,7 +41,7 @@ function memberLabel(iso: string | null): string {
   return months >= 12 ? `${Math.floor(months / 12)}y member` : `${months}mo member`;
 }
 
-export default function RequestsPage() {
+export default function MessagesPage() {
   const { ready, vocab } = useOwner();
   const [requests, setRequests] = useState<OwnerRequest[]>([]);
   const [services, setServices] = useState<OwnerServiceSummary[]>([]);
@@ -89,6 +98,7 @@ export default function RequestsPage() {
 
   return (
     <section className="space-y-4 py-2">
+      {/* Requests to screen — the top of every business relationship. */}
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold tracking-tight">Requests</h1>
@@ -114,11 +124,8 @@ export default function RequestsPage() {
         </div>
       ) : null}
 
-      {/* Inbox — the business's conversations with its customers. */}
-      <MessagingSection basePath="/owner/requests/messages" />
-
       {requests.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
+        <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-sm text-muted-foreground">
           No requests waiting. Nice and clear.
         </p>
       ) : (
@@ -134,6 +141,9 @@ export default function RequestsPage() {
           ))}
         </ul>
       )}
+
+      {/* Inbox — the business's conversations with its customers. */}
+      <MessagingSection basePath="/owner/messages" />
     </section>
   );
 }
@@ -177,7 +187,7 @@ function RequestCard({
   decision?: Decision;
   onDecide: (d: Decision) => void;
 }) {
-  const tz = browserTz();
+  const browserTz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
   const flagged = r.client.cancelledWithProvider > 0;
   const settled = decision;
 
@@ -228,7 +238,7 @@ function RequestCard({
           </p>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
-              <Clock className="size-3.5" aria-hidden /> {formatBookingWhen(r.startUtc, r.endUtc, tz)}
+              <Clock className="size-3.5" aria-hidden /> {formatBookingWhen(r.startUtc, r.endUtc, browserTz)}
             </span>
             {partyNoun && r.partySize > 1 ? (
               <span className="inline-flex items-center gap-1">

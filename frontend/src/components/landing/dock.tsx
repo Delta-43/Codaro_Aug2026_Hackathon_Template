@@ -16,17 +16,22 @@ import {
   type ReactNode,
 } from "react";
 
-const DockContext = createContext<number | null>(null);
+type DockPos = { x: number; y: number };
+const DockContext = createContext<DockPos | null>(null);
 
 export function Dock({ children, className }: { children: ReactNode; className?: string }) {
-  const [mouseX, setMouseX] = useState<number | null>(null);
+  const [pos, setPos] = useState<DockPos | null>(null);
   return (
     <div
       className={className}
-      onMouseMove={(e) => setMouseX(e.clientX)}
-      onMouseLeave={() => setMouseX(null)}
+      // Only a real mouse drives the magnify. Touch synthesises pointer events
+      // with no reliable "leave", which left the icons stuck enlarged/misaligned
+      // on mobile — so ignore non-mouse pointers and keep them at rest.
+      onPointerMove={(e) => setPos(e.pointerType === "mouse" ? { x: e.clientX, y: e.clientY } : null)}
+      onPointerLeave={() => setPos(null)}
+      onPointerCancel={() => setPos(null)}
     >
-      <DockContext.Provider value={mouseX}>{children}</DockContext.Provider>
+      <DockContext.Provider value={pos}>{children}</DockContext.Provider>
     </div>
   );
 }
@@ -42,21 +47,25 @@ export function DockItem({
   maxScale?: number;
   radius?: number;
 }) {
-  const mouseX = useContext(DockContext);
+  const pos = useContext(DockContext);
   const ref = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
 
   useEffect(() => {
     const el = ref.current;
-    if (mouseX == null || !el) {
+    if (!pos || !el) {
       setScale(1);
       return;
     }
     const rect = el.getBoundingClientRect();
-    const center = rect.left + rect.width / 2;
-    const dist = Math.abs(mouseX - center);
+    // 2D distance so the effect stays local whether the icons sit in a row
+    // (desktop) or stack into a column (narrow screens) — otherwise a shared X
+    // made every icon in a column respond to any one being hovered.
+    const dx = pos.x - (rect.left + rect.width / 2);
+    const dy = pos.y - (rect.top + rect.height / 2);
+    const dist = Math.hypot(dx, dy);
     setScale(dist >= radius ? 1 : 1 + (maxScale - 1) * (1 - dist / radius));
-  }, [mouseX, maxScale, radius]);
+  }, [pos, maxScale, radius]);
 
   return (
     <div

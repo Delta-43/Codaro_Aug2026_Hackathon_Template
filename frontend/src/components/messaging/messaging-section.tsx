@@ -20,7 +20,7 @@ export function MessagingSection({
   basePath,
   title = "Messages",
 }: {
-  /** Thread route prefix rows link to, e.g. "/bookings/messages". */
+  /** Thread route prefix rows link to, e.g. "/messages" or "/owner/messages". */
   basePath: string;
   title?: string;
 }) {

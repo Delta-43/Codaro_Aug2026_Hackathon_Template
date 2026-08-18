@@ -117,7 +117,7 @@ export function CalendarDemo() {
     zoom === "Month" ? monthLabel(y, m) : zoom === "Week" ? weekLabel(weekDays) : dayLabel(dayAnchor);
 
   return (
-    <section id="calendar" className="snap-start scroll-mt-24 px-4 pt-24 pb-10">
+    <section id="calendar" className="snap-start snap-always scroll-mt-24 px-4 pt-24 pb-10">
       <div ref={ref} style={style} className="mx-auto w-full max-w-4xl">
         <GlassPanel className="px-6 py-6 sm:px-10">
           <h2 className="text-center text-2xl font-semibold tracking-tight text-foreground">
@@ -129,7 +129,7 @@ export function CalendarDemo() {
 
           <div className="mt-6 grid items-start gap-6 md:grid-cols-2">
             {/* Real calendar views + the calendar's own header, replicated */}
-            <div className="rounded-2xl border border-border/60 bg-card/80 p-3 shadow-sm backdrop-blur-md">
+            <div className="min-w-0 overflow-x-auto rounded-2xl border border-border/60 bg-card/80 p-3 shadow-sm backdrop-blur-md">
               <div className="mb-3 inline-flex rounded-lg border border-border bg-card p-0.5">
                 {(["Month", "Week", "Day"] as Zoom[]).map((z) => (
                   <button
@@ -193,7 +193,7 @@ export function CalendarDemo() {
 
             {/* Short manual */}
             <div>
-              <h3 className="text-lg font-medium text-foreground">Booking, in three taps</h3>
+              <h3 className="text-center text-lg font-medium text-foreground">Booking, in three taps</h3>
               <ol className="mt-4 space-y-4">
                 {STEPS.map((step, i) => (
                   <li key={i} className="group flex gap-3">
