@@ -14,7 +14,6 @@ durable send/read/delete/list path.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -23,12 +22,9 @@ from app.db import get_supabase, get_user_client, maybe_row
 from app.errors import INVALID_RANGE, NOT_FOUND, api_error
 from app.models import ConversationCreateReq, MessageCreateReq
 from app.serialize import iso_utc, serialize_conversation, serialize_message
+from app.clock import now_utc
 
 router = APIRouter(prefix="/conversations", tags=["messages"])
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 # --- cross-user display resolution (service key — spans RLS boundaries) -----
@@ -188,7 +184,7 @@ def send_message(
         "sender_id": user.id,
         "body": body,
         "reply_to_id": payload.reply_to_id or None,
-        "delivered_at": iso_utc(_now()),
+        "delivered_at": iso_utc(now_utc()),
     }
     inserted = uc.table("messages").insert(row).execute().data
     inserted = enforce_rls_write(inserted, entity="message")
@@ -203,7 +199,7 @@ def mark_read(conversation_id: str, user: AuthUser = Depends(require_user)):
     _load_conversation(uc, conversation_id)  # 404s non-participants
     updated = (
         uc.table("messages")
-        .update({"read_at": iso_utc(_now())})
+        .update({"read_at": iso_utc(now_utc())})
         .eq("conversation_id", conversation_id)
         .neq("sender_id", user.id)
         .is_("read_at", "null")
@@ -224,7 +220,7 @@ def delete_message(
     _load_conversation(uc, conversation_id)  # 404s non-participants
     updated = (
         uc.table("messages")
-        .update({"deleted_at": iso_utc(_now())})
+        .update({"deleted_at": iso_utc(now_utc())})
         .eq("id", message_id)
         .eq("conversation_id", conversation_id)
         .eq("sender_id", user.id)

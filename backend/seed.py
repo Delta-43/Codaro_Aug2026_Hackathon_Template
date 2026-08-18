@@ -31,6 +31,7 @@ import psycopg
 from postgrest.exceptions import APIError
 
 from app.db import get_db_url, get_supabase
+from app.references import booking_reference
 from seed_data import DEFAULT_VERTICAL, VERTICALS
 
 logger = logging.getLogger(__name__)
@@ -50,7 +51,6 @@ _HOLDS_PASSWORD = secrets.token_urlsafe(18)
 
 _MINUTE = 60
 _HOUR = 3600
-_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 
 BOOKING_MODEL_TO_VERTICAL = {
     "unit_selection": "fleet",
@@ -156,10 +156,6 @@ def _iso(dt: datetime) -> str:
 
 def _local_date_str(iso: str, tz: str) -> str:
     return datetime.fromisoformat(iso).astimezone(ZoneInfo(tz)).strftime("%Y-%m-%d")
-
-
-def _reference() -> str:
-    return "BK-" + "".join(secrets.choice(_ALPHABET) for _ in range(6))
 
 
 # --- DB helpers ------------------------------------------------------------
@@ -396,7 +392,7 @@ def _hold(db, slot, service_id, provider_id, resource_id, party, holds_uid, curr
         "history": [{"status": "confirmed", "at": _iso(datetime.now(timezone.utc))}],
         "metadata": {
             "party_size": party,
-            "reference": _reference(),
+            "reference": booking_reference(),
             "price_minor_units": price * party,
             "currency": currency,
             "provider_id": provider_id,
@@ -438,7 +434,7 @@ def _seed_requests(db, primary, provider_id, model, currency, requesters) -> int
             "history": [{"status": "pending", "at": _iso(created)}],
             "metadata": {
                 "party_size": party,
-                "reference": _reference(),
+                "reference": booking_reference(),
                 "price_minor_units": price * party,
                 "currency": currency,
                 "provider_id": provider_id,
@@ -629,7 +625,7 @@ def _seed_bookings(db, primary, provider_id, demo_uid, demo_email, model, curren
         slot_ids = [s["id"] for s in slots]
         md = {
             "party_size": party,
-            "reference": _reference(),
+            "reference": booking_reference(),
             "price_minor_units": price * len(slots) * party,
             "currency": currency,
             "provider_id": provider_id,

@@ -11,10 +11,10 @@ from __future__ import annotations
 import calendar as _cal
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query
 
+from app.clock import tz_or_utc
 from app.auth import AuthUser, optional_user
 from app.db import get_supabase, maybe_row
 from app.rules import effective_service_config
@@ -22,13 +22,6 @@ from app.serialize import _parse, serialize_slot
 from app.users import user_metadata
 
 router = APIRouter(tags=["availability"])
-
-
-def _tz(name: str | None) -> ZoneInfo | timezone:
-    try:
-        return ZoneInfo(name) if name else timezone.utc
-    except Exception:
-        return timezone.utc
 
 
 def _viewer_tz(tz: str | None, user: AuthUser | None, service: dict | None = None):
@@ -50,7 +43,7 @@ def _viewer_tz(tz: str | None, user: AuthUser | None, service: dict | None = Non
         or effective_service_config(service)["location"].get("timezone")
         or "UTC"
     )
-    return _tz(name)
+    return tz_or_utc(name)
 
 
 def _service(db, service_id: str) -> dict | None:

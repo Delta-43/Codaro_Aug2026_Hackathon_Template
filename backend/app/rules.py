@@ -17,7 +17,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from app.config import get_config
-from app.config_schema import validate_overrides
+from app.config_schema import deep_merge, validate_overrides
 
 
 log = logging.getLogger(__name__)
@@ -228,16 +228,12 @@ def _dig(tree: dict, path: str):
 
 
 def _merge(base: dict, override) -> dict:
-    """Deep-merge `override` onto a copy of `base`. Lists replace wholesale."""
-    out = _copy.deepcopy(base)
-    if not isinstance(override, dict):
-        return out
-    for key, value in override.items():
-        if isinstance(value, dict) and isinstance(out.get(key), dict):
-            out[key] = _merge(out[key], value)
-        else:
-            out[key] = value
-    return out
+    """Deep-merge `override` onto a COPY of `base`. Lists replace wholesale.
+
+    Thin wrapper over `config_schema.deep_merge`, which merges in place. The two
+    were separate, identical implementations differing only by that copy, so the
+    resolver and the config loader could have disagreed about what merging means."""
+    return deep_merge(_copy.deepcopy(base), override)
 
 
 def effective_service_rules(service: dict | None) -> dict:

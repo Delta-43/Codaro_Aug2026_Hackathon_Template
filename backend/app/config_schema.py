@@ -281,15 +281,18 @@ DEFAULTS: dict[str, Any] = {
 }
 
 
-def _deep_merge(base: dict, override: Any) -> dict:
-    """Recursively merge `override` onto `base`. Lists replace wholesale — a
-    config that declares `pricing.tiers` means *those* tiers, not those plus the
-    defaults."""
+def deep_merge(base: dict, override: Any) -> dict:
+    """Recursively merge `override` onto `base`, IN PLACE. Lists replace
+    wholesale — a config that declares `pricing.tiers` means *those* tiers, not
+    those plus the defaults.
+
+    Public because `rules.py` had a second, identical implementation that only
+    differed by copying first; it now wraps this one."""
     if not isinstance(override, dict):
         return base
     for key, value in override.items():
         if isinstance(value, dict) and isinstance(base.get(key), dict):
-            _deep_merge(base[key], value)
+            deep_merge(base[key], value)
         else:
             base[key] = value
     return base
@@ -304,7 +307,7 @@ def normalize(raw: dict | None) -> dict:
     and `cfg["rules"]["bufferMinutes"]` can never disagree.
     """
     raw = raw or {}
-    cfg = _deep_merge(_copy.deepcopy(DEFAULTS), raw)
+    cfg = deep_merge(_copy.deepcopy(DEFAULTS), raw)
 
     raw_timing = raw.get("timing") if isinstance(raw.get("timing"), dict) else {}
     raw_rules = raw.get("rules") if isinstance(raw.get("rules"), dict) else {}
@@ -624,7 +627,7 @@ def validate_overrides(overrides: dict, base: dict | None = None) -> list[str]:
     baseline = base or DEFAULTS
     try:
         before = set(validate(baseline))
-        merged = _deep_merge(_copy.deepcopy(baseline), declared)
+        merged = deep_merge(_copy.deepcopy(baseline), declared)
         return [e for e in validate(merged) if e not in before]
     except Exception as e:  # backstop: no shape bug may escape as a 500
         return [f"{', '.join(sorted(declared))} could not be read: {type(e).__name__}: {e}"]

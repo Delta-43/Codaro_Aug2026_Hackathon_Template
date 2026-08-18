@@ -23,6 +23,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
+from app.clock import now_utc
 from app.rules import (
     effective_auto_approve,
     effective_service_pricing,
@@ -58,7 +59,7 @@ def iso_utc(value: Any) -> Optional[str]:
 
 
 def _now(now: Optional[datetime] = None) -> datetime:
-    return now or datetime.now(timezone.utc)
+    return now or now_utc()
 
 
 # --- derived enums ---------------------------------------------------------
