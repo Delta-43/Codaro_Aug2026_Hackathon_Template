@@ -16,6 +16,7 @@ import { Hero } from "@/components/landing/hero";
 import { HowItWorks } from "@/components/landing/how-it-works";
 import { CalendarDemo } from "@/components/landing/calendar-demo";
 import { Testimonials } from "@/components/landing/testimonials";
+import { DocsCta } from "@/components/landing/docs-cta";
 import { BusinessCta } from "@/components/landing/business-cta";
 import { Footer } from "@/components/landing/footer";
 
@@ -31,6 +32,7 @@ export default function RootPage() {
       <HowItWorks />
       <CalendarDemo />
       <Testimonials />
+      <DocsCta />
       <BusinessCta authed={authed} />
       <Footer />
     </main>

@@ -20,8 +20,8 @@ export function Hero({ authed }: { authed: boolean }) {
       <div ref={ref} style={style} className="mx-auto w-full max-w-4xl">
         <GlassPanel className="flex flex-col items-center gap-10 px-6 py-12 text-center sm:px-10 sm:py-14">
           <div>
-            <p className="text-sm font-semibold tracking-wide text-primary">
-              <span className="inline-block origin-center cursor-pointer transition-transform duration-200 ease-out hover:scale-125">
+            <p className="text-lg font-bold tracking-tight sm:text-xl">
+              <span className="inline-block origin-center cursor-pointer text-primary transition-transform duration-200 ease-out hover:scale-125">
                 service.com
               </span>
             </p>
