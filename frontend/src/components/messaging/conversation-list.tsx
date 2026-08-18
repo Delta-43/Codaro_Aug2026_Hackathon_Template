@@ -20,7 +20,7 @@ export function ConversationList({
   tz,
 }: {
   conversations: Conversation[];
-  /** Thread route prefix, e.g. "/bookings/messages" — rows link to `${basePath}/${id}`. */
+  /** Thread route prefix, e.g. "/messages" — rows link to `${basePath}/${id}`. */
   basePath: string;
   tz: string;
 }) {
