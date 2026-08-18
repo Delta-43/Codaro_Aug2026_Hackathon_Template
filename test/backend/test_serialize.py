@@ -227,25 +227,30 @@ def test_provider_price_from_zero_currency_still_defaults_empty():
 # --- discovery: price_from_by_provider + build_provider --------------------
 
 
+class _Table:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def select(self, *_a, **_k):
+        return self
+
+    def execute(self):
+        return type("R", (), {"data": self._rows})()
+
+
+class _DB:
+    """A services table standing in for the whole-table scan the discovery
+    helpers do. Hoisted to module level so the price tests below can share it."""
+
+    def __init__(self, rows):
+        self._rows = rows
+
+    def table(self, _name):
+        return _Table(self._rows)
+
+
 def test_discovery_price_from_picks_cheapest_service_currency():
     from app import discovery as D
-
-    class _Table:
-        def __init__(self, rows):
-            self._rows = rows
-
-        def select(self, *_a, **_k):
-            return self
-
-        def execute(self):
-            return type("R", (), {"data": self._rows})()
-
-    class _DB:
-        def __init__(self, rows):
-            self._rows = rows
-
-        def table(self, _name):
-            return _Table(self._rows)
 
     rows = [
         {"provider_id": "prov-1", "price_minor_units": 9000, "currency": "PLN"},
@@ -279,6 +284,69 @@ def test_discovery_price_from_picks_cheapest_service_currency():
     )
     assert p3["priceFromMinorUnits"] is None
     assert p3["currency"] == ""
+
+
+def test_discovery_price_from_resolves_a_metadata_pricing_override():
+    """A service priced ONLY through `metadata.pricing` must drive the provider's
+    `priceFromMinorUnits`. Reading `price_minor_units` reported 0 for it while
+    `serialize_service` and `quote()` used the real amount — the provider card
+    and the price facet were computed from a number nothing else in the engine
+    used. This is also the only coverage of `_resolved_price`'s override branch;
+    every other price test builds rows from plain columns."""
+    from app import discovery as D
+
+    rows = [
+        {"provider_id": "prov-1", "price_minor_units": 9000, "currency": "PLN", "metadata": {}},
+        # Column says 0; the override is what the engine actually charges.
+        {
+            "provider_id": "prov-1",
+            "price_minor_units": 0,
+            "currency": "EUR",
+            "metadata": {"pricing": {"rate": {"per": "slot", "amountMinorUnits": 3300}}},
+        },
+    ]
+    by = D.price_from_by_provider(_DB(rows))
+    assert by["prov-1"] == (3300, "EUR")
+
+
+def test_discovery_price_fast_path_agrees_with_the_full_resolver():
+    """`_resolved_price` skips `effective_service_pricing` for any row with no
+    `metadata.pricing` block. That shortcut is only equivalent because
+    `price_minor_units`/`currency` are NOT NULL DEFAULT and the resolver folds
+    them over the global block unconditionally — facts in schema.sql and
+    rules.py that nothing else pins. Make the columns nullable, or reorder the
+    fold-in, and discovery silently starts reporting a different price from
+    `quote()`; this is what fails when that happens."""
+    from app import discovery as D
+    from app.rules import effective_service_pricing
+
+    def resolved(row):
+        pricing = effective_service_pricing(row)
+        return (
+            int((pricing.get("rate") or {}).get("amountMinorUnits") or 0),
+            pricing.get("currency") or "",
+        )
+
+    fallback = D._global_price_fallback()
+    rows = [
+        {"price_minor_units": 1000, "currency": "EUR", "metadata": {}},
+        {"price_minor_units": 0, "currency": "EUR", "metadata": {}},
+        {"price_minor_units": 2500, "currency": "JPY", "metadata": {}},
+        {"price_minor_units": 1000, "currency": "", "metadata": {}},
+        {"price_minor_units": None, "currency": "EUR", "metadata": {}},
+        {"price_minor_units": 1000, "currency": "EUR", "metadata": {"image_url": "x"}},
+        # override branch, including shapes `surviving_overrides` rejects
+        {
+            "price_minor_units": 1000,
+            "currency": "EUR",
+            "metadata": {"pricing": {"rate": {"per": "slot", "amountMinorUnits": 7777}}},
+        },
+        {"price_minor_units": 1000, "currency": "EUR", "metadata": {"pricing": {"currency": "KWD"}}},
+        {"price_minor_units": 1000, "currency": "EUR", "metadata": {"pricing": "not-a-dict"}},
+        {"price_minor_units": 1000, "currency": "EUR", "metadata": {"pricing": {"rate": 5}}},
+    ]
+    for row in rows:
+        assert D._resolved_price(row, fallback) == resolved(row), row
 
 
 # --- serialize_service -----------------------------------------------------
