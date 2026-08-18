@@ -140,29 +140,32 @@ def test_follow_reports_403_when_rls_drops_the_write(client, db, auth, monkeypat
 
     real_table = db.table
 
-    def _empty_insert(name):
+    class _Dropped:
+        """What PostgREST hands back when RLS refuses without raising: a
+        response carrying no rows. The write must NOT happen, or the fixture
+        would not be modelling a refusal at all."""
+
+        data: list = []
+
+    def _drop_follow_insert(name):
         builder = real_table(name)
         if name == "follows":
-            real_insert = builder.insert
 
-            def _insert(*args, **kwargs):
-                q = real_insert(*args, **kwargs)
-                real_execute = q.execute
+            def _insert(*_args, **_kwargs):
+                class _Q:
+                    def execute(self):
+                        return _Dropped()
 
-                def _execute():
-                    resp = real_execute()
-                    resp.data = []  # RLS filtered the returned representation
-                    return resp
-
-                q.execute = _execute
-                return q
+                return _Q()
 
             builder.insert = _insert
         return builder
 
-    monkeypatch.setattr(db, "table", _empty_insert)
+    monkeypatch.setattr(db, "table", _drop_follow_insert)
     resp = client.post(f"/providers/{p['id']}/follow")
     assert resp.status_code == 403
+    # and the refusal is real: nothing was written, and /me does not list it.
+    assert not [r for r in db.rows("follows") if r["provider_id"] == p["id"]]
 
 
 def test_follow_unknown_provider_is_404(client, db, auth):

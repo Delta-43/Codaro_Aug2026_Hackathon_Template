@@ -35,7 +35,7 @@ const STATUS_CLASS: Record<DemoBooking["status"], string> = {
 };
 
 export default function CalendarPage() {
-  const { ready, vocab } = useOwner();
+  const { ready, vocab, capability } = useOwner();
   const router = useRouter();
   const tz = browserTz();
   const [raw, setRaw] = useState<OwnerBooking[]>([]);
@@ -84,9 +84,21 @@ export default function CalendarPage() {
     };
   }, []);
 
+  // Prefer the per-service value; fall back to the global block for any service
+  // the map does not cover. `getOwnerServices()` swallows its own failure, so
+  // without the fallback a failed services call left the map empty and every
+  // booking read as reviewable — showing a control the API then refuses.
   const reviewable = useMemo(
-    () => Object.fromEntries(raw.map((b) => [b.id, reviewsByService[b.serviceId] !== false])),
-    [raw, reviewsByService],
+    () =>
+      Object.fromEntries(
+        raw.map((b) => [
+          b.id,
+          b.serviceId in reviewsByService
+            ? reviewsByService[b.serviceId]
+            : capability("reviews"),
+        ]),
+      ),
+    [raw, reviewsByService, capability],
   );
 
   const bookings = useMemo(

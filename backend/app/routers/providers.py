@@ -346,12 +346,10 @@ def follow_provider(provider_id: str, user: AuthUser = Depends(require_user)):
         if code == UNIQUE_VIOLATION_CODE:
             return load_user(user)  # already following; follow is idempotent
         if code == RLS_DENIED_CODE:
-            # The raising form of an RLS refusal. Give it the same 403 as the
-            # empty-result form below, rather than letting a postgrest APIError
-            # escape as a bare 500 with no envelope.
-            raise HTTPException(
-                403, "Not permitted: row-level security denied this follow write."
-            ) from exc
+            # The raising form of an RLS refusal. Route it through the SAME
+            # helper as the empty-result form below so there is one definition of
+            # the status and wording, rather than a bare 500 with no envelope.
+            enforce_rls_write(None, entity="follow")
         raise
     # RLS can also refuse by returning no rows instead of raising, which is what
     # every other write in this codebase guards with `enforce_rls_write`. Without

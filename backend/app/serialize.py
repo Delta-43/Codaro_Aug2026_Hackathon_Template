@@ -171,6 +171,9 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
     # 24h cancellation window it closed at 2h. Same fix as `priceMinorUnits`
     # below, which is the only one of the seven that had it.
     rules = effective_service_rules(row)
+    # Resolved ONCE and shared: both `autoApprove` and `capabilities` read from
+    # this, instead of each triggering its own full block merge + revalidation.
+    svc_config = effective_service_config(row)
     return {
         "id": row["id"],
         "providerId": row["provider_id"],
@@ -195,12 +198,12 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
         # `metadata.auto_approve` directly meant a service whose confirmation came
         # from a `timing.confirmation` override reported `autoApprove: true` on the
         # wire while actually creating pending bookings.
-        "autoApprove": effective_auto_approve(row),
+        "autoApprove": effective_auto_approve(row, config=svc_config),
         # Resolved per service, because `capabilities` is in OVERRIDABLE_BLOCKS
         # and the routers gate on `capability(name, service)`. Serving only the
         # global block over /config left the client unable to see a per-service
         # override, so it rendered a review control the API then refused.
-        "capabilities": effective_service_config(row)["capabilities"],
+        "capabilities": svc_config["capabilities"],
         "resourceIds": list(resource_ids),
     }
 

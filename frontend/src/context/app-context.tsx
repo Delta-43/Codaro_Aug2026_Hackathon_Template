@@ -129,8 +129,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // the multi-provider marketplace (and default geo) rather than hanging on the
       // not-ready state.
       const [vid, u, pivot] = await Promise.all([
-        getActiveVertical(),
-        getCurrentUser(),
+        // Every leg degrades on its own. Previously only /config had a catch, so
+        // a rejecting /me (expired token, 500, network blip) rejected the whole
+        // Promise.all, `setReady(true)` never ran, and every surface gated on
+        // `ready` sat on a skeleton for the lifetime of the mount with no error
+        // and no retry.
+        getActiveVertical().catch(() => DEFAULT_VERTICAL),
+        getCurrentUser().catch(() => null),
         getPivotConfig().catch(
           (): PivotConfig => ({
             tenancy: { mode: "multi", providerCode: null },
@@ -151,7 +156,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const single = tenancy.mode === "single";
       setSingleBusiness(single);
       setSoleProviderCode(tenancy.providerCode);
-      if (single) await resolveSoleProvider(tenancy.providerCode);
+      if (single) {
+        // Best-effort: a failure here must not strand the app as not-ready.
+        try {
+          await resolveSoleProvider(tenancy.providerCode);
+        } catch {
+          /* leaves the provider unresolved; the UI degrades to "no business" */
+        }
+      }
       if (cancelled) return;
       setReady(true);
     })();

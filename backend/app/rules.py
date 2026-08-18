@@ -379,7 +379,7 @@ def effective_service_pricing(service: dict | None) -> dict:
     return pricing
 
 
-def effective_auto_approve(service: dict | None) -> bool:
+def effective_auto_approve(service: dict | None, *, config: dict | None = None) -> bool:
     """Whether a new booking confirms immediately or lands as a pending request.
 
     `services.metadata.auto_approve` still wins (it is what the owner's toggle
@@ -390,7 +390,12 @@ def effective_auto_approve(service: dict | None) -> bool:
     metadata = (service or {}).get("metadata") or {}
     if "auto_approve" in metadata:
         return bool(metadata["auto_approve"])
-    return effective_service_config(service)["timing"].get("confirmation") != "request_approve"
+    # `config` lets a caller that has already resolved this service pass it in.
+    # Resolving deep-copies and merges all nine OVERRIDABLE_BLOCKS (and, for a
+    # service with overrides, re-validates each), so `serialize_service` doing it
+    # once per field made a list endpoint pay for it twice per row.
+    resolved = config if config is not None else effective_service_config(service)
+    return resolved["timing"].get("confirmation") != "request_approve"
 
 
 def capability(name: str, service: dict | None = None) -> bool:
