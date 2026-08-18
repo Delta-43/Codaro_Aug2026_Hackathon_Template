@@ -22,7 +22,7 @@ matched no check at request time: the same silent-no-op, one layer down.
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 
 from fastapi import HTTPException
 
@@ -31,13 +31,23 @@ from app.config_schema import META_FIELD_TYPE_ALIASES
 
 
 def _is_date(value) -> bool:
+    """A full ISO date, or an ISO datetime whose date part is one.
+
+    Parsing `value[:10]` accepted anything that merely STARTED with a date, so
+    `"2026-08-18 or whenever"` validated and was stored verbatim in the
+    `metadata jsonb` column — the same declared-type-that-checks-nothing this
+    module's alias handling exists to prevent. Both parses read the whole
+    string, so trailing junk is rejected while datetimes still pass.
+    """
     if not isinstance(value, str):
         return False
-    try:
-        date.fromisoformat(value[:10])
-        return True
-    except ValueError:
-        return False
+    for parse in (date.fromisoformat, datetime.fromisoformat):
+        try:
+            parse(value)
+            return True
+        except ValueError:
+            continue
+    return False
 
 
 # bool is a subclass of int, so "number" must exclude it explicitly.

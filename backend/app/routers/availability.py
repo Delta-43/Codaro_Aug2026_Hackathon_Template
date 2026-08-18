@@ -24,7 +24,7 @@ from app.users import user_metadata
 router = APIRouter(tags=["availability"])
 
 
-def _viewer_tz(tz: str | None, user: AuthUser | None, service: dict | None = None):
+def _viewer_tz(tz: str | None, user: AuthUser | None, load_service=lambda: None):
     """`?tz=` -> the signed-in user's timezone -> the BUSINESS's timezone -> UTC.
 
     The third step is new. Without it an anonymous visitor always saw days
@@ -37,13 +37,15 @@ def _viewer_tz(tz: str | None, user: AuthUser | None, service: dict | None = Non
     global block was read regardless — so pricing honoured a tenant's timezone
     (`bookings._business_tz`) while the calendar next to it did not, and every
     marketplace tenant off the platform zone had its days grouped wrong."""
-    name = (
-        tz
-        or (user_metadata(user).get("timezone") if user else None)
-        or effective_service_config(service)["location"].get("timezone")
-        or "UTC"
-    )
-    return tz_or_utc(name)
+    name = tz or (user_metadata(user).get("timezone") if user else None)
+    # Only reach for the service when the first two steps missed. `load_service`
+    # is a thunk, not a row: passing the row meant the SELECT ran on every
+    # request, and the client never sends `?tz=`, so for any signed-in viewer —
+    # the whole `(app)` group is auth-gated — the row was fetched and discarded
+    # on the two most interaction-heavy endpoints in the app.
+    if not name:
+        name = effective_service_config(load_service())["location"].get("timezone")
+    return tz_or_utc(name or "UTC")
 
 
 def _service(db, service_id: str) -> dict | None:
@@ -90,7 +92,7 @@ def availability(
     user: AuthUser | None = Depends(optional_user),
 ):
     db = get_supabase()
-    tzinfo = _viewer_tz(tz, user, _service(db, service_id))
+    tzinfo = _viewer_tz(tz, user, lambda: _service(db, service_id))
     rids = _resource_ids(db, service_id, resource_id)
     if not rids:
         return []
@@ -133,7 +135,7 @@ def month_density(
     user: AuthUser | None = Depends(optional_user),
 ):
     db = get_supabase()
-    tzinfo = _viewer_tz(tz, user, _service(db, service_id))
+    tzinfo = _viewer_tz(tz, user, lambda: _service(db, service_id))
     year, mon = int(month[:4]), int(month[5:7])
     days_in = _cal.monthrange(year, mon)[1]
 
