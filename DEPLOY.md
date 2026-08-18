@@ -41,6 +41,10 @@ tables. Startup logs `Schema applied from …` on success, or a loud
    repo-root files (`domain.config.json`, `supabase/schema.sql`) that only exist
    in the image when the build context is the whole repo. Railway reads
    `railway.json` at the root, which points the build at `backend/Dockerfile`.
+   There is deliberately only **one** `railway.json`, at the repo root. Setting
+   Root Directory to `backend` does not just read a different config — it breaks
+   the build outright, because `backend/Dockerfile` copies `backend/…`,
+   `supabase/` and `domain.config.json`, none of which exist inside `backend/`.
 3. **Settings → Networking → Generate Domain** to get a public URL
    (e.g. `https://codaro-backend.up.railway.app`).
 4. **Variables** — add:

@@ -2,7 +2,9 @@
 __pycache__/
 *.pyc
 .venv/
-backend/.env
+# docs/verifying-changes.md tells contributors to create this at the repo root,
+# and `.venv/` does not match it.
+.venv-test/
 
 # Test artifacts
 .pytest_cache/
@@ -13,7 +15,13 @@ htmlcov/
 node_modules/
 .next/
 *.tsbuildinfo
-frontend/.env.local
+
+# Env — generic, so a root or per-package .env can never be committed by
+# accident. The checked-in *.example templates are the exception.
+.env
+.env.*
+!.env.example
+!.env.*.example
 
 # OS
 .DS_Store
@@ -21,5 +29,12 @@ frontend/.env.local
 # Local scratch / experiments (never commit)
 sandbox/
 
-# harness bytecode
-scripts/__pycache__/
+# Design-system tooling working dirs. Untracked today only because their
+# contents happen to sit under node_modules/ or self-ignore; anything else
+# dropped in them would otherwise be committed.
+.ds-sync/
+.design-sync/
+ds-bundle/
+
+# Per-developer Claude Code settings (settings.json IS shared).
+.claude/settings.local.json
