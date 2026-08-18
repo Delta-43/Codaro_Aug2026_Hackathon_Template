@@ -31,7 +31,7 @@ def slot_occupancy(resource_id: str | None = None):
 @router.post("")
 def create_slot(payload: SlotCreate, owner: AuthUser = Depends(require_owner)):
     db = get_supabase()
-    rules = get_config()["rules"]
+    rules = get_config()["timing"]
 
     ends_at = payload.ends_at
     if ends_at is None:

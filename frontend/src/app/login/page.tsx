@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { ChevronRight } from "lucide-react";
+import { getTenancy } from "@/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,7 +32,22 @@ function LoginForm() {
   const { session, loading, role, configured, signIn, signUp } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") || "/search";
+
+  // Single-business pivot: no public "become a business" signup, and customers
+  // land on the catalog rather than the (nonexistent) discovery search. Tenancy
+  // resolves async, so `tenancyReady` gates the redirect below — otherwise an
+  // already-authenticated customer would redirect to the stale "/search" default
+  // before tenancy loads and then bounce to "/provider" (a visible flash).
+  const [singleBusiness, setSingleBusiness] = useState(false);
+  const [tenancyReady, setTenancyReady] = useState(false);
+  useEffect(() => {
+    getTenancy()
+      .then((t) => setSingleBusiness(t.mode === "single"))
+      .catch(() => setSingleBusiness(false))
+      .finally(() => setTenancyReady(true));
+  }, []);
+
+  const next = params.get("next") || (singleBusiness ? "/provider" : "/search");
   const destination = role === "owner" ? "/owner" : next;
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -43,8 +59,8 @@ function LoginForm() {
   const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loading && session) router.replace(destination);
-  }, [loading, session, destination, router]);
+    if (!loading && session && tenancyReady) router.replace(destination);
+  }, [loading, session, tenancyReady, destination, router]);
 
   async function enterDemoMode(account: { email: string; password: string }) {
     setError(null);
@@ -159,14 +175,18 @@ function LoginForm() {
           </Button>
         </form>
 
-        {/* Full redirect to the dedicated business sign-in. */}
-        <Link
-          href="/login/business"
-          className="mt-4 flex w-full items-center justify-center gap-1 text-base font-bold tracking-tight text-foreground transition-colors hover:text-primary"
-        >
-          I&apos;m a business!
-          <ChevronRight className="size-4" aria-hidden />
-        </Link>
+        {/* Full redirect to the dedicated business sign-in. Hidden in
+            single-business mode — there is no public business onboarding (the
+            operator console is reached directly, not advertised to customers). */}
+        {!singleBusiness ? (
+          <Link
+            href="/login/business"
+            className="mt-4 flex w-full items-center justify-center gap-1 text-base font-bold tracking-tight text-foreground transition-colors hover:text-primary"
+          >
+            I&apos;m a business!
+            <ChevronRight className="size-4" aria-hidden />
+          </Link>
+        ) : null}
 
         <div className="mt-4 text-center text-sm text-muted-foreground">
           {mode === "signin" ? (
@@ -202,7 +222,10 @@ function LoginForm() {
           )}
         </div>
 
-        {/* Demo shortcuts — main page only (issue #23). */}
+        {/* Demo shortcuts — main page only (issue #23). Both shortcuts stay
+            available even in single-business mode: the business one logs into the
+            seeded owner account to show the operator console (public business
+            *signup* is what's hidden, not the demo login). */}
         <div className="mt-6 space-y-2 border-t border-border pt-5 text-center">
           <p className="text-xs text-muted-foreground">For developers, check out our website</p>
           <Button

@@ -23,6 +23,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
+from app.rules import effective_auto_approve, effective_service_pricing
+
 # --- time helpers ----------------------------------------------------------
 
 
@@ -155,6 +157,7 @@ def serialize_provider(
 
 def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
     md = row.get("metadata") or {}
+    pricing = effective_service_pricing(row)
     return {
         "id": row["id"],
         "providerId": row["provider_id"],
@@ -165,13 +168,21 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
         "slotDurationMinutes": row["slot_duration_minutes"],
         "minSlotsPerBooking": row["min_slots_per_booking"],
         "maxSlotsPerBooking": row["max_slots_per_booking"],
-        "priceMinorUnits": row["price_minor_units"],
-        "currency": row["currency"],
+        # Resolved, not the raw column: a service with a `metadata.pricing`
+        # override is charged through `effective_service_pricing`, so reporting
+        # the column here advertised one price and billed another.
+        "priceMinorUnits": pricing["rate"]["amountMinorUnits"],
+        "currency": pricing["currency"],
         "cancellationCutoffHours": row["cancellation_cutoff_hours"],
         # Owner-controlled: when False, new bookings for this service land as
         # 'pending' and wait in the Requests tab; when True (default) they
         # confirm immediately. Rides in metadata (services columns are fixed).
-        "autoApprove": bool(md.get("auto_approve", True)),
+        #
+        # Resolved through the SAME helper the booking path uses. Reading
+        # `metadata.auto_approve` directly meant a service whose confirmation came
+        # from a `timing.confirmation` override reported `autoApprove: true` on the
+        # wire while actually creating pending bookings.
+        "autoApprove": effective_auto_approve(row),
         "resourceIds": list(resource_ids),
     }
 

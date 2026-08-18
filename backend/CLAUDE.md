@@ -14,7 +14,9 @@ the frontend's exact contract (`frontend/src/types/domain.ts`). See root
 | File | Responsibility |
 |------|-----------------|
 | `app/main.py` | App wiring, lifespan (schema setup + seed), `GET /health`, `GET /config`, `POST /config/reload`, router mounts |
-| `app/config.py` | Loads + `lru_cache`s `domain.config.json` |
+| `app/config.py` | Loads → normalizes → **validates** → `lru_cache`s `domain.config.json`; `load_config()` (uncached, raises `ConfigError`), `get_raw_config()` |
+| `app/config_schema.py` | Config **v2**: `DEFAULTS`, `normalize()` (defaults + v1 `rules`/`search` aliasing), `validate()`, the enum vocabularies |
+| `app/pricing.py` | `quote(pricing, ctx)` — config-driven totals (rate/tiers/fees/caps/deposit) |
 | `app/db.py` | `get_supabase()` (service key, bypasses RLS) + `get_user_client(token)` (JWT-scoped, RLS applies); `maybe_row()` (normalises PGRST116 **and** malformed-uuid `22P02` → None) |
 | `app/schema_setup.py` | Idempotently applies `supabase/schema.sql` on startup (guarded) |
 | `app/auth.py` | Verifies the Supabase JWT (ES256 via JWKS **and** legacy HS256); `require_user` / `require_owner` / `optional_user`; role from `profiles` |
@@ -46,20 +48,104 @@ the frontend's exact contract (`frontend/src/types/domain.ts`). See root
 - **Single-row lookups go through `db.maybe_row()`** (reachable 404s).
 - **Startup uses FastAPI lifespan** through module-level `create_tables_if_configured` / `seed_if_empty` (tests monkeypatch them).
 
+## Config v2 (`config_schema.py`)
+
+`domain.config.json` grew from 5 sections to 20. The new blocks — `capabilities`,
+`booking`, `pricing`, `payments`, `inventory`, `location`, `prerequisites`,
+`timing`, `recurrence`, `entitlements`, `discovery` — are what let the *shape* of
+the offering pivot, not just its vocabulary. Three rules hold:
+
+- **Additive.** Nothing was removed. `rules` and `search` survive as deprecated
+  aliases that `normalize()` keeps in sync with `timing` and `discovery` **in both
+  directions**, so a v1 file boots unchanged and a v1 reader never sees a stale
+  number. Precedence: explicit v2 path → explicit v1 path → default.
+- **Validated at load, not at request.** `load_config()` raises `ConfigError`
+  listing *every* problem. This file gets hand-edited under time pressure; a typo
+  must fail at the edit, not on whichever booking reads it first.
+- **Config is defaults; the service row is the override.** See below.
+
 ## Rules — per service (`rules.py`)
 
-The frontend models rules **per service** (slot duration, min/max slots per
-booking, cancellation cutoff, price/currency, booking model).
-`effective_service_rules(service)` is the single merge point: a service's own
-column wins, else the `domain.config.json` `rules` global default, else a hard
-fallback. `domain.config.json`'s role shifted from "the rules" to "vocabulary +
-global defaults". `within_cutoff(...)` centralises the cancel/reschedule window.
+`effective_service_rules(service)` is still the single merge point for the seven
+scalar rules, but the config side now takes a **dotted path** into the whole tree
+(`"priceMinorUnits": ("price_minor_units", "pricing.rate.amountMinorUnits", 0)`),
+so price, currency and min/max slots finally have a global default — in v1 they
+had none and could only come from the column.
 
-The **legacy event-keyed registry** (`apply_rules`, `check_capacity`,
-`check_cancellation_window`, `bufferMinutes`, `slotDurationMinutes`) is retained
-and still used by `slots.py`; the `booking.create`/`booking.change` entries are
-superseded by the per-service flow in `bookings.py`. Parse all timestamps through
-`parse_ts()` / `serialize._parse` — never compare naive to aware.
+`effective_service_config(service)` lifts that idea from single keys to whole
+blocks: `services.metadata.<block>` deep-merges over the global block for every
+name in `OVERRIDABLE_BLOCKS`. That is what makes a marketplace work — two
+businesses on one deployment can price and gate differently without either
+touching `domain.config.json`. `effective_service_pricing()` folds the legacy
+`price_minor_units`/`currency` columns in (they still win unless
+`metadata.pricing` declares them), and `effective_auto_approve()` lets
+`timing.confirmation` supply the default the owner's per-service toggle overrides.
+
+**Overrides are validated on both paths.** `validate()` runs on the global file
+at load, which for a while left per-service blocks reaching the pricing path
+unchecked — a service could carry a `pricing` block that quoted real money with
+no schema check. Now:
+
+- **Write** — `POST`/`PATCH /services` take a `config` object keyed by block name
+  and run `config_schema.validate_overrides()`; a bad block is a **422** naming
+  the problem, so a business that mistypes its own pricing is told rather than
+  quietly billed at the platform default. Config blocks replace **wholesale per
+  block** on PATCH (a partial deep-merge would make removing a key impossible).
+- **Read** — `effective_service_config` drops an invalid block and falls back to
+  the global one, logging a warning. Only the offending block is dropped: a valid
+  `timing` override survives alongside a rejected `pricing` one. This exists for
+  seeded rows and direct DB edits, not as a substitute for the write gate — a
+  customer's booking must not 500 over a business's typo.
+- **`tenancy` is deliberately not overridable.** Commission and tenant
+  verification are platform terms; a tenant setting its own `commission.rateBps`
+  would be privilege escalation. It is rejected as an unknown block.
+
+`service_override_problems(service)` returns one service's own errors, so an
+owner-facing surface can show a business its bad config instead of it living only
+in a server log.
+
+The **event-keyed registry** (`apply_rules`) is the escape hatch: adding a
+validator + a `timing` key makes a rule enforce, deleting the config key disables
+it, and no router changes either way. It now declares `booking.create`,
+`booking.change`, `booking.approve`, `booking.cancel`, `slot.create`,
+`inventory.reserve`, `inventory.return` and `payment.due`; empty maps are live
+extension points. `apply_rules` reads `timing`. `advanceBookingWindowDays` sits in
+`UNDISPATCHED` on purpose — the seed lays slots 56 days out while the config
+allows 30, so enforcing it today would make half the seeded calendar unbookable.
+Parse all timestamps through `parse_ts()` / `serialize._parse` — never compare
+naive to aware.
+
+## Declared but NOT enforced
+
+v1's real failure was config that looked live and did nothing (`copy`, `theme`
+and `advanceBookingWindowDays` had zero readers). Keep that honest — if a key
+lands in `DEFAULTS` before its enforcement does, say so here and in a comment
+next to it:
+
+| Key | Why not yet | Needs |
+|-----|-------------|-------|
+| `timing.advanceBookingWindowDays` | seed lays slots 56 days out, config allows 30 | reconcile the seed horizon, then move out of `rules.UNDISPATCHED` |
+| `pricing.caps.perDayMinorUnits` | needs the customer's other bookings that day | a query, not arithmetic |
+| `payments.noShowFee` | no payments table exists | the `PaymentAdapter` layer |
+| `timing.approvalWindowHours` | nothing expires a stale request | a scheduled job |
+| `pricing.tiers[].quantityCap` | needs a sold-count | a query |
+
+`rules.UNDISPATCHED` also holds `maxBookingsPerSlot` **deliberately**: capacity is
+enforced upstream by `_resolve_selection` + `slot_occupancy`, which understand
+party size and multi-slot holds. Re-registering it under `booking.create` would
+re-apply `min(capacity, maxBookingsPerSlot)` and cap every shared-capacity slot at
+the global default of 1, breaking group bookings. There is a regression test.
+
+## Pricing (`pricing.py`)
+
+v1 priced every booking with one expression inlined in `bookings.py`
+(`priceMinorUnits * len(rows) * party`) — exactly one model, and the reason a
+per-hour/per-night/tiered niche needed code. `quote(pricing, ctx)` replaces it:
+tier match → base (`rate.per` × quantity × party factor) → secondary rate → fees
+→ caps → deposit, returning a total plus an itemised `breakdown`. **The defaults
+reproduce the v1 expression exactly**, so an un-pivoted service prices
+identically. `tiers[].quantityCap` validates and round-trips but does not gate
+yet — it needs a sold-count query, which is a database question.
 
 ## Validation
 

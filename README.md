@@ -113,12 +113,45 @@ npm run dev                 # http://localhost:3000
 
 ## How the pivot works (and the database)
 
-**The config flow.** The backend reads `domain.config.json` once and caches it
-(`@lru_cache` in `app/config.py`). It exposes the raw file at `GET /config`. The
-frontend fetches that on load and renders every label through `<Term>` and every
-number from `rules`. So editing the file → `make reload` (restart backend to drop
-the cache) → refresh the browser = the whole app speaks the new domain. Nothing
-in code hard-codes a term or a magic number.
+**The config flow.** The backend reads `domain.config.json` once, fills in
+defaults, folds in the deprecated v1 `rules`/`search` aliases, **validates** the
+result, and caches it (`app/config.py` + `app/config_schema.py`). It exposes that
+resolved tree at `GET /config`. The frontend fetches it on load and renders every
+label through `<Term>` and every number from the config. So editing the file →
+`make reload` → refresh the browser = the whole app speaks the new domain.
+Nothing in code hard-codes a term or a magic number.
+
+A bad edit now fails loudly *at the edit*: `load_config()` raises with every
+problem listed at once, and `POST /config/reload` (owner-gated) validates the new
+file **before** dropping the cached one, so a typo mid-pivot returns a 422 instead
+of taking the running app down.
+
+**What's configurable.** v2 (`configVersion: 2`) covers vocabulary *and* the
+shape of the offering:
+
+| Block | Controls |
+|-------|----------|
+| `terms` / `copy` / `theme` | vocabulary, CTAs, empty states, colours |
+| `capabilities` | on/off spine — payments, inventory, waitlist, quotes, reviews… |
+| `booking` | unit kind, granularity, duration mode, party rules, add-on options |
+| `pricing` | rate + tiers + fees + caps + deposit (per-hour, per-night, per-person, tiered…) |
+| `payments` | flow, payer, schedule, billing cycle, no-show fee |
+| `inventory` | none / finite / rentable / consumable / serialised |
+| `location` | on-site / at-customer / remote / delivery / pickup, **business timezone**, service area |
+| `prerequisites` | ID checks, intake forms, waivers, memberships, approvals |
+| `timing` | instant vs request-approve, waitlist, seasons, blackouts, lead time |
+| `metaFields` | custom fields per entity — **no migration** |
+
+Every block is overridable **per service** via `services.metadata.<block>`, so one
+deployment can host businesses that work completely differently.
+
+**Reference:** [docs/PIVOT-SYSTEM.md](docs/PIVOT-SYSTEM.md) documents every block,
+the precedence model, and exactly which keys the engine enforces today versus
+which are declared-and-validated but still waiting on a reader.
+[docs/PIVOT-COVERAGE.md](docs/PIVOT-COVERAGE.md) is the evidence: 50 deliberately
+different businesses expressed as real configs and run through the validator and
+pricing engine (`python3 scripts/check_pivots.py`), plus every issue that
+exercise found and how it was resolved.
 
 **The database never changes at the pivot — on purpose.** Tables are neutral
 (`resources` / `slots` / `bookings`) and `schema.sql` is fully idempotent

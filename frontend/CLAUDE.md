@@ -26,6 +26,7 @@ calendar / bookings / account**.
 | `src/context/app-context.tsx` | Current user (`/me`), active vertical, locked-in provider/service/resource |
 | `src/config/verticals.ts` | **Pure UI vocabulary** per vertical (nouns/verbs/categories/copy). No data/seed — that lives in the backend now |
 | `src/lib/format.ts` | UTC → viewer-timezone formatting |
+| `src/lib/geo.ts` | Haversine distance + formatting; origin and unit come from the pivot file via `setGeoSettings()` |
 
 ## The API seam (`src/api/index.ts`)
 
@@ -53,6 +54,11 @@ reschedule flows special-case the codes for re-pick / disabled-with-reason.
 
 - **Every label goes through the vertical config / domain copy**, never a
   hardcoded string (e.g. `useVertical().resourceNoun`, not `"Vehicle"`).
+- **Distance origin and unit come from the config**, not a constant. `AppProvider`
+  boot calls `getPivotConfig()` (one `/config` request, same round-trip count as
+  the old tenancy-only call) and applies `location.origin` / `location.distanceUnit`
+  through `setGeoSettings()`. `geo.ts` falls back to Warsaw/km only when `/config`
+  is unreachable — never import a reference location as a constant again.
 - **Every limit/number comes from the backend** (per-service rules on the
   `Service` object), never a literal.
 - **Auth is Supabase Auth.** Use `useAuth()` / the Supabase client for

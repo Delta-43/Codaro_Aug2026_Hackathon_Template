@@ -1,7 +1,8 @@
 """Availability grouping + month density — the calendar's two read endpoints.
 
 Both group slots by *local* date in the viewer's timezone (from `?tz=`, else the
-signed-in user's `user_metadata.timezone`, else UTC). Slot status and occupancy
+signed-in user's `user_metadata.timezone`, else the business's own
+`location.timezone`, else UTC). Slot status and occupancy
 are computed server-side (the UI never recomputes them). Reads use the service
 key (public); occupancy already reflects party-size + multi-slot holds.
 """
@@ -15,6 +16,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, Query
 
 from app.auth import AuthUser, optional_user
+from app.config import get_config
 from app.db import get_supabase
 from app.serialize import _parse, serialize_slot
 from app.users import user_metadata
@@ -30,7 +32,18 @@ def _tz(name: str | None) -> ZoneInfo | timezone:
 
 
 def _viewer_tz(tz: str | None, user: AuthUser | None):
-    name = tz or (user_metadata(user).get("timezone") if user else None) or "UTC"
+    """`?tz=` -> the signed-in user's timezone -> the BUSINESS's timezone -> UTC.
+
+    The third step is new. Without it an anonymous visitor always saw days
+    grouped in UTC, which silently shifts every evening slot into the next day
+    for a business east of Greenwich — the calendar looked wrong to exactly the
+    people who had not logged in yet."""
+    name = (
+        tz
+        or (user_metadata(user).get("timezone") if user else None)
+        or (get_config()["location"].get("timezone"))
+        or "UTC"
+    )
     return _tz(name)
 
 

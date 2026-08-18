@@ -7,7 +7,7 @@
  */
 import { ArrowDown, ArrowUp, MapPin, Star, Tag, type LucideIcon } from "lucide-react";
 import type { Provider } from "@/types/domain";
-import { distanceKm, REFERENCE_LOCATION } from "@/lib/geo";
+import { distanceKm, geoOrigin } from "@/lib/geo";
 
 export type OrderKey = "rating" | "distance" | "price";
 export type SortDir = "asc" | "desc";
@@ -32,7 +32,7 @@ export const ORDER_META: Record<
     label: "Distance",
     icon: MapPin,
     defaultDir: "asc",
-    value: (p) => distanceKm(REFERENCE_LOCATION, p.location),
+    value: (p) => distanceKm(geoOrigin(), p.location),
   },
   price: {
     label: "Price",
