@@ -55,14 +55,12 @@ export function SceneBackground() {
 
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-      {/* Day photo */}
-      <div
-        className={cn(
-          "scene-fade absolute inset-0 bg-[url('/scene-day.jpg')] bg-cover bg-center bg-no-repeat",
-          dark ? "opacity-0" : "opacity-100",
-        )}
-      />
-      {/* Night photo — crossfades over the day one */}
+      {/* Day photo — permanent OPAQUE base. It never fades, so there's always a
+          fully-covering image under the crossfade; the page background can't
+          bleed through mid-transition (that was the black/white flash). */}
+      <div className="absolute inset-0 bg-[url('/scene-day.jpg')] bg-cover bg-center bg-no-repeat" />
+      {/* Night photo — the only thing that fades: opacity 0→1 dissolves it in
+          over the opaque day image (and back out), a natural day↔night blend. */}
       <div
         className={cn(
           "scene-fade absolute inset-0 bg-[url('/scene-night.jpg')] bg-cover bg-center bg-no-repeat",
@@ -123,8 +121,9 @@ export function SceneBackground() {
       <style
         dangerouslySetInnerHTML={{
           __html: `
-        /* Day↔night crossfade for the stacked scene layers */
-        .scene-fade { transition: opacity 900ms ease-in-out; will-change: opacity; }
+        /* Day↔night crossfade for the stacked scene layers — long + eased so it
+           reads as a gradual dusk/dawn rather than a swap. */
+        .scene-fade { transition: opacity 1400ms ease-in-out; will-change: opacity; }
 
         /* Sun — one soft radial bloom, fully faded edges */
         .landing-sun {
