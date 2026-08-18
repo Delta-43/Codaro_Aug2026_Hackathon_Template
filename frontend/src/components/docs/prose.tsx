@@ -115,8 +115,11 @@ export function Table({
       <table className="w-full border-collapse text-left text-sm">
         <thead>
           <tr className="border-b border-border bg-muted/40">
-            {head.map((h) => (
-              <th key={h} className="whitespace-nowrap px-4 py-2.5 font-medium text-foreground">
+            {head.map((h, i) => (
+              // Key by position: a header row never reorders, and some tables
+              // repeat a label (e.g. two "Key"/"Default" columns), which would
+              // collide on a text key.
+              <th key={i} className="whitespace-nowrap px-4 py-2.5 font-medium text-foreground">
                 {h}
               </th>
             ))}

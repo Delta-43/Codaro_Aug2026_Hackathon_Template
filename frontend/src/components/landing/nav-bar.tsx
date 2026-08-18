@@ -8,7 +8,7 @@
  *
  * Layout: the theme toggle is pinned far-left and the Login button far-right;
  * the section links live in a scrollable middle strip. When the window is wide
- * enough for every link, the strip lays them out `justify-between` so they fill
+ * enough for every link, the strip lays them out `justify-evenly` so they fill
  * the bar evenly (balanced, no dead space) and no chevrons show. When the width
  * shrinks and the links no longer fit, the strip scrolls horizontally and small
  * `‹ ›` chevrons appear beside it (in-flow, so they never sit on top of a link)

@@ -1,9 +1,13 @@
-/**
- * Business thread view. `messages` is a literal sibling under the Requests tab,
- * so `startsWith("/owner/requests")` keeps that tab highlighted here.
- */
-import { MessageThread } from "@/components/messaging/message-thread";
+import { redirect } from "next/navigation";
 
-export default function OwnerRequestsMessageThreadPage() {
-  return <MessageThread backHref="/owner/requests" />;
+/**
+ * Retired thread route. Business threads now live under the Messages tab; this
+ * redirect preserves the conversation id so an old link opens the same thread.
+ */
+export default function OwnerRequestsThreadRedirect({
+  params,
+}: {
+  params: { conversationId: string };
+}) {
+  redirect(`/owner/messages/${params.conversationId}`);
 }
