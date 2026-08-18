@@ -40,7 +40,7 @@ function isActive(pathname: string, href: string): boolean {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, ready, refreshUser, activeProvider, singleBusiness } = useApp();
+  const { user, ready, reload, activeProvider, singleBusiness } = useApp();
   const [retrying, setRetrying] = useState(false);
 
   // AuthGate has already established a session, so a finished boot with no
@@ -54,7 +54,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   async function retryProfile() {
     setRetrying(true);
     try {
-      await refreshUser();
+      // The WHOLE boot, not just the profile: if connectivity was down, tenancy,
+      // vertical and capabilities fell back too, and recovering only the profile
+      // would clear this screen while leaving those wrong until a hard reload.
+      await reload();
     } catch {
       /* still failing — stay on this screen so the retry remains available */
     } finally {

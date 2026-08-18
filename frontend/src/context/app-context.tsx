@@ -47,6 +47,11 @@ interface AppContextValue {
    *  hidden. False = the multi-provider marketplace. */
   singleBusiness: boolean;
 
+  /** Re-run the whole boot — profile, vertical AND the pivot config. Each leg
+   *  degrades independently, so recovering only one leaves the others on their
+   *  fallbacks with nothing on screen to say so. */
+  reload: () => Promise<void>;
+
   /** `capabilities.<name>` from the pivot file, defaulting to ON for a name the
    *  config does not mention. Gate a surface on this wherever the backend gates
    *  the matching write, or the user gets a control that 404s. */
@@ -122,9 +127,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActiveResource(null);
   }, []);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
+  // Extracted from the mount effect so a retry can re-run EVERY leg. Only the
+  // profile leg is visible when it fails, so a retry that re-fetched just that
+  // one cleared the error screen while tenancy, vertical and capabilities stayed
+  // on their fallbacks for the life of the mount — search exposed on a
+  // single-business site, default vocabulary, and every capability reading ON
+  // because an empty block means "nothing disabled".
+  const boot = useCallback(
+    async (isCancelled: () => boolean = () => false) => {
       // The pivot config must not gate boot: if /config is unreachable, degrade to
       // the multi-provider marketplace (and default geo) rather than hanging on the
       // not-ready state.
@@ -146,7 +156,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
           }),
         ),
       ]);
-      if (cancelled) return;
+      if (isCancelled()) return;
       setVerticalId(vid);
       setUserState(u);
       // Distances render from the pivot file's origin/unit, not a hardcoded city.
@@ -164,13 +174,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
           /* leaves the provider unresolved; the UI degrades to "no business" */
         }
       }
-      if (cancelled) return;
+      if (isCancelled()) return;
       setReady(true);
-    })();
+    },
+    [resolveSoleProvider],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    void boot(() => cancelled);
     return () => {
       cancelled = true;
     };
-  }, [resolveSoleProvider]);
+  }, [boot]);
 
   const clearActiveProvider = useCallback(() => {
     setActiveProvider(null);
@@ -236,6 +252,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     selectResource: setActiveResource,
     setUser: setUserState,
     refreshUser,
+    reload: boot,
     switchVertical,
     reseed,
   };
