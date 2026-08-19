@@ -28,9 +28,7 @@ import {
   type MetaFields,
   type SearchFacets,
   type TenancyTerms,
-  resetDemoData as apiResetDemoData,
   searchProviders,
-  setVertical as apiSetVertical,
   FALLBACK_PIVOT_CONFIG,
   type Capabilities,
   type ConfigCopy,
@@ -94,9 +92,6 @@ interface AppContextValue {
   /** Apply a User returned by the API (e.g. after follow/unfollow/update). */
   setUser: (user: User) => void;
   refreshUser: () => Promise<void>;
-
-  switchVertical: (id: VerticalId) => Promise<void>;
-  reseed: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -118,7 +113,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [tenancyTerms, setTenancyTerms] = useState<TenancyTerms>(
     FALLBACK_PIVOT_CONFIG.tenancyTerms,
   );
-  const [soleProviderCode, setSoleProviderCode] = useState<string | null>(null);
 
   const [activeProvider, setActiveProvider] = useState<Provider | null>(null);
   const [activeService, setActiveService] = useState<Service | null>(null);
@@ -202,7 +196,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const { tenancy } = pivot;
       const single = tenancy.mode === "single";
       setSingleBusiness(single);
-      setSoleProviderCode(tenancy.providerCode);
       if (single) {
         // Best-effort: a failure here must not strand the app as not-ready.
         try {
@@ -242,36 +235,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActiveResource(null);
   }, []);
 
-  // After a vertical switch / reseed the locked-in provider is stale. Multi mode
-  // clears it (back to the picker's empty state); single mode re-resolves the new
-  // vertical's sole provider so the catalog is never empty.
-  const resettleProvider = useCallback(async () => {
-    if (singleBusiness) await resolveSoleProvider(soleProviderCode);
-    else clearActiveProvider();
-  }, [singleBusiness, soleProviderCode, resolveSoleProvider, clearActiveProvider]);
-
   // Unknown name -> true: the config lists only what it turns off, and the
   // backend refuses the write regardless. This mirrors rules.capability().
   const capability = useCallback(
     (name: string) => capabilities[name] !== false,
     [capabilities],
   );
-
-  const switchVertical = useCallback(
-    async (id: VerticalId) => {
-      await apiSetVertical(id);
-      setVerticalId(id);
-      await resettleProvider();
-      await refreshUser();
-    },
-    [resettleProvider, refreshUser],
-  );
-
-  const reseed = useCallback(async () => {
-    await apiResetDemoData();
-    await resettleProvider();
-    await refreshUser();
-  }, [resettleProvider, refreshUser]);
 
   const value: AppContextValue = {
     ready,
@@ -294,8 +263,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setUser: setUserState,
     refreshUser,
     reload: boot,
-    switchVertical,
-    reseed,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

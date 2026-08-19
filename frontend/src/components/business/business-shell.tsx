@@ -140,8 +140,10 @@ export function BusinessShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-20 flex h-12 items-center justify-between gap-2 border-b border-border bg-background/85 px-4 backdrop-blur pt-[env(safe-area-inset-top)] md:hidden">
         <Link
           href="/"
-          className="shrink-0 origin-left text-base font-bold tracking-tight text-primary transition-transform duration-200 ease-out hover:scale-105"
+          className="flex shrink-0 origin-left items-center gap-1.5 text-base font-bold tracking-tight text-primary transition-transform duration-200 ease-out hover:scale-105"
         >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-6 -translate-y-[9%]" />
           Arbor
         </Link>
         <span className="flex min-w-0 items-baseline justify-end gap-2 text-sm font-semibold">

@@ -3,9 +3,9 @@ import type { VerticalId } from "@/types/domain";
 /**
  * The pivot surface for UI *vocabulary*. Every vertical-specific word the UI
  * renders comes from here — components read nouns/verbs/copy from the active
- * vertical, never a hard-coded string. The demo's *data* per vertical now lives
- * in the backend seed (POST /demo/vertical reseeds it); this file is only the
- * labels/nouns/copy the frontend renders.
+ * vertical, never a hard-coded string. The *data* per vertical lives in the
+ * backend seed (the active one is served by GET /vertical); this file is only
+ * the labels/nouns/copy the frontend renders.
  */
 export interface VerticalConfig {
   id: VerticalId;

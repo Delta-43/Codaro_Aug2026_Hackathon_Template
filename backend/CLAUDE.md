@@ -5,7 +5,7 @@
 The booking-engine API. Owns: reading the pivot file, per-service rule
 resolution, camelCase serialization, the domain routers
 (`/providers` `/services` `/resources` `/slots` `/availability` `/bookings`
-`/me` `/demo`), Supabase-Auth verification, and three-vertical seeding. It serves
+`/me`), Supabase-Auth verification, and three-vertical seeding. It serves
 the frontend's exact contract (`frontend/src/types/domain.ts`). See root
 [CLAUDE.md](../CLAUDE.md) and [supabase/CLAUDE.md](../supabase/CLAUDE.md).
 
@@ -26,7 +26,7 @@ the frontend's exact contract (`frontend/src/types/domain.ts`). See root
 | `app/models.py` | Pydantic envelopes; the new request models accept camelCase (`CamelModel`) |
 | `app/meta.py` | Config-driven `metaFields` validator |
 | `app/discovery.py`, `app/users.py` | Aggregation helpers (rating/link arrays) and `User` assembly |
-| `app/routers/*.py` | `providers`, `services`, `resources`, `slots`, `availability`, `bookings`, `me`, `owner`, `demo` |
+| `app/routers/*.py` | `providers`, `services`, `resources`, `slots`, `availability`, `bookings`, `me`, `owner` |
 | `app/routers/owner.py` | Business-mode aggregation: `/owner/dashboard` `/owner/services` `/owner/requests` `/owner/calendar` (owner-gated, scoped to the caller's providers) |
 | `seed.py`, `seed_data.py` | Three-vertical demo seeding; `seed_vertical(id)`, `active_vertical()`, `seed_if_empty()` |
 
@@ -245,8 +245,9 @@ yet — it needs a sold-count query, which is a database question.
   `GET /me/reputation` and the owner Requests screening card's `rating`.
   `GET /providers/{id}/reviews` (public) lists a provider's recent reviews for
   the Profile tab.
-- **Demo:** `GET /demo/vertical` (public), `POST /demo/vertical` + `POST
-  /demo/reset` (`require_user`, destructive backend reseed).
+- **Vertical:** `GET /vertical` (public) → the currently-seeded vertical,
+  inferred from the catalog, so the frontend picks the matching base vocabulary
+  at boot.
 
 Owner-gated writes (`require_owner`) exist on resource/slot CRUD + analytics;
 provider/service **create** endpoints are not added (seeds populate catalog).

@@ -47,7 +47,7 @@ backend/                    # FastAPI generic engine
   app/meta.py               #  config-driven metaFields validator
   app/rules.py              #  event-keyed rules engine  <-- add secret rule here
   app/routers/              #  /providers /services /resources /slots /availability
-                            #  /bookings /me /conversations /owner /demo
+                            #  /bookings /me /conversations /owner
   seed.py                   #  demo data (auto-seeds on first start; run manually to add more)
 frontend/                   # Next.js 14 + Tailwind — the app lives in src/
   src/config/verticals.ts   #  UI vocabulary per vertical (useVertical())

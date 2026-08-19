@@ -15,7 +15,6 @@ import { useAuth } from "@/lib/auth";
  * Business sign-in — a dedicated page (not a drawer), reached from "I'm a
  * business!" on the main sign-in. Near-identical layout with a distinct look:
  * a darker grey card, gold "Business" flair, pink as the core action colour.
- * No demo shortcuts here — those live on the main customer page.
  */
 export default function BusinessLoginPage() {
   return (
@@ -82,8 +81,10 @@ function BusinessLoginForm() {
             <h1 className="text-2xl font-semibold tracking-tight">
               <Link
                 href="/"
-                className="inline-block origin-center text-primary transition-transform duration-200 ease-out hover:scale-110"
+                className="inline-flex items-center gap-1.5 origin-center text-primary transition-transform duration-200 ease-out hover:scale-110"
               >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-7 -translate-y-[9%]" />
                 Arbor
               </Link>
               <span className="text-amber-600 dark:text-amber-400"> Business</span>

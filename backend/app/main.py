@@ -14,7 +14,6 @@ from app.errors import VALIDATION_ERROR, api_error
 from app.routers import (
     availability,
     bookings,
-    demo,
     me,
     messages,
     owner,
@@ -25,7 +24,7 @@ from app.routers import (
     waitlist,
 )
 from app.schema_setup import create_tables_if_configured
-from seed import seed_if_empty
+from seed import active_vertical, seed_if_empty
 
 logging.basicConfig(level=logging.INFO)
 
@@ -71,12 +70,19 @@ app.include_router(bookings.router)
 app.include_router(me.router)
 app.include_router(messages.router)
 app.include_router(owner.router)
-app.include_router(demo.router)
 
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/vertical")
+def vertical():
+    """The currently-seeded vertical, inferred from the catalog. The frontend
+    reads it at boot to pick the base vocabulary for whichever vertical the
+    config seeded."""
+    return {"verticalId": active_vertical()}
 
 
 def _config_with_facets() -> dict:

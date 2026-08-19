@@ -22,7 +22,9 @@ export function Hero() {
         <GlassPanel className="flex flex-col items-center gap-10 px-6 py-12 text-center sm:px-10 sm:py-14">
           <div>
             <p className="text-xl font-bold tracking-tight text-primary">
-              <span className="inline-block origin-center cursor-pointer transition-transform duration-200 ease-out hover:scale-125">
+              <span className="inline-flex items-center gap-1.5 origin-center cursor-pointer transition-transform duration-200 ease-out hover:scale-125">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-5 -translate-y-[9%]" />
                 Arbor
               </span>
             </p>

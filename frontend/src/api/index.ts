@@ -662,7 +662,7 @@ export function startConversation(providerId: ID, clientId?: ID): Promise<Conver
   return post("/conversations", { providerId, clientId }) as Promise<Conversation>;
 }
 
-// --- account & demo --------------------------------------------------------
+// --- account ---------------------------------------------------------------
 
 export function getCurrentUser(): Promise<User> {
   return request("/me");
@@ -694,17 +694,11 @@ export function getMyReputation(): Promise<ClientReputation> {
   return request("/me/reputation");
 }
 
+/** The currently-seeded vertical, so the app picks the matching base
+ *  vocabulary at boot (the pivot config's `terms`/`copy` overlay on top). */
 export async function getActiveVertical(): Promise<VerticalId> {
-  const { verticalId } = await request<{ verticalId: VerticalId }>("/demo/vertical");
+  const { verticalId } = await request<{ verticalId: VerticalId }>("/vertical");
   return verticalId;
-}
-
-export async function setVertical(id: VerticalId): Promise<void> {
-  await post("/demo/vertical", { id });
-}
-
-export async function resetDemoData(): Promise<void> {
-  await post("/demo/reset");
 }
 
 // --- owner (admin) ---------------------------------------------------------
@@ -930,7 +924,5 @@ if (typeof window !== "undefined") {
     deleteAvatar,
     deleteAccount,
     getActiveVertical,
-    setVertical,
-    resetDemoData,
   };
 }

@@ -97,7 +97,7 @@ reschedule flows special-case the codes for re-pick / disabled-with-reason.
 5. **Bookings** (tab 4) — upcoming/past, detail, reschedule, cancel, review.
    *Built.*
 6. **Account** (tab 5) — profile edit (`PATCH /me`), sign-out, **Appearance**
-   theme toggle (Light / Dark / Smart), demo vertical-switch/reset. *Built.*
+   theme toggle (Light / Dark / Smart). *Built.*
 7. **Docs** — `/docs`, ungated like `privacy/`: how to set up
    `domain.config.json`, block by block (tenancy → capabilities → booking →
    pricing → payments → timing → location → optional → vocabulary), plus
