@@ -5,7 +5,7 @@
  * terminal shows (configure → seed → go live). Uses only the engine's neutral
  * spine nouns (providers/services), never a vertical-specific term.
  */
-import { Rocket, Settings2, Sparkles } from "lucide-react";
+import { Rocket, Settings2, Sparkles, Zap } from "lucide-react";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";
 import { ScrollCue } from "@/components/landing/scroll-cue";
 import { Dock, DockItem } from "@/components/landing/dock";
@@ -34,6 +34,11 @@ export function HowItWorks() {
     <section id="how" className="flex min-h-[92vh] snap-start snap-always scroll-mt-24 items-center px-4 py-20">
       <div ref={ref} style={style} className="mx-auto w-full max-w-4xl">
         <GlassPanel className="px-6 py-12 sm:px-10 sm:py-14">
+          <div className="mb-6 flex justify-center">
+            <span className="flex size-12 origin-center cursor-pointer items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm transition-all duration-200 ease-out hover:scale-[1.4] hover:-translate-y-1 hover:bg-primary hover:text-primary-foreground hover:shadow-xl">
+              <Zap className="size-6" aria-hidden />
+            </span>
+          </div>
           <h2 className="text-center text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             From idea to booking in three steps.
           </h2>

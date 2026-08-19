@@ -34,7 +34,7 @@ export default function RootPage() {
       <Testimonials />
       <DocsCta />
       <BusinessCta authed={authed} />
-      <Footer />
+      <Footer authed={authed} />
     </main>
   );
 }

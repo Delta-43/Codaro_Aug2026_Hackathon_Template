@@ -1,46 +1,42 @@
 /**
  * Full-page, theme-aware backdrop behind the whole landing page.
  *
- * No photographic scene anymore — just a soft themed gradient with a couple of
- * blurred colour blooms, so the liquid-glass plates have something coloured to
- * refract and sit over. Plus gently drifting petals. Fixed, so the glass
- * chapters float over it. All motion is pure CSS, disabled under
- * prefers-reduced-motion.
+ * Deliberately plain and colourless: a solid black/white base (white in light
+ * mode, black in dark) with a few slow *monochrome* flecks drifting across it —
+ * no pink, no gradient. The flecks exist only to give the liquid-glass plates a
+ * subtle neutral texture to frost/blur (the effect only reads when there's
+ * something behind the glass). Spread over the full height so every plate, not
+ * just the footer, gets the same blurred backdrop. Fixed, so the glass chapters
+ * float over it. All motion is pure CSS, disabled under prefers-reduced-motion.
  *
  * It also hosts the `#liquid-glass-distortion` SVG filter + the `.liquid-glass`
- * class the plates use: `backdrop-filter: url(#…)` runs a feDisplacementMap over
- * whatever sits behind each plate, so the background bends/warps through the
- * glass (real refraction/lensing) instead of only blurring. Safari (which
- * ignores url() filters in backdrop-filter) falls back to a plain frosted blur.
+ * class the plates use — the `.liquid-glass` blur/saturate is what frosts the
+ * backdrop behind each plate.
  */
-const PETALS = Array.from({ length: 30 }, (_, i) => ({
+const FLECKS = Array.from({ length: 30 }, (_, i) => ({
   left: `${(i * 3.27 + 2) % 99}%`,
+  top: `${(i * 6.13 + 5) % 94}%`,
   size: 4 + ((i * 7) % 8),
   delay: (i * 1.1) % 15,
   dur: 12 + ((i * 5) % 11),
-  o: 0.45 + ((i * 3) % 5) / 10,
+  o: 0.35 + ((i * 3) % 5) / 12,
 }));
 
 export function SceneBackground() {
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-      {/* Soft themed gradient base */}
-      <div className="absolute inset-0 bg-gradient-to-br from-sky-100 via-background to-pink-100 dark:from-slate-950 dark:via-background dark:to-slate-900" />
+      {/* Plain black/white base — white in light mode, black in dark */}
+      <div className="absolute inset-0 bg-white dark:bg-black" />
 
-      {/* Blurred colour blooms — give the glass something to bend, add depth */}
-      <div className="absolute -top-1/4 -left-16 size-[55%] rounded-full bg-primary/25 blur-[120px] dark:bg-primary/20" />
-      <div className="absolute -bottom-1/4 -right-10 size-[55%] rounded-full bg-pink-400/20 blur-[130px] dark:bg-fuchsia-500/15" />
-      <div className="absolute top-1/3 left-1/2 size-[40%] -translate-x-1/2 rounded-full bg-sky-300/15 blur-[120px] dark:bg-sky-500/10" />
-
-      {/* Drifting petals */}
+      {/* Slow monochrome flecks — a neutral texture for the glass to blur */}
       <div className="absolute inset-0">
-        {PETALS.map((p, i) => (
+        {FLECKS.map((p, i) => (
           <span
             key={i}
-            className="landing-petal absolute rounded-full bg-white/80 shadow-[0_0_8px_rgba(255,255,255,0.7)] dark:bg-primary/70"
+            className="landing-fleck absolute rounded-full bg-black/10 dark:bg-white/40"
             style={{
               left: p.left,
-              bottom: "14%",
+              top: p.top,
               width: p.size,
               height: p.size,
               // @ts-expect-error custom property consumed by the keyframe
@@ -67,21 +63,21 @@ export function SceneBackground() {
       <style
         dangerouslySetInnerHTML={{
           __html: `
-        /* Liquid-glass material: refract the backdrop through a displacement
-           map (Chromium) + saturate it; Safari ignores url() here and gets a
-           plain frosted blur instead. */
+        /* Liquid-glass material: frost + saturate the backdrop behind a plate.
+           (The url() displacement is a Chromium-only nicety; every browser at
+           least gets the blur/saturate, which is the look that matters here.) */
         .liquid-glass {
           -webkit-backdrop-filter: blur(11px) saturate(180%);
           backdrop-filter: blur(2px) saturate(180%) url(#liquid-glass-distortion);
         }
 
-        /* Petals */
-        .landing-petal { opacity: 0; animation-name: landing-drift; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+        /* Drifting monochrome flecks */
+        .landing-fleck { opacity: 0; animation-name: landing-drift; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
         @keyframes landing-drift {
-          0%   { transform: translate(0,0) rotate(0deg); opacity: 0; }
-          12%  { opacity: var(--o, .5); }
-          88%  { opacity: var(--o, .5); }
-          100% { transform: translate(60px, -220px) rotate(160deg); opacity: 0; }
+          0%   { transform: translate(0,0); opacity: 0; }
+          12%  { opacity: var(--o, .4); }
+          88%  { opacity: var(--o, .4); }
+          100% { transform: translate(50px, -180px); opacity: 0; }
         }
 
         /* Chevron scroll-affordance (used by the nav): a gentle horizontal nudge */
@@ -92,7 +88,7 @@ export function SceneBackground() {
 
         @media (prefers-reduced-motion: reduce) {
           .landing-nudge, .landing-nudge-left { animation: none; }
-          .landing-petal { animation: none; opacity: 0; }
+          .landing-fleck { animation: none; opacity: 0; }
         }
           `,
         }}

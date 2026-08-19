@@ -22,7 +22,7 @@ export function BusinessCta({ authed }: { authed: boolean }) {
           </span>
           <div>
             <h2 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-              Run a business? Bring it to service.com.
+              Run a business? Bring it to Arbor.
             </h2>
             <p className="mx-auto mt-3 max-w-md text-foreground/80">
               List your business, set your own rules, and start taking bookings. The engine adapts

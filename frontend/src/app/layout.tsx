@@ -9,7 +9,7 @@ import { AuthProvider } from "@/lib/auth";
 const outfit = Outfit({subsets:['latin'],variable:'--font-outfit'});
 
 export const metadata: Metadata = {
-  title: "Service.com",
+  title: "Arbor",
   description: "Booking and resource scheduling — demo build.",
 };
 
@@ -27,11 +27,12 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     // pre-paint inline script, so the server markup and first client render differ.
     <html lang="en" className={cn("font-sans", outfit.variable)} suppressHydrationWarning>
       <body>
-        {/* Smart dark mode: defaults to light on first load; "smart" follows the
-            OS light/dark setting live (next-themes "system"). Preference persists. */}
+        {/* Smart dark mode: first load follows the OS light/dark setting live
+            (next-themes "system"); flipping the footer/account toggle pins an
+            explicit light/dark choice, which then persists. */}
         <ThemeProvider
           attribute="class"
-          defaultTheme="light"
+          defaultTheme="system"
           enableSystem
           disableTransitionOnChange
         >
