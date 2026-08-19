@@ -463,6 +463,32 @@ def _consume_credit(db, entitlement: dict | None, booking_id: str) -> None:
         )
 
 
+def _refund_credit(db, md: dict) -> bool:
+    """Give back the credit a booking consumed, when it is cancelled/rejected.
+
+    Consumption happens at create/promotion even for `pending` requests, so a
+    rejection (or a cancel) without this quietly burned a pass credit for a
+    booking that never happened. Idempotent via the `credit_refunded` stamp the
+    caller persists into metadata when this returns True; best-effort like
+    `_consume_credit` (a counter must not 500 the cancel).
+    """
+    ent_id = (md or {}).get("entitlement_id")
+    if not ent_id or md.get("credit_refunded"):
+        return False
+    try:
+        row = maybe_row(db.table("entitlements").select("*").eq("id", ent_id))
+        if not row or row.get("credits_total") is None:
+            return False
+        used = int(row.get("credits_used") or 0)
+        if used <= 0:
+            return False
+        db.table("entitlements").update({"credits_used": used - 1}).eq("id", ent_id).execute()
+        return True
+    except Exception:
+        logger.exception("Could not refund a credit on entitlement %s", ent_id)
+        return False
+
+
 def _price(service: dict | None, rows: list, party: int,
            entitlement: dict | None = None, *, person_units: float | None = None,
            addons: list | None = None, subject: dict | None = None) -> dict:
@@ -871,6 +897,21 @@ def reschedule_booking(
     ordered = [r["slot_id"] for r in rows]
     new_start, new_end = rows[0]["starts_at"], rows[-1]["ends_at"]
 
+    # The calendar gates create dispatches (advance window, blackouts, seasons)
+    # apply to the NEW date too — otherwise book-then-reschedule was a two-step
+    # bypass into any closed day. `leadTimeMinutes` is deliberately zeroed:
+    # changing an existing booking is governed by the cancellation window, and
+    # moving onto a soon slot is pinned as allowed (see
+    # test_lead_time_does_not_gate_a_reschedule_onto_a_soon_slot).
+    try:
+        apply_rules(
+            "booking.create",
+            {"slot_starts_at": rows[0]["starts_at"], "timezone": str(_business_tz(service))},
+            {**effective_service_config(service)["timing"], "leadTimeMinutes": 0},
+        )
+    except RuleViolation as e:
+        raise api_error(INVALID_RANGE, str(e))
+
     # Atomic slot swap: replace the join rows, then update the booking.
     uc.table("booking_slots").delete().eq("booking_id", booking_id).execute()
     uc.table("booking_slots").insert(
@@ -951,6 +992,8 @@ def cancel_booking(booking_id: str, user: AuthUser = Depends(require_user)):
 
     md = dict(booking.get("metadata") or {})
     md["cancelled_at_utc"] = iso_utc(now_utc())
+    if _refund_credit(db, md):
+        md["credit_refunded"] = True
     history = booking["history"] + [
         {"status": "cancelled", "at": iso_utc(now_utc()), **({"actor": "owner"} if acting_as_owner else {})}
     ]
@@ -1274,9 +1317,12 @@ def reject_booking(booking_id: str, owner: AuthUser = Depends(require_owner)):
         raise api_error(INVALID_RANGE, "Only pending requests can be rejected.")
 
     history = booking["history"] + [{"status": "rejected", "at": iso_utc(now_utc()), "actor": "owner"}]
+    md = dict(md)
+    if _refund_credit(db, md):
+        md["credit_refunded"] = True
     updated = (
         uc.table("bookings")
-        .update({"status": "rejected", "history": history})
+        .update({"status": "rejected", "history": history, "metadata": md})
         .eq("id", booking_id)
         .execute()
         .data
