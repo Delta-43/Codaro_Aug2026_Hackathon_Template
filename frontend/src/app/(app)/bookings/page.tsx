@@ -44,7 +44,8 @@ function bookingToCal(b: Booking): DemoBooking | null {
 }
 
 export default function BookingsPage() {
-  const { user, ready } = useApp();
+  const { user, ready, singleBusiness } = useApp();
+  const router = useRouter();
   const tz = user?.timezone ?? "UTC";
   const [scope, setScope] = useState<Scope>("upcoming");
 

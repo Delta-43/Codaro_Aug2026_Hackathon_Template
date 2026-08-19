@@ -14,19 +14,9 @@ import { ProviderProfile } from "@/components/provider/provider-profile";
 import { FollowingServices } from "@/components/provider/following-services";
 
 export default function ProviderPage() {
-  const { activeProvider, vertical, selectService, selectResource, singleBusiness, capability } = useApp();
-  const router = useRouter();
-  const { isFollowing, busy, toggle } = useFollow(activeProvider);
-  const [picker, setPicker] = useState<Service | null>(null);
-  // `_messaging` / `_messageProvider` / `_MessagesSquare` are a complete
-  // "message this business" handler that no button renders yet. Kept on purpose
-  // — wiring it up is a product decision, not cleanup — and underscore-prefixed
-  // because that is what eslint's no-unused-vars treats as intentionally unused.
-  // tsc is NOT part of that deal: `noUnusedLocals` exempts `_`-prefixed
-  // parameters but not locals, so it would flag `_messageProvider` regardless of
-  // the name. That flag is deliberately off in tsconfig.json for this reason —
-  // turning it on means wiring this handler up or deleting it.
-  const [_messaging, setMessaging] = useState(false);
+  const { activeProvider, singleBusiness, user } = useApp();
+  const vertical = useVertical();
+  const followedIds = user?.followedProviderIds ?? [];
 
   // Marketplace + at least one follow → the followed-businesses experience.
   if (!singleBusiness && followedIds.length > 0) {
@@ -45,136 +35,16 @@ export default function ProviderPage() {
 
   // Nothing to show. Single mode has no discovery, so drop the Search action.
   return (
-    <section className="pb-6">
-      {/* Cover + avatar */}
-      <div
-        className="-mx-4 h-32 bg-cover bg-center md:-mx-6 md:rounded-xl"
-        style={{ backgroundImage: `url(${p.coverUrl ?? ""})` }}
-        aria-hidden
-      />
-      <div className="-mt-8 flex items-end gap-3 px-1">
-        <AvatarImg src={p.avatarUrl} name={p.name} alt="" className="size-20 border-4 border-background" />
-        <div className="min-w-0 flex-1 pb-1">
-          <h1 className="truncate text-xl font-semibold tracking-tight">{p.name}</h1>
-          <p className="truncate text-sm text-muted-foreground">{p.tagline}</p>
-        </div>
-      </div>
-
-      {/* Meta row */}
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
-        <span className="inline-flex items-center gap-1">
-          <Star className="size-4 fill-amber-400 text-amber-400" aria-hidden />
-          {p.rating.toFixed(1)} ({p.reviewCount})
-        </span>
-        <span aria-hidden>·</span>
-        <span>
-          {p.location.city}, {p.location.country} · {distanceFromHome(p.location)}
-        </span>
-      </div>
-
-      {/* Actions — follow + provider-switching only make sense in the
-          multi-provider marketplace; the single business is implicit. Follow is
-          additionally gated on `capabilities.follows`, which the backend already
-          refuses, so the button would otherwise 404. */}
-      {!singleBusiness ? (
-        <div className="mt-4 flex gap-2">
-          {capability("follows") ? (
-          <Button
-            variant={isFollowing ? "secondary" : "outline"}
-            isDisabled={busy}
-            onPress={toggle}
-          >
-            {isFollowing ? "Following" : "Follow"}
-          </Button>
-          ) : null}
-          <Link
-            href="/search"
-            className="inline-flex h-8 items-center rounded-2xl border border-border px-3 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            Switch {vertical.providerNoun.toLowerCase()}
-          </Link>
-        </div>
-      ) : null}
-
-      {/* Bio */}
-      <p className="mt-5 text-sm leading-relaxed text-foreground/90">{p.bio}</p>
-
-      {/* Links */}
-      {p.links.length > 0 ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {p.links.map((l) => (
-            <a
-              key={l.url}
-              href={l.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-lg bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
-            >
-              {l.label}
-              <ExternalLink className="size-3" aria-hidden />
-            </a>
-          ))}
-        </div>
-      ) : null}
-
-      {/* Services */}
-      <h2 className="mb-2 mt-7 text-sm font-semibold">{vertical.serviceNounPlural}</h2>
-      <div className="space-y-2">
-        {data.loading && !data.data ? (
-          <>
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-20 w-full" />
-            <Skeleton className="h-20 w-full" />
-          </>
-        ) : data.error ? (
-          <EmptyState
-            title="Couldn't load"
-            body={`We couldn't load the ${vertical.serviceNounPlural.toLowerCase()}.`}
-          >
-            <Button className="mt-1" onPress={data.reload}>
-              Try again
-            </Button>
-          </EmptyState>
-        ) : (
-          (data.data ?? []).map(({ service, spots }) => (
-            <button
-              key={service.id}
-              type="button"
-              onClick={() => handleSelect(service)}
-              className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3 text-left transition-colors hover:bg-muted/50"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="truncate font-medium">{service.name}</span>
-                  <span className="shrink-0 text-sm font-medium">
-                    {formatMoney(service.priceMinorUnits, service.currency)}
-                  </span>
-                </div>
-                <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
-                  {service.description}
-                </p>
-                <div className="mt-1 flex flex-wrap gap-x-2 text-xs text-muted-foreground">
-                  <span>{formatDuration(service.slotDurationMinutes)}</span>
-                  {spots !== null ? (
-                    <>
-                      <span aria-hidden>·</span>
-                      <span>{spots} spots per session</span>
-                    </>
-                  ) : null}
-                </div>
-              </div>
-              <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
-            </button>
-          ))
-        )}
-      </div>
-
-      <ResourcePicker
-        service={picker}
-        open={picker !== null}
-        onClose={() => setPicker(null)}
-        onPick={handlePick}
-      />
-    </section>
+    <EmptyState
+      icon={<Store className="size-8" aria-hidden />}
+      title={vertical.copy.noProviderTitle}
+      body={
+        singleBusiness
+          ? vertical.copy.noProviderBody
+          : "Search for a business and follow it — the ones you follow show up here."
+      }
+      actionHref={singleBusiness ? undefined : "/search"}
+      actionLabel={singleBusiness ? undefined : "Go to Search"}
+    />
   );
 }

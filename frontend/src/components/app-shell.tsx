@@ -11,8 +11,16 @@
  */
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { CalendarDays, CircleUser, Search, Store, Ticket, type LucideIcon } from "lucide-react";
-import { useMemo, useState, type ReactNode } from "react";
+import {
+  CalendarClock,
+  CalendarDays,
+  CircleUser,
+  Search,
+  Send,
+  Store,
+  type LucideIcon,
+} from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/context/app-context";
 import { AvatarImg } from "@/components/avatar-img";

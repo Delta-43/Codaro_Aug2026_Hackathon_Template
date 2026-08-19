@@ -42,11 +42,15 @@ const STATUS_CLASS: Record<DemoBooking["status"], string> = {
 };
 
 export default function BookingsPage() {
-  const { ready, vocab } = useOwner();
+  const { ready, vocab, capability } = useOwner();
   const router = useRouter();
   const tz = browserTz();
   const [raw, setRaw] = useState<OwnerBooking[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
+  // serviceId -> whether reviews are on for THAT service. The routers gate
+  // `capability("reviews", service)` per service, so the global block is not
+  // enough to decide whether this control would 404.
+  const [reviewsByService, setReviewsByService] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<DemoBooking | null>(null);
   const [cancelled, setCancelled] = useState<Set<string>>(new Set());
@@ -80,12 +84,30 @@ export default function BookingsPage() {
       if (cancel) return;
       setRaw(bookings);
       setNames(Object.fromEntries(services.map((s) => [s.id, s.name])));
+      setReviewsByService(
+        Object.fromEntries(services.map((s) => [s.id, s.capabilities.reviews !== false])),
+      );
       setLoading(false);
     });
     return () => {
       cancel = true;
     };
   }, []);
+
+  // Prefer the per-service value; fall back to the global block for any service
+  // the map does not cover. `getOwnerServices()` swallows its own failure, so
+  // without the fallback a failed services call left the map empty and every
+  // booking read as reviewable — showing a control the API then refuses.
+  const reviewable = useMemo(
+    () =>
+      Object.fromEntries(
+        raw.map((b) => [
+          b.id,
+          b.serviceId in reviewsByService ? reviewsByService[b.serviceId] : capability("reviews"),
+        ]),
+      ),
+    [raw, reviewsByService, capability],
+  );
 
   const live = useMemo(() => raw.filter((b) => !cancelled.has(b.id)), [raw, cancelled]);
   const bookings = useMemo(
@@ -246,7 +268,9 @@ export default function BookingsPage() {
                 Cancel booking
               </Button>
             </div>
-            {selected.status === "completed" ? <RateClient bookingId={selected.id} clientName={selected.client} /> : null}
+            {selected.status === "completed" && reviewable[selected.id] ? (
+              <RateClient bookingId={selected.id} clientName={selected.client} />
+            ) : null}
 
             <p className="text-[11px] text-muted-foreground">
               Reschedule is coming to the owner console next.
