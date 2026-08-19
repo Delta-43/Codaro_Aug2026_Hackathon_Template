@@ -135,7 +135,8 @@ naive to aware.
 ## Declared but NOT enforced
 
 v1's real failure was config that looked live and did nothing (`copy`, `theme`
-and `advanceBookingWindowDays` had zero readers). Keep that honest — if a key
+and `advanceBookingWindowDays` had zero readers; `theme` has since been removed
+outright). Keep that honest — if a key
 lands in `DEFAULTS` before its enforcement does, say so here and in a comment
 next to it:
 
@@ -152,7 +153,8 @@ next to it:
 `scripts/check_pivots.py` now **fails** if a `DEFAULTS` leaf appears in neither
 its `ENFORCED` nor its `DECLARED_ONLY` map. That table is the promise that no key
 looks live and does nothing; nothing had been checking it, and 43 paths had
-already slipped through — including all of `copy` and `theme`, the very keys the
+already slipped through — including all of `copy` and the since-removed `theme`,
+the very keys the
 script's own header names as v1's cautionary tale.
 
 `rules.UNDISPATCHED` also holds `maxBookingsPerSlot` **deliberately**: capacity is

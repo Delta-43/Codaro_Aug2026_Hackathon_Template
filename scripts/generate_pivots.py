@@ -76,8 +76,6 @@ UNIT_BUSINESS = {
 PARTY_TERMS = {"individual": "Guests", "group": "Group", "buyout": "Whole group"}
 
 # Cycled so neighbouring pivots are visually distinct when one is loaded.
-PALETTE = ["#4f46e5", "#0d9488", "#b45309", "#be123c", "#7c3aed",
-           "#0369a1", "#15803d", "#c2410c", "#a21caf", "#1f2937"]
 
 
 # Letters NFKD leaves alone because they are letters in their own right, not an
@@ -125,7 +123,6 @@ def build(pivot: dict) -> dict:
         cfg["tenancy"]["providerCode"] = SEEDED_PROVIDER_CODE
     cfg["domain"] = slug(pivot["name"])
     cfg.update(vocabulary(pivot, cfg))
-    cfg["theme"] = dict(cfg["theme"], primaryColor=PALETTE[(pivot["n"] - 1) % len(PALETTE)])
     errors = validate(cfg)
     if errors:
         raise SystemExit(f"#{pivot['n']} {pivot['name']} does not validate:\n  " + "\n  ".join(errors))
@@ -253,9 +250,6 @@ The rest are the label layer; none of them changes engine behaviour. Everything
 that does — `capabilities`, `booking`, `pricing`, `payments`, `inventory`,
 `location`, `prerequisites`, `timing`, `recurrence`, `entitlements`, `discovery`,
 `tenancy` — comes from the pivot definition unchanged.
-
-`theme.primaryColor` cycles through a ten-colour palette so two pivots loaded
-back to back look different. It is cosmetic; the frontend does not read it yet.
 
 ## What these files do and do not prove
 

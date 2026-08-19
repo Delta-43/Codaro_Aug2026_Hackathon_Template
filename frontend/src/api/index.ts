@@ -265,11 +265,6 @@ export type ConfigCopy = Partial<
   >
 >;
 
-/** The pivot file's `theme` block. `primaryColor` is any CSS colour; `radius` any
- *  CSS length. Both map onto the `--primary` / `--radius` tokens in globals.css,
- *  which every Tailwind utility in the app already derives from. */
-export type ConfigTheme = { primaryColor: string | null; radius: string | null };
-
 /** Keep only the string values, so a malformed config yields a *missing* key
  *  (which falls back) rather than `undefined` rendered as a label. */
 function stringsOnly<T extends string>(raw: unknown): Partial<Record<T, string>> {
@@ -281,22 +276,15 @@ function stringsOnly<T extends string>(raw: unknown): Partial<Record<T, string>>
   return out;
 }
 
-function themeFromConfig(cfg: unknown): ConfigTheme {
-  const t = (cfg as { theme?: { primaryColor?: unknown; radius?: unknown } })?.theme ?? {};
-  const str = (v: unknown) => (typeof v === "string" && v.trim() !== "" ? v : null);
-  return { primaryColor: str(t.primaryColor), radius: str(t.radius) };
-}
-
 /** Everything `AppProvider` needs from the pivot file, in ONE request. Boot used
  *  to call `/config` for tenancy alone; this keeps the round-trip count the same
- *  while also picking up the location, vocabulary and theme blocks. */
+ *  while also picking up the location and vocabulary blocks. */
 export type PivotConfig = {
   tenancy: Tenancy;
   location: LocationConfig;
   capabilities: Capabilities;
   terms: ConfigTerms;
   copy: ConfigCopy;
-  theme: ConfigTheme;
 };
 
 /** The all-fallbacks value used when `/config` is unreachable. Boot must not hang
@@ -311,7 +299,6 @@ export const FALLBACK_PIVOT_CONFIG: PivotConfig = {
   // pre-pivot behaviour.
   terms: {},
   copy: {},
-  theme: { primaryColor: null, radius: null },
 };
 
 /** The pure half of `getPivotConfig` — a raw `/config` payload in, the parsed
@@ -325,7 +312,6 @@ export function parsePivotConfig(cfg: unknown): PivotConfig {
     capabilities: capabilitiesFromConfig(cfg),
     terms: stringsOnly<keyof ConfigTerms>((cfg as { terms?: unknown })?.terms),
     copy: stringsOnly<keyof ConfigCopy>((cfg as { copy?: unknown })?.copy),
-    theme: themeFromConfig(cfg),
   };
 }
 

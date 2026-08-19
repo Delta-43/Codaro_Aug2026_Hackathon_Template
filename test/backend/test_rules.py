@@ -287,7 +287,7 @@ def test_effective_service_config_returns_every_overridable_block(domain_config)
     ):
         assert block in resolved, block
     # Presentation stays global — a service may not re-word the app.
-    for block in ("terms", "copy", "theme"):
+    for block in ("terms", "copy"):
         assert block not in resolved
 
 

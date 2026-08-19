@@ -205,10 +205,6 @@
     "depositDue": "A deposit is due to confirm this booking.",
     "prerequisiteBlocked": "Some details are needed before this can be confirmed."
   },
-  "theme": {
-    "primaryColor": "#4f46e5",
-    "radius": "0.5rem"
-  },
   "metaFields": {
     "providers": [],
     "services": [],

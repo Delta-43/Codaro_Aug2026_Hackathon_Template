@@ -14,7 +14,6 @@ based on repurpose needs:
 | **Terminology** | `terms` | resource→Doctor, slot→Appointment, client→Patient, admins→Owner|
 | **Business rules** | `rules` | cancellation window, capacity, buffer, advance window, info, |
 | **Copy** | `copy` | CTAs, confirmation text, empty states|
-| **Theme** | `theme` | colors, radius |
 | **Custom fields** | `metaFields` + `metadata` jsonb | specialty, reason — **no migration** |
 
 The backend serves this file at `GET /config`; the frontend fetches it and renders
@@ -138,7 +137,7 @@ shape of the offering:
 
 | Block | Controls |
 |-------|----------|
-| `terms` / `copy` / `theme` | vocabulary, CTAs, empty states, colours |
+| `terms` / `copy` | vocabulary, CTAs, empty states |
 | `capabilities` | on/off spine — payments, inventory, waitlist, quotes, reviews… |
 | `booking` | unit kind, granularity, duration mode, party rules, add-on options |
 | `pricing` | rate + tiers + fees + caps + deposit (per-hour, per-night, per-person, tiered…) |

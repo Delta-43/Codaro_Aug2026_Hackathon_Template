@@ -215,7 +215,7 @@ _SERVICE_RULE_MAP = {
 }
 
 # The v2 blocks a service may override wholesale via `services.metadata.<block>`.
-# `terms`/`copy`/`theme` are deliberately absent: presentation stays global for
+# `terms`/`copy` are deliberately absent: presentation stays global for
 # now (per-service vocabulary is a frontend change, not a backend one).
 OVERRIDABLE_BLOCKS = (
     "booking",

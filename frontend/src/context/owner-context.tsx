@@ -32,7 +32,6 @@ import {
   type ConfigTerms,
 } from "@/api";
 import { applyPivotVocabulary, VERTICALS, type VerticalConfig } from "@/config/verticals";
-import { applyPivotTheme } from "@/lib/pivot-theme";
 
 const PID_KEY = "codaro.owner.activeProviderId";
 
@@ -100,9 +99,6 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
       setCapabilities(pivot.capabilities);
       setTerms(pivot.terms);
       setCopy(pivot.copy);
-      // The owner console mounts under its own layout, so it never passes
-      // through AppProvider — it has to apply the brand colour itself.
-      applyPivotTheme(pivot.theme);
       const stored = typeof window !== "undefined" ? localStorage.getItem(PID_KEY) : null;
       setPid(list.find((p) => p.id === stored)?.id ?? list[0]?.id ?? null);
       setReady(true);

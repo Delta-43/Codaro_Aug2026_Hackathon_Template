@@ -128,5 +128,5 @@ def test_api_error_codes_match_the_backend():
 
 def test_config_exposes_every_section_the_domainconfig_type_needs(client, use_real_config):
     payload = client.get("/config").json()
-    for section in ("domain", "terms", "rules", "copy", "theme", "metaFields"):
+    for section in ("domain", "terms", "rules", "copy", "metaFields"):
         assert section in payload, f"missing config section: {section}"

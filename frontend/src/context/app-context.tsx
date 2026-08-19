@@ -40,7 +40,6 @@ import {
   type VerticalConfig,
 } from "@/config/verticals";
 import { setGeoSettings } from "@/lib/geo";
-import { applyPivotTheme } from "@/lib/pivot-theme";
 
 interface AppContextValue {
   /** False until the first user/vertical fetch resolves. */
@@ -177,12 +176,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Distances render from the pivot file's origin/unit, not a hardcoded city.
       setGeoSettings(pivot.location);
       setCapabilities(pivot.capabilities);
-      // Vocabulary and brand colour come from the config too. Applied here (not
-      // in a render effect) so a `reload()` after `make reload` repaints without
-      // a refresh, and so the theme lands in the same pass as the nouns.
+      // Vocabulary comes from the config too. Applied here (not in a render
+      // effect) so a `reload()` after `make reload` repaints without a refresh.
       setTerms(pivot.terms);
       setCopy(pivot.copy);
-      applyPivotTheme(pivot.theme);
       const { tenancy } = pivot;
       const single = tenancy.mode === "single";
       setSingleBusiness(single);

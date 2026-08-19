@@ -46,7 +46,7 @@ NOW = datetime(2026, 8, 18, 12, 0, tzinfo=timezone.utc)
 # `backend/app`. Keep this honest — a path listed here must have a real reader,
 # and anything in DECLARED_ONLY must say what is missing. This map is what stops
 # the config growing a second generation of keys that look live and do nothing,
-# which is exactly what happened to v1's `copy` and `theme`.
+# which is exactly what happened to v1's `copy` (and to `theme`, since removed).
 # ---------------------------------------------------------------------------
 ENFORCED = {
     "timing.advanceBookingWindowDays": "rules.RULES['booking.create'] + seed_config._grid",
@@ -154,11 +154,12 @@ DECLARED_ONLY = {
     "tenancy.commission": "no platform ledger — nothing computes or charges a commission",
     "tenancy.tenantVerification": "tenant onboarding review flow",
     # v1's cautionary tale, still true. `terms.admin` and `terms.slot` have real
-    # readers (see ENFORCED); the rest, all of `copy` and all of `theme`, are
-    # served over /config and rendered by nothing — the frontend takes its
-    # vocabulary from src/config/verticals.ts. Listing them here is the point of
-    # this map: they were previously in NEITHER, so the coverage report claimed
-    # an audit it had not done.
+    # readers (see ENFORCED); the rest, and all of `copy`, are served over
+    # /config and rendered by nothing — the frontend takes its vocabulary from
+    # src/config/verticals.ts. (v1's `theme` was the worst case and is now gone
+    # from the config entirely; the frontend owns its palette.) Listing them here
+    # is the point of this map: they were previously in NEITHER, so the coverage
+    # report claimed an audit it had not done.
     "terms.provider": "E10 per-service vocabulary (frontend reads verticals.ts)",
     "terms.providers": "E10 per-service vocabulary",
     "terms.service": "E10 per-service vocabulary",
@@ -175,7 +176,6 @@ DECLARED_ONLY = {
     "terms.clients": "E10 per-service vocabulary",
     "terms.admins": "E10 per-service vocabulary",
     "copy": "config-driven copy layer (frontend strings are literals today)",
-    "theme": "runtime theming (frontend uses its own Tailwind tokens)",
 }
 
 
@@ -945,8 +945,9 @@ def check_audit_coverage() -> list[str]:
 
     The two maps above are the promise that no key "looks live and does nothing".
     Nothing checked that the promise was kept, and it had already been broken by
-    43 paths — all of `copy` and `theme` (the very keys the header names as v1's
-    cautionary tale), 13 of 15 `terms`, `pricing.model`, `tenancy.commission` —
+    43 paths — all of `copy` and the since-removed `theme` (the very keys the
+    header names as v1's cautionary tale), 13 of 15 `terms`, `pricing.model`,
+    `tenancy.commission` —
     so the coverage report claimed an audit it had not done. Adding a key to
     DEFAULTS now fails this script until it is classified.
     """

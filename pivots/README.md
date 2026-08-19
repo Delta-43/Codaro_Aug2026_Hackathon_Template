@@ -67,9 +67,6 @@ that does — `capabilities`, `booking`, `pricing`, `payments`, `inventory`,
 `location`, `prerequisites`, `timing`, `recurrence`, `entitlements`, `discovery`,
 `tenancy` — comes from the pivot definition unchanged.
 
-`theme.primaryColor` cycles through a ten-colour palette so two pivots loaded
-back to back look different. It is cosmetic; the frontend does not read it yet.
-
 ## What these files do and do not prove
 
 They prove the schema can **express** each business: every file here validates

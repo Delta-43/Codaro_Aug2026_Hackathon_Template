@@ -222,8 +222,10 @@ auto-approve toggle), `approvalWindowHours`, `leadTimeMinutes` (minimum notice),
 `entitlements`: `{enabled, kind, plans[]}` — credits, memberships, passes.
 `discovery`: `{mode: browse|reverse, facets{}, matching{}}`.
 
-### `terms` · `copy` · `theme` · `metaFields`
-`terms` is 17 nouns; `copy` is 10 strings; `theme` is colour + radius.
+### `terms` · `copy` · `metaFields`
+`terms` is 17 nouns; `copy` is 10 strings. (v1's `theme` block — colour +
+radius — has been removed: the frontend owns its own palette, and a `theme` key
+left in an old pivot file is dropped at load rather than rejected.)
 `metaFields` maps six entities (`providers` `services` `resources` `slots`
 `bookings` `subjects`) to field descriptors:
 

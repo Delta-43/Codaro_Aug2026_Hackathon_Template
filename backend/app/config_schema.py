@@ -1,7 +1,7 @@
 """Domain config v2 — defaults, v1 aliasing, and validation.
 
 `domain.config.json` is the pivot file. v1 shipped five sections
-(`terms`/`rules`/`copy`/`theme`/`metaFields`) that between them expressed exactly
+(`terms`/`rules`/`copy`/`metaFields`) that between them expressed exactly
 one kind of business: a time-slot calendar with a price per slot. v2 adds the
 blocks that let the *shape* of the offering pivot too — pricing, payments,
 inventory, location, prerequisites, timing.
@@ -285,8 +285,6 @@ DEFAULTS: dict[str, Any] = {
         "prerequisiteBlocked": "Some details are needed before this can be confirmed.",
     },
 
-    "theme": {"primaryColor": "#4f46e5", "radius": "0.5rem"},
-
     "metaFields": {
         "providers": [], "services": [], "resources": [],
         "slots": [], "bookings": [], "subjects": [],
@@ -332,6 +330,10 @@ def normalize(raw: dict | None) -> dict:
     """
     raw = raw or {}
     cfg = deep_merge(_copy.deepcopy(DEFAULTS), raw)
+    # v1's `theme` block (primaryColor/radius) is gone: the frontend owns its own
+    # palette. Dropped rather than rejected so an old pivot file still boots — it
+    # simply has no effect on the UI.
+    cfg.pop("theme", None)
 
     raw_timing = raw.get("timing") if isinstance(raw.get("timing"), dict) else {}
     raw_rules = raw.get("rules") if isinstance(raw.get("rules"), dict) else {}

@@ -28,7 +28,9 @@ a time-slot calendar with a price per slot. v2 adds the blocks that let the
 `payments`, `inventory`, `location`, `prerequisites`, `timing`, `recurrence`,
 `entitlements`, `discovery`. It is strictly additive — `rules` and `search`
 survive as deprecated aliases kept in sync with `timing` and `discovery`, so a v1
-file still boots. The backend normalizes and **validates** it at load
+file still boots. The one *subtractive* change: v1's `theme` block is gone. The
+frontend owns its palette (its own Tailwind tokens plus the site's light/dark
+toggle), so a `theme` key in an old pivot file is silently dropped at load. The backend normalizes and **validates** it at load
 (`app/config_schema.py`), so a typo fails at the edit rather than on the next
 booking, and serves it at `GET /config`.
 

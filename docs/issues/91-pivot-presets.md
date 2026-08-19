@@ -305,3 +305,24 @@ but NOT enforced" table, and the pinned `SERVICE_KEYS`/`BOOKING_KEYS` sets.
   overbooking allowance, season overrides, multi-dimensional capacity. These are
   gaps in the **config language itself**, not wiring.
 - `TODO.md`'s P1–P6 round-trip amplification, untouched.
+
+
+## Follow-up (2026-08-19): the `theme` block was removed
+
+The theming half of this issue has been reverted, deliberately and further than
+the original state: `theme` is no longer part of the pivot system at all. The
+site keeps its own palette — `globals.css` tokens plus the light/dark toggle —
+and a pivot config no longer gets a say in colour or radius.
+
+- `frontend/src/lib/pivot-theme.ts` deleted; both contexts stopped calling it.
+- `PivotConfig` / `ConfigTheme` lost the `theme` field (`frontend/src/api/index.ts`).
+- `theme` removed from `DEFAULTS` in `backend/app/config_schema.py`. For
+  back-compat `normalize()` **drops** a `theme` key from an old file rather than
+  rejecting it, so every v1 config still boots — it just has no visual effect.
+- `theme` stripped from `domain.config.json`, the two example configs and all
+  100 files in `pivots/`; `scripts/generate_pivots.py` no longer cycles a palette
+  and `scripts/check_pivots.py` no longer classifies the block.
+
+Rationale: `theme` was the clearest case of config that looks live and does
+nothing, and per-pivot colours were never worth the coupling between the pivot
+file and the frontend's design tokens.
