@@ -24,7 +24,7 @@ export function ResultScreen({
   tz: string;
   onDone: () => void;
 }) {
-  const { copy } = useApp();
+  const { copy, vertical } = useApp();
   // A `timing.confirmation: request_approve` pivot lands the booking as PENDING,
   // and this screen still said "You're booked" — the one moment the config has a
   // dedicated sentence for (`copy.requestPending`) was the moment it was wrong.
@@ -38,6 +38,19 @@ export function ResultScreen({
         <Check className="size-7" aria-hidden />
       </div>
       <h1 className="mt-4 text-xl font-semibold tracking-tight">{headline}</h1>
+
+      {/* A repeating series: say exactly how many landed. A customer who asked
+          for 12 and got 3 must not have to count their own bookings to find
+          out — `skipped` is reported by the server for precisely this. */}
+      {booking.series ? (
+        <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+          {booking.series.bookedIds.length} of {booking.series.requested}{" "}
+          {booking.series.pattern} {vertical.bookingNounPlural.toLowerCase()} booked
+          {booking.series.skipped.length
+            ? ` — ${booking.series.skipped.length} had no availability and were skipped.`
+            : "."}
+        </p>
+      ) : null}
 
       <p className="mt-4 text-xs uppercase tracking-wide text-muted-foreground">Reference</p>
       <p className="font-mono text-2xl font-semibold tracking-widest">{booking.reference}</p>

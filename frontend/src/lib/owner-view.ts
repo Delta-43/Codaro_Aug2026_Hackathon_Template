@@ -27,5 +27,8 @@ export function ownerBookingToCal(b: OwnerBooking, serviceName?: string): DemoBo
     partySize: b.partySize,
     priceMinorUnits: b.priceMinorUnits,
     currency: b.currency,
+    loan: b.loan,
+    prerequisitesPending: b.prerequisitesPending,
+    payment: b.payment,
   };
 }

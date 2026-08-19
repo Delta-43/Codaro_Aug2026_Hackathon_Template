@@ -63,7 +63,7 @@ function isActive(pathname: string, href: string): boolean {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, ready, reload, activeProvider, singleBusiness } = useApp();
+  const { user, ready, reload, activeProvider, singleBusiness, vertical } = useApp();
   const [retrying, setRetrying] = useState(false);
 
   // AuthGate has already established a session, so a finished boot with no
@@ -91,7 +91,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const unread = useUnreadCount();
 
   // Both tab sets are module constants, so a plain switch on the mode is enough.
-  const tabs = singleBusiness ? SINGLE_TABS : TABS;
+  // The bookings tab is the one nav label the pivot file names (`terms.bookings`);
+  // the rest are app furniture, not domain vocabulary. Relabelled here rather
+  // than in the module-level constants, which are built before any config load.
+  const tabs = (singleBusiness ? SINGLE_TABS : TABS).map((tab) =>
+    tab === BOOKINGS_TAB ? { ...tab, label: vertical.bookingNounPlural } : tab,
+  );
   const home = singleBusiness ? "/provider" : "/search";
 
   const active = tabs.find((t) => isActive(pathname, t.href)) ?? tabs[0];

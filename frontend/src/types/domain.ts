@@ -65,7 +65,57 @@ export interface Service {
    *  this, not on the global block from `/config`: the routers gate per service,
    *  so a service-level override is invisible to the global value. */
   capabilities: Record<string, boolean>;
+  /** `pricing.model` — how the price is arrived at. `priceMinorUnits` above is
+   *  only the BASE RATE; under anything but "fixed" it is not the price, so
+   *  render a total from a `Quote`, never by multiplying this. */
+  pricingModel: string;
+  /** `pricing.rate.per` — what one unit of the base rate buys ("slot", "hour",
+   *  "person", "booking", "unit"). */
+  rateUnit: string;
+  /** `payments.flow` — when money is collected: "none" (no payment in the
+   *  product at all), "prepay", "deposit", "invoice_after". */
+  paymentFlow: string;
+  /** `payments.billingCycle` — "none" for one-off, else "monthly"/"annual". */
+  billingCycle: string;
+  /** `prerequisites` — what must be satisfied before this can be confirmed. */
+  prerequisites: Prerequisite[];
+  /** `recurrence` — the repeat patterns this service offers, already gated on
+   *  the capability, so `enabled` alone decides whether to show the control. */
+  recurrence: { enabled: boolean; patterns: string[]; maxOccurrences: number };
+  /** Whether full slots offer a queue (`timing.waitlist`), capability-gated. */
+  waitlist: { enabled: boolean };
   resourceIds: ID[];
+}
+
+/** One entry of the config's `prerequisites` block. */
+export interface Prerequisite {
+  key: string;
+  kind: string;
+  label: string;
+  appliesTo: string;
+  required: boolean;
+  blocksConfirmation: boolean;
+}
+
+/** A priced selection from `POST /bookings/quote` — the authoritative total.
+ *  The engine that produces this is the one that charges, so the UI must show
+ *  this number rather than recomputing it. */
+export interface Quote {
+  amountMinorUnits: number;
+  currency: string;
+  /** > 0 when `pricing.deposit` applies: the part due now. */
+  depositMinorUnits: number;
+  /** Why the total is what it is — base rate, tier, fees, cap adjustment. */
+  breakdown: { label: string; amountMinorUnits: number }[];
+  paymentFlow: string;
+  /** The entitlement applied to this quote, or null. Shown so a discount is
+   *  never silent — an unexplained lower price confuses as much as a surcharge. */
+  entitlement: {
+    key: string;
+    label: string;
+    discountBps: number;
+    creditsRemaining: number | null;
+  } | null;
 }
 
 export interface Resource {
@@ -124,6 +174,91 @@ export interface Booking {
   cancelledAtUtc?: IsoUtc;
   changeHistory: { atUtc: IsoUtc; fromStartUtc: IsoUtc; toStartUtc: IsoUtc }[];
   review?: { rating: number; text: string; createdAtUtc: IsoUtc };
+  /** The return leg, or null when the service loans nothing. Non-null only
+   *  where `inventory.returnRequired` — most deployments never see it. */
+  loan: Loan | null;
+  /** Present on the FIRST booking of a repeating series (`recurrence`), naming
+   *  every occurrence that was booked and every one that could not be. */
+  series?: BookingSeries;
+  /** Blocking `prerequisites` still outstanding. Non-empty means this cannot be
+   *  confirmed yet — the owner records each one as met. */
+  prerequisitesPending: string[];
+  prerequisitesMet: string[];
+  /** What is owed and whether it is settled. Derived from `payments.flow`
+   *  server-side, so it never drifts from the config after a pivot. */
+  payment: PaymentState;
+}
+
+/** Derived payment position on a booking (`payments.flow`). `state` is one of
+ *  none | not_required | invoiced | deposit_due | due | paid. */
+export interface PaymentState {
+  flow: string;
+  state: string;
+  totalMinorUnits: number;
+  depositMinorUnits: number;
+  paidMinorUnits: number;
+  outstandingMinorUnits: number;
+  currency: string;
+}
+
+/** A place in a slot's queue (`timing.waitlist`). */
+export interface WaitlistEntry {
+  id: ID;
+  slotId: ID;
+  serviceId: ID | null;
+  resourceId: ID | null;
+  partySize: number;
+  position: number;
+  status: string;
+  bookingId: ID | null;
+  createdAtUtc: IsoUtc;
+  /** How many are ahead — `position` is a join stamp, not a place in the queue. */
+  peopleAhead?: number;
+}
+
+/** The return leg of a rentable booking (`inventory.returnRequired`). The
+ *  overdue fee is computed server-side from the clock, never stored. */
+export interface Loan {
+  dueBackUtc: IsoUtc;
+  returnedAtUtc: IsoUtc | null;
+  daysOverdue: number;
+  overdueFeeMinorUnits: number;
+  overdueFeePerDayMinorUnits: number;
+}
+
+/** The outcome of a repeating booking request. `skipped` is not an error — an
+ *  occurrence with no open slot is reported so the customer is never left
+ *  believing they hold dates they do not. */
+export interface BookingSeries {
+  id: ID;
+  pattern: string;
+  requested: number;
+  bookedIds: ID[];
+  skipped: { startUtc: IsoUtc; reason: string }[];
+}
+
+/** A plan the deployment sells (`entitlements.plans[]`). */
+export interface EntitlementPlan {
+  key: string;
+  label: string;
+  priceMinorUnits: number | null;
+  cycle: string;
+  credits: number | null;
+  discountBps: number;
+}
+
+/** A plan this customer actually holds. */
+export interface HeldEntitlement {
+  id: ID;
+  planKey: string;
+  label: string;
+  status: string;
+  discountBps: number;
+  creditsTotal: number | null;
+  creditsUsed: number;
+  creditsRemaining: number | null;
+  startsAt: IsoUtc | null;
+  endsAt: IsoUtc | null;
 }
 
 export interface User {

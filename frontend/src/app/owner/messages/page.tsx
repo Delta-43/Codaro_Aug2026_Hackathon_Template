@@ -104,7 +104,7 @@ export default function MessagesPage() {
           <h1 className="text-lg font-semibold tracking-tight">Requests</h1>
           <p className="text-sm text-muted-foreground">
             {autoApprove
-              ? "Auto-approve is on — new bookings are accepted automatically."
+              ? `Auto-approve is on — new ${vocab.bookingNounPlural.toLowerCase()} are accepted automatically.`
               : `${pending.length} waiting on your decision.`}
           </p>
         </div>

@@ -10,6 +10,7 @@ import type { Booking } from "@/types/domain";
 import { cancelBooking, isApiError } from "@/api";
 import { Modal } from "@/components/modal";
 import { Button } from "@/components/ui/button";
+import { useVertical } from "@/context/app-context";
 
 export function CancelDialog({
   booking,
@@ -24,6 +25,8 @@ export function CancelDialog({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // `terms.booking` — lowercase because it lands mid-sentence in every use here.
+  const noun = useVertical().bookingNoun.toLowerCase();
 
   async function confirm() {
     if (busy) return;
@@ -33,14 +36,14 @@ export function CancelDialog({
       const updated = await cancelBooking(booking.id);
       onCancelled(updated);
     } catch (e) {
-      setError(isApiError(e) ? e.message : "Couldn't cancel this booking.");
+      setError(isApiError(e) ? e.message : `Couldn't cancel this ${noun}.`);
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Cancel booking?">
+    <Modal open={open} onClose={onClose} title={`Cancel ${noun}?`}>
       <p className="text-sm text-muted-foreground">
         This releases your place. This can&apos;t be undone.
       </p>
@@ -59,7 +62,7 @@ export function CancelDialog({
           Keep booking
         </Button>
         <Button variant="destructive" className="flex-1" isDisabled={busy} onPress={confirm}>
-          {busy ? "Cancelling…" : "Cancel booking"}
+          {busy ? "Cancelling…" : `Cancel ${noun}`}
         </Button>
       </div>
     </Modal>

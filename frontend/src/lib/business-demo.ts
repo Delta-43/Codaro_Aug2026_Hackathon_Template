@@ -9,6 +9,7 @@
  * seeded RNG, `avatarDataUri`, and the `Metric` / `DemoBooking` shapes that the
  * owner views still type against.
  */
+import type { Loan, PaymentState } from "@/types/domain";
 // --- deterministic RNG ------------------------------------------------------
 
 function hashStr(s: string): number {
@@ -85,4 +86,11 @@ export interface DemoBooking {
   partySize: number;
   priceMinorUnits: number;
   currency: string;
+  /** The return leg, when the service loans something. Null for the vast
+   *  majority of deployments, which loan nothing. */
+  loan?: Loan | null;
+  /** Outstanding blocking prerequisites and the payment position, so the owner
+   *  console can act on both without refetching the full booking. */
+  prerequisitesPending?: string[];
+  payment?: PaymentState;
 }

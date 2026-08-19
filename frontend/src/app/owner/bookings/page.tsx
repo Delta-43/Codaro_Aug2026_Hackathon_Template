@@ -18,6 +18,9 @@ import { Button } from "@/components/ui/button";
 import { BookingCalendar } from "@/components/business/booking-calendar";
 import {
   cancelBooking,
+  markReturned,
+  recordPayment,
+  satisfyPrerequisite,
   getOwnerCalendar,
   getOwnerServices,
   rateClient,
@@ -133,6 +136,46 @@ export default function BookingsPage() {
     return rows;
   }, [live, names, scope, now]);
 
+  async function doReturn(id: string) {
+    setBusy(true);
+    try {
+      const updated = await markReturned(id);
+      // Keep the modal open showing the settled loan: the owner needs to see
+      // the return landed, and any overdue fee it froze.
+      setSelected((prev) => (prev ? { ...prev, loan: updated.loan } : prev));
+    } catch (e) {
+      alert(e instanceof ApiError ? e.message : "Couldn't mark that returned.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doPay(id: string) {
+    setBusy(true);
+    try {
+      const updated = await recordPayment(id);
+      setSelected((prev) => (prev ? { ...prev, payment: updated.payment } : prev));
+    } catch (e) {
+      alert(e instanceof ApiError ? e.message : "Couldn't record that payment.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function doPrereq(id: string, key: string) {
+    setBusy(true);
+    try {
+      const updated = await satisfyPrerequisite(id, key);
+      setSelected((prev) =>
+        prev ? { ...prev, prerequisitesPending: updated.prerequisitesPending } : prev,
+      );
+    } catch (e) {
+      alert(e instanceof ApiError ? e.message : "Couldn't record that.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function doCancel(id: string) {
     setBusy(true);
     try {
@@ -141,7 +184,7 @@ export default function BookingsPage() {
       setSelected(null);
     } catch (e) {
       // Surface the backend's reason inline in the modal footer.
-      alert(e instanceof ApiError ? e.message : "Couldn't cancel that booking.");
+      alert(e instanceof ApiError ? e.message : `Couldn't cancel that ${vocab.bookingNoun.toLowerCase()}.`);
     } finally {
       setBusy(false);
     }
@@ -152,8 +195,8 @@ export default function BookingsPage() {
   return (
     <section className="space-y-4 py-2">
       <div>
-        <h1 className="text-lg font-semibold tracking-tight">Bookings</h1>
-        <p className="text-sm text-muted-foreground">Your confirmed bookings across every offer.</p>
+        <h1 className="text-lg font-semibold tracking-tight">{vocab.bookingNounPlural}</h1>
+        <p className="text-sm text-muted-foreground">Your confirmed {vocab.bookingNounPlural.toLowerCase()} across every offer.</p>
       </div>
 
       {bookings.length === 0 ? (
@@ -265,8 +308,31 @@ export default function BookingsPage() {
                 isDisabled={busy || selected.status === "completed"}
                 onPress={() => doCancel(selected.id)}
               >
-                Cancel booking
+                Cancel {vocab.bookingNoun.toLowerCase()}
               </Button>
+              {/* Only where the service loans something (`inventory.returnRequired`)
+                  and it has not already come back. Owner-only by design: the
+                  business is the party that can see the item returned. */}
+              {selected.loan && !selected.loan.returnedAtUtc ? (
+                <Button size="sm" isDisabled={busy} onPress={() => doReturn(selected.id)}>
+                  Mark returned
+                </Button>
+              ) : null}
+              {/* Settle the balance. `payments.adapter` is manual everywhere, so
+                  this RECORDS money received rather than charging a card. */}
+              {selected.payment && selected.payment.outstandingMinorUnits > 0 ? (
+                <Button size="sm" isDisabled={busy} onPress={() => doPay(selected.id)}>
+                  Record {formatMoney(selected.payment.outstandingMinorUnits, selected.payment.currency)}
+                </Button>
+              ) : null}
+              {/* Each blocking prerequisite gets its own button: the owner is
+                  attesting to a specific check, not clearing them wholesale. */}
+              {(selected.prerequisitesPending ?? []).map((key) => (
+                <Button key={key} size="sm" variant="outline" isDisabled={busy}
+                        onPress={() => doPrereq(selected.id, key)}>
+                  Mark &ldquo;{key}&rdquo; met
+                </Button>
+              ))}
             </div>
             {selected.status === "completed" && reviewable[selected.id] ? (
               <RateClient bookingId={selected.id} clientName={selected.client} />

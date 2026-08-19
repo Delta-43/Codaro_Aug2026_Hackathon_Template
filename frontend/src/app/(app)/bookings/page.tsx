@@ -44,7 +44,7 @@ function bookingToCal(b: Booking): DemoBooking | null {
 }
 
 export default function BookingsPage() {
-  const { user, ready, singleBusiness, copy } = useApp();
+  const { user, ready, singleBusiness, copy, vertical } = useApp();
   const router = useRouter();
   const tz = user?.timezone ?? "UTC";
   const [scope, setScope] = useState<Scope>("upcoming");
@@ -67,7 +67,7 @@ export default function BookingsPage() {
 
   return (
     <section className="space-y-4 py-4">
-      <h1 className="text-xl font-semibold tracking-tight md:sr-only">Bookings</h1>
+      <h1 className="text-xl font-semibold tracking-tight md:sr-only">{vertical.bookingNounPlural}</h1>
 
       {/* Calendar of my bookings — marketplace only; single-business has its own
           Calendar tab, so this would be a redundant second calendar. */}

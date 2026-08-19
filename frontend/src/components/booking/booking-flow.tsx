@@ -9,7 +9,7 @@
  */
 import { useMemo, useState } from "react";
 import type { Booking, Provider, Resource, Service, Slot } from "@/types/domain";
-import { createBooking, getAvailability, getResources, isApiError } from "@/api";
+import { createBooking, getAvailability, getResources, isApiError, joinWaitlist } from "@/api";
 import { useApp } from "@/context/app-context";
 import { useAsync } from "@/hooks/use-async";
 import { CalendarView } from "@/components/calendar/calendar-view";
@@ -32,13 +32,22 @@ export function BookingFlow({
   resource: Resource | null;
   tz: string;
 }) {
-  const { vertical } = useApp();
+  const { vertical, copy } = useApp();
   const isRange = service.maxSlotsPerBooking > 1;
 
   const [phase, setPhase] = useState<Phase>("browse");
   const [slots, setSlots] = useState<Slot[]>([]);
   const [start, setStart] = useState<Slot | null>(null);
   const [partySize, setPartySize] = useState(1);
+  // Repeat count, 1 = no repeat. Only offered where the config enables
+  // `recurrence` AND the capability is on; every other deployment never sees it.
+  const [repeatCount, setRepeatCount] = useState(1);
+  // The engine accepts one pattern per series; offering the first declared one
+  // keeps the control a single stepper rather than a pattern picker nobody asked
+  // for. A config listing several still books the first.
+  const repeatPattern = service.recurrence.enabled
+    ? (service.recurrence.patterns[0] ?? null)
+    : null;
   const [rangeError, setRangeError] = useState<string | null>(null);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
@@ -86,7 +95,7 @@ export function BookingFlow({
         .flatMap((d) => d.slots)
         .filter((s) => s.resourceId === start.resourceId)
         .sort((a, b) => ms(a.startUtc) - ms(b.startUtc));
-      const problem = validateSpan(span, service);
+      const problem = validateSpan(span, service, vertical.slotNounPlural);
       if (problem) {
         setRangeError(problem);
         return;
@@ -107,11 +116,15 @@ export function BookingFlow({
         resourceId: slots[0].resourceId,
         slotIds: slots.map((s) => s.id),
         partySize,
+        repeat:
+          repeatCount > 1 && repeatPattern
+            ? { pattern: repeatPattern, count: repeatCount }
+            : undefined,
       });
       setBooking(b);
       setPhase("result");
     } catch (e) {
-      const msg = isApiError(e) ? e.message : "Couldn't complete the booking.";
+      const msg = isApiError(e) ? e.message : `Couldn't complete the ${vertical.bookingNoun.toLowerCase()}.`;
       if (isApiError(e) && (e.code === "SLOT_UNAVAILABLE" || e.code === "CAPACITY_EXCEEDED")) {
         setBanner(msg);
         resetSelection();
@@ -122,6 +135,22 @@ export function BookingFlow({
       }
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** Take a place in the queue for a full slot. Feedback goes through the same
+   *  banner the calendar already uses for "that slot was just taken", so the
+   *  flow gains no new UI state for a rare action. */
+  async function joinQueue(slot: Slot) {
+    try {
+      const entry = await joinWaitlist(slot.id);
+      setBanner(
+        entry.peopleAhead
+          ? `You're on the waitlist — ${entry.peopleAhead} ahead of you.`
+          : (copy.waitlistJoined ?? "You're on the waitlist."),
+      );
+    } catch (e) {
+      setBanner(isApiError(e) ? e.message : "Couldn't join the waitlist.");
     }
   }
 
@@ -147,6 +176,9 @@ export function BookingFlow({
         vertical={vertical}
         partySize={partySize}
         onPartyChange={setPartySize}
+        repeatPattern={repeatPattern}
+        repeatCount={repeatCount}
+        onRepeatChange={setRepeatCount}
         busy={busy}
         error={confirmError}
         onConfirm={confirm}
@@ -183,6 +215,7 @@ export function BookingFlow({
         tz={tz}
         selectedIds={selectedIds}
         onSelect={handleSelect}
+        onWaitlist={service.waitlist.enabled ? joinQueue : undefined}
         reloadKey={reloadKey}
       />
 

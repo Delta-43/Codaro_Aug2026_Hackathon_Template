@@ -65,10 +65,15 @@ export function BusinessShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { signOut } = useAuth();
-  const { activeProvider, scene } = useOwner();
+  const { activeProvider, scene, vocab } = useOwner();
   const unread = useUnreadCount();
   const businessName = activeProvider?.name ?? "Your business";
-  const active = TABS.find((t) => isActive(pathname, t.href)) ?? TABS[0];
+  // Same relabel as the customer shell: `terms.bookings` owns this one word, so
+  // the owner console and the customer app never call it different things.
+  const tabs = TABS.map((t) =>
+    t.href === "/owner/bookings" ? { ...t, label: vocab.bookingNounPlural } : t,
+  );
+  const active = tabs.find((t) => isActive(pathname, t.href)) ?? tabs[0];
   const heading = pathname.startsWith("/owner/settings") ? "Settings" : active.label;
   const badgeFor = (href: string) => (href === "/owner/messages" ? unread : 0);
 
@@ -80,7 +85,7 @@ export function BusinessShell({ children }: { children: ReactNode }) {
           <Wordmark />
         </Link>
         <nav className="flex flex-col gap-1">
-          {TABS.map((tab) => (
+          {tabs.map((tab) => (
             <NavItem
               key={tab.href}
               tab={tab}
@@ -130,7 +135,7 @@ export function BusinessShell({ children }: { children: ReactNode }) {
 
       {/* Mobile bottom tab bar */}
       <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const Icon = tab.icon;
           const activeTab = isActive(pathname, tab.href);
           const badge = badgeFor(tab.href);

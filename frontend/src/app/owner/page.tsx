@@ -18,28 +18,29 @@ import { getOwnerDashboard } from "@/api";
 import type { OwnerDashboard, OwnerRequest } from "@/types/domain";
 import type { Metric } from "@/lib/business-demo";
 import { ownerBookingToCal } from "@/lib/owner-view";
+import type { VerticalConfig } from "@/config/verticals";
 import { browserTz, formatBookingWhen, formatMoney } from "@/lib/format";
 
-function metricsOf(d: OwnerDashboard): Metric[] {
+function metricsOf(d: OwnerDashboard, vocab: VerticalConfig): Metric[] {
   const { upcomingBookings: up, clientSatisfaction: sat, revenue: rev } = d.glance;
   const breakdown = up.byService.slice(0, 3).map((s) => s.count).join(" · ");
   const otherCurrencies = rev.byCurrency.slice(1).map((c) => c.currency);
   return [
     {
       key: "upcoming",
-      label: "Upcoming bookings",
+      label: `Upcoming ${vocab.bookingNounPlural.toLowerCase()}`,
       value: String(up.total),
       sub: up.byService.length ? `${breakdown} across ${up.byService.length} offers` : "next 30 days",
       tone: "neutral",
-      help: "Confirmed bookings in the next 30 days, broken down by offer. Open the calendar to manage any of them.",
+      help: `Confirmed ${vocab.bookingNounPlural.toLowerCase()} in the next 30 days, broken down by offer. Open the calendar to manage any of them.`,
     },
     {
       key: "satisfaction",
-      label: "Client satisfaction",
+      label: `${vocab.clientNoun} satisfaction`,
       value: `${sat.deltaPct >= 0 ? "+" : ""}${sat.deltaPct}%`,
       sub: "vs last month",
       tone: sat.deltaPct > 0 ? "up" : sat.deltaPct < 0 ? "down" : "neutral",
-      help: `Month-over-month change in booking volume. You're rated ${sat.currentRating.toFixed(1)} across ${sat.reviewCount} reviews.`,
+      help: `Month-over-month change in ${vocab.bookingNoun.toLowerCase()} volume. You're rated ${sat.currentRating.toFixed(1)} across ${sat.reviewCount} reviews.`,
     },
     {
       key: "revenue",
@@ -69,7 +70,7 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const metrics = useMemo(() => (data ? metricsOf(data) : []), [data]);
+  const metrics = useMemo(() => (data ? metricsOf(data, vocab) : []), [data, vocab]);
   const week = useMemo(() => (data?.weekBookings ?? []).map((b) => ownerBookingToCal(b)), [data]);
 
   if (!ready || loading) {
@@ -124,7 +125,7 @@ export default function DashboardPage() {
 
       {/* Bookings — this week */}
       <div>
-        <SectionHeader title="Bookings" href="/owner/bookings" cta="Full calendar" />
+        <SectionHeader title={vocab.bookingNounPlural} href="/owner/bookings" cta="Full calendar" />
         <BookingCalendar bookings={week} timezone={tz} defaultView="week" compact onOpen={() => {}} />
       </div>
 

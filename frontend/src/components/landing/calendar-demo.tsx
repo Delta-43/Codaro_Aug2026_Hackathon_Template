@@ -31,6 +31,15 @@ type Zoom = "Month" | "Week" | "Day";
 const SERVICE: Service = {
   // Landing-page fixture: nothing is disabled, so an empty block reads as ON.
   capabilities: {},
+  // Engine defaults — the landing calendar never prices or books anything, it
+  // just needs a complete Service to render slots against.
+  pricingModel: "fixed",
+  rateUnit: "slot",
+  paymentFlow: "none",
+  billingCycle: "none",
+  prerequisites: [],
+  recurrence: { enabled: false, patterns: [], maxOccurrences: 1 },
+  waitlist: { enabled: false },
   id: "svc-demo",
   providerId: "prov-demo",
   name: "Demo service",

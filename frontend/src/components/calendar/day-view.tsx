@@ -28,6 +28,7 @@ export function DayView({
   nameFor,
   selectedIds,
   onSelect,
+  onWaitlist,
 }: {
   availability: DayAvailability | undefined;
   tz: string;
@@ -36,6 +37,11 @@ export function DayView({
   nameFor: (resourceId: string) => string;
   selectedIds: Set<string>;
   onSelect?: (slot: Slot) => void;
+  /** Offered on FULL slots only, and only where the service runs a queue
+   *  (`timing.waitlist`). Kept separate from `onSelect` on purpose: joining a
+   *  queue is not booking, and conflating them would let a tap that means
+   *  "notify me" read as a commitment. */
+  onWaitlist?: (slot: Slot) => void;
 }) {
   const slots = availability?.slots ?? [];
   if (slots.length === 0) {
@@ -72,6 +78,7 @@ export function DayView({
           selected ? "border-primary ring-1 ring-primary" : "border-border",
           selectable ? "hover:bg-muted/50" : "opacity-60",
         );
+        const waitlistable = slot.status === "full" && !!onWaitlist;
         return selectable ? (
           <button
             key={slot.id}
@@ -81,6 +88,17 @@ export function DayView({
           >
             {body}
           </button>
+        ) : waitlistable ? (
+          <div key={slot.id} className={cn(className, "opacity-100")}>
+            {body}
+            <button
+              type="button"
+              onClick={() => onWaitlist!(slot)}
+              className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-xs font-medium hover:bg-muted"
+            >
+              Join waitlist
+            </button>
+          </div>
         ) : (
           <div key={slot.id} className={className}>
             {body}

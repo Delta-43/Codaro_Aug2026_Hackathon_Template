@@ -17,6 +17,8 @@ import type {
   ClientReputation,
   Conversation,
   DayAvailability,
+  EntitlementPlan,
+  HeldEntitlement,
   ID,
   IsoUtc,
   Message,
@@ -27,8 +29,10 @@ import type {
   OwnerServiceSummary,
   Provider,
   ProviderReview,
+  Quote,
   Resource,
   Service,
+  WaitlistEntry,
   User,
   VerticalId,
 } from "@/types/domain";
@@ -321,6 +325,72 @@ export async function getPivotConfig(): Promise<PivotConfig> {
   };
 }
 
+/** Price a selection WITHOUT booking it, through the engine that will charge.
+ *
+ *  The confirm screen used to compute `priceMinorUnits * slots * party`, which
+ *  is only the default pricing block's formula. On a tiered escape room that
+ *  showed 45000 and charged 12000. Anything that displays a total must come
+ *  from here. Throws the same ApiError an unbookable selection would raise. */
+export function getQuote(q: {
+  serviceId: ID;
+  resourceId: ID;
+  slotIds: ID[];
+  partySize: number;
+}): Promise<Quote> {
+  return post("/bookings/quote", {
+    serviceId: q.serviceId,
+    resourceId: q.resourceId,
+    slotIds: q.slotIds,
+    partySize: q.partySize,
+  }) as Promise<Quote>;
+}
+
+/** What this deployment sells as memberships/passes, and what the user holds.
+ *  Returns an empty catalogue (not an error) when `entitlements` is off, so the
+ *  caller hides the surface on `plans.length` without special-casing. */
+export function getMyEntitlements(): Promise<{
+  enabled: boolean;
+  kind: string;
+  plans: EntitlementPlan[];
+  held: HeldEntitlement[];
+  active: HeldEntitlement | null;
+}> {
+  return request("/me/entitlements");
+}
+
+/** Owner marks a loaned item handed back (`inventory.returnRequired`). Owner-only
+ *  on the server: a customer able to self-certify could clear their own fee. */
+export function markReturned(bookingId: ID): Promise<Booking> {
+  return post(`/bookings/${bookingId}/return`, undefined) as Promise<Booking>;
+}
+
+/** Take a place in the queue for a full slot (`timing.waitlist`). Refused by the
+ *  server when the slot still has room — booking it is strictly better. */
+export function joinWaitlist(slotId: ID): Promise<WaitlistEntry> {
+  return post(`/slots/${slotId}/waitlist`, undefined) as Promise<WaitlistEntry>;
+}
+
+export function leaveWaitlist(slotId: ID): Promise<{ ok: boolean }> {
+  return del(`/slots/${slotId}/waitlist`) as Promise<{ ok: boolean }>;
+}
+
+/** This customer's place in one slot's queue, plus how deep the queue is. */
+export function getWaitlistPlace(
+  slotId: ID,
+): Promise<{ entry: WaitlistEntry | null; depth: number }> {
+  return request(`/slots/${slotId}/waitlist`);
+}
+
+/** Owner records a blocking prerequisite as satisfied. */
+export function satisfyPrerequisite(bookingId: ID, key: string): Promise<Booking> {
+  return post(`/bookings/${bookingId}/prerequisites/${key}`, undefined) as Promise<Booking>;
+}
+
+/** Owner records money received. Omit `amount` to settle the outstanding balance. */
+export function recordPayment(bookingId: ID, amount?: number): Promise<Booking> {
+  return post(`/bookings/${bookingId}/pay${amount === undefined ? "" : `?amount=${amount}`}`, undefined) as Promise<Booking>;
+}
+
 // --- discovery -------------------------------------------------------------
 
 export function searchProviders(q: {
@@ -391,6 +461,11 @@ export function createBooking(input: {
   resourceId: ID;
   slotIds: ID[];
   partySize: number;
+  /** Optional repeat (`recurrence`). `count` INCLUDES this booking, and the
+   *  server clamps it to `recurrence.maxOccurrences` — the client never sets
+   *  the ceiling. Later occurrences are best-effort and the response's
+   *  `series.skipped` names any that could not be booked. */
+  repeat?: { pattern: string; count: number };
 }): Promise<Booking> {
   return post("/bookings", input) as Promise<Booking>;
 }

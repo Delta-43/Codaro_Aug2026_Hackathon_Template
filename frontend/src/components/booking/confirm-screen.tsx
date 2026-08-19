@@ -6,9 +6,11 @@
  * price and total, and the cancellation policy in words. Primary action is the
  * vertical's bookingVerb.
  */
+import { useEffect, useState } from "react";
 import { ChevronLeft } from "lucide-react";
-import type { Provider, Service, Slot } from "@/types/domain";
+import type { Provider, Quote, Service, Slot } from "@/types/domain";
 import type { VerticalConfig } from "@/config/verticals";
+import { getQuote } from "@/api";
 import { Button } from "@/components/ui/button";
 import { PartyStepper } from "@/components/booking/party-stepper";
 import {
@@ -31,6 +33,9 @@ export function ConfirmScreen({
   vertical,
   partySize,
   onPartyChange,
+  repeatPattern,
+  repeatCount,
+  onRepeatChange,
   busy,
   error,
   onConfirm,
@@ -44,6 +49,10 @@ export function ConfirmScreen({
   vertical: VerticalConfig;
   partySize: number;
   onPartyChange: (n: number) => void;
+  /** Non-null only when the service offers a repeat (`recurrence`). */
+  repeatPattern: string | null;
+  repeatCount: number;
+  onRepeatChange: (n: number) => void;
   busy: boolean;
   error: string | null;
   onConfirm: () => void;
@@ -59,7 +68,50 @@ export function ConfirmScreen({
     ? formatDate(first.startUtc, tz, { weekday: true })
     : `${formatDate(first.startUtc, tz, { weekday: true })} – ${formatDate(last.startUtc, tz, { weekday: true })}`;
   const timeLabel = `${formatTimeRange(first.startUtc, last.endUtc, tz)} ${zoneAbbrev(first.startUtc, tz)}`;
-  const total = service.priceMinorUnits * slots.length * partySize;
+
+  // The authoritative total comes from the engine that will charge it. The old
+  // `priceMinorUnits * slots * party` here is only the DEFAULT pricing block's
+  // formula: on a tiered service it showed 45000 where the API charged 12000.
+  // Re-quoted whenever the selection or party size changes.
+  const slotKey = slots.map((s) => s.id).join(",");
+  // Stamped with the inputs it was quoted for. A bare `quote` would keep showing
+  // the previous total while a re-quote is in flight after a party change —
+  // displaying a stale price is the exact bug this component is fixing, so the
+  // result is only rendered when its stamp still matches the selection.
+  const quoteKey = `${service.id}|${slotKey}|${partySize}`;
+  const [result, setResult] = useState<{ key: string; quote: Quote | null }>({
+    key: "",
+    quote: null,
+  });
+  useEffect(() => {
+    let cancelled = false;
+    getQuote({
+      serviceId: service.id,
+      resourceId: slots[0].resourceId,
+      slotIds: slots.map((s) => s.id),
+      partySize,
+    })
+      .then((q) => !cancelled && setResult({ key: quoteKey, quote: q }))
+      .catch(() => !cancelled && setResult({ key: quoteKey, quote: null }));
+    return () => {
+      cancelled = true;
+    };
+  }, [service.id, slotKey, partySize, slots, quoteKey]);
+
+  const settled = result.key === quoteKey;
+  const quote = settled ? result.quote : null;
+  const quoteError = settled && result.quote === null;
+
+  // `payments.flow` decides whether money is even due here. "invoice_after"
+  // bills later and "none" means the product carries no payment at all —
+  // labelling either "Total" beside a pay affordance was wrong.
+  const moneyLabel =
+    service.paymentFlow === "invoice_after"
+      ? "Billed after"
+      : service.paymentFlow === "deposit"
+        ? "Due now"
+        : "Total";
+  const blocking = service.prerequisites.filter((p) => p.blocksConfirmation);
 
   return (
     <section className="py-4">
@@ -98,22 +150,86 @@ export function ConfirmScreen({
         )}
       </div>
 
-      {/* Price */}
-      <div className="mt-3 rounded-xl border border-border bg-card p-4">
-        <div className="flex items-baseline justify-between py-1 text-sm text-muted-foreground">
-          <span>
-            {formatMoney(service.priceMinorUnits, service.currency)} × {slots.length}
-            {isShared ? ` × ${partySize}` : ""}
-          </span>
-          <span>{formatMoney(total, service.currency)}</span>
+      {/* Price — every line comes from the quote, so what is shown is charged. */}
+      {service.paymentFlow !== "none" ? (
+        <div className="mt-3 rounded-xl border border-border bg-card p-4">
+          {quote ? (
+            <>
+              {quote.breakdown.map((line, i) => (
+                <div
+                  key={`${line.label}-${i}`}
+                  className="flex items-baseline justify-between py-1 text-sm text-muted-foreground"
+                >
+                  <span>{line.label}</span>
+                  <span>{formatMoney(line.amountMinorUnits, quote.currency)}</span>
+                </div>
+              ))}
+              <div className="mt-1 flex items-baseline justify-between border-t border-border pt-2">
+                <span className="text-sm font-semibold">{moneyLabel}</span>
+                <span className="text-base font-semibold">
+                  {formatMoney(quote.amountMinorUnits, quote.currency)}
+                </span>
+              </div>
+              {quote.depositMinorUnits > 0 ? (
+                <div className="mt-1 flex items-baseline justify-between text-sm">
+                  <span className="text-muted-foreground">Deposit due now</span>
+                  <span className="font-medium">
+                    {formatMoney(quote.depositMinorUnits, quote.currency)}
+                  </span>
+                </div>
+              ) : null}
+              {service.billingCycle !== "none" ? (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Billed {service.billingCycle}.
+                </p>
+              ) : null}
+            </>
+          ) : quoteError ? (
+            // Never fall back to arithmetic here: a wrong number is worse than
+            // none, because the customer would take it as the price.
+            <p className="text-sm text-muted-foreground">
+              Price unavailable — it will be confirmed when you {vertical.bookingVerb.toLowerCase()}.
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">Pricing…</p>
+          )}
         </div>
-        <div className="mt-1 flex items-baseline justify-between border-t border-border pt-2">
-          <span className="text-sm font-semibold">Total</span>
-          <span className="text-base font-semibold">
-            {formatMoney(total, service.currency)}
-          </span>
+      ) : null}
+
+      {/* Repeat — `recurrence`. Later occurrences are best-effort on the server:
+          they land only where the business actually opened a slot, and the
+          response names any that could not be booked. */}
+      {repeatPattern ? (
+        <div className="mt-3 flex items-center justify-between gap-4 rounded-xl border border-border bg-card p-4">
+          <div className="text-sm">
+            <div className="font-medium">Repeat {repeatPattern}</div>
+            <div className="text-muted-foreground">
+              {repeatCount > 1
+                ? `${repeatCount} ${vertical.bookingNounPlural.toLowerCase()} in total`
+                : "Just this one"}
+            </div>
+          </div>
+          <PartyStepper
+            value={repeatCount}
+            max={Math.max(1, service.recurrence.maxOccurrences)}
+            unit="times"
+            onChange={onRepeatChange}
+          />
         </div>
-      </div>
+      ) : null}
+
+      {blocking.length ? (
+        <div className="mt-3 rounded-xl border border-border bg-card p-4">
+          <p className="text-sm font-semibold">Before this can be confirmed</p>
+          <ul className="mt-1 space-y-1">
+            {blocking.map((p) => (
+              <li key={p.key} className="text-sm text-muted-foreground">
+                {p.label}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       <p className="mt-3 text-sm text-muted-foreground">
         {formatCutoffPolicy(first.startUtc, service.cancellationCutoffHours, tz)}

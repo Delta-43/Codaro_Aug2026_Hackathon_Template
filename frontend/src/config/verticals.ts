@@ -19,6 +19,16 @@ export interface VerticalConfig {
   bookingVerb: string; // primary CTA, e.g. "Reserve"
   /** Word for the party-size unit in shared_capacity verticals (else null). */
   partyNoun: string | null;
+  /** The unit of the calendar — `terms.slot`. "Billing period" for a monthly
+   *  plan, "Night" for a hotel. Capitalised; lowercase it mid-sentence. */
+  slotNoun: string;
+  slotNounPlural: string;
+  /** What a completed reservation is called — `terms.booking`. */
+  bookingNoun: string;
+  bookingNounPlural: string;
+  /** What the person booking is called — `terms.client`. */
+  clientNoun: string;
+  clientNounPlural: string;
   categories: { id: string; label: string }[];
   searchPlaceholder: string;
   copy: {
@@ -42,6 +52,15 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
     resourceNounPlural: "Vehicles",
     bookingVerb: "Reserve",
     partyNoun: null,
+    // These three default to the wording already on screen, so a config that
+    // says nothing about them renders exactly as before. They exist to be
+    // overridden by `terms.slot` / `terms.booking` / `terms.client`.
+    slotNoun: "Time slot",
+    slotNounPlural: "Time slots",
+    bookingNoun: "Booking",
+    bookingNounPlural: "Bookings",
+    clientNoun: "Client",
+    clientNounPlural: "Clients",
     categories: [
       { id: "economy", label: "Economy" },
       { id: "suv", label: "SUV" },
@@ -67,6 +86,15 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
     resourceNounPlural: "Tutors",
     bookingVerb: "Book",
     partyNoun: null,
+    // These three default to the wording already on screen, so a config that
+    // says nothing about them renders exactly as before. They exist to be
+    // overridden by `terms.slot` / `terms.booking` / `terms.client`.
+    slotNoun: "Time slot",
+    slotNounPlural: "Time slots",
+    bookingNoun: "Booking",
+    bookingNounPlural: "Bookings",
+    clientNoun: "Client",
+    clientNounPlural: "Clients",
     categories: [
       { id: "math", label: "Maths & sciences" },
       { id: "languages", label: "Languages" },
@@ -92,6 +120,15 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
     resourceNounPlural: "Rooms",
     bookingVerb: "Book",
     partyNoun: "spots",
+    // These three default to the wording already on screen, so a config that
+    // says nothing about them renders exactly as before. They exist to be
+    // overridden by `terms.slot` / `terms.booking` / `terms.client`.
+    slotNoun: "Time slot",
+    slotNounPlural: "Time slots",
+    bookingNoun: "Booking",
+    bookingNounPlural: "Bookings",
+    clientNoun: "Client",
+    clientNounPlural: "Clients",
     categories: [
       { id: "vinyasa", label: "Vinyasa" },
       { id: "hatha", label: "Hatha" },
@@ -155,6 +192,12 @@ export function applyPivotVocabulary(
     resourceNounPlural: pick(terms.resources, base.resourceNounPlural),
     // See the note above: null is a structural signal, not a missing word.
     partyNoun: base.partyNoun === null ? null : pick(terms.party, base.partyNoun),
+    slotNoun: pick(terms.slot, base.slotNoun),
+    slotNounPlural: pick(terms.slots, base.slotNounPlural),
+    bookingNoun: pick(terms.booking, base.bookingNoun),
+    bookingNounPlural: pick(terms.bookings, base.bookingNounPlural),
+    clientNoun: pick(terms.client, base.clientNoun),
+    clientNounPlural: pick(terms.clients, base.clientNounPlural),
     searchPlaceholder: terms.providers
       ? `Search ${providerNounPlural.toLowerCase()}`
       : base.searchPlaceholder,

@@ -30,6 +30,15 @@ import {
 } from "@/lib/format";
 import { DetailRow } from "@/components/booking/detail-row";
 
+/** How each derived payment state reads to a customer. Keyed by
+ *  `rules.payment_state`; anything unknown falls back to "Payment". */
+const PAYMENT_LABEL: Record<string, string> = {
+  due: "Due now",
+  deposit_due: "Deposit due",
+  invoiced: "Billed after",
+  paid: "Paid",
+};
+
 export function BookingDetail({
   booking: initial,
   service,
@@ -144,6 +153,63 @@ export function BookingDetail({
           </span>
         </div>
       </div>
+
+      {/* What is owed. `payments.flow: none` means the product carries no
+          payment at all, so the whole panel is absent rather than showing a
+          zero — a "Total: 0" reads as a bug, not as "free". */}
+      {booking.payment.state !== "none" && booking.payment.state !== "not_required" ? (
+        <div className="mt-3 rounded-xl border border-border bg-card p-4">
+          <DetailRow
+            label={PAYMENT_LABEL[booking.payment.state] ?? "Payment"}
+            value={formatMoney(booking.payment.outstandingMinorUnits, booking.payment.currency)}
+          />
+          {booking.payment.paidMinorUnits > 0 ? (
+            <DetailRow
+              label="Paid"
+              value={formatMoney(booking.payment.paidMinorUnits, booking.payment.currency)}
+            />
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Still blocking confirmation (`prerequisites`). Shown to the customer
+          so a booking sitting at pending has a visible reason. */}
+      {booking.prerequisitesPending.length ? (
+        <div className="mt-3 rounded-xl border border-border bg-card p-4">
+          <p className="text-sm font-semibold">Awaiting</p>
+          <ul className="mt-1 space-y-1">
+            {booking.prerequisitesPending.map((key) => (
+              <li key={key} className="text-sm text-muted-foreground">
+                {service.prerequisites.find((p) => p.key === key)?.label ?? key}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {/* The return leg — only where `inventory.returnRequired`. A rentable
+          booking is not finished when the slot ends; the item has to come back,
+          and an overdue one is accruing a fee the customer should see. */}
+      {booking.loan ? (
+        <div className="mt-3 rounded-xl border border-border bg-card p-4">
+          <DetailRow
+            label="Due back"
+            value={formatDate(booking.loan.dueBackUtc, tz, { weekday: true })}
+          />
+          {booking.loan.returnedAtUtc ? (
+            <DetailRow
+              label="Returned"
+              value={formatDate(booking.loan.returnedAtUtc, tz, { weekday: true })}
+            />
+          ) : null}
+          {booking.loan.overdueFeeMinorUnits > 0 ? (
+            <p className="mt-1 text-sm text-destructive">
+              {booking.loan.daysOverdue} day{booking.loan.daysOverdue === 1 ? "" : "s"} overdue —{" "}
+              {formatMoney(booking.loan.overdueFeeMinorUnits, booking.currency)} owed.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* Policy / cutoff */}
       {booking.status === "confirmed" ? (
