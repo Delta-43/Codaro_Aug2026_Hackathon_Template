@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query
 
@@ -26,28 +25,12 @@ from app.auth import AuthUser, require_owner
 from app.db import get_supabase
 from app.routers.bookings import _enrich
 from app.serialize import iso_utc
+from app.clock import now_utc, tz_or_utc
 
 router = APIRouter(prefix="/owner", tags=["owner"])
 
 
 # --- time windows ----------------------------------------------------------
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def _tz(name: str | None):
-    """The viewer's timezone (falls back to UTC on an unknown/absent name).
-    Calendar-boundary metrics — 'this month', 'this week' — must be bucketed in
-    the owner's local zone, not UTC, or bookings near a boundary land in the
-    wrong period for any provider not on UTC."""
-    if not name:
-        return timezone.utc
-    try:
-        return ZoneInfo(name)
-    except Exception:
-        return timezone.utc
 
 
 def _month_bounds(ref: datetime, tz) -> tuple[datetime, datetime, datetime]:
@@ -165,10 +148,51 @@ def _ratings_by_service(scope: _Scope) -> dict[str, list[int]]:
 # --- client screening ------------------------------------------------------
 
 
-def _client_profile(db, client_id: str, email: str, provider_ids: set[str]) -> dict:
+def _screening_data(
+    db, client_ids: set[str]
+) -> tuple[dict[str, list[dict]], dict[str, list[int]]]:
+    """Batch the two per-client screening reads — booking history and the
+    ratings businesses left each client — into one query each for the whole set
+    of pending clients, grouped by client_id. Replaces the previous 2×N per-card
+    round trips with 2 total. Both use `.in_` on the real `client_id` column."""
+    ids = [c for c in client_ids if c]
+    bookings_by: dict[str, list[dict]] = defaultdict(list)
+    ratings_by: dict[str, list[int]] = defaultdict(list)
+    if not ids:
+        return bookings_by, ratings_by
+
+    brows = (
+        db.table("bookings").select("client_id,status,metadata").in_("client_id", ids).execute().data
+        or []
+    )
+    for r in brows:
+        bookings_by[r["client_id"]].append(r)
+
+    # Degrades to no ratings if the table isn't present (e.g. offline fake).
+    try:
+        rrows = (
+            db.table("client_reviews").select("client_id,rating").in_("client_id", ids).execute().data
+            or []
+        )
+        for r in rrows:
+            ratings_by[r["client_id"]].append(int(r["rating"]))
+    except Exception:
+        pass
+    return bookings_by, ratings_by
+
+
+def _client_profile(
+    db,
+    client_id: str,
+    email: str,
+    provider_ids: set[str],
+    booking_rows: list[dict],
+    ratings: list[int],
+) -> dict:
     """Screening card for the Requests tab: how long they've been a member, how
-    much history they have with us, and any red-flag counts. Computed from their
-    bookings (service key) + the auth user's created_at."""
+    much history they have with us, and any red-flag counts. Booking history and
+    ratings are pre-batched by `_screening_data`; only the auth user's
+    created_at/profile still needs a per-client admin lookup."""
     member_since = None
     display_name = (email or "").split("@")[0]
     avatar_url = ""
@@ -182,19 +206,9 @@ def _client_profile(db, client_id: str, email: str, provider_ids: set[str]) -> d
     except Exception:
         pass  # admin API unavailable — degrade to what we can derive
 
-    rows = db.table("bookings").select("status,metadata").eq("client_id", client_id).execute().data or []
-    total = len(rows)
-    with_us = [r for r in rows if (r.get("metadata") or {}).get("provider_id") in provider_ids]
+    total = len(booking_rows)
+    with_us = [r for r in booking_rows if (r.get("metadata") or {}).get("provider_id") in provider_ids]
     cancelled = sum(1 for r in with_us if r["status"] == "cancelled")
-
-    # The client's reputation (ratings businesses left them). Degrades to no
-    # rating if the table isn't present (e.g. offline fake).
-    ratings: list[int] = []
-    try:
-        rev = db.table("client_reviews").select("rating").eq("client_id", client_id).execute().data or []
-        ratings = [int(r["rating"]) for r in rev]
-    except Exception:
-        ratings = []
 
     return {
         "id": client_id,
@@ -219,20 +233,25 @@ def _request_cards(scope: _Scope, *, limit: int | None = None) -> list[dict]:
         pending = pending[:limit]
 
     prov_set = set(scope.provider_ids)
+    bookings_by, ratings_by = _screening_data(
+        scope.db, {b.get("userId") or "" for b in pending}
+    )
     cache: dict[str, dict] = {}
     out = []
     for b in pending:
         cid = b.get("userId") or ""
         if cid not in cache:
-            cache[cid] = _client_profile(scope.db, cid, b.get("clientEmail") or "", prov_set)
-        out.append(
-            {
-                **b,
-                "client": cache[cid],
-                "serviceName": scope.service_name(b["serviceId"]),
-                "providerName": scope.provider_name(b["providerId"]),
-            }
-        )
+            cache[cid] = _client_profile(
+                scope.db,
+                cid,
+                b.get("clientEmail") or "",
+                prov_set,
+                bookings_by.get(cid, []),
+                ratings_by.get(cid, []),
+            )
+        # b already carries providerName/serviceName (embedded by serialize_booking
+        # via _enrich), so only the screening card needs adding here.
+        out.append({**b, "client": cache[cid]})
     return out
 
 
@@ -245,9 +264,9 @@ def owner_dashboard(owner: AuthUser = Depends(require_owner)):
     glanceable numbers, this week's bookings, and the top pending requests."""
     db = get_supabase()
     scope = _Scope(db, owner)
-    now = _now()
+    now = now_utc()
     now_iso = iso_utc(now)
-    tz = _tz((owner.claims.get("user_metadata") or {}).get("timezone"))
+    tz = tz_or_utc((owner.claims.get("user_metadata") or {}).get("timezone"))
     last_start, month_start, next_start = _month_bounds(now, tz)
     ls_iso, ms_iso, ns_iso = iso_utc(last_start), iso_utc(month_start), iso_utc(next_start)
     week_lo, week_hi = _week_bounds(now, tz)
@@ -290,7 +309,6 @@ def owner_dashboard(owner: AuthUser = Depends(require_owner)):
     else:
         delta_pct = 100 if this_month else 0
 
-    primary = scope.primary_provider()
     serialized_providers = scope.serialized_providers()
     primary_serialized = serialized_providers[0] if serialized_providers else None
 
@@ -341,7 +359,7 @@ def owner_services(owner: AuthUser = Depends(require_owner)):
     upcoming/past bookings, revenue, rating, pending requests)."""
     db = get_supabase()
     scope = _Scope(db, owner)
-    now_iso = iso_utc(_now())
+    now_iso = iso_utc(now_utc())
     res_by_svc = discovery.resource_ids_by_service(db)
     ratings = _ratings_by_service(scope)
 
@@ -403,8 +421,8 @@ def owner_calendar(
     by start. Query params: `from` / `to` (ISO-Z)."""
     db = get_supabase()
     scope = _Scope(db, owner)
-    now = _now()
-    tz = _tz((owner.claims.get("user_metadata") or {}).get("timezone"))
+    now = now_utc()
+    tz = tz_or_utc((owner.claims.get("user_metadata") or {}).get("timezone"))
     _, month_start, next_start = _month_bounds(now, tz)
     lo = from_ or iso_utc(month_start)
     hi = to or iso_utc(next_start)

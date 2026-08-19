@@ -52,6 +52,7 @@ REAL_CONFIG_PATH = REPO_ROOT / "domain.config.json"
 # at import time holds its own reference, so each must be patched individually.
 _SUPABASE_MODULES = (
     app_db,
+    app_main,
     seed_module,
     users_module,
     bookings_router,
@@ -185,20 +186,6 @@ def _no_startup_io(monkeypatch):
 def client(db):
     """TestClient with lifespan run (proves the startup hooks are inert)."""
     with TestClient(app_main.app) as test_client:
-        yield test_client
-
-
-@pytest.fixture
-def strict_client(strict_db):
-    with TestClient(app_main.app) as test_client:
-        yield test_client
-
-
-@pytest.fixture
-def raw_client(db):
-    """TestClient that converts unhandled server exceptions into 500s
-    instead of re-raising them — used to pin current crash behaviour."""
-    with TestClient(app_main.app, raise_server_exceptions=False) as test_client:
         yield test_client
 
 

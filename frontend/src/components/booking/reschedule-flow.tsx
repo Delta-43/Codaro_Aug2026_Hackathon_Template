@@ -18,24 +18,8 @@ import { useAsync } from "@/hooks/use-async";
 import { CalendarView } from "@/components/calendar/calendar-view";
 import { SelectionBar } from "@/components/booking/selection-bar";
 import { Button } from "@/components/ui/button";
-import { formatBookingWhen, formatSpan } from "@/lib/format";
-
-const ms = (iso: string) => new Date(iso).getTime();
-
-function validateSpan(span: Slot[], service: Service): string | null {
-  if (span.length < 1) return "Nothing selected.";
-  if (span.length > service.maxSlotsPerBooking)
-    return `You can book up to ${service.maxSlotsPerBooking} in a row.`;
-  for (const s of span) {
-    if (s.status !== "available" && s.status !== "partially_booked")
-      return "That range includes an unavailable time.";
-  }
-  for (let i = 1; i < span.length; i++) {
-    if (ms(span[i].startUtc) !== ms(span[i - 1].endUtc))
-      return "Selected times must be back-to-back with no gaps.";
-  }
-  return null;
-}
+import { formatBookingWhen, formatSpan, ms } from "@/lib/format";
+import { validateSpan } from "@/lib/slot-span";
 
 export function RescheduleFlow({
   booking,

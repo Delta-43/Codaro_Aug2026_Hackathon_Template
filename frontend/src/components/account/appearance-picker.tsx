@@ -3,6 +3,11 @@
 /**
  * Compact appearance control for the Account header — a small, icon-only 3-way
  * segmented toggle (Light · Dark · Smart) with an "Appearance" caption above.
+ *
+ * Named apart from `components/theme-toggle.tsx`, which is a different control
+ * (a 2-state icon button for the landing nav and docs shell). Both used to
+ * export `ThemeToggle`, so which one a file got depended purely on its import
+ * path.
  * "Smart" maps to next-themes' built-in "system" theme, which follows the OS
  * (macOS / iOS / Android) light-or-dark preference live. Default is Light on
  * first load; the choice is persisted by next-themes (localStorage).
@@ -20,7 +25,7 @@ const OPTIONS: Option[] = [
   { value: "system", label: "Smart", icon: Monitor },
 ];
 
-export function ThemeToggle() {
+export function AppearancePicker() {
   const { theme, setTheme } = useTheme();
 
   // next-themes can't know the persisted theme until it mounts on the client, so

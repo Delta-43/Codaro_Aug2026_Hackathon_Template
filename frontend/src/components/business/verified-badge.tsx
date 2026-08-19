@@ -10,7 +10,7 @@ import { AvatarImg } from "@/components/avatar-img";
 import { BusinessArt } from "@/components/business/business-art";
 import { cn } from "@/lib/utils";
 
-export function VerifiedAvatar({
+function VerifiedAvatar({
   src,
   alt,
   size = "md",
@@ -36,6 +36,28 @@ export function VerifiedAvatar({
         aria-label="Verified business"
       />
     </div>
+  );
+}
+
+/** The business identity chip used across the owner UI: the uploaded provider
+ *  avatar when one is set, else the on-brand generated scene — keeping the same
+ *  gold-ring + verified treatment either way, so every surface shows the same
+ *  face. Callers pass the provider's `avatarUrl` (may be empty) and its `scene`. */
+export function BusinessBadge({
+  avatarUrl,
+  scene,
+  size = "md",
+  className,
+}: {
+  avatarUrl?: string;
+  scene: string;
+  size?: "sm" | "md" | "lg";
+  className?: string;
+}) {
+  return avatarUrl ? (
+    <VerifiedAvatar src={avatarUrl} alt="" size={size} className={className} />
+  ) : (
+    <VerifiedScene scene={scene} size={size} className={className} />
   );
 }
 

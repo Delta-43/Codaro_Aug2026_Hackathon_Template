@@ -47,22 +47,29 @@ backend/                    # FastAPI generic engine
   app/models.py             #  Pydantic request envelopes
   app/meta.py               #  config-driven metaFields validator
   app/rules.py              #  event-keyed rules engine  <-- add secret rule here
-  app/routers/              #  /resources /slots /bookings (+ owner CRUD, analytics)
+  app/routers/              #  /providers /services /resources /slots /availability
+                            #  /bookings /me /conversations /owner /demo
   seed.py                   #  demo data (auto-seeds on first start; run manually to add more)
-frontend/                   # Next.js 14 + Tailwind
-  lib/domain.tsx            #  <Term>, useDomain(), fetchConfig()
-  lib/api.ts                #  typed backend client
-  app/page.tsx              #  landing: resource showcase + email identify
-  app/dashboard/page.tsx    #  customer dashboard: book / reschedule / cancel
-  app/owner/page.tsx        #  owner dashboard: create resources+slots, analytics
+frontend/                   # Next.js 14 + Tailwind — the app lives in src/
+  src/config/verticals.ts   #  UI vocabulary per vertical (useVertical())
+  src/api/index.ts          #  typed backend client (the HTTP seam)
+  src/app/page.tsx          #  landing page
+  src/app/login/page.tsx    #  Supabase Auth sign-in / sign-up
+  src/app/(app)/            #  gated customer tabs: search / provider / calendar
+                            #  / bookings / account
+  src/app/owner/            #  business mode: dashboard, calendar, requests,
+                            #  services, profile, settings
 ```
 
 ## Run it (Docker — one command)
 
-Everything runs in two containers; only `backend/.env` needs filling in first.
+Everything runs in two containers. Both env files must exist first — the
+frontend service declares `env_file: frontend/.env.local` in `docker-compose.yml`,
+so `make start` fails on a fresh clone without it.
 
 ```bash
-cp backend/.env.example backend/.env    # fill SUPABASE_URL + SUPABASE_SERVICE_KEY (+ SUPABASE_DB_URL to auto-create tables)
+cp backend/.env.example backend/.env            # SUPABASE_URL + SUPABASE_SERVICE_KEY (+ SUPABASE_DB_URL to auto-create tables)
+cp frontend/.env.local.example frontend/.env.local  # NEXT_PUBLIC_API_BASE + Supabase anon key
 make start                              # frontend :3000, backend :8000
 ```
 
@@ -113,12 +120,45 @@ npm run dev                 # http://localhost:3000
 
 ## How the pivot works (and the database)
 
-**The config flow.** The backend reads `domain.config.json` once and caches it
-(`@lru_cache` in `app/config.py`). It exposes the raw file at `GET /config`. The
-frontend fetches that on load and renders every label through `<Term>` and every
-number from `rules`. So editing the file → `make reload` (restart backend to drop
-the cache) → refresh the browser = the whole app speaks the new domain. Nothing
-in code hard-codes a term or a magic number.
+**The config flow.** The backend reads `domain.config.json` once, fills in
+defaults, folds in the deprecated v1 `rules`/`search` aliases, **validates** the
+result, and caches it (`app/config.py` + `app/config_schema.py`). It exposes that
+resolved tree at `GET /config`. The frontend fetches it on load and renders every
+label through `<Term>` and every number from the config. So editing the file →
+`make reload` → refresh the browser = the whole app speaks the new domain.
+Nothing in code hard-codes a term or a magic number.
+
+A bad edit now fails loudly *at the edit*: `load_config()` raises with every
+problem listed at once, and `POST /config/reload` (owner-gated) validates the new
+file **before** dropping the cached one, so a typo mid-pivot returns a 422 instead
+of taking the running app down.
+
+**What's configurable.** v2 (`configVersion: 2`) covers vocabulary *and* the
+shape of the offering:
+
+| Block | Controls |
+|-------|----------|
+| `terms` / `copy` / `theme` | vocabulary, CTAs, empty states, colours |
+| `capabilities` | on/off spine — payments, inventory, waitlist, quotes, reviews… |
+| `booking` | unit kind, granularity, duration mode, party rules, add-on options |
+| `pricing` | rate + tiers + fees + caps + deposit (per-hour, per-night, per-person, tiered…) |
+| `payments` | flow, payer, schedule, billing cycle, no-show fee |
+| `inventory` | none / finite / rentable / consumable / serialised |
+| `location` | on-site / at-customer / remote / delivery / pickup, **business timezone**, service area |
+| `prerequisites` | ID checks, intake forms, waivers, memberships, approvals |
+| `timing` | instant vs request-approve, waitlist, seasons, blackouts, lead time |
+| `metaFields` | custom fields per entity — **no migration** |
+
+Every block is overridable **per service** via `services.metadata.<block>`, so one
+deployment can host businesses that work completely differently.
+
+**Reference:** [docs/PIVOT-SYSTEM.md](docs/PIVOT-SYSTEM.md) documents every block,
+the precedence model, and exactly which keys the engine enforces today versus
+which are declared-and-validated but still waiting on a reader.
+[docs/PIVOT-COVERAGE.md](docs/PIVOT-COVERAGE.md) is the evidence: 50 deliberately
+different businesses expressed as real configs and run through the validator and
+pricing engine (`python3 scripts/check_pivots.py`), plus every issue that
+exercise found and how it was resolved.
 
 **The database never changes at the pivot — on purpose.** Tables are neutral
 (`resources` / `slots` / `bookings`) and `schema.sql` is fully idempotent
@@ -169,9 +209,9 @@ the exact commands and branch naming.
 - [x] Change and Cancellation — `/bookings/{id}/reschedule`, `/bookings/{id}/cancel`
 - [x] Availability View — `slot_occupancy` view + `/slots/occupancy` + UI grid
 - [x] Status and History — `status` + append-only `history` jsonb
-- [x] Customer dashboard — `app/dashboard/page.tsx` (book / reschedule / cancel)
-- [x] Owner dashboard — `app/owner/page.tsx`: add resources & slots, per-item analytics
-- [x] Owner: confirm/cancel bookings — `POST /bookings/{id}/confirm`, `{"actor":"owner"}` cancel
-- [x] Owner: view all bookings + filter — `GET /bookings` (`?status=`, `?client_email=`)
+- [x] Customer app — `src/app/(app)/` (search / calendar / book / reschedule / cancel)
+- [x] Owner dashboard — `src/app/owner/`: services, requests, calendar, analytics
+- [x] Owner: approve/reject bookings — `POST /bookings/{id}/approve`, `POST /bookings/{id}/reject`
+- [x] Owner: view all bookings + filter — `GET /bookings` (`?scope=`)
 - [x] Owner: per-item analytics — `GET /resources/{id}/analytics`
 - [x] Config-driven behavior — `GET /config` + rules actually enforced (not just returned)

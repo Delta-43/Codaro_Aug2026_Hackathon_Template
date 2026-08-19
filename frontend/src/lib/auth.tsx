@@ -20,7 +20,7 @@ import { getSupabase, isAuthConfigured } from "@/lib/supabase";
  *  a hardcoded "Owner"/"Customer". Anything other than "owner" is a client. */
 export type EngineRole = "owner" | "client";
 
-export function roleOf(user: User | null | undefined): EngineRole {
+function roleOf(user: User | null | undefined): EngineRole {
   const raw =
     (user?.app_metadata as Record<string, unknown> | undefined)?.role ??
     (user?.user_metadata as Record<string, unknown> | undefined)?.role;
@@ -39,6 +39,7 @@ type AuthContextValue = {
     email: string,
     password: string,
     role?: EngineRole,
+    consent?: boolean,
   ) => Promise<{ needsConfirmation: boolean; role: EngineRole }>;
   signOut: () => Promise<void>;
 };
@@ -84,16 +85,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error) throw new Error(error.message);
         return { role: roleOf(data.user) };
       },
-      async signUp(email, password, role: EngineRole = "client") {
+      async signUp(email, password, role: EngineRole = "client", consent = false) {
         const supabase = requireSupabase();
-        const { data, error } = await supabase.auth.signUp({
+        // GDPR: record the explicit consent the sign-up form gated on, alongside
+        // the role, in the user's metadata. Owners also carry their role.
+        const data = {
+          ...(role === "owner" ? { role } : {}),
+          gdpr_consent: consent,
+          gdpr_consent_at: consent ? new Date().toISOString() : null,
+        };
+        const { data: result, error } = await supabase.auth.signUp({
           email: email.trim().toLowerCase(),
           password,
-          options: role === "owner" ? { data: { role } } : undefined,
+          options: { data },
         });
         if (error) throw new Error(error.message);
         // With email confirmation on, signUp returns a user but no session.
-        return { needsConfirmation: !data.session, role };
+        return { needsConfirmation: !result.session, role };
       },
       async signOut() {
         const supabase = getSupabase();

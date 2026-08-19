@@ -22,7 +22,7 @@ import {
   type ReactNode,
 } from "react";
 import type { Provider, VerticalId } from "@/types/domain";
-import { getActiveVertical, getMyProviders } from "@/api";
+import { getActiveVertical, getMyProviders, getPivotConfig, type Capabilities } from "@/api";
 import { VERTICALS, type VerticalConfig } from "@/config/verticals";
 
 const PID_KEY = "codaro.owner.activeProviderId";
@@ -43,8 +43,15 @@ interface OwnerContextValue {
   vertical: VerticalId;
   /** On-brand illustrated profile scene for the vertical. */
   scene: string;
+  /** Global `capabilities.<name>` (default ON). Only a FALLBACK: the routers
+   *  gate per service, so prefer `Service.capabilities` and use this when the
+   *  per-service value is unavailable — e.g. the services fetch failed. */
+  capability: (name: string) => boolean;
   setActiveProviderId: (id: string) => void;
   refreshProviders: () => Promise<void>;
+  /** Replace one already-loaded provider in place (e.g. after an avatar edit),
+   *  without a refetch that could transiently blank the list. */
+  replaceProvider: (provider: Provider) => void;
 }
 
 const OwnerContext = createContext<OwnerContextValue | null>(null);
@@ -54,6 +61,7 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
   const [pid, setPid] = useState<string | null>(null);
   const [vertical, setVertical] = useState<VerticalId>("fleet");
   const [ready, setReady] = useState(false);
+  const [capabilities, setCapabilities] = useState<Capabilities>({});
 
   const refreshProviders = useCallback(async () => {
     try {
@@ -66,13 +74,17 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [list, v] = await Promise.all([
+      const [list, v, caps] = await Promise.all([
         getMyProviders().catch(() => [] as Provider[]),
         getActiveVertical().catch(() => "fleet" as VerticalId),
+        // /config unreachable: leave everything ON — the backend still refuses
+        // whatever is actually disabled.
+        getPivotConfig().then((c) => c.capabilities).catch((): Capabilities => ({})),
       ]);
       if (cancelled) return;
       setProviders(list);
       setVertical(v);
+      setCapabilities(caps);
       const stored = typeof window !== "undefined" ? localStorage.getItem(PID_KEY) : null;
       setPid(list.find((p) => p.id === stored)?.id ?? list[0]?.id ?? null);
       setReady(true);
@@ -87,10 +99,22 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
     if (typeof window !== "undefined") localStorage.setItem(PID_KEY, id);
   }, []);
 
+  const replaceProvider = useCallback((provider: Provider) => {
+    setProviders((list) => list?.map((p) => (p.id === provider.id ? provider : p)) ?? list);
+  }, []);
+
+  // Unknown name -> true: the config lists only what it turns off. Mirrors
+  // rules.capability() on the backend.
+  const capability = useCallback(
+    (name: string) => capabilities[name] !== false,
+    [capabilities],
+  );
+
   const activeProvider = providers?.find((p) => p.id === pid) ?? providers?.[0] ?? null;
 
   const value: OwnerContextValue = {
     ready,
+    capability,
     providers,
     activeProvider,
     vocab: VERTICALS[vertical] ?? VERTICALS.fleet,
@@ -98,6 +122,7 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
     scene: VERTICAL_SCENE[vertical] ?? "grad-amber",
     setActiveProviderId,
     refreshProviders,
+    replaceProvider,
   };
 
   return <OwnerContext.Provider value={value}>{children}</OwnerContext.Provider>;

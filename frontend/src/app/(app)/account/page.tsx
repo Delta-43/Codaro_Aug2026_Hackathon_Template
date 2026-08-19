@@ -11,20 +11,12 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BadgeCheck, Settings, Star } from "lucide-react";
 import { useApp } from "@/context/app-context";
-import { Skeleton } from "@/components/skeleton";
 import { AvatarImg } from "@/components/avatar-img";
+import { Skeleton } from "@/components/skeleton";
 import { getMyReputation } from "@/api";
 import type { ClientReputation } from "@/types/domain";
 import { avatarDataUri } from "@/lib/business-demo";
-
-function whenLabel(iso: string | null): string {
-  if (!iso) return "";
-  try {
-    return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" }).format(new Date(iso));
-  } catch {
-    return "";
-  }
-}
+import { whenLabel } from "@/lib/format";
 
 const EMPTY_REP: ClientReputation = { score: 0, count: 0, reviews: [] };
 
@@ -45,10 +37,9 @@ export default function ProfilePage() {
   if (!ready || !user) return <Skeleton className="h-96 w-full" />;
 
   return (
-    <section className="space-y-6 py-2">
-      {/* Header */}
-      <div className="flex items-start gap-4">
-        <AvatarImg src={user.avatarUrl} alt="" className="size-16" />
+    <section className="space-y-8 py-6">
+      <header className="flex items-center gap-3">
+        <AvatarImg src={user?.avatarUrl} name={user?.displayName} alt="" className="size-14" />
         <div className="min-w-0 flex-1">
           <h1 className="flex items-center gap-1.5 truncate text-xl font-semibold tracking-tight">
             {user.displayName}
@@ -68,7 +59,7 @@ export default function ProfilePage() {
         >
           <Settings className="size-5" aria-hidden />
         </Link>
-      </div>
+      </header>
 
       {/* Reputation */}
       <div className="rounded-2xl border border-border bg-card p-4">

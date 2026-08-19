@@ -21,11 +21,14 @@ calendar / bookings / account**.
 | `src/lib/auth.tsx` | `<AuthProvider>` / `useAuth()` — session + `role`/`isOwner`, `signIn`/`signUp`/`signOut`; `getAccessToken()` for the seam's Bearer header |
 | `src/components/auth-gate.tsx` | Redirects anonymous visitors to `/login`; holds the app until a session exists |
 | `src/app/login/page.tsx` | Email/password sign-in + sign-up (Supabase Auth) |
+| `src/app/docs/page.tsx` | Public **`domain.config.json` setup guide** (`/docs`), linked from the landing nav pill. Block-by-block: defaults, allowed values, per-service overrides. Defaults are quoted from `backend/app/config_schema.py` `DEFAULTS` (not from the prose docs) — re-check them when the schema changes |
+| `src/components/docs/` | `DocShell` (sticky header + scroll-spy TOC) and the long-form prose primitives the page renders with |
 | `src/app/layout.tsx` | Root layout — wraps the tree in `<AuthProvider>` |
 | `src/app/(app)/layout.tsx` | `<AuthGate>` → `<AppProvider>` → `<AppShell>` (stays mounted across tabs) |
 | `src/context/app-context.tsx` | Current user (`/me`), active vertical, locked-in provider/service/resource |
 | `src/config/verticals.ts` | **Pure UI vocabulary** per vertical (nouns/verbs/categories/copy). No data/seed — that lives in the backend now |
 | `src/lib/format.ts` | UTC → viewer-timezone formatting |
+| `src/lib/geo.ts` | Haversine distance + formatting; origin and unit come from the pivot file via `setGeoSettings()` |
 
 ## The API seam (`src/api/index.ts`)
 
@@ -53,6 +56,11 @@ reschedule flows special-case the codes for re-pick / disabled-with-reason.
 
 - **Every label goes through the vertical config / domain copy**, never a
   hardcoded string (e.g. `useVertical().resourceNoun`, not `"Vehicle"`).
+- **Distance origin and unit come from the config**, not a constant. `AppProvider`
+  boot calls `getPivotConfig()` (one `/config` request, same round-trip count as
+  the old tenancy-only call) and applies `location.origin` / `location.distanceUnit`
+  through `setGeoSettings()`. `geo.ts` falls back to Warsaw/km only when `/config`
+  is unreachable — never import a reference location as a constant again.
 - **Every limit/number comes from the backend** (per-service rules on the
   `Service` object), never a literal.
 - **Auth is Supabase Auth.** Use `useAuth()` / the Supabase client for
@@ -60,11 +68,12 @@ reschedule flows special-case the codes for re-pick / disabled-with-reason.
   a session; `getCurrentUser`/`updateUser` map to `/me`.
 - Env: `NEXT_PUBLIC_API_BASE`, `NEXT_PUBLIC_SUPABASE_URL`,
   `NEXT_PUBLIC_SUPABASE_ANON_KEY` (see `.env.local.example`).
-- **Theming** is `next-themes` (`attribute="class"`, `defaultTheme="light"`,
+- **Theming** is `next-themes` (`attribute="class"`, `defaultTheme="system"`,
   `enableSystem`) mounted in `src/app/layout.tsx`; dark tokens live under `.dark`
   in `globals.css`. The Account tab's `theme-toggle.tsx` sets Light / Dark /
-  Smart (`"system"`). First load is always light; the choice persists and
-  Smart tracks the OS `prefers-color-scheme` live.
+  Smart (`"system"`); the landing footer carries a light/dark toggle too. First
+  load follows the OS `prefers-color-scheme` live (system default); flipping a
+  toggle pins an explicit choice, which then persists.
 
 ## Views (per README)
 
@@ -78,6 +87,11 @@ reschedule flows special-case the codes for re-pick / disabled-with-reason.
    *Built.*
 6. **Account** (tab 5) — profile edit (`PATCH /me`), sign-out, **Appearance**
    theme toggle (Light / Dark / Smart), demo vertical-switch/reset. *Built.*
+7. **Docs** — `/docs`, ungated like `privacy/`: how to set up
+   `domain.config.json`, block by block (tenancy → capabilities → booking →
+   pricing → payments → timing → location → optional → vocabulary), plus
+   per-service overrides, applying an edit, and what the engine actually
+   enforces today. *Built.*
 
 Owner/admin self-service (creating providers/services from the UI) is not built —
 seeds populate catalog data; see `TODO.md`.

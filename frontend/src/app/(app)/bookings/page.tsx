@@ -1,56 +1,88 @@
 "use client";
 
 /**
- * Tab 4 — Bookings. Upcoming / Past segmented list backed by getBookings(scope).
- * Bookings carry only ids, so provider and service names are resolved once per
- * list and passed into each card. Tapping a row deep-links to the detail screen
- * where reschedule / cancel / review live.
+ * Tab 4 — Bookings. Calendar + list merged into one panel: a month / week / day
+ * calendar of the customer's own bookings on top (the counterparty is the
+ * business, so it reads as "who I'm booked with"), then the Upcoming / Past
+ * segmented list below. Both are backed by getBookings; tapping a calendar entry
+ * deep-links to the booking detail where reschedule / cancel / review live. The
+ * inbox that used to live here now has its own permanent Messaging tab.
  */
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Ticket } from "lucide-react";
-import type { Booking, Provider, Service } from "@/types/domain";
-import { getBookings, getProvider, getService } from "@/api";
+import type { Booking } from "@/types/domain";
+import type { DemoBooking } from "@/lib/business-demo";
+import { getBookings } from "@/api";
 import { useApp } from "@/context/app-context";
 import { useAsync } from "@/hooks/use-async";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/skeleton";
 import { EmptyState } from "@/components/empty-state";
 import { BookingCard } from "@/components/booking/booking-card";
+import { BookingCalendar } from "@/components/business/booking-calendar";
 import { cn } from "@/lib/utils";
 
 type Scope = "upcoming" | "past";
 
-interface Loaded {
-  bookings: Booking[];
-  providers: Map<string, Provider>;
-  services: Map<string, Service>;
+// The calendar renders confirmed / completed / pending only; cancelled and
+// rejected bookings drop off it (they still appear in the list below).
+function bookingToCal(b: Booking): DemoBooking | null {
+  if (b.status !== "confirmed" && b.status !== "completed" && b.status !== "pending") return null;
+  return {
+    id: b.id,
+    title: b.serviceName || "Booking",
+    client: b.providerName,
+    serviceLabel: b.serviceName || "",
+    startUtc: b.startUtc,
+    endUtc: b.endUtc,
+    status: b.status,
+    partySize: b.partySize,
+    priceMinorUnits: b.priceMinorUnits,
+    currency: b.currency,
+  };
 }
 
 export default function BookingsPage() {
-  const { user } = useApp();
+  const { user, ready, singleBusiness } = useApp();
+  const router = useRouter();
   const tz = user?.timezone ?? "UTC";
   const [scope, setScope] = useState<Scope>("upcoming");
 
-  const data = useAsync<Loaded>(async () => {
-    const bookings = await getBookings(scope);
-    const providerIds = [...new Set(bookings.map((b) => b.providerId))];
-    const serviceIds = [...new Set(bookings.map((b) => b.serviceId))];
-    const [providerList, serviceList] = await Promise.all([
-      Promise.all(providerIds.map((id) => getProvider(id).catch(() => null))),
-      Promise.all(serviceIds.map((id) => getService(id).catch(() => null))),
-    ]);
-    const providers = new Map<string, Provider>();
-    for (const p of providerList) if (p) providers.set(p.id, p);
-    const services = new Map<string, Service>();
-    for (const s of serviceList) if (s) services.set(s.id, s);
-    return { bookings, providers, services };
-  }, [scope]);
+  // One "all" fetch feeds the calendar; the list uses its own scoped fetch so
+  // the backend's completed-in-past derivation is preserved for Upcoming / Past.
+  // Single-business mode has a dedicated Calendar tab, so the my-bookings
+  // calendar is dropped here (and its fetch skipped) to avoid two calendars.
+  const all = useAsync<Booking[]>(
+    () => (singleBusiness ? Promise.resolve([]) : getBookings("all")),
+    [singleBusiness],
+  );
+  const data = useAsync<Booking[]>(() => getBookings(scope), [scope]);
 
-  const bookings = data.data?.bookings ?? [];
+  const calBookings = useMemo(
+    () => (all.data ?? []).map(bookingToCal).filter((b): b is DemoBooking => b !== null),
+    [all.data],
+  );
+  const bookings = data.data ?? [];
 
   return (
     <section className="space-y-4 py-4">
       <h1 className="text-xl font-semibold tracking-tight md:sr-only">Bookings</h1>
+
+      {/* Calendar of my bookings — marketplace only; single-business has its own
+          Calendar tab, so this would be a redundant second calendar. */}
+      {!singleBusiness ? (
+        all.loading && !all.data ? (
+          <Skeleton className="h-72 w-full" />
+        ) : calBookings.length > 0 ? (
+          <BookingCalendar
+            bookings={calBookings}
+            timezone={tz}
+            defaultView="month"
+            onOpen={(b) => router.push(`/bookings/${b.id}`)}
+          />
+        ) : null
+      ) : null}
 
       {/* Scope toggle */}
       <div className="inline-flex rounded-lg border border-border bg-card p-0.5">
@@ -74,7 +106,7 @@ export default function BookingsPage() {
 
       {/* List */}
       <div className="space-y-2">
-        {data.loading && !data.data ? (
+        {!ready || (data.loading && !data.data) ? (
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)
         ) : data.error ? (
           <EmptyState title="Couldn't load bookings" body="Something interrupted the request.">
@@ -99,8 +131,8 @@ export default function BookingsPage() {
             <BookingCard
               key={b.id}
               booking={b}
-              serviceName={data.data?.services.get(b.serviceId)?.name ?? "Booking"}
-              providerName={data.data?.providers.get(b.providerId)?.name ?? ""}
+              serviceName={b.serviceName || "Booking"}
+              providerName={b.providerName}
               tz={tz}
             />
           ))

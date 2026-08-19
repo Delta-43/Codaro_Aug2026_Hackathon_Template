@@ -11,11 +11,21 @@
  */
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { CalendarDays, CircleUser, Search, Store, Ticket, type LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import {
+  CalendarClock,
+  CalendarDays,
+  CircleUser,
+  Search,
+  Send,
+  Store,
+  type LucideIcon,
+} from "lucide-react";
+import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/context/app-context";
+import { AvatarImg } from "@/components/avatar-img";
 import { useAuth } from "@/lib/auth";
+import { useUnreadCount } from "@/hooks/use-unread-count";
 import { Button } from "@/components/ui/button";
 
 interface Tab {
@@ -24,12 +34,26 @@ interface Tab {
   icon: LucideIcon;
 }
 
-const TABS: Tab[] = [
-  { href: "/search", label: "Search", icon: Search },
-  { href: "/provider", label: "Services", icon: Store },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/bookings", label: "Bookings", icon: Ticket },
-  { href: "/account", label: "Profile", icon: CircleUser },
+// Messaging is the permanent centre button (paper plane); the tabs stay balanced
+// around it in both modes.
+const SEARCH_TAB: Tab = { href: "/search", label: "Search", icon: Search };
+const SERVICES_TAB: Tab = { href: "/provider", label: "Services", icon: Store };
+const CALENDAR_TAB: Tab = { href: "/calendar", label: "Calendar", icon: CalendarClock };
+const MESSAGING_TAB: Tab = { href: "/messages", label: "Messaging", icon: Send };
+const BOOKINGS_TAB: Tab = { href: "/bookings", label: "Bookings", icon: CalendarDays };
+const PROFILE_TAB: Tab = { href: "/account", label: "Profile", icon: CircleUser };
+
+// Marketplace: discovery leads, and Calendar is folded into Bookings.
+const TABS: Tab[] = [SEARCH_TAB, SERVICES_TAB, MESSAGING_TAB, BOOKINGS_TAB, PROFILE_TAB];
+// Single-business: no discovery (no Search). Rather than drop to four tabs, the
+// availability Calendar un-merges back out of Bookings so five logical tabs
+// remain with Messaging still centred.
+const SINGLE_TABS: Tab[] = [
+  SERVICES_TAB,
+  CALENDAR_TAB,
+  MESSAGING_TAB,
+  BOOKINGS_TAB,
+  PROFILE_TAB,
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -39,24 +63,58 @@ function isActive(pathname: string, href: string): boolean {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, activeProvider } = useApp();
-  const { signOut } = useAuth();
+  const { user, ready, reload, activeProvider, singleBusiness } = useApp();
+  const [retrying, setRetrying] = useState(false);
 
-  const active = TABS.find((t) => isActive(pathname, t.href)) ?? TABS[0];
+  // AuthGate has already established a session, so a finished boot with no
+  // profile means `/me` failed. Boot degrades each leg independently rather than
+  // hanging, which is right — but every downstream surface then substitutes a
+  // default, and `user?.timezone ?? "UTC"` on the bookings, calendar and booking
+  // detail pages would render real appointment times in the wrong zone with
+  // nothing on screen to say so. Stop here instead, and offer a way out.
+  const profileFailed = ready && !user;
+
+  async function retryProfile() {
+    setRetrying(true);
+    try {
+      // The WHOLE boot, not just the profile: if connectivity was down, tenancy,
+      // vertical and capabilities fell back too, and recovering only the profile
+      // would clear this screen while leaving those wrong until a hard reload.
+      await reload();
+    } catch {
+      /* still failing — stay on this screen so the retry remains available */
+    } finally {
+      setRetrying(false);
+    }
+  }
+  const { signOut } = useAuth();
+  const unread = useUnreadCount();
+
+  // Both tab sets are module constants, so a plain switch on the mode is enough.
+  const tabs = singleBusiness ? SINGLE_TABS : TABS;
+  const home = singleBusiness ? "/provider" : "/search";
+
+  const active = tabs.find((t) => isActive(pathname, t.href)) ?? tabs[0];
   const heading = pathname.startsWith("/account/settings") ? "Settings" : active.label;
   const showProviderContext = active.href === "/provider" || active.href === "/calendar";
+  const badgeFor = (href: string) => (href === "/messages" ? unread : 0);
 
   return (
     <div className="min-h-dvh md:pl-60">
       {/* Desktop left drawer */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-card px-3 py-4 md:flex">
-        <Link href="/search" className="mb-4 px-3 text-lg font-semibold tracking-tight">
+        <Link href={home} className="mb-4 px-3 text-lg font-semibold tracking-tight">
           <span className="text-foreground">Service</span>
           <span className="text-primary">.com</span>
         </Link>
         <nav className="flex flex-col gap-1">
-          {TABS.map((tab) => (
-            <NavItem key={tab.href} tab={tab} active={isActive(pathname, tab.href)} />
+          {tabs.map((tab) => (
+            <NavItem
+              key={tab.href}
+              tab={tab}
+              active={isActive(pathname, tab.href)}
+              badge={badgeFor(tab.href)}
+            />
           ))}
         </nav>
         <div className="mt-auto px-1">
@@ -84,7 +142,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           className="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 hover:bg-muted"
           aria-label="Settings"
         >
-          <Avatar url={user?.avatarUrl} name={user?.displayName} />
+          <AvatarImg
+            src={user?.avatarUrl}
+            name={user?.displayName}
+            alt=""
+            className="size-8"
+          />
           <span className="max-w-[10rem] truncate text-sm">{user?.displayName ?? "Account"}</span>
         </Link>
       </header>
@@ -99,13 +162,29 @@ export function AppShell({ children }: { children: ReactNode }) {
         </span>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-2 md:px-6 md:pb-10">{children}</main>
+      <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-2 md:px-6 md:pb-10">
+        {profileFailed ? (
+          <div className="mt-10 rounded-xl border border-border bg-card p-6 text-center">
+            <h1 className="text-base font-semibold">We couldn&apos;t load your profile</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              You&apos;re signed in, but your account details didn&apos;t load. Times and
+              bookings are hidden rather than shown in the wrong timezone.
+            </p>
+            <Button className="mt-4" onPress={retryProfile} isDisabled={retrying}>
+              {retrying ? "Retrying…" : "Try again"}
+            </Button>
+          </div>
+        ) : (
+          children
+        )}
+      </main>
 
       {/* Mobile bottom tab bar */}
       <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
-        {TABS.map((tab) => {
+        {tabs.map((tab) => {
           const Icon = tab.icon;
           const activeTab = isActive(pathname, tab.href);
+          const badge = badgeFor(tab.href);
           return (
             <Link
               key={tab.href}
@@ -116,7 +195,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                 activeTab ? "text-primary" : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Icon className="size-5" aria-hidden />
+              <span className="relative">
+                <Icon className="size-5" aria-hidden />
+                <TabBadge count={badge} />
+              </span>
               {tab.label}
             </Link>
           );
@@ -126,7 +208,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
-function NavItem({ tab, active }: { tab: Tab; active: boolean }) {
+function NavItem({ tab, active, badge = 0 }: { tab: Tab; active: boolean; badge?: number }) {
   const Icon = tab.icon;
   return (
     <Link
@@ -139,19 +221,24 @@ function NavItem({ tab, active }: { tab: Tab; active: boolean }) {
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
-      <Icon className="size-4" aria-hidden />
+      <span className="relative">
+        <Icon className="size-4" aria-hidden />
+        <TabBadge count={badge} />
+      </span>
       {tab.label}
     </Link>
   );
 }
 
-function Avatar({ url, name }: { url?: string; name?: string }) {
+/** Unread bubble pinned to the top-right of a nav icon. Renders nothing at 0. */
+export function TabBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={url ?? ""}
-      alt={name ?? ""}
-      className="size-8 rounded-full bg-muted object-cover"
-    />
+    <span
+      aria-label={`${count} unread`}
+      className="absolute -right-2 -top-1.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-semibold leading-none text-primary-foreground"
+    >
+      {count > 9 ? "9+" : count}
+    </span>
   );
 }

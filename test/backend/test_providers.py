@@ -28,6 +28,8 @@ PROVIDER_KEYS = {
     "location",
     "rating",
     "reviewCount",
+    "priceFromMinorUnits",
+    "currency",
     "links",
     "publicCode",
     "serviceIds",
@@ -41,6 +43,24 @@ def test_search_lists_serialized_providers(client, db):
     assert len(rows) == 1
     assert rows[0]["publicCode"] == "VISTULA-4471"
     assert rows[0]["serviceIds"]  # the service is linked
+
+
+def test_search_exposes_price_from_cheapest_service(client, db):
+    p = make_provider(db, "Vistula Auto", category_id="economy")
+    make_service(db, p["id"], "Premium", price_minor_units=9000, currency="PLN")
+    make_service(db, p["id"], "Compact", price_minor_units=4500, currency="USD")
+    rows = client.get("/providers").json()
+    assert len(rows) == 1
+    # cheapest service wins, carrying its own currency.
+    assert rows[0]["priceFromMinorUnits"] == 4500
+    assert rows[0]["currency"] == "USD"
+
+
+def test_search_price_from_is_null_without_services(client, db):
+    make_provider(db, "Empty", category_id="economy")
+    rows = client.get("/providers").json()
+    assert rows[0]["priceFromMinorUnits"] is None
+    assert rows[0]["currency"] == ""
 
 
 def test_search_filters_by_category(client, db):
@@ -108,6 +128,44 @@ def test_follow_is_idempotent(client, db, auth):
     client.post(f"/providers/{p['id']}/follow")
     second = client.post(f"/providers/{p['id']}/follow").json()
     assert second["followedProviderIds"].count(p["id"]) == 1
+
+
+def test_follow_reports_403_when_rls_drops_the_write(client, db, auth, monkeypatch):
+    """RLS refuses a write in two shapes: it raises, or it returns no rows. Only
+    the raising one was handled, so a silently-dropped insert still returned 200
+    and the UI showed "Following" for a row that was never written. Every other
+    write in the codebase guards the empty-result form with `enforce_rls_write`."""
+    auth(role="client")
+    p = make_provider(db, "P")
+
+    real_table = db.table
+
+    class _Dropped:
+        """What PostgREST hands back when RLS refuses without raising: a
+        response carrying no rows. The write must NOT happen, or the fixture
+        would not be modelling a refusal at all."""
+
+        data: list = []
+
+    def _drop_follow_insert(name):
+        builder = real_table(name)
+        if name == "follows":
+
+            def _insert(*_args, **_kwargs):
+                class _Q:
+                    def execute(self):
+                        return _Dropped()
+
+                return _Q()
+
+            builder.insert = _insert
+        return builder
+
+    monkeypatch.setattr(db, "table", _drop_follow_insert)
+    resp = client.post(f"/providers/{p['id']}/follow")
+    assert resp.status_code == 403
+    # and the refusal is real: nothing was written, and /me does not list it.
+    assert not [r for r in db.rows("follows") if r["provider_id"] == p["id"]]
 
 
 def test_follow_unknown_provider_is_404(client, db, auth):
@@ -347,7 +405,7 @@ def test_delete_provider_leaves_another_providers_resources(client, db, auth):
 # --- public provider reviews ------------------------------------------------
 
 
-def test_provider_reviews_newest_first_with_author(client, db):
+def test_provider_reviews_newest_first_with_public_display_name(client, db):
     p = make_provider(db, "Acme")
     svc = make_service(db, p["id"], "S")
     s1 = make_slot(db, service_id=svc["id"], hours_ahead=-10)
@@ -369,7 +427,10 @@ def test_provider_reviews_newest_first_with_author(client, db):
 
     rows = client.get(f"/providers/{p['id']}/reviews").json()
     assert [r["rating"] for r in rows] == [5, 3]  # newest first
-    assert [r["author"] for r in rows] == ["grace", "ada"]  # email local part
+    # author is the reviewer's self-chosen public display name (from Supabase
+    # user_metadata), never the email local-part. Offline the FakeSupabase has
+    # no auth.admin, so the name can't be resolved and it falls back to "Guest".
+    assert [r["author"] for r in rows] == ["Guest", "Guest"]
     assert set(rows[0]) == {"rating", "text", "createdAtUtc", "author"}
 
 

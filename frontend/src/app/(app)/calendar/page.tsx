@@ -7,9 +7,15 @@ import { CalendarDays } from "lucide-react";
 import { useApp } from "@/context/app-context";
 import { EmptyState } from "@/components/empty-state";
 import { BookingFlow } from "@/components/booking/booking-flow";
+import { Skeleton } from "@/components/skeleton";
 
 export default function CalendarPage() {
-  const { activeProvider, activeService, activeResource, user, vertical } = useApp();
+  const { activeProvider, activeService, activeResource, user, vertical, ready } = useApp();
+
+  // Availability is rendered in the viewer's zone, taken from their profile.
+  // Painting before boot finishes means `tz` falls back to UTC and every slot
+  // shows at the wrong local time.
+  if (!ready) return <Skeleton className="h-96 w-full" />;
 
   if (!activeProvider) {
     return (

@@ -39,6 +39,8 @@ export interface Provider {
   location: { city: string; country: string; lat: number; lng: number };
   rating: number; // 0–5
   reviewCount: number;
+  priceFromMinorUnits: number | null; // cheapest service; null when none priced
+  currency: string; // ISO 4217 for priceFromMinorUnits ("" when none)
   links: { label: string; url: string }[];
   publicCode: string; // e.g. "HERTZ-4471" — used by code entry and QR scan
   serviceIds: ID[];
@@ -58,6 +60,11 @@ export interface Service {
   currency: string; // ISO 4217
   cancellationCutoffHours: number; // no change/cancel inside this window
   autoApprove: boolean; // false → new bookings land as pending requests
+  /** `capabilities` RESOLVED for this service — the global block with the
+   *  service's own `metadata.capabilities` override merged in. Gate a surface on
+   *  this, not on the global block from `/config`: the routers gate per service,
+   *  so a service-level override is invisible to the global value. */
+  capabilities: Record<string, boolean>;
   resourceIds: ID[];
 }
 
@@ -103,6 +110,8 @@ export interface Booking {
   userId: ID;
   providerId: ID;
   serviceId: ID;
+  providerName: string; // embedded by the API so a list needn't fetch each provider
+  serviceName: string; // embedded by the API so a list needn't fetch each service
   resourceId: ID;
   slotIds: ID[]; // >1 for multi-slot / multi-day bookings
   startUtc: IsoUtc; // first slot start
@@ -151,8 +160,9 @@ export interface OwnerBooking extends Booking {
   clientEmail?: string;
 }
 
-/** Screening card for a client requesting a booking (Requests tab). */
-export interface RequestClient {
+/** Screening card for a client requesting a booking (Requests tab).
+ *  Not exported: only reached through `OwnerRequest.client`. */
+interface RequestClient {
   id: ID;
   displayName: string;
   email: string;
@@ -228,4 +238,35 @@ export interface ClientReputation {
   score: number;
   count: number;
   reviews: { author: string; rating: number; text: string; createdAtUtc: IsoUtc | null }[];
+}
+
+// --- messaging — 1:1 conversations between a client and a provider ----------
+// A new entity riding on the neutral spine; both personas share these shapes.
+
+/** One inbox row: the current user's thread with the other party. */
+export interface Conversation {
+  id: ID;
+  providerId: ID;
+  /** Who the current user is talking to — the business (for a client) or the
+   *  customer (for an owner). Resolved server-side across the RLS boundary. */
+  otherParty: { id: ID; name: string; avatarUrl: string | null };
+  lastMessagePreview: string | null;
+  lastMessageAtUtc: IsoUtc | null;
+  unreadCount: number;
+}
+
+/** One message in a thread. `mine` is derived server-side from the viewer, so
+ *  the UI aligns bubbles without knowing ids. A soft-deleted message keeps its
+ *  envelope but blanks `body` (render the placeholder from `deletedAtUtc`). */
+export interface Message {
+  id: ID;
+  conversationId: ID;
+  senderId: ID;
+  body: string;
+  replyToId: ID | null;
+  createdAtUtc: IsoUtc;
+  deliveredAtUtc: IsoUtc | null;
+  readAtUtc: IsoUtc | null;
+  deletedAtUtc: IsoUtc | null;
+  mine: boolean;
 }

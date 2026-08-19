@@ -14,6 +14,7 @@ export function ConfirmDialog({
   title = "Are you sure you want to make this change?",
   body = "Changes to a live offer may not be reversible and can affect existing bookings.",
   confirmLabel = "Yes, save changes",
+  busyLabel = "Saving…",
   onConfirm,
   onClose,
   children,
@@ -22,6 +23,8 @@ export function ConfirmDialog({
   title?: string;
   body?: string;
   confirmLabel?: string;
+  /** In-progress label on the confirm button (default "Saving…"). */
+  busyLabel?: string;
   onConfirm: () => Promise<void> | void;
   onClose: () => void;
   /** Optional summary of what's changing, shown above the buttons. */
@@ -96,7 +99,7 @@ export function ConfirmDialog({
             onPress={confirm}
             className="w-full bg-destructive text-base font-semibold text-white hover:bg-destructive/90 dark:text-white"
           >
-            {busy ? "Saving…" : confirmLabel}
+            {busy ? busyLabel : confirmLabel}
           </Button>
           <Button variant="ghost" size="lg" isDisabled={busy} onPress={onClose} className="w-full">
             Cancel

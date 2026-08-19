@@ -34,8 +34,15 @@ create table if not exists bookings (
 );
 
 create index if not exists idx_slots_resource_id on slots(resource_id);
+-- Every availability / month-density / calendar read filters slots by a
+-- starts_at time window (slot_occupancy is grouped on it too); without this the
+-- window can't be selectively scanned.
+create index if not exists idx_slots_starts_at on slots(starts_at);
 create index if not exists idx_bookings_slot_id on bookings(slot_id);
 create index if not exists idx_bookings_client_email on bookings(client_email);
+-- Owner-side client screening (owner.py _client_profile) filters bookings by
+-- client_id; only client_email was indexed.
+create index if not exists idx_bookings_client_id on bookings(client_id);
 
 -- ===========================================================================
 -- Extended entities: providers, services, multi-slot bookings, reviews, follows
@@ -373,3 +380,175 @@ create policy follows_select_own on follows for select using (user_id = auth.uid
 drop policy if exists follows_write_own on follows;
 create policy follows_write_own on follows for all
   using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- ===========================================================================
+-- Messaging: 1:1 conversations between a client and a provider's owner
+-- (branch 40-messaging). A NEW entity, so — per the pivot design — it's added
+-- as new tables; the frozen base tables are untouched. Live delivery rides on
+-- Supabase Realtime (postgres_changes) gated by the same RLS below.
+-- ===========================================================================
+
+-- One thread per (provider, client) pair. `owner_id` is the provider's owner,
+-- denormalized so RLS / Realtime is a flat column compare (nullable — some
+-- seeded providers carry no owner_id). last_message_* are stamped by the
+-- trigger below so the inbox can list threads without scanning messages.
+create table if not exists conversations (
+  id uuid primary key default gen_random_uuid(),
+  provider_id uuid not null references providers(id) on delete cascade,
+  client_id uuid not null references auth.users(id) on delete cascade,
+  owner_id uuid references auth.users(id) on delete set null,
+  last_message_at timestamptz,
+  last_message_preview text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  unique (provider_id, client_id)
+);
+
+-- A message in a thread. Soft-deleted (deleted_at) rather than removed, so the
+-- "Message deleted" placeholder and receipts survive. reply_to_id quotes another
+-- message; delivered_at/read_at drive the iMessage-style receipts.
+create table if not exists messages (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references conversations(id) on delete cascade,
+  sender_id uuid not null references auth.users(id) on delete cascade,
+  body text not null,
+  reply_to_id uuid references messages(id) on delete set null,
+  delivered_at timestamptz,
+  read_at timestamptz,
+  deleted_at timestamptz,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_messages_conversation on messages(conversation_id, created_at);
+create index if not exists idx_conversations_client on conversations(client_id);
+create index if not exists idx_conversations_owner on conversations(owner_id);
+create index if not exists idx_conversations_provider on conversations(provider_id);
+
+alter table conversations enable row level security;
+alter table messages      enable row level security;
+
+-- conversations: a participant (the client or the provider's owner) sees and
+-- manages their own threads.
+drop policy if exists conversations_select_participant on conversations;
+create policy conversations_select_participant on conversations for select
+  using (client_id = auth.uid() or owner_id = auth.uid());
+
+drop policy if exists conversations_insert_participant on conversations;
+create policy conversations_insert_participant on conversations for insert
+  with check (client_id = auth.uid() or owner_id = auth.uid());
+
+drop policy if exists conversations_update_participant on conversations;
+create policy conversations_update_participant on conversations for update
+  using (client_id = auth.uid() or owner_id = auth.uid())
+  with check (client_id = auth.uid() or owner_id = auth.uid());
+
+-- messages: visible/updatable to either participant of the parent conversation
+-- (mirrors booking_slots' membership check); a message can only be inserted by
+-- its own sender, and only into a conversation they participate in.
+drop policy if exists messages_select_participant on messages;
+create policy messages_select_participant on messages for select
+  using (exists (select 1 from conversations c where c.id = conversation_id
+                 and (c.client_id = auth.uid() or c.owner_id = auth.uid())));
+
+drop policy if exists messages_insert_sender on messages;
+create policy messages_insert_sender on messages for insert
+  with check (sender_id = auth.uid() and exists (
+    select 1 from conversations c where c.id = conversation_id
+    and (c.client_id = auth.uid() or c.owner_id = auth.uid())));
+
+drop policy if exists messages_update_participant on messages;
+create policy messages_update_participant on messages for update
+  using (exists (select 1 from conversations c where c.id = conversation_id
+                 and (c.client_id = auth.uid() or c.owner_id = auth.uid())))
+  with check (exists (select 1 from conversations c where c.id = conversation_id
+                 and (c.client_id = auth.uid() or c.owner_id = auth.uid())));
+
+-- Full replica identity so an UPDATE's Realtime payload carries the old + new
+-- rows (read receipts and soft-deletes are UPDATEs the recipient must see live).
+alter table messages replica identity full;
+
+-- Bump the parent thread's preview/timestamp on every new message, so the inbox
+-- reflects the latest line without a separate write path.
+create or replace function public.touch_conversation()
+returns trigger
+language plpgsql
+as $$
+begin
+  update public.conversations
+     set last_message_at = new.created_at,
+         last_message_preview = new.body
+   where id = new.conversation_id;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_message_insert on messages;
+create trigger on_message_insert
+  after insert on messages
+  for each row execute function public.touch_conversation();
+
+-- Publish the two tables to Supabase Realtime. Altering the managed
+-- `supabase_realtime` publication can need privileges the direct DB role lacks
+-- (same story as the auth.users trigger / storage bucket above), and re-adding a
+-- table already in the publication raises duplicate_object — guard both so a
+-- re-run is a no-op and a privilege gap degrades to HTTP-only (enable the tables
+-- manually via Dashboard → Database → Replication).
+do $$
+begin
+  alter publication supabase_realtime add table messages;
+exception
+  when duplicate_object then null;
+  when insufficient_privilege or undefined_object then
+    raise notice 'Skipping realtime publish for messages (no privilege / publication missing); enable it via the Supabase dashboard.';
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table conversations;
+exception
+  when duplicate_object then null;
+  when insufficient_privilege or undefined_object then
+    raise notice 'Skipping realtime publish for conversations (no privilege / publication missing); enable it via the Supabase dashboard.';
+end $$;
+
+-- ===========================================================================
+-- Storage: avatar uploads (branch 35-profile-picture)
+-- ===========================================================================
+-- Public-read bucket for user avatars, matching the existing precedent that
+-- provider avatar/cover images are already public. Objects are keyed
+-- "{auth.uid()}/avatar" (no extension — Content-Type carries the format), so
+-- there is exactly one possible object per user; the backend uploads/deletes
+-- with the service key (ownership is enforced by deriving the key from the
+-- verified JWT's user id server-side, never client input) — these policies are
+-- defense-in-depth only, same model as the rest of this file.
+--
+-- Bucket/policy DDL can need privilege the direct DB role may not have (like
+-- the auth.users trigger above); guard it the same way so a fresh DB still
+-- gets everything else. If skipped, create the bucket/policies manually via
+-- the Supabase dashboard.
+do $$
+begin
+  insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+  values ('avatars', 'avatars', true, 5242880, array['image/jpeg', 'image/png', 'image/webp'])
+  on conflict (id) do nothing;
+
+  -- No public "select" policy: a public bucket serves individual object reads
+  -- via the /storage/v1/object/public/... endpoint, which bypasses RLS
+  -- entirely, so a broad `select` policy here isn't needed for <img> to work
+  -- and would instead let any authenticated client list/enumerate every
+  -- object (i.e. every user id) in the bucket via storage.objects directly.
+  drop policy if exists avatars_select_all on storage.objects;
+
+  drop policy if exists avatars_select_own on storage.objects;
+  create policy avatars_select_own on storage.objects for select
+    using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+
+  drop policy if exists avatars_write_own on storage.objects;
+  create policy avatars_write_own on storage.objects for all
+    using (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text)
+    with check (bucket_id = 'avatars' and (storage.foldername(name))[1] = auth.uid()::text);
+exception
+  when insufficient_privilege or undefined_table then
+    raise notice 'Skipping avatars storage bucket/policies (no privilege); create manually via the Supabase dashboard.';
+end $$;

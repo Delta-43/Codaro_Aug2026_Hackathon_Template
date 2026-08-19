@@ -15,9 +15,6 @@ from helpers import (
     iso_in,
     make_booking,
     make_catalog,
-    make_client_review,
-    make_resource,
-    make_service,
     make_slot,
 )
 
@@ -666,3 +663,415 @@ def test_client_review_replaces_prior_one(client, db, auth):
     assert len(rows) == 1
     assert rows[0]["rating"] == 5
     assert rows[0]["text"] == "improved"
+
+
+# --- pricing (config v2) ---------------------------------------------------
+#
+# v1 priced inline: `priceMinorUnits * len(rows) * party`. The booking router now
+# calls `app.pricing.quote` with the service's resolved `pricing` block, and
+# stamps `price_breakdown` + `deposit_minor_units` into booking metadata
+# alongside the price. The default block must reproduce the v1 number exactly;
+# `services.metadata.pricing` is what buys the new models.
+
+
+def _book(client, cat, slot_ids=None, party=1):
+    return client.post(
+        "/bookings",
+        json={
+            "serviceId": cat["service"]["id"],
+            "resourceId": cat["resource"]["id"],
+            "slotIds": slot_ids or [cat["slot"]["id"]],
+            "partySize": party,
+        },
+    )
+
+
+def test_create_stamps_a_price_breakdown_and_deposit_into_metadata(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db, capacity=4, slot_capacity=4, price_minor_units=1000)
+    booking = _book(client, cat, party=2).json()
+
+    md = db.get_row("bookings", booking["id"])["metadata"]
+    assert md["price_minor_units"] == 2000 == booking["priceMinorUnits"]
+    assert md["deposit_minor_units"] == 0
+    assert isinstance(md["price_breakdown"], list)
+    assert md["price_breakdown"] == [
+        {"key": "base", "label": "Per slot", "amountMinorUnits": 2000}
+    ]
+
+
+def test_default_pricing_still_matches_the_v1_formula_end_to_end(client, db, auth):
+    """price x slots x party, straight through the real endpoint."""
+    auth(role="client")
+    cat = make_catalog(db, capacity=5, slot_capacity=5, max_slots_per_booking=3,
+                       price_minor_units=500)
+    a, b = _contiguous_slots(db, cat, n=2)
+    booking = _book(client, cat, slot_ids=[a["id"], b["id"]], party=3).json()
+    assert booking["priceMinorUnits"] == 500 * 2 * 3
+
+
+def test_a_service_can_price_per_night_via_metadata_pricing(client, db, auth):
+    """The pivot reach v1 could not express: the same slot machinery billing by
+    started night instead of by slot."""
+    auth(role="client")
+    cat = make_catalog(
+        db,
+        price_minor_units=1000,
+        metadata={"pricing": {"rate": {"per": "night", "amountMinorUnits": 9900}}},
+    )
+    booking = _book(client, cat).json()
+    assert booking["priceMinorUnits"] == 9900
+
+
+def test_charge_per_person_false_stops_the_party_multiplying(client, db, auth):
+    """A shared unit — the court costs the same for two players or four."""
+    auth(role="client")
+    cat = make_catalog(
+        db,
+        capacity=4,
+        slot_capacity=4,
+        price_minor_units=4000,
+        metadata={"pricing": {"chargePerPerson": False}},
+    )
+    assert _book(client, cat, party=1).json()["priceMinorUnits"] == 4000
+    assert _book(client, cat, party=3).json()["priceMinorUnits"] == 4000
+
+
+def test_a_service_tier_applies_through_the_real_endpoint(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(
+        db,
+        capacity=6,
+        slot_capacity=6,
+        price_minor_units=1000,
+        metadata={
+            "pricing": {
+                "tiers": [
+                    {
+                        "key": "group",
+                        "label": "Group rate",
+                        "amountMinorUnits": 600,
+                        "appliesWhen": {"partySize": {"min": 4}},
+                    }
+                ]
+            }
+        },
+    )
+    assert _book(client, cat, party=2).json()["priceMinorUnits"] == 2000  # base
+    booking = _book(client, cat, party=4).json()
+    assert booking["priceMinorUnits"] == 2400  # 600 x 4 heads
+    md = db.get_row("bookings", booking["id"])["metadata"]
+    assert md["price_breakdown"][0]["key"] == "group"
+
+
+def test_a_global_deposit_lands_on_the_booking(client, db, auth, domain_config):
+    auth(role="client")
+    domain_config(
+        pricing={"deposit": {"enabled": True, "kind": "percent", "value": 20, "refundable": True}}
+    )
+    cat = make_catalog(db, price_minor_units=10000)
+    booking = _book(client, cat).json()
+    md = db.get_row("bookings", booking["id"])["metadata"]
+    assert md["price_minor_units"] == 10000
+    assert md["deposit_minor_units"] == 2000
+
+
+def test_the_global_pricing_block_applies_when_the_service_has_no_columns(
+    client, db, auth, domain_config
+):
+    """A service with null price/currency columns prices from
+    `domain.config.json` — v1 had no global default for either."""
+    auth(role="client")
+    domain_config(
+        pricing={"currency": "PLN", "rate": {"per": "booking", "amountMinorUnits": 7500}}
+    )
+    cat = make_catalog(db, max_slots_per_booking=3, price_minor_units=None, currency=None)
+    a, b = _contiguous_slots(db, cat, n=2)
+    booking = _book(client, cat, slot_ids=[a["id"], b["id"]]).json()
+    assert booking["priceMinorUnits"] == 7500  # per booking, not per slot
+    assert booking["currency"] == "PLN"
+
+
+def test_a_service_fee_is_itemised_in_the_breakdown(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(
+        db,
+        price_minor_units=5000,
+        metadata={
+            "pricing": {
+                "fees": [
+                    {"key": "clean", "label": "Cleaning", "kind": "flat", "amountMinorUnits": 1500}
+                ]
+            }
+        },
+    )
+    booking = _book(client, cat).json()
+    assert booking["priceMinorUnits"] == 6500
+    md = db.get_row("bookings", booking["id"])["metadata"]
+    assert [line["key"] for line in md["price_breakdown"]] == ["base", "clean"]
+
+
+def test_reschedule_reprices_and_rewrites_the_pricing_metadata(client, db, auth):
+    """Moving a booking has to re-quote it: a 1-slot booking moved onto 2 slots
+    costs twice as much, and the stale breakdown/currency must be replaced."""
+    auth(role="client")
+    cat = make_catalog(
+        db,
+        max_slots_per_booking=3,
+        price_minor_units=500,
+        currency="PLN",
+        cancellation_cutoff_hours=24,
+    )
+    old = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100)
+    a, b = _contiguous_slots(db, cat, n=2, first_hours=200)
+    booking = make_booking(
+        db,
+        slots=[old],
+        service=cat["service"],
+        metadata={"currency": "XXX", "price_breakdown": [{"key": "stale"}]},
+    )
+
+    resp = client.post(
+        f"/bookings/{booking['id']}/reschedule", json={"newSlotIds": [a["id"], b["id"]]}
+    )
+    assert resp.status_code == 200
+    out = resp.json()
+    assert out["priceMinorUnits"] == 1000  # 500 x 2 slots x party 1
+    assert out["currency"] == "PLN"  # the stale "XXX" was rewritten
+
+    md = db.get_row("bookings", booking["id"])["metadata"]
+    assert md["price_breakdown"] == [
+        {"key": "base", "label": "Per slot", "amountMinorUnits": 1000}
+    ]
+    assert md["deposit_minor_units"] == 0
+
+
+def test_reschedule_recomputes_the_deposit_too(client, db, auth, domain_config):
+    auth(role="client")
+    domain_config(
+        pricing={"deposit": {"enabled": True, "kind": "percent", "value": 50, "refundable": True}}
+    )
+    cat = make_catalog(db, max_slots_per_booking=3, price_minor_units=1000,
+                       cancellation_cutoff_hours=24)
+    old = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100)
+    a, b = _contiguous_slots(db, cat, n=2, first_hours=200)
+    booking = make_booking(db, slots=[old], service=cat["service"])
+
+    client.post(f"/bookings/{booking['id']}/reschedule", json={"newSlotIds": [a["id"], b["id"]]})
+    md = db.get_row("bookings", booking["id"])["metadata"]
+    assert md["price_minor_units"] == 2000
+    assert md["deposit_minor_units"] == 1000
+
+
+# --- auto-approve driven by timing.confirmation ----------------------------
+
+
+def test_request_approve_confirmation_makes_every_new_booking_pending(
+    client, db, auth, domain_config
+):
+    """A niche whose whole model is request-then-approve sets it once in the
+    pivot file instead of toggling every service."""
+    auth(role="client")
+    domain_config(timing={"confirmation": "request_approve"})
+    cat = make_catalog(db)
+    assert _book(client, cat).json()["status"] == "pending"
+
+
+def test_a_service_toggle_still_overrides_request_approve_confirmation(
+    client, db, auth, domain_config
+):
+    auth(role="client")
+    domain_config(timing={"confirmation": "request_approve"})
+    cat = make_catalog(db, metadata={"auto_approve": True})
+    assert _book(client, cat).json()["status"] == "confirmed"
+
+
+# ---------------------------------------------------------------------------
+# timing.leadTimeMinutes — minimum notice, enforced on POST /bookings
+# ---------------------------------------------------------------------------
+#
+# `create_booking` dispatches `apply_rules("booking.create", ...)` right after
+# the selection resolves, mapping a RuleViolation to INVALID_RANGE (400). These
+# go through the real endpoint so the dispatch, not just the validator, is what
+# is being tested.
+
+
+def _book_body(cat, slot, party=1):
+    return {
+        "serviceId": cat["service"]["id"],
+        "resourceId": cat["resource"]["id"],
+        "slotIds": [slot["id"]],
+        "partySize": party,
+    }
+
+
+def test_a_soon_slot_books_fine_on_the_default_config(client, db, auth, domain_config):
+    """The shipped default is `leadTimeMinutes: 0` — off. A slot ten minutes out
+    must still be bookable, or the rule would be a silent behaviour change for
+    every existing deployment."""
+    domain_config()
+    auth(role="client")
+    cat = make_catalog(db, slot_hours_ahead=1 / 6)  # 10 minutes out
+    resp = client.post("/bookings", json=_book_body(cat, cat["slot"]))
+    assert resp.status_code == 200
+
+
+def test_a_booking_inside_the_lead_time_is_rejected(client, db, auth, domain_config):
+    domain_config(timing={"leadTimeMinutes": 120})
+    auth(role="client")
+    cat = make_catalog(db, slot_hours_ahead=1)
+    resp = client.post("/bookings", json=_book_body(cat, cat["slot"]))
+    assert resp.status_code == 400
+    assert _detail_code(resp) == "INVALID_RANGE"
+    assert "120" in resp.json()["detail"]["message"]
+
+
+def test_a_booking_outside_the_lead_time_is_accepted(client, db, auth, domain_config):
+    domain_config(timing={"leadTimeMinutes": 120})
+    auth(role="client")
+    cat = make_catalog(db, slot_hours_ahead=4)
+    resp = client.post("/bookings", json=_book_body(cat, cat["slot"]))
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "confirmed"
+
+
+def test_a_rejected_lead_time_booking_persists_nothing(client, db, auth, domain_config):
+    """The gate runs before the insert, so a refused booking must leave no row
+    and no capacity hold behind."""
+    domain_config(timing={"leadTimeMinutes": 240})
+    auth(role="client")
+    cat = make_catalog(db, slot_hours_ahead=0.5, capacity=2, slot_capacity=2)
+    assert client.post("/bookings", json=_book_body(cat, cat["slot"])).status_code == 400
+    assert db.rows("bookings") == []
+    assert db.rows("booking_slots") == []
+    assert client.get("/slots/occupancy").json()[0]["booked_count"] == 0
+
+
+def test_the_lead_time_window_moves_with_the_config(client, db, auth, domain_config):
+    """Same slot, two configs: the verdict comes from the pivot file, not code."""
+    auth(role="client")
+    cat = make_catalog(db, slot_hours_ahead=3)
+
+    domain_config(timing={"leadTimeMinutes": 600})  # 10h notice -> too soon
+    assert client.post("/bookings", json=_book_body(cat, cat["slot"])).status_code == 400
+
+    domain_config(timing={"leadTimeMinutes": 60})  # 1h notice -> fine
+    assert client.post("/bookings", json=_book_body(cat, cat["slot"])).status_code == 200
+
+
+def test_lead_time_does_not_gate_a_reschedule_onto_a_soon_slot(client, db, auth, domain_config):
+    """`leadTimeMinutes` is registered on `booking.create` only; changing an
+    existing booking is governed by `cancellationWindowHours`. Pinned so the
+    two events stay distinct."""
+    domain_config(timing={"leadTimeMinutes": 600})
+    auth(role="client")
+    cat = make_catalog(db, slot_hours_ahead=48, cancellation_cutoff_hours=24)
+    booking = client.post("/bookings", json=_book_body(cat, cat["slot"])).json()
+    soon = make_slot(
+        db,
+        cat["resource"]["id"],
+        service_id=cat["service"]["id"],
+        hours_ahead=2,
+        capacity=cat["slot"]["capacity"],
+    )
+    resp = client.post(
+        f"/bookings/{booking['id']}/reschedule", json={"newSlotIds": [soon["id"]]}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["slotIds"] == [soon["id"]]
+
+
+# ---------------------------------------------------------------------------
+# maxBookingsPerSlot must NOT gate booking.create (group-booking regression)
+# ---------------------------------------------------------------------------
+#
+# The config default is `maxBookingsPerSlot: 1`. If `rules._capacity` were
+# dispatched on `booking.create`, it would apply `min(slot.capacity, 1)` and cap
+# every shared-capacity slot at one head. Capacity belongs to `_resolve_selection`
+# + the `slot_occupancy` view, which know about party size and multi-slot holds.
+
+
+def test_a_group_books_a_shared_slot_while_the_config_caps_at_one(client, db, auth, domain_config):
+    config = domain_config(rules={"maxBookingsPerSlot": 1})
+    assert config["rules"]["maxBookingsPerSlot"] == 1  # the shipped default
+    auth(role="client")
+    cat = make_catalog(db, capacity=8, slot_capacity=8)
+    resp = client.post("/bookings", json=_book_body(cat, cat["slot"], party=5))
+    assert resp.status_code == 200
+    assert client.get("/slots/occupancy").json()[0]["booked_count"] == 5
+
+
+def test_two_customers_share_one_slot_while_the_config_caps_at_one(client, db, auth, domain_config):
+    """The test that actually protects the exclusion: with `_capacity`
+    dispatched, the *second* booking on the same slot fails (booked_count 4 >=
+    min(8, 1)) even though six seats are free."""
+    domain_config(rules={"maxBookingsPerSlot": 1})
+    cat = make_catalog(db, capacity=8, slot_capacity=8)
+
+    auth(role="client", email="a@example.com")
+    assert client.post("/bookings", json=_book_body(cat, cat["slot"], party=4)).status_code == 200
+    auth(role="client", email="b@example.com", id="33333333-3333-3333-3333-333333333333")
+    assert client.post("/bookings", json=_book_body(cat, cat["slot"], party=3)).status_code == 200
+
+    assert client.get("/slots/occupancy").json()[0]["booked_count"] == 7
+
+
+def test_the_slot_capacity_and_not_the_config_number_is_the_ceiling(client, db, auth, domain_config):
+    """The row's own capacity still binds: an eighth head into a 7-seat slot is
+    CAPACITY_EXCEEDED regardless of `maxBookingsPerSlot`."""
+    domain_config(rules={"maxBookingsPerSlot": 20})
+    auth(role="client")
+    cat = make_catalog(db, capacity=7, slot_capacity=7)
+    resp = client.post("/bookings", json=_book_body(cat, cat["slot"], party=8))
+    assert resp.status_code == 409
+    assert _detail_code(resp) == "CAPACITY_EXCEEDED"
+
+
+# --- capabilities.reviews gates BOTH review directions ----------------------
+#
+# The block's contract is that a false capability hides the surface AND refuses
+# the write. It shipped gating only the customer-facing review, so an owner
+# could still write `client_reviews` — rows that feed the customer's public
+# reputation — on a deployment with reviews turned off.
+
+
+def test_customer_review_refused_when_reviews_capability_is_off(
+    client, db, auth, domain_config
+):
+    domain_config(capabilities={"reviews": False})
+    auth(role="client")
+    cat = make_catalog(db)
+    past = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=-5)
+    booking = make_booking(db, slots=[past], service=cat["service"])
+    resp = client.post(f"/bookings/{booking['id']}/review", json={"rating": 5})
+    assert resp.status_code == 404
+    assert not [r for r in db.rows("reviews") if r["booking_id"] == booking["id"]]
+
+
+def test_client_review_refused_when_reviews_capability_is_off(
+    client, db, auth, domain_config
+):
+    domain_config(capabilities={"reviews": False})
+    auth(role="owner")
+    cat = make_catalog(db)
+    booking = _completed(db, cat)
+    resp = client.post(f"/bookings/{booking['id']}/client-review", json={"rating": 4})
+    assert resp.status_code == 404
+    assert not [r for r in db.rows("client_reviews") if r["booking_id"] == booking["id"]]
+
+
+def test_both_review_directions_work_when_the_capability_is_on(client, db, auth, domain_config):
+    """Guard against the gate being written so tightly it refuses everything."""
+    domain_config(capabilities={"reviews": True})
+    cat = make_catalog(db)
+
+    auth(role="client")
+    past = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=-5)
+    booking = make_booking(db, slots=[past], service=cat["service"])
+    assert client.post(f"/bookings/{booking['id']}/review", json={"rating": 5}).status_code == 200
+
+    auth(role="owner")
+    owned = _completed(db, cat)
+    assert (
+        client.post(f"/bookings/{owned['id']}/client-review", json={"rating": 4}).status_code == 200
+    )

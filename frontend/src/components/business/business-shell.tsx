@@ -13,9 +13,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   CalendarDays,
-  CircleCheckBig,
   CircleUser,
   Rocket,
+  Send,
   SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
@@ -23,7 +23,9 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { useOwner } from "@/context/owner-context";
-import { VerifiedScene } from "@/components/business/verified-badge";
+import { useUnreadCount } from "@/hooks/use-unread-count";
+import { BusinessBadge } from "@/components/business/verified-badge";
+import { TabBadge } from "@/components/app-shell";
 import { Button } from "@/components/ui/button";
 
 interface Tab {
@@ -32,11 +34,13 @@ interface Tab {
   icon: LucideIcon;
 }
 
+// Messages is the permanent centre button (paper plane); Requests + Calendar
+// collapse into Messages and Bookings so the persona keeps five balanced tabs.
 const TABS: Tab[] = [
   { href: "/owner", label: "Dashboard", icon: Rocket },
   { href: "/owner/services", label: "Services", icon: SlidersHorizontal },
-  { href: "/owner/requests", label: "Requests", icon: CircleCheckBig },
-  { href: "/owner/calendar", label: "Calendar", icon: CalendarDays },
+  { href: "/owner/messages", label: "Messages", icon: Send },
+  { href: "/owner/bookings", label: "Bookings", icon: CalendarDays },
   { href: "/owner/profile", label: "Profile", icon: CircleUser },
 ];
 
@@ -62,9 +66,11 @@ export function BusinessShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { signOut } = useAuth();
   const { activeProvider, scene } = useOwner();
+  const unread = useUnreadCount();
   const businessName = activeProvider?.name ?? "Your business";
   const active = TABS.find((t) => isActive(pathname, t.href)) ?? TABS[0];
   const heading = pathname.startsWith("/owner/settings") ? "Settings" : active.label;
+  const badgeFor = (href: string) => (href === "/owner/messages" ? unread : 0);
 
   return (
     <div className="min-h-dvh md:pl-60">
@@ -75,7 +81,12 @@ export function BusinessShell({ children }: { children: ReactNode }) {
         </Link>
         <nav className="flex flex-col gap-1">
           {TABS.map((tab) => (
-            <NavItem key={tab.href} tab={tab} active={isActive(pathname, tab.href)} />
+            <NavItem
+              key={tab.href}
+              tab={tab}
+              active={isActive(pathname, tab.href)}
+              badge={badgeFor(tab.href)}
+            />
           ))}
         </nav>
         <div className="mt-auto px-1">
@@ -101,7 +112,8 @@ export function BusinessShell({ children }: { children: ReactNode }) {
           className="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 hover:bg-muted"
           aria-label="Settings"
         >
-          <VerifiedScene scene={scene} size="sm" />
+          {/* activeProvider comes from useOwner, so an avatar edit re-renders here. */}
+          <BusinessBadge avatarUrl={activeProvider?.avatarUrl} scene={scene} size="sm" />
           <span className="max-w-[10rem] truncate text-sm">{businessName}</span>
         </Link>
       </header>
@@ -121,6 +133,7 @@ export function BusinessShell({ children }: { children: ReactNode }) {
         {TABS.map((tab) => {
           const Icon = tab.icon;
           const activeTab = isActive(pathname, tab.href);
+          const badge = badgeFor(tab.href);
           return (
             <Link
               key={tab.href}
@@ -131,7 +144,10 @@ export function BusinessShell({ children }: { children: ReactNode }) {
                 activeTab ? "text-primary" : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <Icon className="size-5" aria-hidden />
+              <span className="relative">
+                <Icon className="size-5" aria-hidden />
+                <TabBadge count={badge} />
+              </span>
               {tab.label}
             </Link>
           );
@@ -141,7 +157,7 @@ export function BusinessShell({ children }: { children: ReactNode }) {
   );
 }
 
-function NavItem({ tab, active }: { tab: Tab; active: boolean }) {
+function NavItem({ tab, active, badge = 0 }: { tab: Tab; active: boolean; badge?: number }) {
   const Icon = tab.icon;
   return (
     <Link
@@ -154,7 +170,10 @@ function NavItem({ tab, active }: { tab: Tab; active: boolean }) {
           : "text-muted-foreground hover:bg-muted hover:text-foreground",
       )}
     >
-      <Icon className="size-4" aria-hidden />
+      <span className="relative">
+        <Icon className="size-4" aria-hidden />
+        <TabBadge count={badge} />
+      </span>
       {tab.label}
     </Link>
   );

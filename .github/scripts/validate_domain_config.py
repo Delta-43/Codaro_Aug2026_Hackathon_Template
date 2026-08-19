@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Validate domain.config.json — the single file a domain pivot edits.
 
-The engine reads vocabulary from `terms`, business numbers from `rules`, and
-UI strings from `copy`; nothing in the code hard-codes them. So a missing key
-here does not fail loudly at build time, it fails at runtime in whichever
-request happens to read it first. This script turns that into a CI failure.
+v1 of this script kept its own copy of the required keys and their types, which
+meant CI and the engine could disagree about what a valid config was. It now
+imports the same `app.config_schema` the backend loads through, so there is
+exactly one definition of "valid" and adding a field to the engine cannot leave
+CI behind.
 
 Run it locally the same way CI does:
 
@@ -19,94 +20,33 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "backend"))
 
-# Keys the backend and frontend read by name. Adding a rule to the engine
-# means adding it here too, so every domain file is forced to define it.
-REQUIRED_SECTIONS = ["domain", "terms", "rules", "copy", "theme", "metaFields"]
-REQUIRED_TERMS = ["resource", "resources", "slot", "slots", "booking", "bookings", "client", "admin"]
-REQUIRED_RULES = {
-    "cancellationWindowHours": (int, float),
-    "maxBookingsPerSlot": int,
-    "slotDurationMinutes": int,
-    "advanceBookingWindowDays": int,
-    "bufferMinutes": (int, float),
-}
-REQUIRED_COPY = [
-    "landingTitle",
-    "landingSubtitle",
-    "confirmTitle",
-    "emptyStateSlots",
-    "emptyStateBookings",
-]
-REQUIRED_THEME = ["primaryColor", "radius"]
-REQUIRED_META_FIELD_GROUPS = ["resources", "bookings"]
+from app.config_schema import check_shape, normalize, validate  # noqa: E402
 
 
-def validate(path: Path) -> list[str]:
-    errors: list[str] = []
-
+def check(path: Path) -> list[str]:
     try:
-        config = json.loads(path.read_text())
+        raw = json.loads(path.read_text())
     except FileNotFoundError:
         return [f"{path} does not exist."]
     except json.JSONDecodeError as e:
         return [f"{path} is not valid JSON: {e}"]
 
-    if not isinstance(config, dict):
+    if not isinstance(raw, dict):
         return [f"{path} must contain a JSON object at the top level."]
 
-    for section in REQUIRED_SECTIONS:
-        if section not in config:
-            errors.append(f"missing top-level key: {section!r}")
+    # Mirror the backend's load order exactly (see `app/config.py`): shape first,
+    # because normalize()/validate() assume each block is the right *kind* of
+    # thing and a malformed one (e.g. `"timing": []`) escapes them as a raw
+    # TypeError. Without this, a config could pass CI and still fail at startup.
+    shape_errors = check_shape(raw)
+    if shape_errors:
+        return shape_errors
 
-    terms = config.get("terms", {})
-    for term in REQUIRED_TERMS:
-        if not isinstance(terms.get(term), str) or not terms.get(term):
-            errors.append(f"terms.{term} must be a non-empty string (<Term> renders it)")
-
-    rules = config.get("rules", {})
-    for rule, expected_type in REQUIRED_RULES.items():
-        value = rules.get(rule)
-        if value is None:
-            errors.append(f"rules.{rule} is missing")
-        elif isinstance(value, bool) or not isinstance(value, expected_type):
-            errors.append(f"rules.{rule} must be a number, got {value!r}")
-        elif value < 0:
-            errors.append(f"rules.{rule} must not be negative, got {value!r}")
-
-    # A slot that allows zero bookings makes the whole engine unusable, and
-    # it is an easy typo to make when pivoting domains.
-    if isinstance(rules.get("maxBookingsPerSlot"), int) and rules["maxBookingsPerSlot"] < 1:
-        errors.append("rules.maxBookingsPerSlot must be at least 1")
-    if isinstance(rules.get("slotDurationMinutes"), int) and rules["slotDurationMinutes"] < 1:
-        errors.append("rules.slotDurationMinutes must be at least 1")
-
-    copy = config.get("copy", {})
-    for key in REQUIRED_COPY:
-        if not isinstance(copy.get(key), str) or not copy.get(key):
-            errors.append(f"copy.{key} must be a non-empty string")
-
-    theme = config.get("theme", {})
-    for key in REQUIRED_THEME:
-        if not isinstance(theme.get(key), str) or not theme.get(key):
-            errors.append(f"theme.{key} must be a non-empty string")
-
-    meta_fields = config.get("metaFields", {})
-    for group in REQUIRED_META_FIELD_GROUPS:
-        fields = meta_fields.get(group)
-        if not isinstance(fields, list):
-            errors.append(f"metaFields.{group} must be a list (use [] when the domain adds no extra fields)")
-            continue
-        # Each entry drives a rendered form input, so all three keys are load-bearing.
-        for i, field in enumerate(fields):
-            if not isinstance(field, dict):
-                errors.append(f"metaFields.{group}[{i}] must be an object")
-                continue
-            for required in ("key", "label", "type"):
-                if not isinstance(field.get(required), str) or not field.get(required):
-                    errors.append(f"metaFields.{group}[{i}].{required} must be a non-empty string")
-
-    return errors
+    # Then validate what the engine will actually resolve — defaults applied and
+    # the v1 `rules`/`search` aliases folded in — so a v1 file still passes.
+    return validate(normalize(raw))
 
 
 def main() -> int:
@@ -114,7 +54,7 @@ def main() -> int:
 
     failed = False
     for target in targets:
-        errors = validate(target)
+        errors = check(target)
         if errors:
             failed = True
             print(f"✗ {target.name}")

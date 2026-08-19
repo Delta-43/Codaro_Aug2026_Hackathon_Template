@@ -11,17 +11,14 @@ import Link from "next/link";
 import { ArrowUpRight, Star } from "lucide-react";
 import { useOwner } from "@/context/owner-context";
 import { Skeleton } from "@/components/skeleton";
-import { VerifiedScene } from "@/components/business/verified-badge";
+import { BusinessBadge } from "@/components/business/verified-badge";
 import { StatTile } from "@/components/business/stat-tile";
 import { BookingCalendar } from "@/components/business/booking-calendar";
 import { getOwnerDashboard } from "@/api";
 import type { OwnerDashboard, OwnerRequest } from "@/types/domain";
 import type { Metric } from "@/lib/business-demo";
 import { ownerBookingToCal } from "@/lib/owner-view";
-import { formatMoney, formatBookingWhen } from "@/lib/format";
-
-const browserTz = () =>
-  typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
+import { browserTz, formatBookingWhen, formatMoney } from "@/lib/format";
 
 function metricsOf(d: OwnerDashboard): Metric[] {
   const { upcomingBookings: up, clientSatisfaction: sat, revenue: rev } = d.glance;
@@ -99,7 +96,7 @@ export default function DashboardPage() {
     <section className="space-y-5 py-2">
       {/* Badge area */}
       <div className="flex items-center gap-3">
-        <VerifiedScene scene={scene} size="md" />
+        <BusinessBadge avatarUrl={provider.avatarUrl} scene={scene} size="md" />
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg font-semibold tracking-tight">{provider.name}</h1>
           <p className="truncate text-sm text-muted-foreground">
@@ -127,13 +124,13 @@ export default function DashboardPage() {
 
       {/* Bookings — this week */}
       <div>
-        <SectionHeader title="Bookings" href="/owner/calendar" cta="Full calendar" />
+        <SectionHeader title="Bookings" href="/owner/bookings" cta="Full calendar" />
         <BookingCalendar bookings={week} timezone={tz} defaultView="week" compact onOpen={() => {}} />
       </div>
 
       {/* Requests checklist */}
       <div>
-        <SectionHeader title="Requests to manage" href="/owner/requests" cta="All requests" />
+        <SectionHeader title="Requests to manage" href="/owner/messages" cta="All requests" />
         <RequestChecklist requests={data?.requests ?? []} tz={tz} />
       </div>
     </section>

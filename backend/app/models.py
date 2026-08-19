@@ -30,6 +30,12 @@ class BookingCreateReq(CamelModel):
     resource_id: str
     slot_ids: list[str]
     party_size: int = 1
+    # Domain-specific fields, validated at request time from
+    # `domain.config.json` metaFields.{entity}. Only `resources`/`slots` ever
+    # accepted one, so a `metaFields.providers|services|bookings` descriptor (the
+    # shipped medical example declares one) had no input path and validated
+    # nothing. Merged UNDER the engine's own keys, which always win.
+    metadata: dict | None = None
 
 
 class RescheduleReq(CamelModel):
@@ -49,6 +55,24 @@ class ClientReviewReq(CamelModel):
 
     rating: int
     text: str = ""
+
+
+class MessageCreateReq(CamelModel):
+    """POST /conversations/{id}/messages — a single message. `sender_id` and the
+    timestamps are stamped server-side from the token, never the body."""
+
+    body: str
+    reply_to_id: str | None = None
+
+
+class ConversationCreateReq(CamelModel):
+    """POST /conversations — find-or-create a thread. The client path passes only
+    `provider_id` (the caller is the customer). The owner path additionally
+    passes `client_id` (the customer to reach out to); the router verifies the
+    caller owns the provider before creating an owner-side thread."""
+
+    provider_id: str
+    client_id: str | None = None
 
 
 class UserPatch(CamelModel):
@@ -74,6 +98,12 @@ class ProviderCreate(CamelModel):
     cover_url: str | None = None
     location: dict | None = None  # {city, country, lat, lng}
     links: list | None = None
+    # Domain-specific fields, validated at request time from
+    # `domain.config.json` metaFields.{entity}. Only `resources`/`slots` ever
+    # accepted one, so a `metaFields.providers|services|bookings` descriptor (the
+    # shipped medical example declares one) had no input path and validated
+    # nothing. Merged UNDER the engine's own keys, which always win.
+    metadata: dict | None = None
 
 
 class ProviderUpdate(CamelModel):
@@ -86,6 +116,12 @@ class ProviderUpdate(CamelModel):
     cover_url: str | None = None
     location: dict | None = None
     links: list | None = None
+    # Domain-specific fields, validated at request time from
+    # `domain.config.json` metaFields.{entity}. Only `resources`/`slots` ever
+    # accepted one, so a `metaFields.providers|services|bookings` descriptor (the
+    # shipped medical example declares one) had no input path and validated
+    # nothing. Merged UNDER the engine's own keys, which always win.
+    metadata: dict | None = None
 
 
 class ServiceCreate(CamelModel):
@@ -104,7 +140,23 @@ class ServiceCreate(CamelModel):
     image_url: str | None = None
     # Non-column fields (ride in services.metadata): auto_approve gates whether
     # new bookings confirm immediately or land as pending requests.
-    auto_approve: bool = True
+    #
+    # None (not True) so an unset value stays UNSET. Defaulting to True stamped
+    # every created service with an explicit metadata key, which `effective_auto_approve`
+    # checks first — making both a `timing.confirmation` override and a
+    # deployment-wide `request_approve` unreachable through the API.
+    auto_approve: bool | None = None
+    # Per-service config overrides, keyed by block name (`pricing`, `timing`,
+    # `inventory`, ...). This is how one business on a marketplace prices or
+    # gates differently from another without touching domain.config.json.
+    # Validated against the same schema as the global file; a bad block is a 422.
+    config: dict | None = None
+    # Domain-specific fields, validated at request time from
+    # `domain.config.json` metaFields.{entity}. Only `resources`/`slots` ever
+    # accepted one, so a `metaFields.providers|services|bookings` descriptor (the
+    # shipped medical example declares one) had no input path and validated
+    # nothing. Merged UNDER the engine's own keys, which always win.
+    metadata: dict | None = None
 
 
 class ServiceUpdate(CamelModel):
@@ -119,6 +171,13 @@ class ServiceUpdate(CamelModel):
     cancellation_cutoff_hours: int | None = None
     image_url: str | None = None
     auto_approve: bool | None = None
+    config: dict | None = None
+    # Domain-specific fields, validated at request time from
+    # `domain.config.json` metaFields.{entity}. Only `resources`/`slots` ever
+    # accepted one, so a `metaFields.providers|services|bookings` descriptor (the
+    # shipped medical example declares one) had no input path and validated
+    # nothing. Merged UNDER the engine's own keys, which always win.
+    metadata: dict | None = None
 
 
 class ResourceCreate(BaseModel):

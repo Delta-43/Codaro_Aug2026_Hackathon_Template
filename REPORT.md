@@ -1,7 +1,20 @@
 # REPORT — Frontend ⇄ Backend wiring
 
+> **⚠️ STALE — do not trust this file as a description of the codebase.**
+> It snapshots branch `16-auth-system` and has not been regenerated since
+> (commit `c695f88`, issue #19). Everything merged after that is missing or
+> wrong here: the `messages`, `owner`, `gdpr`, `avatars`, `pricing`,
+> `discovery` and `users` modules, the `/conversations` and `/owner/*` routes,
+> `/bookings/{id}/approve` and `/reject`, `DELETE /me`, and the
+> `client_reviews` / `conversations` / `messages` tables. The pass count below
+> is also out of date (`test/CLAUDE.md` is the current figure).
+>
+> This is a **regenerated** artefact — do not hand-edit it. Re-run the
+> three-agent pipeline in the root `CLAUDE.md` (`codebase-analyst` →
+> `test-writer` → `test-runner`) to produce a current one.
+
 _Snapshot after wiring the new `frontend/src/` app to the FastAPI backend on a
-live Supabase project. Regenerate rather than hand-edit (see root `CLAUDE.md`)._
+live Supabase project._
 
 Branch: `16-auth-system`. Verified live (schema, seed, auth, RLS) against the
 project's hosted Supabase, plus a headless-browser click-through of the app.

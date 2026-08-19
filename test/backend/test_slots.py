@@ -8,9 +8,9 @@ that sums party size across confirmed bookings via `booking_slots`.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
-from helpers import iso_in, make_booking, make_catalog, make_resource, make_service, make_slot
+from helpers import iso_in, make_booking, make_catalog, make_resource, make_slot
 
 
 # --- reads -----------------------------------------------------------------
@@ -145,3 +145,41 @@ def test_delete_requires_owner(client, db, auth):
     auth(role="client")
     slot = make_slot(db)
     assert client.delete(f"/slots/{slot['id']}").status_code == 403
+
+
+# --- config v2: slots.py reads `timing`, not `rules` -----------------------
+#
+# `slots.py` now resolves its defaults from `get_config()["timing"]`. Because
+# `config_schema.normalize` mirrors the five legacy keys in BOTH directions, a
+# v1 file declaring only `rules` and a v2 file declaring only `timing` must
+# produce identical slots — that back-compat guarantee is what these pin.
+
+
+def test_slot_defaults_can_be_declared_on_the_v2_timing_path(client, db, auth, domain_config):
+    domain_config(timing={"slotDurationMinutes": 90, "maxBookingsPerSlot": 4})
+    auth(role="owner")
+    res = make_resource(db)
+    start = iso_in(hours=48)
+    slot = client.post("/slots", json={"resource_id": res["id"], "starts_at": start}).json()[0]
+    assert slot["ends_at"] == (datetime.fromisoformat(start) + timedelta(minutes=90)).isoformat()
+    assert slot["capacity"] == 4
+
+
+def test_slot_defaults_declared_on_the_v1_rules_path_still_work(client, db, auth, domain_config):
+    domain_config(rules={"slotDurationMinutes": 90, "maxBookingsPerSlot": 4})
+    auth(role="owner")
+    res = make_resource(db)
+    start = iso_in(hours=48)
+    slot = client.post("/slots", json={"resource_id": res["id"], "starts_at": start}).json()[0]
+    assert slot["ends_at"] == (datetime.fromisoformat(start) + timedelta(minutes=90)).isoformat()
+    assert slot["capacity"] == 4
+
+
+def test_the_buffer_rule_can_also_be_declared_on_the_timing_path(client, db, auth, domain_config):
+    domain_config(timing={"bufferMinutes": 60})
+    auth(role="owner")
+    res = make_resource(db)
+    start = iso_in(hours=48)
+    make_slot(db, res["id"], starts_at=start, duration_minutes=30)
+    clash = (datetime.fromisoformat(start) + timedelta(minutes=40)).isoformat()
+    assert client.post("/slots", json={"resource_id": res["id"], "starts_at": clash}).status_code == 409

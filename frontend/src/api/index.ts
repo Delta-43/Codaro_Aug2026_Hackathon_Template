@@ -15,9 +15,11 @@
 import type {
   Booking,
   ClientReputation,
+  Conversation,
   DayAvailability,
   ID,
   IsoUtc,
+  Message,
   MonthDensityCell,
   OwnerBooking,
   OwnerDashboard,
@@ -43,9 +45,8 @@ import { ApiError, type ApiErrorCode } from "@/api/errors";
 import { getAccessToken } from "@/lib/auth";
 
 export { ApiError, isApiError } from "@/api/errors";
-export type { ApiErrorCode } from "@/api/errors";
 
-const BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
 type Query = Record<string, string | number | undefined | null>;
 
@@ -91,7 +92,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const token = await getAccessToken();
   let res: Response;
   try {
-    res = await fetch(`${BASE}${path}`, {
+    res = await fetch(`${API_BASE}${path}`, {
       ...init,
       headers: {
         "Content-Type": "application/json",
@@ -107,6 +108,24 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+/** Like `request`, but for a `FormData` body — the browser must set its own
+ *  multipart boundary, so `Content-Type` is deliberately omitted here. */
+async function requestForm<T>(path: string, method: string, body?: FormData): Promise<T> {
+  const token = await getAccessToken();
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method,
+      body,
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+  } catch (e) {
+    throw new ApiError("NETWORK", e instanceof Error ? e.message : "Network error.");
+  }
+  if (!res.ok) throw await toApiError(res, method, path);
+  return res.json() as Promise<T>;
+}
+
 const post = (path: string, body?: unknown) =>
   request(path, { method: "POST", body: body === undefined ? undefined : JSON.stringify(body) });
 
@@ -114,6 +133,104 @@ const patch = (path: string, body: unknown) =>
   request(path, { method: "PATCH", body: JSON.stringify(body) });
 
 const del = (path: string) => request(path, { method: "DELETE" });
+
+// --- config / facets -------------------------------------------------------
+
+/** Which search facets the current catalog supports — derived server-side from
+ *  the seeded data (`GET /config` → `search.facets`), so the filter UI pivots
+ *  automatically. Defaults to all-on if the field is absent (older backend). */
+export type SearchFacets = { price: boolean; distance: boolean; rating: boolean };
+
+export async function getSearchFacets(): Promise<SearchFacets> {
+  const cfg = await request<{ search?: { facets?: Partial<SearchFacets> } }>("/config");
+  const f = cfg.search?.facets ?? {};
+  return { price: f.price ?? true, distance: f.distance ?? true, rating: f.rating ?? true };
+}
+
+/** The pivot's tenancy mode. `"single"` collapses the marketplace to one implicit
+ *  business (the site itself): no provider browsing, the sole provider is resolved
+ *  from `providerCode` and locked in automatically. Absent/`"multi"` (the default)
+ *  keeps the multi-provider marketplace. Config passes through `GET /config`
+ *  verbatim, so this reads a top-level key the backend never interprets. */
+export type Tenancy = { mode: "single" | "multi"; providerCode: string | null };
+
+/** Parse the tenancy block from a raw `/config` payload, so the shape/parse
+ *  lives in one place. Defaults to the multi-provider marketplace. */
+function tenancyFromConfig(cfg: unknown): Tenancy {
+  const t = (cfg as { tenancy?: { mode?: string; providerCode?: string } })?.tenancy ?? {};
+  return {
+    mode: t.mode === "single" ? "single" : "multi",
+    providerCode: t.providerCode ?? null,
+  };
+}
+
+export async function getTenancy(): Promise<Tenancy> {
+  return tenancyFromConfig(await request<unknown>("/config"));
+}
+
+/** The pivot's location settings. `origin` is the point search distances are
+ *  measured from and `distanceUnit` the unit they render in — both were
+ *  hardcoded to Warsaw/km in `lib/geo.ts` before v2 of the config. `timezone` is
+ *  the business's own zone, used as the availability fallback for a visitor who
+ *  has not signed in (who previously always got UTC). */
+type LocationConfig = {
+  origin: { city?: string; lat: number; lng: number } | null;
+  distanceUnit: "km" | "mi";
+  timezone: string;
+};
+
+function locationFromConfig(cfg: unknown): LocationConfig {
+  const l =
+    (cfg as {
+      location?: {
+        origin?: { city?: string; lat?: number; lng?: number } | null;
+        distanceUnit?: string;
+        timezone?: string;
+      };
+    })?.location ?? {};
+  const o = l.origin;
+  return {
+    origin:
+      o && typeof o.lat === "number" && typeof o.lng === "number"
+        ? { city: o.city, lat: o.lat, lng: o.lng }
+        : null,
+    distanceUnit: l.distanceUnit === "mi" ? "mi" : "km",
+    timezone: l.timezone || "UTC",
+  };
+}
+
+/** The on/off spine from the pivot file. A false capability must hide the UI
+ *  surface AND make the backend refuse the write — the backend half was wired
+ *  first, so the client read none of this and showed surfaces that 404'd.
+ *  Unknown keys pass through: the client only ever asks about ones it gates. */
+export type Capabilities = Record<string, boolean>;
+
+function capabilitiesFromConfig(cfg: unknown): Capabilities {
+  const raw = (cfg as { capabilities?: Record<string, unknown> })?.capabilities ?? {};
+  const out: Capabilities = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === "boolean") out[key] = value;
+  }
+  return out;
+}
+
+/** Everything `AppProvider` needs from the pivot file, in ONE request. Boot used
+ *  to call `/config` for tenancy alone; this keeps the round-trip count the same
+ *  while also picking up the location block. */
+export type PivotConfig = {
+  tenancy: Tenancy;
+  location: LocationConfig;
+  capabilities: Capabilities;
+};
+
+export async function getPivotConfig(): Promise<PivotConfig> {
+  const cfg = await request<unknown>("/config");
+  return {
+    tenancy: tenancyFromConfig(cfg),
+    location: locationFromConfig(cfg),
+    capabilities: capabilitiesFromConfig(cfg),
+  };
+}
 
 // --- discovery -------------------------------------------------------------
 
@@ -209,6 +326,48 @@ export function leaveReview(id: ID, rating: number, text: string): Promise<Booki
   return post(`/bookings/${id}/review`, { rating, text }) as Promise<Booking>;
 }
 
+// --- messaging -------------------------------------------------------------
+// The durable send/read/delete/list path; live delivery rides Supabase Realtime
+// (see hooks/use-conversation-realtime). Identity is derived from the token.
+
+/** The current user's conversations, most-recent first, enriched with the other
+ *  party and an unread count. */
+export function getConversations(): Promise<Conversation[]> {
+  return request("/conversations");
+}
+
+/** A single thread with its other party + unread count (for the thread header). */
+export function getConversation(id: ID): Promise<Conversation> {
+  return request(`/conversations/${id}`);
+}
+
+/** Ordered messages in a thread (404s a non-participant via RLS). */
+export function getMessages(id: ID): Promise<Message[]> {
+  return request(`/conversations/${id}/messages`);
+}
+
+/** Send a message; the server stamps sender + delivered_at. Returns the row. */
+export function sendMessage(id: ID, body: string, replyToId?: ID): Promise<Message> {
+  return post(`/conversations/${id}/messages`, { body, replyToId }) as Promise<Message>;
+}
+
+/** Mark the other party's unread messages in this thread as read. */
+export function markConversationRead(id: ID): Promise<{ conversationId: ID; readCount: number }> {
+  return post(`/conversations/${id}/read`) as Promise<{ conversationId: ID; readCount: number }>;
+}
+
+/** Soft-delete one of the caller's own messages. Returns the updated (blanked) row. */
+export function deleteMessage(id: ID, messageId: ID): Promise<Message> {
+  return del(`/conversations/${id}/messages/${messageId}`) as Promise<Message>;
+}
+
+/** Find-or-create a thread with a provider. Client path: pass just `providerId`
+ *  ("message this business"). Owner path: also pass the customer's `clientId`
+ *  ("message this customer") — the caller must own the provider. */
+export function startConversation(providerId: ID, clientId?: ID): Promise<Conversation> {
+  return post("/conversations", { providerId, clientId }) as Promise<Conversation>;
+}
+
 // --- account & demo --------------------------------------------------------
 
 export function getCurrentUser(): Promise<User> {
@@ -217,6 +376,22 @@ export function getCurrentUser(): Promise<User> {
 
 export function updateUser(patch: Partial<User>): Promise<User> {
   return request("/me", { method: "PATCH", body: JSON.stringify(patch) });
+}
+
+export function uploadAvatar(file: File): Promise<User> {
+  const form = new FormData();
+  form.append("file", file);
+  return requestForm<User>("/me/avatar", "POST", form);
+}
+
+export function deleteAvatar(): Promise<User> {
+  return del("/me/avatar") as Promise<User>;
+}
+
+/** GDPR erasure — permanently delete the signed-in user's account and all their
+ *  data. The caller should sign out and redirect afterwards. */
+export function deleteAccount(): Promise<void> {
+  return del("/me") as Promise<void>;
 }
 
 /** The signed-in customer's reputation as businesses see it (score + reviews
@@ -244,27 +419,6 @@ export async function resetDemoData(): Promise<void> {
 
 export function getMyProviders(): Promise<Provider[]> {
   return request("/providers/mine");
-}
-
-/** Owner analytics for one resource, computed server-side from occupancy +
- *  bookings (snake_case — it's an aggregate, not a domain entity). */
-export type ResourceAnalytics = {
-  total_slots: number;
-  total_capacity: number;
-  booked_count: number;
-  available_count: number;
-  occupancy_rate: number;
-  bookings_by_status: Record<string, number>;
-};
-
-export function getResourceAnalytics(id: ID): Promise<ResourceAnalytics> {
-  return request(`/resources/${id}/analytics`);
-}
-
-/** Bookings on one of the owner's resources — the standard Booking plus the
- *  client email (owner-only). `OwnerBooking` is defined in @/types/domain. */
-export function getResourceBookings(id: ID): Promise<OwnerBooking[]> {
-  return request(`/resources/${id}/bookings`);
 }
 
 // --- business-mode aggregation (the five owner tabs) -----------------------
@@ -321,25 +475,15 @@ export function getProviderReviews(id: ID, limit = 8): Promise<ProviderReview[]>
   return request(`/providers/${id}/reviews${qs({ limit })}`);
 }
 
-type ProviderInput = {
-  name: string;
-  publicCode?: string;
-  categoryId?: string;
-  tagline?: string;
-  bio?: string;
-  location?: { city: string; country: string; lat: number; lng: number };
-};
-
-export function createProvider(input: ProviderInput): Promise<Provider> {
-  return post("/providers", input) as Promise<Provider>;
+/** Upload/replace a business's avatar image; returns the updated Provider. */
+export function uploadProviderAvatar(id: ID, file: File): Promise<Provider> {
+  const form = new FormData();
+  form.append("file", file);
+  return requestForm<Provider>(`/providers/${id}/avatar`, "POST", form);
 }
 
-export function updateProvider(id: ID, patchBody: Partial<ProviderInput>): Promise<Provider> {
-  return patch(`/providers/${id}`, patchBody) as Promise<Provider>;
-}
-
-export function deleteProvider(id: ID): Promise<void> {
-  return del(`/providers/${id}`) as Promise<void>;
+export function deleteProviderAvatar(id: ID): Promise<Provider> {
+  return del(`/providers/${id}/avatar`) as Promise<Provider>;
 }
 
 export function createService(input: {
@@ -378,55 +522,6 @@ export function deleteService(id: ID): Promise<void> {
   return del(`/services/${id}`) as Promise<void>;
 }
 
-export function createResource(input: {
-  serviceId: ID;
-  name: string;
-  description?: string;
-  capacity: number;
-  attributes?: { label: string; value: string }[];
-}): Promise<Resource> {
-  return post("/resources", {
-    name: input.name,
-    description: input.description,
-    metadata: {
-      service_id: input.serviceId,
-      capacity: input.capacity,
-      active: true,
-      attributes: input.attributes ?? [],
-    },
-  }) as Promise<Resource>;
-}
-
-/** Update a unit. `metadata` is merged server-side, so passing `{capacity}`
- *  alone is safe (owner_id / service_id are preserved). */
-export function updateResource(
-  id: ID,
-  patchBody: { name?: string; capacity?: number },
-): Promise<Resource> {
-  const body: { name?: string; metadata?: { capacity: number } } = {};
-  if (patchBody.name !== undefined) body.name = patchBody.name;
-  if (patchBody.capacity !== undefined) body.metadata = { capacity: patchBody.capacity };
-  return patch(`/resources/${id}`, body) as Promise<Resource>;
-}
-
-export function deleteResource(id: ID): Promise<void> {
-  return del(`/resources/${id}`) as Promise<void>;
-}
-
-/** Create one slot. `startsAt` is UTC ISO; the backend derives `ends_at` from
- *  the service's slot duration and defaults capacity from the resource. */
-export function createSlot(input: {
-  resourceId: ID;
-  startsAt: IsoUtc;
-  capacity?: number;
-}): Promise<unknown> {
-  return post("/slots", {
-    resource_id: input.resourceId,
-    starts_at: input.startsAt,
-    capacity: input.capacity,
-  });
-}
-
 // --- dev convenience -------------------------------------------------------
 // Makes the seams pokeable from the browser console. Dev only; harmless in prod.
 if (typeof window !== "undefined") {
@@ -447,6 +542,9 @@ if (typeof window !== "undefined") {
     leaveReview,
     getCurrentUser,
     updateUser,
+    uploadAvatar,
+    deleteAvatar,
+    deleteAccount,
     getActiveVertical,
     setVertical,
     resetDemoData,
