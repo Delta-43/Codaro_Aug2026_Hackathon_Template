@@ -1,26 +1,16 @@
 /**
  * Full-page, theme-aware backdrop behind the whole landing page.
  *
- * Deliberately plain and colourless: a solid black/white base (white in light
- * mode, black in dark) with a few slow *monochrome* flecks drifting across it —
- * no pink, no gradient. The flecks exist only to give the liquid-glass plates a
- * subtle neutral texture to frost/blur (the effect only reads when there's
- * something behind the glass). Spread over the full height so every plate, not
- * just the footer, gets the same blurred backdrop. Fixed, so the glass chapters
- * float over it. All motion is pure CSS, disabled under prefers-reduced-motion.
+ * No photographic scene — a soft themed gradient with a couple of blurred colour
+ * blooms, so the liquid-glass plates have something coloured to refract and sit
+ * over. A sparse particle field (see `Particles`) gathers along the bottom edge.
+ * Fixed, so the glass chapters float over it.
  *
  * It also hosts the `#liquid-glass-distortion` SVG filter + the `.liquid-glass`
  * class the plates use — the `.liquid-glass` blur/saturate is what frosts the
  * backdrop behind each plate.
  */
-const FLECKS = Array.from({ length: 30 }, (_, i) => ({
-  left: `${(i * 3.27 + 2) % 99}%`,
-  top: `${(i * 6.13 + 5) % 94}%`,
-  size: 4 + ((i * 7) % 8),
-  delay: (i * 1.1) % 15,
-  dur: 12 + ((i * 5) % 11),
-  o: 0.35 + ((i * 3) % 5) / 12,
-}));
+import { Particles } from "@/components/landing/particles";
 
 export function SceneBackground() {
   return (
@@ -28,25 +18,13 @@ export function SceneBackground() {
       {/* Plain black/white base — white in light mode, black in dark */}
       <div className="absolute inset-0 bg-white dark:bg-black" />
 
-      {/* Slow monochrome flecks — a neutral texture for the glass to blur */}
-      <div className="absolute inset-0">
-        {FLECKS.map((p, i) => (
-          <span
-            key={i}
-            className="landing-fleck absolute rounded-full bg-black/10 dark:bg-white/40"
-            style={{
-              left: p.left,
-              top: p.top,
-              width: p.size,
-              height: p.size,
-              // @ts-expect-error custom property consumed by the keyframe
-              "--o": p.o,
-              animationDelay: `${p.delay}s`,
-              animationDuration: `${p.dur}s`,
-            }}
-          />
-        ))}
-      </div>
+      {/* Blurred colour blooms — give the glass something to bend, add depth */}
+      <div className="absolute -top-1/4 -left-16 size-[55%] rounded-full bg-primary/25 blur-[120px] dark:bg-primary/20" />
+      <div className="absolute -bottom-1/4 -right-10 size-[55%] rounded-full bg-pink-400/20 blur-[130px] dark:bg-fuchsia-500/15" />
+      <div className="absolute top-1/3 left-1/2 size-[40%] -translate-x-1/2 rounded-full bg-sky-300/15 blur-[120px] dark:bg-sky-500/10" />
+
+      {/* Bottom-weighted particle field (hover to repulse) */}
+      <Particles />
 
       {/* Refraction filter for the liquid-glass plates. Zero-size, just a def. */}
       <svg aria-hidden className="absolute size-0" focusable="false">
@@ -71,15 +49,6 @@ export function SceneBackground() {
           backdrop-filter: blur(2px) saturate(180%) url(#liquid-glass-distortion);
         }
 
-        /* Drifting monochrome flecks */
-        .landing-fleck { opacity: 0; animation-name: landing-drift; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
-        @keyframes landing-drift {
-          0%   { transform: translate(0,0); opacity: 0; }
-          12%  { opacity: var(--o, .4); }
-          88%  { opacity: var(--o, .4); }
-          100% { transform: translate(50px, -180px); opacity: 0; }
-        }
-
         /* Chevron scroll-affordance (used by the nav): a gentle horizontal nudge */
         .landing-nudge { animation: landing-nudge 1.3s ease-in-out infinite; }
         @keyframes landing-nudge { 0%,100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
@@ -88,7 +57,6 @@ export function SceneBackground() {
 
         @media (prefers-reduced-motion: reduce) {
           .landing-nudge, .landing-nudge-left { animation: none; }
-          .landing-fleck { animation: none; opacity: 0; }
         }
           `,
         }}

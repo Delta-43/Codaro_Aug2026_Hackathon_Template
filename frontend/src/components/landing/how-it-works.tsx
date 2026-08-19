@@ -7,7 +7,6 @@
  */
 import { Rocket, Settings2, Sparkles, Zap } from "lucide-react";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";
-import { ScrollCue } from "@/components/landing/scroll-cue";
 import { Dock, DockItem } from "@/components/landing/dock";
 
 const STEPS = [
@@ -60,9 +59,7 @@ export function HowItWorks() {
               </div>
             ))}
           </Dock>
-        </GlassPanel>
-        <ScrollCue />
-      </div>
+        </GlassPanel>      </div>
     </section>
   );
 }
