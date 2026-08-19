@@ -404,9 +404,35 @@ client nor, in several cases, the engine.
 
 ### Verification
 
-`1036 backend tests pass` (19 new in `test/backend/test_booking_shape.py`),
-`make checkstates` 100/100, `make checkseed` RESET 9/9 + MATCH 14/14,
-`make checkfront` 101/101, `tsc --noEmit` and `next lint` clean.
+`1044 tests pass` — 1036 offline (19 new in `test/backend/test_booking_shape.py`)
+plus the 8 live e2e — with `make checkstates` 100/100, `make checkseed` RESET 9/9
++ MATCH 14/14, `make checkfront` 101/101, `tsc --noEmit` and `next lint` clean.
+
+Three e2e assertions had to change, and two of them were config-blindness of
+exactly the kind this issue is about:
+
+- `test_create_reschedule_cancel_lifecycle` was config-blind in three separate
+  ways, each of which the engine was right about. It posted a hard-coded body,
+  so it broke as soon as a deployment declared a required `booking.subject`
+  field; it booked a single slot regardless of `minSlotsPerBooking`, which a
+  `duration.minUnits: 2` config refuses outright ("select between 2 and 12");
+  and it asserted `confirmed` on a deployment that holds bookings for approval.
+  It now builds the body from what the API says the service requires
+  (`_required_shape`), books a contiguous run of the service's own minimum span
+  and reschedules onto a second one (`_find_contiguous_run`), expects `pending`
+  where the config holds bookings for approval, a blocking prerequisite or a
+  quote (`_expected_status`), and asserts the *refusal* of a reschedule on a
+  pending booking, which is the real contract (`reschedule_booking` requires
+  `confirmed`). Verified green against both the `fleet` seed and a
+  `config:everything-on` one.
+- `test_demo_user_has_seeded_bookings` asserted `== 6` against a seeder that
+  documents itself as making "5-6" of them, and against a `scope=all` list that
+  also counts what the suite itself creates and cancels. Now a floor. This one
+  fails on unmodified `HEAD` too — it is not a regression from this work.
+
+Note for anyone running the live suite: its teardown reseeds the **fleet**
+vertical, so the demo data stops matching a pivoted config. Follow it with
+`make reseed`.
 
 `scripts/check_pivot_frontend.mts` still asserted on `parsed.theme` — missed by
 the theme-removal commit above, which made `make checkfront` crash. Fixed here.

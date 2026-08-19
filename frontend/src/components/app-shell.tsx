@@ -104,7 +104,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   const tabs = (singleBusiness ? SINGLE_TABS : TABS).map((tab) =>
     tab === BOOKINGS_TAB ? { ...tab, label: vertical.bookingNounPlural } : tab,
   );
-  const home = singleBusiness ? "/provider" : "/search";
 
   const active = tabs.find((t) => isActive(pathname, t.href)) ?? tabs[0];
   const heading = pathname.startsWith("/account/settings") ? "Settings" : active.label;

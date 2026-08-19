@@ -75,6 +75,8 @@ export function BusinessShell({ children }: { children: ReactNode }) {
   const active = tabs.find((t) => isActive(pathname, t.href)) ?? tabs[0];
   const heading = pathname.startsWith("/owner/settings") ? "Settings" : active.label;
   const badgeFor = (href: string) => (href === "/owner/messages" ? unread : 0);
+  // The page name in the top bar glides the content back to the top when tapped.
+  const scrollTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
 
   return (
     <div className="min-h-dvh md:pl-60">
