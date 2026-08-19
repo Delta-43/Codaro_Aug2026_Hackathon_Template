@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 import secrets
 import time
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
@@ -180,6 +181,61 @@ def _chunked_insert(db, table: str, rows: list[dict], chunk: int = 500) -> list[
     return out
 
 
+# One seeder at a time, enforced by Postgres rather than by convention.
+#
+# Seeding is a TRUNCATE on a direct connection followed by hundreds of inserts
+# through PostgREST, which is not one transaction and not one connection. Two
+# seeders overlapping therefore corrupt each other: the documented workflow
+# (`make reload` restarting the backend while `make reseed` runs) has startup's
+# `seed_if_empty` read an empty `providers` mid-wipe and start its own seed, and
+# whichever one truncates second deletes rows the other is still referencing —
+# surfacing as `services_provider_id_fkey` / `reviews_provider_id_fkey`
+# violations against a provider that was inserted seconds earlier.
+#
+# An advisory lock is session-scoped, so the connection is held open for the
+# whole seed and released when it closes — including on a crash, which a table
+# flag would not survive.
+_SEED_LOCK_KEY = 0x0C0DA205  # arbitrary but stable; "codaro seed"
+
+
+@contextmanager
+def seed_lock(*, wait: bool = True):
+    """Serialise seeding. Yields True when the lock is held, False when another
+    seeder has it and `wait=False` — the caller should then do nothing.
+
+    Without `SUPABASE_DB_URL` there is no way to take the lock, so it yields
+    True and says so once: a deployment with no direct connection cannot wipe
+    either, so the concurrent case does not arise there.
+    """
+    url = get_db_url()
+    if not url:
+        logger.warning("No SUPABASE_DB_URL — seeding is not serialised.")
+        yield True
+        return
+    conn = psycopg.connect(url)
+    try:
+        with conn.cursor() as cur:
+            if wait:
+                cur.execute("select pg_advisory_lock(%s)", (_SEED_LOCK_KEY,))
+                held = True
+            else:
+                cur.execute("select pg_try_advisory_lock(%s)", (_SEED_LOCK_KEY,))
+                held = bool(cur.fetchone()[0])
+        conn.commit()
+        yield held
+    finally:
+        # Closing the session drops the lock; explicit unlock keeps the intent
+        # obvious and releases it fractionally sooner.
+        try:
+            if held:
+                with conn.cursor() as cur:
+                    cur.execute("select pg_advisory_unlock(%s)", (_SEED_LOCK_KEY,))
+                conn.commit()
+        except Exception:
+            logger.exception("Could not release the seed lock (session close will).")
+        conn.close()
+
+
 def _wipe(db) -> None:
     """Truncate the extended + booking data (keeps profiles / auth.users)."""
     url = get_db_url()
@@ -230,6 +286,12 @@ def seed_vertical(vertical_id: str, spec: dict | None = None) -> dict:
     `seed_from_config()` feeds in a spec derived from `domain.config.json`
     instead. The assembler below reads only the spec, so both sources go through
     exactly the same code path."""
+    with seed_lock() as held:   # waits: an explicit reseed should happen, not skip
+        assert held
+        return _seed_vertical_locked(vertical_id, spec)
+
+
+def _seed_vertical_locked(vertical_id: str, spec: dict | None = None) -> dict:
     cfg = spec or VERTICALS[vertical_id]
     tz = cfg["baseTz"]
     currency = cfg["currency"]
@@ -818,6 +880,20 @@ def seed_from_config() -> dict:
     return seed_vertical(spec["verticalId"], spec)
 
 
+def _seed_from_config_locked() -> dict:
+    """`seed_from_config` for a caller that ALREADY holds the seed lock.
+
+    The lock is per-connection, and `seed_lock()` opens its own — so taking it
+    again from inside would wait on a lock held by a session that is waiting for
+    this call to return. That is a deadlock, not re-entrancy.
+    """
+    from app.config import get_config
+    from seed_config import spec_from_config
+
+    spec = spec_from_config(get_config())
+    return _seed_vertical_locked(spec["verticalId"], spec)
+
+
 def seed_if_empty() -> None:
     # On a fresh DB the tables are created via a direct Postgres connection
     # (schema_setup) moments before this runs, but PostgREST reloads its schema
@@ -841,6 +917,18 @@ def seed_if_empty() -> None:
             return
     if existing:
         return
+    # Try, never wait. A seeder already holding the lock is mid-wipe, so
+    # `providers` reading empty above says nothing about the end state — and
+    # blocking here would stall boot behind a full reseed. Skipping is correct:
+    # when that seeder finishes the data is there.
+    with seed_lock(wait=False) as held:
+        if not held:
+            logger.info("Another seed is in progress; skipping boot-time seeding.")
+            return
+        _seed_if_empty_locked()
+
+
+def _seed_if_empty_locked() -> None:
     # Boot-time seeding is best-effort and must never take the app down with
     # it: the check above and this insert are not one transaction, so the
     # documented pivot workflow (`make reload` restarting the backend while
@@ -851,7 +939,7 @@ def seed_if_empty() -> None:
     # yet" with nothing pointing at the seed. A DB that already has data is the
     # success case for this function, so log and carry on.
     try:
-        seed_from_config()
+        _seed_from_config_locked()   # the lock is already held by seed_if_empty
     except Exception:
         logger.exception("Boot-time seed failed; starting anyway with the existing data.")
 

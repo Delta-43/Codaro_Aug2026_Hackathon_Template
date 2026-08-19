@@ -274,6 +274,19 @@ manual-approve primary service (`_seed_requests`) so the owner's Requests tab is
 populated. Auth users provisioned via the admin API: `demo@codaro.app` (client),
 the holds user, `owner@codaro.app` (owns the demo provider — the business login),
 and `prospect@codaro.app` (a fresh client whose request is pending).
+**Seeding is serialised by a Postgres advisory lock** (`seed.seed_lock`). A
+seed is a TRUNCATE on a direct connection followed by hundreds of PostgREST
+inserts — not one transaction, not one connection — so two overlapping seeders
+corrupt each other: whichever truncates second deletes rows the other is still
+referencing, surfacing as `services_provider_id_fkey` violations against a
+provider inserted seconds earlier. `seed_vertical` WAITS for the lock (an
+explicit reseed should happen); `seed_if_empty` uses try-lock and skips, because
+a seeder mid-wipe makes its "is providers empty?" read meaningless. A caller
+already holding the lock must use `_seed_from_config_locked` /
+`_seed_vertical_locked` — re-taking it opens a second connection and deadlocks.
+`make reload` refuses while the lock is held (`scripts/seed_in_progress.py`),
+since restarting the container kills a reseed running inside it.
+
 `seed_if_empty()` runs on startup when no providers exist; `active_vertical()`
 infers the current vertical from a service's booking model.
 

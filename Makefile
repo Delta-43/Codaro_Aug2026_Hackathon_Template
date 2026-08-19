@@ -21,7 +21,15 @@ stop:
 logs:
 	docker compose logs -f
 
+# Restarting the backend kills a `make reseed` running inside it, leaving a
+# half-built dataset and no error. Refuse rather than corrupt; RELOAD_FORCE=1
+# overrides for the case where the lock is stale.
 reload:
+	@if [ "$(RELOAD_FORCE)" != "1" ] && docker compose exec -T backend python /workspace/scripts/seed_in_progress.py; then \
+		echo "A seed is in progress — restarting now would kill it and leave partial data."; \
+		echo "Wait for it to finish, or override with: make reload RELOAD_FORCE=1"; \
+		exit 1; \
+	fi
 	docker compose restart backend
 
 reset:
