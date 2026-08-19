@@ -79,13 +79,14 @@ the current verified snapshot.
 |------|------|--------|
 | `backend/` | FastAPI engine: config + per-service rules, camelCase serialization, `/providers` `/services` `/resources` `/slots` `/availability` `/bookings` `/me` `/demo` routers, auth, three-vertical seeding | [backend/CLAUDE.md](backend/CLAUDE.md) |
 | `frontend/` | Next.js app (`frontend/src/`): login + gated `(app)` group (search / calendar / bookings / provider / account), real HTTP API seam | [frontend/CLAUDE.md](frontend/CLAUDE.md) |
+| `landing/` | Public marketing site — its own deployable Next.js app, air-gapped from `frontend/` (no shared imports); integrates with the app only via a cross-origin link to `/login` | [landing/CLAUDE.md](landing/CLAUDE.md) |
 | `supabase/` | `schema.sql` — neutral base tables + extended entities (providers/services/booking_slots/reviews/follows), occupancy view, RLS | [supabase/CLAUDE.md](supabase/CLAUDE.md) |
 | `test/` | Stack + API tests (owned exclusively by the `test-writer` agent, see below) | [test/CLAUDE.md](test/CLAUDE.md) |
 | `domain.config.json` | The pivot file (v2) | [docs/PIVOT-SYSTEM.md](docs/PIVOT-SYSTEM.md) |
 | `scripts/check_pivots.py` | 100 pivots run through the real validator + pricing engine | [docs/PIVOT-COVERAGE.md](docs/PIVOT-COVERAGE.md) |
 | `pivots/` | The same 100 pivots as complete, drop-in `domain.config.json` files (generated) | [pivots/README.md](pivots/README.md) |
 
-`backend/`, `frontend/`, and `supabase/` are built out **independently** —
+`backend/`, `frontend/`, `landing/`, and `supabase/` are built out **independently** —
 each has its own `CLAUDE.md` with the requirements and conventions for that
 piece. Read this file first, then the relevant subdirectory's file, before
 working in it.
