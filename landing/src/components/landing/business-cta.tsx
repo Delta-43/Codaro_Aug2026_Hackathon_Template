@@ -7,6 +7,7 @@
  */
 import { ArrowRight, Building2 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";
 
@@ -34,7 +35,8 @@ export function BusinessCta() {
             href={`${APP_URL}/login`}
             className={cn(
               buttonVariants({ size: "lg" }),
-              "origin-center gap-1.5 rounded-full px-6 transition-transform duration-200 ease-out hover:scale-105",
+              buttonFx.pill,
+                  "gap-1.5 px-6",
             )}
           >
             Sign in

@@ -13,9 +13,9 @@
  * Server component; only the nested `ThemeToggle` needs the client.
  */
 import Link from "next/link";
-import { Leaf } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { GlassPanel } from "@/components/landing/scroll-reveal";
+import { ScrollTopLink } from "@/components/landing/scroll-top-link";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
@@ -34,24 +34,14 @@ export function Footer() {
   return (
     <footer className="flex min-h-[80vh] snap-start snap-always flex-col justify-end">
       {/* The bar */}
-      <div className="mx-auto w-full max-w-5xl px-4">
+      <div className="mx-auto w-full max-w-4xl px-4">
         <GlassPanel className="px-6 py-12 sm:px-10 sm:py-14">
-          {/* Centered indicator icon — big interactive Leaf, like the other plates */}
-          <div className="mb-8 flex justify-center">
-            <Link href="/" aria-label="Arbor — home" className="flex size-12 origin-center items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm transition-all duration-200 ease-out hover:scale-[1.4] hover:-translate-y-1 hover:bg-primary hover:text-primary-foreground hover:shadow-xl">
-              <Leaf className="size-6" aria-hidden />
-            </Link>
-          </div>
-
           {/* Bar — brand + pitch on the left, link columns on the right */}
           <div className="flex flex-col gap-10 sm:flex-row sm:items-start sm:justify-between">
             <div className="max-w-xs">
-              <Link
-                href="/"
-                className="inline-block origin-left text-lg font-bold tracking-tight text-primary transition-transform duration-200 ease-out hover:scale-110"
-              >
+              <ScrollTopLink className="inline-block origin-left text-lg font-bold tracking-tight text-primary transition-transform duration-200 ease-out hover:scale-110">
                 Arbor
-              </Link>
+              </ScrollTopLink>
               <p className="mt-3 text-sm leading-relaxed text-foreground/70">
                 One booking engine, reshaped for any business — booking, scheduling, and
                 availability, without a rewrite.

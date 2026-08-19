@@ -23,7 +23,13 @@ import { AppearancePicker } from "@/components/account/appearance-picker";
 import { ConfirmDialog } from "@/components/business/confirm-dialog";
 import { useDemoUseCase } from "@/lib/demo-use-case";
 import { USE_CASE_IDS, USE_CASES } from "@/config/useCases";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
+
+/** Interactive feel for the plate headings — a gentle hover-grow, anchored left
+ *  so the title doesn't drift. Same feel the rest of the platform uses. */
+const HEADING_FX =
+  "inline-block origin-left transition-transform duration-200 ease-out hover:scale-105";
 
 export interface SettingsConfig {
   variant: "user" | "business";
@@ -45,7 +51,9 @@ export function SettingsPanel(cfg: SettingsConfig) {
   return (
     <section className="space-y-6 py-2">
       <div>
-        <h1 className="text-lg font-semibold tracking-tight">Settings</h1>
+        <h1 className="text-lg font-semibold tracking-tight">
+          <span className={HEADING_FX}>Settings</span>
+        </h1>
         <p className="text-sm text-muted-foreground">
           Manage your {cfg.variant === "business" ? "business" : "account"}, preferences and demo.
         </p>
@@ -91,10 +99,12 @@ export function SettingsPanel(cfg: SettingsConfig) {
       </Section>
 
       <Section title="Account">
-        <Button variant="outline" size="sm" onPress={cfg.onSignOut}>
-          <LogOut aria-hidden /> Sign out
-        </Button>
-        <DeleteAccount onDeleteAccount={cfg.onDeleteAccount} />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onPress={cfg.onSignOut}>
+            <LogOut aria-hidden /> Sign out
+          </Button>
+          <DeleteAccount onDeleteAccount={cfg.onDeleteAccount} />
+        </div>
       </Section>
     </section>
   );
@@ -109,25 +119,21 @@ function DeleteAccount({ onDeleteAccount }: { onDeleteAccount?: () => Promise<vo
 
   if (!onDeleteAccount) {
     return (
-      <button
-        type="button"
-        onClick={() => alert("Account deletion lands with backend support.")}
-        className="mt-3 inline-flex items-center gap-1.5 text-sm text-destructive hover:underline"
+      <Button
+        variant="destructive"
+        size="sm"
+        onPress={() => alert("Account deletion lands with backend support.")}
       >
-        <ShieldAlert className="size-4" aria-hidden /> Delete my data
-      </button>
+        <ShieldAlert aria-hidden /> Delete account
+      </Button>
     );
   }
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="mt-3 inline-flex items-center gap-1.5 text-sm text-destructive hover:underline"
-      >
-        <ShieldAlert className="size-4" aria-hidden /> Delete my data
-      </button>
+      <Button variant="destructive" size="sm" onPress={() => setOpen(true)}>
+        <ShieldAlert aria-hidden /> Delete account
+      </Button>
       <ConfirmDialog
         open={open}
         title="Delete your account and all your data?"
@@ -144,7 +150,9 @@ function DeleteAccount({ onDeleteAccount }: { onDeleteAccount?: () => Promise<vo
 function Section({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-4">
-      <h2 className="text-sm font-semibold">{title}</h2>
+      <h2 className="text-sm font-semibold">
+        <span className={HEADING_FX}>{title}</span>
+      </h2>
       {description ? <p className="mt-0.5 text-xs text-muted-foreground">{description}</p> : null}
       <div className="mt-3 space-y-3">{children}</div>
     </div>
@@ -291,7 +299,8 @@ function Switch({ on, onChange, label }: { on: boolean; onChange: () => void; la
       aria-label={label}
       onClick={onChange}
       className={cn(
-        "flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors",
+        "flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-all",
+        buttonFx.press,
         on ? "bg-primary" : "bg-muted",
       )}
     >
@@ -315,7 +324,8 @@ function DemoUseCaseSwitcher() {
               onClick={() => setUseCaseId(id)}
               aria-pressed={active}
               className={cn(
-                "flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-colors",
+                "flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-all",
+                buttonFx.press,
                 active
                   ? "border-primary/40 bg-primary/5 text-foreground"
                   : "border-border bg-card text-muted-foreground hover:bg-muted",

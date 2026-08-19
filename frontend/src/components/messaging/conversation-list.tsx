@@ -12,6 +12,7 @@ import type { Conversation } from "@/types/domain";
 import { AvatarImg } from "@/components/avatar-img";
 import { avatarDataUri } from "@/lib/business-demo";
 import { timeAgo } from "@/lib/format";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
 export function ConversationList({
@@ -37,8 +38,8 @@ export function ConversationList({
               className={cn(
                 "flex items-center gap-3 rounded-xl border p-3 transition-colors",
                 unread
-                  ? "border-primary/30 bg-accent/40 hover:bg-accent/60"
-                  : "border-border bg-card hover:bg-muted/50",
+                  ? "border-primary/30 bg-accent/40 hover:border-primary/60 hover:bg-accent/70"
+                  : cn("border-border bg-card", buttonFx.surface),
               )}
             >
               <AvatarImg src={avatar} name={name} alt="" className="size-11 shrink-0" />

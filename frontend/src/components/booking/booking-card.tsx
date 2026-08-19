@@ -2,6 +2,8 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { Booking } from "@/types/domain";
 import { StatusBadge } from "@/components/booking/status-badge";
+import { buttonFx } from "@/config/buttons";
+import { cn } from "@/lib/utils";
 import { formatBookingWhen, formatMoney } from "@/lib/format";
 
 /**
@@ -23,7 +25,10 @@ export function BookingCard({
   return (
     <Link
       href={`/bookings/${booking.id}`}
-      className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 transition-colors hover:bg-muted/50"
+      className={cn(
+        "flex items-center gap-3 rounded-xl border border-border bg-card p-3",
+        buttonFx.surface,
+      )}
     >
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
