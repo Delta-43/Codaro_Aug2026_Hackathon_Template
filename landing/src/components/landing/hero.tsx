@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -8,12 +7,14 @@ import { PipelineTerminal } from "@/components/landing/pipeline-terminal";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";
 import { ScrollCue } from "@/components/landing/scroll-cue";
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
+
 /**
  * Above-the-fold pitch for the product — deliberately vertical-agnostic (no
  * provider/service/resource nouns from any one vertical). One liquid-glass
  * plate (copy + terminal) over the scene, plus a scroll cue to the next plate.
  */
-export function Hero({ authed }: { authed: boolean }) {
+export function Hero() {
   const { ref, style } = useScrollMotion<HTMLDivElement>();
   return (
     <section className="flex min-h-[92vh] snap-start snap-always items-center px-4 pt-24 pb-12 sm:pt-28">
@@ -33,16 +34,16 @@ export function Hero({ authed }: { authed: boolean }) {
               instantly for the business you&apos;re building.
             </p>
             <div className="mt-8 flex justify-center">
-              <Link
-                href={authed ? "/search" : "/login"}
+              <a
+                href={`${APP_URL}/login`}
                 className={cn(
                   buttonVariants({ size: "lg" }),
                   "origin-center gap-1.5 rounded-full px-6 transition-transform duration-200 ease-out hover:scale-105",
                 )}
               >
-                {authed ? "Open app" : "Get Started"}
+                Get Started
                 <ArrowRight className="size-4" aria-hidden />
-              </Link>
+              </a>
             </div>
           </div>
           <PipelineTerminal />

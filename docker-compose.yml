@@ -32,3 +32,16 @@ services:
       - /app/.next
     depends_on:
       - backend
+
+  landing:
+    # Air-gapped from frontend/ — its own deployable, own container, only
+    # talks to the app via a plain cross-origin link (NEXT_PUBLIC_APP_URL).
+    build: ./landing
+    ports:
+      - "3001:3001"
+    env_file:
+      - landing/.env.local
+    volumes:
+      - ./landing:/app
+      - /app/node_modules
+      - /app/.next

@@ -17,17 +17,19 @@ import { Leaf } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { GlassPanel } from "@/components/landing/scroll-reveal";
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
+
 const EXPLORE = [
   { href: "#how", label: "How it works" },
   { href: "#calendar", label: "Calendar" },
   { href: "#reviews", label: "Reviews" },
-  { href: "/docs", label: "Docs" },
+  { href: `${APP_URL}/docs`, label: "Docs", external: true },
 ];
 
 const LINK_CLASS = "text-sm text-muted-foreground transition-colors hover:text-foreground";
 const COL_HEAD = "text-xs font-semibold uppercase tracking-wide text-foreground/50";
 
-export function Footer({ authed }: { authed: boolean }) {
+export function Footer() {
   const year = new Date().getFullYear();
   return (
     <footer className="flex min-h-[80vh] snap-start snap-always flex-col justify-end">
@@ -59,20 +61,26 @@ export function Footer({ authed }: { authed: boolean }) {
             <div className="flex gap-14 sm:gap-20">
               <nav aria-label="Explore" className="flex flex-col gap-2.5">
                 <h3 className={COL_HEAD}>Explore</h3>
-                {EXPLORE.map((l) => (
-                  <Link key={l.href} href={l.href} className={LINK_CLASS}>
-                    {l.label}
-                  </Link>
-                ))}
+                {EXPLORE.map((l) =>
+                  l.external ? (
+                    <a key={l.href} href={l.href} className={LINK_CLASS}>
+                      {l.label}
+                    </a>
+                  ) : (
+                    <Link key={l.href} href={l.href} className={LINK_CLASS}>
+                      {l.label}
+                    </Link>
+                  ),
+                )}
               </nav>
               <nav aria-label="More" className="flex flex-col gap-2.5">
                 <h3 className={COL_HEAD}>More</h3>
-                <Link href={authed ? "/search" : "/login"} className={LINK_CLASS}>
-                  {authed ? "Open app" : "Login"}
-                </Link>
-                <Link href="/privacy" className={LINK_CLASS}>
+                <a href={`${APP_URL}/login`} className={LINK_CLASS}>
+                  Login
+                </a>
+                <a href={`${APP_URL}/privacy`} className={LINK_CLASS}>
                   Data handling &amp; privacy policy
-                </Link>
+                </a>
               </nav>
             </div>
           </div>
