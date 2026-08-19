@@ -104,7 +104,9 @@ def availability(
         .select("*")
         .in_("resource_id", rids)
         .gte("starts_at", _norm_ts(from_))
-        .lt("starts_at", _norm_ts(to))
+        .lt("starts_at", _norm_ts(to)),
+        # The view has no `id`; see the note in routers/slots.py.
+        order="slot_id",
     )
     now = datetime.now(timezone.utc)
     days: dict[str, list[dict]] = defaultdict(list)

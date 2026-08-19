@@ -35,7 +35,10 @@ def slot_occupancy(resource_id: str | None = None):
     # Paged for the same reason as `/slots`, and doubly so: these two were
     # truncating independently, so a client joining them saw slots with no
     # occupancy row and read the calendar as full of gaps.
-    return fetch_all(query)
+    #
+    # Ordered by `slot_id`: `slot_occupancy` is a VIEW over slots and has no
+    # `id` column, so fetch_all's default order 42703s on every call.
+    return fetch_all(query, order="slot_id")
 
 
 def _service_for_resource(db, resource_id: str) -> dict | None:
