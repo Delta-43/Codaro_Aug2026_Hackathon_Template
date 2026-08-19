@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.clock import tz_or_utc
 from app.auth import AuthUser, optional_user
-from app.db import get_supabase, maybe_row
+from app.db import fetch_all, get_supabase, maybe_row
 from app.rules import effective_service_config
 from app.serialize import _parse, serialize_slot
 from app.users import user_metadata
@@ -96,15 +96,15 @@ def availability(
     rids = _resource_ids(db, service_id, resource_id)
     if not rids:
         return []
-    rows = (
+    # Date-bounded, so this is far less exposed than `/slots` — but a wide
+    # range on a busy multi-resource service still passes 1000 rows, and a
+    # truncated day reads as "no availability" rather than as an error.
+    rows = fetch_all(
         db.table("slot_occupancy")
         .select("*")
         .in_("resource_id", rids)
         .gte("starts_at", _norm_ts(from_))
         .lt("starts_at", _norm_ts(to))
-        .execute()
-        .data
-        or []
     )
     now = datetime.now(timezone.utc)
     days: dict[str, list[dict]] = defaultdict(list)
