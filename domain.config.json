@@ -204,7 +204,9 @@
   },
   "theme": {
     "primaryColor": "#4f46e5",
-    "radius": "0.5rem"
+    "radius": "0.5rem",
+    "logoUrl": null,
+    "fontFamily": null
   },
   "metaFields": {
     "providers": [],

@@ -6,24 +6,12 @@ Next.js 14 (App Router) + Tailwind v4 + `react-aria-components` UI. The live app
 is **`frontend/src/`**. See root [CLAUDE.md](../CLAUDE.md) for the architecture and
 [backend/CLAUDE.md](../backend/CLAUDE.md) for the API this talks to.
 
-The public marketing landing page is **not** here — it's the standalone
-[landing/](../landing/CLAUDE.md) app, air-gapped from this one (no shared
-imports). `frontend/`'s root `/` just redirects to `/login`; a visitor arrives
-here only via `landing/`'s cross-origin link, exactly like a real embedder's
-site would eventually reach this app.
-
-**One exception, both directions**: `/login` reuses the landing page's
-liquid-glass background (`SceneBackground`/`GlassPanel`), so
-`src/components/landing/{scene-background,scroll-reveal,particles}.tsx` here
-is a frozen copy of `landing/`'s originals (trimmed — `scroll-reveal.tsx`
-here only exports `GlassPanel`, not the landing-only `useScrollMotion` hook).
-Same deal for `src/config/buttons.ts` (`buttonFx`), which `landing/` also
-keeps its own copy of. Neither direction is wired together — a design/behavior
-fix to one copy needs the same fix applied to the other by hand. (This bit a
-merge from `develop` once already: a login-page redesign there added the
-`scene-background`/`scroll-reveal` imports after `landing/` had already moved
-the originals out — see `docs/issues/97-...` — so if either side's copy looks
-stale after a merge, check the other.)
+`src/app/embed/` is the other integration point: a chromeless tree any
+third-party business can iframe on their own site via
+[plugin_sdk/](../plugin_sdk/CLAUDE.md)'s `<script>` widget. It's a
+**consumer** of the same components the gated `(app)` tree uses
+(`ProviderProfile`, `BookingFlow`, `AuthGate`), not a fork — see
+`plugin_sdk/CLAUDE.md` before touching either side.
 
 ## Domain + files
 
@@ -37,10 +25,14 @@ calendar / bookings / account**.
 | `src/api/index.ts` | **The API seam** — real HTTP to the backend for every domain call; attaches the Bearer token, returns the `domain.ts` shapes, throws `ApiError` |
 | `src/api/errors.ts` | `ApiError` + the `ApiErrorCode` union (mirrors `backend/app/errors.py`) |
 | `src/lib/supabase.ts` | Browser Supabase client (`getSupabase()`, null when env unset) |
-| `src/lib/auth.tsx` | `<AuthProvider>` / `useAuth()` — session + `role`/`isOwner`, `signIn`/`signUp`/`signOut`; `getAccessToken()` for the seam's Bearer header |
-| `src/components/auth-gate.tsx` | Redirects anonymous visitors to `/login`; holds the app until a session exists |
+| `src/lib/auth.tsx` | `<AuthProvider>` / `useAuth()` — session + `role`/`isOwner`, `signIn`/`signUp`/`signOut`/`sendOtp`/`verifyOtp`; `getAccessToken()` for the seam's Bearer header |
+| `src/components/auth-gate.tsx` | Redirects anonymous visitors to `/login`; holds the app until a session exists. `fallback` prop renders in place instead (the embed tree — an iframe must never navigate its own top-level location out) |
+| `src/components/auth-form.tsx` | The email/password sign-in/sign-up form body, shared by `/login` and the embed's login panel |
+| `src/app/page.tsx` | Public marketing landing page (`/`) — pitches the engine/product, auth-aware CTAs, loads `plugin_sdk`'s `embed.js` in buttonless mode to dogfood the widget when single-tenant |
+| `src/components/landing/*` | The landing page's sections (nav, hero, how-it-works, calendar demo, testimonials, docs teaser, business CTA, footer) and shared chrome (`scene-background`, `particles`, `scroll-reveal`) — not exhaustive |
 | `src/app/login/page.tsx` | Email/password sign-in + sign-up (Supabase Auth) |
-| `src/app/docs/page.tsx` | Public **`domain.config.json` setup guide** (`/docs`), linked from `landing/`'s nav pill via a cross-origin link. Block-by-block: defaults, allowed values, per-service overrides. Defaults are quoted from `backend/app/config_schema.py` `DEFAULTS` (not from the prose docs) — re-check them when the schema changes |
+| `src/app/embed/` | Chromeless `/embed` + `/embed/calendar` — the widget's iframe target; see [plugin_sdk/CLAUDE.md](../plugin_sdk/CLAUDE.md) |
+| `src/app/docs/page.tsx` | Public **`domain.config.json` setup guide** (`/docs`), linked from the landing nav pill. Block-by-block: defaults, allowed values, per-service overrides. Defaults are quoted from `backend/app/config_schema.py` `DEFAULTS` (not from the prose docs) — re-check them when the schema changes |
 | `src/components/docs/` | `DocShell` (sticky header + scroll-spy TOC) and the long-form prose primitives the page renders with |
 | `src/app/layout.tsx` | Root layout — wraps the tree in `<AuthProvider>` |
 | `src/app/(app)/layout.tsx` | `<AuthGate>` → `<AppProvider>` → `<AppShell>` (stays mounted across tabs) |
@@ -91,10 +83,9 @@ reschedule flows special-case the codes for re-pick / disabled-with-reason.
   `enableSystem`) mounted in `src/app/layout.tsx`; dark tokens live under `.dark`
   in `globals.css`. The Account tab's `appearance-picker.tsx` sets Light / Dark /
   Smart (`"system"`), both built on the shared `components/theme-toggle.tsx`
-  (also used by the `/docs` header) — `landing/` keeps its own frozen copy of
-  the latter (see `landing/CLAUDE.md`) since it's a separate app now. First
-  load follows the OS `prefers-color-scheme` live (system default); flipping a
-  toggle pins an explicit choice, which then persists.
+  (also used by the `/docs` header and the landing footer). First load follows
+  the OS `prefers-color-scheme` live (system default); flipping a toggle pins
+  an explicit choice, which then persists.
 
 ## Views (per README)
 
@@ -119,5 +110,13 @@ seeds populate catalog data; see `TODO.md`.
 
 ## Testing
 
-Don't write tests here. Stack/integration tests live in `test/` and are owned by
-the `test-writer` agent — see [test/CLAUDE.md](../test/CLAUDE.md).
+Stack/integration tests live in `test/` and are owned by the `test-writer`
+agent — see [test/CLAUDE.md](../test/CLAUDE.md); don't add those here.
+
+This directory does have its own component-level unit tests, though: a
+Vitest + React Testing Library harness (`npm test`, config at
+`vitest.config.mts`) covering `AuthGate`'s `fallback` prop, `AuthForm`,
+`GuestOtpForm`, and `EmbedLayout`'s `ResizeObserver`/postMessage wiring — a
+decision made when the `/embed` tree was built (see
+[plugin_sdk/CLAUDE.md](../plugin_sdk/CLAUDE.md)'s Testing section), separate
+from and no substitute for `test/`'s stack-level coverage.

@@ -160,6 +160,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             // /config unreachable: leave every capability ON. The backend is
             // still the authority and refuses anything actually disabled.
             capabilities: {},
+            theme: { primaryColor: "#4f46e5", radius: "0.5rem", logoUrl: null, fontFamily: null },
           }),
         ),
       ]);

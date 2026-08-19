@@ -137,11 +137,17 @@ docker exec -w /workspace/backend codarohackathon-backend-1 \
   python3 -c "import seed; print(seed.active_vertical())"   # -> fleet after the run
 ```
 
-**Frontend unit tests:** none — the frontend has no test runner wired up
-(`frontend/package.json` has no `test` script). The practical part of the
-stack check is automated instead in `test/backend/test_frontend_contract.py`,
-which parses `frontend/src/api/index.ts` + `src/api/errors.ts` and asserts every
-path the UI calls exists on the FastAPI app (method-aware) and that the
+**Frontend unit tests:** `frontend/` has its own Vitest + React Testing
+Library harness (`npm test` inside `frontend/`, config at
+`frontend/vitest.config.mts`) — a decision made and owned by whoever works in
+`frontend/`, separate from this `test/` tree (Python/pytest, owned by
+`test-writer`). It covers `AuthGate`'s `fallback` prop, `AuthForm`,
+`GuestOtpForm`, and `EmbedLayout`'s `ResizeObserver`/postMessage wiring — see
+`plugin_sdk/CLAUDE.md`'s Testing section for the full list. The practical
+part of the *stack* check (as opposed to component behavior) stays automated
+in `test/backend/test_frontend_contract.py`, which parses
+`frontend/src/api/index.ts` + `src/api/errors.ts` and asserts every path the
+UI calls exists on the FastAPI app (method-aware) and that the
 `ApiErrorCode` union matches the backend's `app.errors`.
 
 ## Conventions for this suite

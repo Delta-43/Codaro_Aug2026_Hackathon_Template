@@ -149,6 +149,11 @@ next to it:
 | `pricing.currencyExponent` | rendering uses the currency's own ISO exponent via `Intl` | only a currency `Intl` cannot resolve |
 | `terms.*` (bar `admin`/`slot`), `copy`, `theme` | the frontend takes vocabulary from `src/config/verticals.ts` | E10 per-service vocabulary |
 
+`theme` has one exception: `theme.primaryColor`/`radius`/`logoUrl`/`fontFamily`
+**are** applied — scoped to `frontend/src/app/embed/layout.tsx` only. The main
+`(app)` tree still doesn't read `theme` at all (the row above stays accurate for
+it); `logoUrl`/`fontFamily` exist in `DEFAULTS` purely for that one reader.
+
 `scripts/check_pivots.py` now **fails** if a `DEFAULTS` leaf appears in neither
 its `ENFORCED` nor its `DECLARED_ONLY` map. That table is the promise that no key
 looks live and does nothing; nothing had been checking it, and 43 paths had

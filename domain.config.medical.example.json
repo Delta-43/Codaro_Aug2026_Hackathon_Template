@@ -217,7 +217,9 @@
   },
   "theme": {
     "primaryColor": "#0ea5e9",
-    "radius": "0.5rem"
+    "radius": "0.5rem",
+    "logoUrl": null,
+    "fontFamily": null
   },
   "metaFields": {
     "providers": [],

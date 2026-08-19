@@ -1,7 +1,7 @@
 .PHONY: help start stop logs reload reset reseed
 
 help:
-	@echo "make start   - build (if needed) and start landing :3001 + frontend :3000 + backend :8000"
+	@echo "make start   - build (if needed) and start frontend :3000 + backend :8000"
 	@echo "make stop    - stop containers"
 	@echo "make logs    - tail logs from both containers"
 	@echo "make reload  - restart backend only (drops the domain.config.json cache)"

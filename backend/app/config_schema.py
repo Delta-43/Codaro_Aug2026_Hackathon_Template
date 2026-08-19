@@ -261,7 +261,10 @@ DEFAULTS: dict[str, Any] = {
         "prerequisiteBlocked": "Some details are needed before this can be confirmed.",
     },
 
-    "theme": {"primaryColor": "#4f46e5", "radius": "0.5rem"},
+    "theme": {
+        "primaryColor": "#4f46e5", "radius": "0.5rem",
+        "logoUrl": None, "fontFamily": None,
+    },
 
     "metaFields": {
         "providers": [], "services": [], "resources": [],

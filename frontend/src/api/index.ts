@@ -214,13 +214,43 @@ function capabilitiesFromConfig(cfg: unknown): Capabilities {
   return out;
 }
 
+/** The pivot's branding. Not read anywhere in the main `(app)` tree today
+ *  (`globals.css` hardcodes the tokens) — `frontend/src/app/embed/layout.tsx`
+ *  is the first and only reader, scoped to the embed tree. */
+export type ThemeConfig = {
+  primaryColor: string;
+  radius: string;
+  logoUrl: string | null;
+  fontFamily: string | null;
+};
+
+function themeFromConfig(cfg: unknown): ThemeConfig {
+  const t =
+    (cfg as {
+      theme?: {
+        primaryColor?: string;
+        radius?: string;
+        logoUrl?: string | null;
+        fontFamily?: string | null;
+      };
+    })?.theme ?? {};
+  return {
+    primaryColor: t.primaryColor || "#4f46e5",
+    radius: t.radius || "0.5rem",
+    logoUrl: t.logoUrl || null,
+    fontFamily: t.fontFamily || null,
+  };
+}
+
 /** Everything `AppProvider` needs from the pivot file, in ONE request. Boot used
  *  to call `/config` for tenancy alone; this keeps the round-trip count the same
- *  while also picking up the location block. */
+ *  while also picking up the location block. `theme` rides along on the same
+ *  request for the same reason, even though only the embed tree reads it. */
 export type PivotConfig = {
   tenancy: Tenancy;
   location: LocationConfig;
   capabilities: Capabilities;
+  theme: ThemeConfig;
 };
 
 export async function getPivotConfig(): Promise<PivotConfig> {
@@ -229,6 +259,7 @@ export async function getPivotConfig(): Promise<PivotConfig> {
     tenancy: tenancyFromConfig(cfg),
     location: locationFromConfig(cfg),
     capabilities: capabilitiesFromConfig(cfg),
+    theme: themeFromConfig(cfg),
   };
 }
 

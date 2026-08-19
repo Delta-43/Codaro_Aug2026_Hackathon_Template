@@ -36,12 +36,20 @@ export function ProviderProfile({
   clampBio = false,
   onShowFullBio,
   showFollow = true,
+  showMessage = true,
+  calendarHref = "/calendar",
 }: {
   provider: Provider;
   /** Line-clamp the bio and offer a "Show full bio" button (quick-view mode). */
   clampBio?: boolean;
   onShowFullBio?: () => void;
   showFollow?: boolean;
+  /** Hide the "Message" action — /messages doesn't exist outside the main app
+   *  (e.g. the /embed tree), so this must be off there rather than left broken. */
+  showMessage?: boolean;
+  /** Where booking a service navigates to. Defaults to the main app's /calendar;
+   *  the /embed tree passes /embed/calendar. */
+  calendarHref?: string;
 }) {
   const vertical = useVertical();
   const { selectService, selectResource, lockInProvider, capability } = useApp();
@@ -83,14 +91,14 @@ export function ProviderProfile({
       setPicker(service);
     } else {
       selectResource(null);
-      router.push("/calendar");
+      router.push(calendarHref);
     }
   }
 
   function handlePick(resource: Resource | null) {
     selectResource(resource);
     setPicker(null);
-    router.push("/calendar");
+    router.push(calendarHref);
   }
 
   return (
@@ -130,9 +138,11 @@ export function ProviderProfile({
             {isFollowing ? "Following" : "Follow"}
           </Button>
         ) : null}
-        <Button variant="outline" isDisabled={messaging} onPress={messageProvider}>
-          <MessageSquare aria-hidden /> Message
-        </Button>
+        {showMessage ? (
+          <Button variant="outline" isDisabled={messaging} onPress={messageProvider}>
+            <MessageSquare aria-hidden /> Message
+          </Button>
+        ) : null}
       </div>
 
       {/* Bio */}

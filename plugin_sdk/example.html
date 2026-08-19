@@ -1,0 +1,68 @@
+<!doctype html>
+<!--
+  A complete, runnable page showing the Arbor booking widget on a plain
+  HTML site that has nothing to do with this repo — no build step, no
+  framework, just this one file. Open it directly in a browser (or serve it
+  with any static file server) against a running deployment.
+
+  To try it against your own local `make start` stack:
+    1. `make start` (or `make reload` if it's already running)
+    2. Open this file in a browser
+    3. Click "Reserve a table" bottom-right
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Example Business — powered by Arbor</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 48px 24px;
+      line-height: 1.6;
+      color: #1a1a1a;
+    }
+    h1 { font-size: 1.75rem; }
+    code {
+      background: #f1f1f4;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+    }
+    .callout {
+      margin-top: 32px;
+      padding: 16px 20px;
+      border-radius: 12px;
+      background: #f7f7fa;
+      border: 1px solid #e3e3ea;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Example Business</h1>
+  <p>
+    This page represents a completely unrelated business's own website —
+    it has no framework, no build step, and no knowledge of Arbor beyond
+    the one <code>&lt;script&gt;</code> tag at the bottom of this file.
+  </p>
+  <p>
+    A "Reserve a table" button should appear in the bottom-right corner.
+    Clicking it opens the real booking flow in a modal — sign in with an
+    email code, pick a service, book — without leaving this page.
+  </p>
+
+  <div class="callout">
+    <strong>Running this locally:</strong> replace <code>YOUR_DEPLOYMENT_URL</code>
+    below with wherever your stack is running (e.g. <code>http://localhost:3000</code>
+    for a local <code>make start</code>), then open this file directly in a
+    browser. The deployment must run <code>tenancy.mode: "single"</code> — see
+    <a href="README.md">README.md</a> for details.
+  </div>
+
+  <!-- The entire integration. Nothing else on this page knows this exists. -->
+  <script src="YOUR_DEPLOYMENT_URL/embed.js" data-label="Reserve a table" async></script>
+</body>
+</html>

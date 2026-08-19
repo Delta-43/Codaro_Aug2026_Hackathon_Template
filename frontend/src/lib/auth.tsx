@@ -42,6 +42,12 @@ type AuthContextValue = {
     consent?: boolean,
   ) => Promise<{ needsConfirmation: boolean; role: EngineRole }>;
   signOut: () => Promise<void>;
+  /** Passwordless entry point: emails a one-time code. No account exists yet?
+   *  one is created on verification — same identity model as signUp/signIn,
+   *  just a different way in. Used by the embed's guest-checkout path. */
+  sendOtp: (email: string) => Promise<void>;
+  /** Exchanges the code from sendOtp for a session. */
+  verifyOtp: (email: string, token: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -107,6 +113,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const supabase = getSupabase();
         if (supabase) await supabase.auth.signOut();
         setSession(null);
+      },
+      async sendOtp(email) {
+        const supabase = requireSupabase();
+        const { error } = await supabase.auth.signInWithOtp({
+          email: email.trim().toLowerCase(),
+          options: { shouldCreateUser: true },
+        });
+        if (error) throw new Error(error.message);
+      },
+      async verifyOtp(email, token) {
+        const supabase = requireSupabase();
+        const { error } = await supabase.auth.verifyOtp({
+          email: email.trim().toLowerCase(),
+          token,
+          type: "email",
+        });
+        if (error) throw new Error(error.message);
       },
     };
   }, [session, loading]);
