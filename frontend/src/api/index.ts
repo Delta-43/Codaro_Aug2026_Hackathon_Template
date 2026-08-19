@@ -199,14 +199,37 @@ function locationFromConfig(cfg: unknown): LocationConfig {
   };
 }
 
+/** The on/off spine from the pivot file. A false capability must hide the UI
+ *  surface AND make the backend refuse the write — the backend half was wired
+ *  first, so the client read none of this and showed surfaces that 404'd.
+ *  Unknown keys pass through: the client only ever asks about ones it gates. */
+export type Capabilities = Record<string, boolean>;
+
+function capabilitiesFromConfig(cfg: unknown): Capabilities {
+  const raw = (cfg as { capabilities?: Record<string, unknown> })?.capabilities ?? {};
+  const out: Capabilities = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === "boolean") out[key] = value;
+  }
+  return out;
+}
+
 /** Everything `AppProvider` needs from the pivot file, in ONE request. Boot used
  *  to call `/config` for tenancy alone; this keeps the round-trip count the same
  *  while also picking up the location block. */
-export type PivotConfig = { tenancy: Tenancy; location: LocationConfig };
+export type PivotConfig = {
+  tenancy: Tenancy;
+  location: LocationConfig;
+  capabilities: Capabilities;
+};
 
 export async function getPivotConfig(): Promise<PivotConfig> {
   const cfg = await request<unknown>("/config");
-  return { tenancy: tenancyFromConfig(cfg), location: locationFromConfig(cfg) };
+  return {
+    tenancy: tenancyFromConfig(cfg),
+    location: locationFromConfig(cfg),
+    capabilities: capabilitiesFromConfig(cfg),
+  };
 }
 
 // --- discovery -------------------------------------------------------------

@@ -60,6 +60,11 @@ export interface Service {
   currency: string; // ISO 4217
   cancellationCutoffHours: number; // no change/cancel inside this window
   autoApprove: boolean; // false → new bookings land as pending requests
+  /** `capabilities` RESOLVED for this service — the global block with the
+   *  service's own `metadata.capabilities` override merged in. Gate a surface on
+   *  this, not on the global block from `/config`: the routers gate per service,
+   *  so a service-level override is invisible to the global value. */
+  capabilities: Record<string, boolean>;
   resourceIds: ID[];
 }
 

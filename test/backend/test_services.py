@@ -28,6 +28,7 @@ SERVICE_KEYS = {
     "currency",
     "cancellationCutoffHours",
     "autoApprove",
+    "capabilities",
     "resourceIds",
 }
 

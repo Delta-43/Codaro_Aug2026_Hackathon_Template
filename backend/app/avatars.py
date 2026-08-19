@@ -28,6 +28,17 @@ async def store_avatar(file: UploadFile, key: str) -> str:
     bytes). Raises VALIDATION_ERROR on a bad type / empty / oversized image."""
     if file.content_type not in _ALLOWED_TYPES:
         raise api_error(VALIDATION_ERROR, "Unsupported image type. Use JPEG, PNG, or WEBP.")
+    # Reject on the declared size before `read()` copies the upload into a
+    # contiguous `bytes`. Note what this does *not* buy: by the time we run,
+    # FastAPI has already awaited `request.form()`, so Starlette's MultiPartParser
+    # has written the whole part to a SpooledTemporaryFile (disk past 1MB) with no
+    # size cap of its own — `max_part_size` guards only non-file parts. `file.size`
+    # is knowable precisely *because* the body was already consumed. Bounding what
+    # reaches disk needs a Content-Length check in middleware or a proxy body
+    # limit; this only keeps an oversized upload out of RAM. When `size` is absent
+    # (None) this is skipped and the post-read check below still holds.
+    if file.size is not None and file.size > _MAX_BYTES:
+        raise api_error(VALIDATION_ERROR, "Image must be 5MB or smaller.")
     data = await file.read()
     if not data:
         raise api_error(VALIDATION_ERROR, "The uploaded file is empty.")

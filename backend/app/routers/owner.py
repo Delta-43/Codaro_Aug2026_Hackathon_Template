@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query
 
@@ -26,28 +25,12 @@ from app.auth import AuthUser, require_owner
 from app.db import get_supabase
 from app.routers.bookings import _enrich
 from app.serialize import iso_utc
+from app.clock import now_utc, tz_or_utc
 
 router = APIRouter(prefix="/owner", tags=["owner"])
 
 
 # --- time windows ----------------------------------------------------------
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
-
-
-def _tz(name: str | None):
-    """The viewer's timezone (falls back to UTC on an unknown/absent name).
-    Calendar-boundary metrics — 'this month', 'this week' — must be bucketed in
-    the owner's local zone, not UTC, or bookings near a boundary land in the
-    wrong period for any provider not on UTC."""
-    if not name:
-        return timezone.utc
-    try:
-        return ZoneInfo(name)
-    except Exception:
-        return timezone.utc
 
 
 def _month_bounds(ref: datetime, tz) -> tuple[datetime, datetime, datetime]:
@@ -281,9 +264,9 @@ def owner_dashboard(owner: AuthUser = Depends(require_owner)):
     glanceable numbers, this week's bookings, and the top pending requests."""
     db = get_supabase()
     scope = _Scope(db, owner)
-    now = _now()
+    now = now_utc()
     now_iso = iso_utc(now)
-    tz = _tz((owner.claims.get("user_metadata") or {}).get("timezone"))
+    tz = tz_or_utc((owner.claims.get("user_metadata") or {}).get("timezone"))
     last_start, month_start, next_start = _month_bounds(now, tz)
     ls_iso, ms_iso, ns_iso = iso_utc(last_start), iso_utc(month_start), iso_utc(next_start)
     week_lo, week_hi = _week_bounds(now, tz)
@@ -376,7 +359,7 @@ def owner_services(owner: AuthUser = Depends(require_owner)):
     upcoming/past bookings, revenue, rating, pending requests)."""
     db = get_supabase()
     scope = _Scope(db, owner)
-    now_iso = iso_utc(_now())
+    now_iso = iso_utc(now_utc())
     res_by_svc = discovery.resource_ids_by_service(db)
     ratings = _ratings_by_service(scope)
 
@@ -438,8 +421,8 @@ def owner_calendar(
     by start. Query params: `from` / `to` (ISO-Z)."""
     db = get_supabase()
     scope = _Scope(db, owner)
-    now = _now()
-    tz = _tz((owner.claims.get("user_metadata") or {}).get("timezone"))
+    now = now_utc()
+    tz = tz_or_utc((owner.claims.get("user_metadata") or {}).get("timezone"))
     _, month_start, next_start = _month_bounds(now, tz)
     lo = from_ or iso_utc(month_start)
     hi = to or iso_utc(next_start)

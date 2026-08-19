@@ -13,8 +13,7 @@ which returns a list.
 """
 from __future__ import annotations
 
-import secrets
-from datetime import datetime, timezone
+from datetime import timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -29,11 +28,13 @@ from app.errors import (
     SLOT_UNAVAILABLE,
     api_error,
 )
+from app.meta import merged_metadata
 from app.models import BookingCreateReq, ClientReviewReq, ReviewReq, RescheduleReq
 from app.pricing import quote
 from app.rules import (
     RuleViolation,
     apply_rules,
+    capability,
     effective_auto_approve,
     effective_service_config,
     effective_service_pricing,
@@ -41,20 +42,18 @@ from app.rules import (
     within_cutoff,
 )
 from app.serialize import _parse, effective_booking_status, iso_utc, serialize_booking
+from app.clock import now_utc
+from app.references import booking_reference
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
-# Reference alphabet — no ambiguous chars (mirrors the mock's BK- references).
-_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-
-
-def _reference() -> str:
-    return "BK-" + "".join(secrets.choice(_ALPHABET) for _ in range(6))
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
-
+# Keys `create_booking` writes into `bookings.metadata` itself. A client-supplied
+# `metaFields.bookings` value carrying one of these names is dropped, not merged.
+_ENGINE_BOOKING_KEYS = (
+    "party_size", "reference", "price_minor_units", "currency", "price_breakdown",
+    "deposit_minor_units", "provider_id", "service_id", "resource_id", "user_id",
+    "slot_ids", "change_history", "cancelled_at_utc",
+)
 
 # --- lookups ---------------------------------------------------------------
 
@@ -171,7 +170,7 @@ def _resolve_selection(
         if _parse(rows[i]["starts_at"]) != _parse(rows[i - 1]["ends_at"]):
             raise api_error(INVALID_RANGE, "Times must be back-to-back with no gaps.")
 
-    now = _now()
+    now = now_utc()
     for r in rows:
         if _parse(r["ends_at"]) <= now:
             raise api_error(SLOT_UNAVAILABLE, "That time has already passed.")
@@ -204,7 +203,7 @@ def _enrich(db, uc, bookings: list[dict], *, include_client: bool = False) -> li
     metas = [b.get("metadata") or {} for b in bookings]
     prov_names = _name_map(db, "providers", {m.get("provider_id") for m in metas})
     svc_names = _name_map(db, "services", {m.get("service_id") for m in metas})
-    now = _now()
+    now = now_utc()
 
     out = []
     for b in bookings:
@@ -264,7 +263,7 @@ def list_bookings(scope: str = "all", user: AuthUser = Depends(require_user)):
     rows = uc.table("bookings").select("*").execute().data or []
     bookings = _enrich(db, uc, rows)
 
-    now_iso = iso_utc(_now())
+    now_iso = iso_utc(now_utc())
 
     def is_upcoming(b: dict) -> bool:
         # A rejected request is not an upcoming booking even though its slot is in
@@ -316,7 +315,7 @@ def _price(service: dict | None, rows: list, party: int) -> dict:
             "slot_count": len(rows),
             "party_size": party,
             "duration_minutes": duration,
-            "now": _now(),
+            "now": now_utc(),
             "start_local": start.astimezone(tz) if start else None,
         },
     )
@@ -355,7 +354,16 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
     # the registry: a new constraint is a config key plus a validator, never a
     # change here.
     try:
-        apply_rules("booking.create", {"slot_starts_at": rows[0]["starts_at"]})
+        apply_rules(
+            "booking.create",
+            {"slot_starts_at": rows[0]["starts_at"]},
+            # THIS service's resolved timing, not the global block. `timing` is in
+            # OVERRIDABLE_BLOCKS and the write gate accepts a per-service
+            # `leadTimeMinutes` — reading the global block here made this the one
+            # resolver that skipped the service layer, so the override was
+            # accepted with a 200 and then enforced by nothing.
+            effective_service_config(service)["timing"],
+        )
     except RuleViolation as e:
         raise api_error(INVALID_RANGE, str(e))
 
@@ -364,8 +372,12 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
     priced = _price(service, rows, party)
 
     metadata = {
+        # `metaFields.bookings` domain data (the shipped medical example declares
+        # a `reason` field) merged UNDER every engine-owned key below, which
+        # always win — a domain field must never be able to rewrite a price.
+        **merged_metadata("bookings", payload.metadata, reserved=_ENGINE_BOOKING_KEYS),
         "party_size": party,
-        "reference": _reference(),
+        "reference": booking_reference(),
         "price_minor_units": priced["amountMinorUnits"],
         "currency": priced["currency"],
         "price_breakdown": priced["breakdown"],
@@ -382,7 +394,7 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
         "client_email": user.email,
         "client_id": user.id,
         "status": status,
-        "history": [{"status": status, "at": iso_utc(_now())}],
+        "history": [{"status": status, "at": iso_utc(now_utc())}],
         "metadata": metadata,
     }
     uc = get_user_client(user.token)
@@ -438,12 +450,12 @@ def reschedule_booking(
     md["deposit_minor_units"] = repriced["depositMinorUnits"]
     md.setdefault("change_history", []).append(
         {
-            "at_utc": iso_utc(_now()),
+            "at_utc": iso_utc(now_utc()),
             "from_start_utc": iso_utc(cur_start),
             "to_start_utc": iso_utc(new_start),
         }
     )
-    history = booking["history"] + [{"status": "rescheduled", "at": iso_utc(_now())}]
+    history = booking["history"] + [{"status": "rescheduled", "at": iso_utc(now_utc())}]
     updated = (
         uc.table("bookings")
         .update({"slot_id": ordered[0], "status": "confirmed", "history": history, "metadata": md})
@@ -483,9 +495,9 @@ def cancel_booking(booking_id: str, user: AuthUser = Depends(require_user)):
             raise api_error(CUTOFF_PASSED, f"Changes closed — within {cutoff}h of the start.")
 
     md = dict(booking.get("metadata") or {})
-    md["cancelled_at_utc"] = iso_utc(_now())
+    md["cancelled_at_utc"] = iso_utc(now_utc())
     history = booking["history"] + [
-        {"status": "cancelled", "at": iso_utc(_now()), **({"actor": "owner"} if user.is_owner else {})}
+        {"status": "cancelled", "at": iso_utc(now_utc()), **({"actor": "owner"} if user.is_owner else {})}
     ]
     updated = (
         uc.table("bookings")
@@ -511,8 +523,16 @@ def review_booking(booking_id: str, payload: ReviewReq, user: AuthUser = Depends
     if effective_booking_status(booking["status"], cur_end) != "completed":
         raise api_error(NOT_FOUND, "Only completed bookings can be reviewed.")
 
-    rating = max(1, min(5, round(payload.rating)))
     md = booking.get("metadata") or {}
+    # `capabilities.reviews: false` hid the button and left the endpoint wide
+    # open — the block's own contract is that a false capability hides the
+    # surface AND refuses the write. Resolved per service, so one business on a
+    # marketplace can run without reviews.
+    service = maybe_row(db.table("services").select("*").eq("id", md.get("service_id")))
+    if not capability("reviews", service):
+        raise api_error(NOT_FOUND, "Reviews are not enabled here.")
+
+    rating = max(1, min(5, round(payload.rating)))
     # One review per booking: clear any prior (service key — no user delete
     # policy) then insert through the user client (RLS reviews_insert_own).
     db.table("reviews").delete().eq("booking_id", booking_id).execute()
@@ -555,7 +575,7 @@ def approve_booking(booking_id: str, owner: AuthUser = Depends(require_owner)):
     occ = _occ_by_id(db, cur_ids)
     _resolve_selection(rules, occ, cur_ids, md.get("resource_id"), party, credit=set())
 
-    history = booking["history"] + [{"status": "confirmed", "at": iso_utc(_now()), "actor": "owner"}]
+    history = booking["history"] + [{"status": "confirmed", "at": iso_utc(now_utc()), "actor": "owner"}]
     updated = (
         uc.table("bookings")
         .update({"status": "confirmed", "history": history})
@@ -584,8 +604,15 @@ def review_client(booking_id: str, payload: ClientReviewReq, owner: AuthUser = D
     if effective_booking_status(booking["status"], cur_end) != "completed":
         raise api_error(NOT_FOUND, "You can only rate a customer after the booking is completed.")
 
-    rating = max(1, min(5, round(payload.rating)))
     md = booking.get("metadata") or {}
+    # Same gate as the customer-facing review above. Without it `capabilities.
+    # reviews: false` refused one direction and accepted the other, and these
+    # rows feed the customer's public reputation (`GET /me/reputation`).
+    service = maybe_row(db.table("services").select("*").eq("id", md.get("service_id")))
+    if not capability("reviews", service):
+        raise api_error(NOT_FOUND, "Reviews are not enabled here.")
+
+    rating = max(1, min(5, round(payload.rating)))
     # One review per booking: clear any prior (service key) then insert through
     # the owner's client so RLS's client_reviews_insert_owner enforces.
     db.table("client_reviews").delete().eq("booking_id", booking_id).execute()
@@ -623,7 +650,7 @@ def reject_booking(booking_id: str, owner: AuthUser = Depends(require_owner)):
     if booking["status"] != "pending":
         raise api_error(INVALID_RANGE, "Only pending requests can be rejected.")
 
-    history = booking["history"] + [{"status": "rejected", "at": iso_utc(_now()), "actor": "owner"}]
+    history = booking["history"] + [{"status": "rejected", "at": iso_utc(now_utc()), "actor": "owner"}]
     updated = (
         uc.table("bookings")
         .update({"status": "rejected", "history": history})

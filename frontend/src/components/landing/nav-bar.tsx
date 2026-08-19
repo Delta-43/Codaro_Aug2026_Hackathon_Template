@@ -16,32 +16,10 @@
  */
 import Link from "next/link";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { useTheme } from "next-themes";
-import { ChevronLeft, ChevronRight, Moon, Sun } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
-
-function ThemeToggle({ className }: { className?: string }) {
-  const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  const isDark = mounted && resolvedTheme === "dark";
-
-  return (
-    <button
-      type="button"
-      aria-label={isDark ? "Switch to day" : "Switch to night"}
-      title={isDark ? "Day" : "Night"}
-      onClick={() => setTheme(isDark ? "light" : "dark")}
-      className={cn(
-        "grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-        className,
-      )}
-    >
-      {isDark ? <Moon className="size-4" aria-hidden /> : <Sun className="size-4" aria-hidden />}
-    </button>
-  );
-}
 
 const LINKS = [
   { href: "#how", label: "How it works" },
@@ -97,7 +75,7 @@ export function NavBar({ authed }: { authed: boolean }) {
     <nav className="fixed inset-x-0 top-4 z-50 flex justify-center px-4">
       <div className="flex w-full max-w-3xl items-center gap-2 rounded-3xl border border-border/60 bg-background/70 px-4 py-2 shadow-sm backdrop-blur-xl">
         {/* Far left — dark/light toggle (pinned) */}
-        <ThemeToggle />
+        <ThemeToggle className="shrink-0" />
 
         {/* Left chevron — only while the strip can scroll */}
         {overflow && (

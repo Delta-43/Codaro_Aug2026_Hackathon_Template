@@ -9,10 +9,19 @@ from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFil
 from app import discovery
 from app.auth import AuthUser, enforce_rls_write, optional_user, require_owner, require_user
 from app.avatars import remove_avatar, store_avatar
-from app.db import get_supabase, get_user_client, maybe_row
-from app.errors import NOT_FOUND, api_error
+from app.db import (
+    RLS_DENIED_CODE,
+    UNIQUE_VIOLATION_CODE,
+    get_supabase,
+    get_user_client,
+    maybe_row,
+)
+from app.config import get_config
+from app.errors import NOT_FOUND, VALIDATION_ERROR, api_error
+from app.meta import merged_metadata
 from app.models import ProviderCreate, ProviderUpdate
 from app.routers.resources import delete_resources_for_services
+from app.rules import capability
 from app.serialize import iso_utc, serialize_provider
 from app.users import admin_user_metadata, followed_ids, load_user
 
@@ -74,7 +83,6 @@ def get_provider_by_code(code: str):
 def _provider_metadata(payload, base: dict | None = None) -> dict:
     """Assemble a provider's presentational metadata from a create/update body,
     dropping keys the body left unset (so PATCH is partial)."""
-    md = dict(base or {})
     fields = {
         "avatar_url": payload.avatar_url,
         "cover_url": payload.cover_url,
@@ -83,6 +91,10 @@ def _provider_metadata(payload, base: dict | None = None) -> dict:
         "location": payload.location,
         "links": payload.links,
     }
+    # `metaFields.providers` domain data goes UNDER the presentational keys the
+    # engine owns, so a domain field can never shadow one of them.
+    md = dict(base or {})
+    md.update(merged_metadata("providers", payload.metadata, reserved=tuple(fields)))
     for key, value in fields.items():
         if value is not None:
             md[key] = value
@@ -105,6 +117,17 @@ def my_providers(owner: AuthUser = Depends(require_owner)):
 
 @router.post("")
 def create_provider(payload: ProviderCreate, owner: AuthUser = Depends(require_owner)):
+    # `tenancy.selfOnboarding` was computed by `normalize()` (defaulting to
+    # `mode == "multi"`) and then read by nobody, so the shipped single-business
+    # config — `mode: "single"`, `selfOnboarding: false` — still let any signed-up
+    # owner stand up a second business on the deployment. A marketplace onboards
+    # businesses; a single-business site does not, and now says so.
+    if not get_config()["tenancy"].get("selfOnboarding"):
+        raise api_error(
+            VALIDATION_ERROR,
+            "This deployment does not accept new businesses (tenancy.selfOnboarding is off).",
+            status=403,
+        )
     row = {
         "owner_id": owner.id,  # RLS providers_write_own checks owner_id == auth.uid()
         "name": payload.name,
@@ -304,14 +327,35 @@ def get_provider(provider_id: str):
 
 @router.post("/{provider_id}/follow")
 def follow_provider(provider_id: str, user: AuthUser = Depends(require_user)):
+    # A false capability must hide the surface AND refuse the write; this one
+    # only ever did the first half.
+    if not capability("follows"):
+        raise api_error(NOT_FOUND, "Following is not enabled here.")
     if maybe_row(get_supabase().table("providers").select("id").eq("id", provider_id)) is None:
         raise api_error(NOT_FOUND, "That provider no longer exists.")
     try:
-        get_user_client(user.token).table("follows").insert(
-            {"user_id": user.id, "provider_id": provider_id}
-        ).execute()
-    except Exception:
-        pass  # primary-key conflict → already following; follow is idempotent
+        inserted = (
+            get_user_client(user.token)
+            .table("follows")
+            .insert({"user_id": user.id, "provider_id": provider_id})
+            .execute()
+            .data
+        )
+    except Exception as exc:  # noqa: BLE001 - narrowed by code below
+        code = getattr(exc, "code", None)
+        if code == UNIQUE_VIOLATION_CODE:
+            return load_user(user)  # already following; follow is idempotent
+        if code == RLS_DENIED_CODE:
+            # The raising form of an RLS refusal. Route it through the SAME
+            # helper as the empty-result form below so there is one definition of
+            # the status and wording, rather than a bare 500 with no envelope.
+            enforce_rls_write(None, entity="follow")
+        raise
+    # RLS can also refuse by returning no rows instead of raising, which is what
+    # every other write in this codebase guards with `enforce_rls_write`. Without
+    # it the endpoint returned 200 and the button flipped to "Following" for a
+    # row that was never written.
+    enforce_rls_write(inserted, entity="follow")
     return load_user(user)
 
 

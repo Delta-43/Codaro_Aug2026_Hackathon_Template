@@ -54,10 +54,12 @@ jobs:
           pip install -r backend/requirements-dev.txt
           pip install -r test/requirements-test.txt
 
-      # Catches dead code (unused imports/locals) that would otherwise only be
-      # found by reading. Deliberately a narrow rule set — see backend/pyproject.toml.
+      # Catches dead code (unused imports/locals/undefined names) that would
+      # otherwise only be found by reading. Deliberately a narrow rule set — see
+      # ruff.toml. Run from the repo root so test/ and scripts/ are covered too;
+      # scoping this to backend/ previously let 8 unused imports accumulate in
+      # test/.
       - name: Lint (ruff)
-        working-directory: backend
         run: ruff check .
 
       # The suite stubs out Supabase entirely (see test/backend/fakes.py), so

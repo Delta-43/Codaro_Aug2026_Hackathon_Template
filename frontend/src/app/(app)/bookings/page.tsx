@@ -44,7 +44,7 @@ function bookingToCal(b: Booking): DemoBooking | null {
 }
 
 export default function BookingsPage() {
-  const { user, singleBusiness } = useApp();
+  const { user, ready, singleBusiness } = useApp();
   const router = useRouter();
   const tz = user?.timezone ?? "UTC";
   const [scope, setScope] = useState<Scope>("upcoming");
@@ -106,7 +106,7 @@ export default function BookingsPage() {
 
       {/* List */}
       <div className="space-y-2">
-        {data.loading && !data.data ? (
+        {!ready || (data.loading && !data.data) ? (
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)
         ) : data.error ? (
           <EmptyState title="Couldn't load bookings" body="Something interrupted the request.">

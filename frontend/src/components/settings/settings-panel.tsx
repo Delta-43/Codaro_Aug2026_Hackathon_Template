@@ -19,7 +19,7 @@ import { Bell, LogOut, Palette, ShieldAlert, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ThemeToggle } from "@/components/account/theme-toggle";
+import { AppearancePicker } from "@/components/account/appearance-picker";
 import { ConfirmDialog } from "@/components/business/confirm-dialog";
 import { useDemoUseCase } from "@/lib/demo-use-case";
 import { USE_CASE_IDS, USE_CASES } from "@/config/useCases";
@@ -82,7 +82,7 @@ export function SettingsPanel(cfg: SettingsConfig) {
           <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
             <Palette className="size-4" aria-hidden /> Theme
           </span>
-          <ThemeToggle />
+          <AppearancePicker />
         </div>
       </Section>
 

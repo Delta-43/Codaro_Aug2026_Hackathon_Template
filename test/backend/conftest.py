@@ -189,20 +189,6 @@ def client(db):
         yield test_client
 
 
-@pytest.fixture
-def strict_client(strict_db):
-    with TestClient(app_main.app) as test_client:
-        yield test_client
-
-
-@pytest.fixture
-def raw_client(db):
-    """TestClient that converts unhandled server exceptions into 500s
-    instead of re-raising them — used to pin current crash behaviour."""
-    with TestClient(app_main.app, raise_server_exceptions=False) as test_client:
-        yield test_client
-
-
 # --- auth override ---------------------------------------------------------
 #
 # Real JWT verification needs the project's JWT secret and (for asymmetric

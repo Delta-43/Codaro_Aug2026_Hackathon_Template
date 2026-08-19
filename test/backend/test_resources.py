@@ -12,7 +12,6 @@ from helpers import (
     make_booking,
     make_catalog,
     make_resource,
-    make_service,
     make_slot,
 )
 
@@ -107,6 +106,21 @@ def test_create_rejects_bad_metadata_type(client, db, auth):
     # metaFields.resources declares `room` as text; a number is a 422.
     resp = client.post("/resources", json={"name": "Bad", "metadata": {"room": 5}})
     assert resp.status_code == 422
+
+
+def test_date_metafield_rejects_trailing_junk(client, db, auth, domain_config):
+    """A `date` field validated only its first 10 characters, so anything that
+    merely STARTED with a date was accepted and stored verbatim."""
+    domain_config(metaFields={"resources": [{"key": "seenOn", "label": "Seen", "type": "date"}]})
+    auth(role="owner")
+
+    for good in ("2026-08-18", "2026-08-18T14:00:00Z"):
+        resp = client.post("/resources", json={"name": "Ok", "metadata": {"seenOn": good}})
+        assert resp.status_code == 200, good
+
+    for bad in ("2026-08-18 or whenever", "2026-08-18garbage", "not-a-date"):
+        resp = client.post("/resources", json={"name": "Bad", "metadata": {"seenOn": bad}})
+        assert resp.status_code == 422, bad
 
 
 # --- owner-gated patch -----------------------------------------------------

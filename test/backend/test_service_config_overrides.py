@@ -31,7 +31,6 @@ import logging
 
 import pytest
 
-from app import config_schema
 from app import rules as app_rules
 from app.config import get_config
 from app.config_schema import DEFAULTS, normalize, validate, validate_overrides
@@ -53,7 +52,7 @@ SERVICE_KEYS = {
     "id", "providerId", "name", "description", "imageUrl", "bookingModel",
     "slotDurationMinutes", "minSlotsPerBooking", "maxSlotsPerBooking",
     "priceMinorUnits", "currency", "cancellationCutoffHours", "autoApprove",
-    "resourceIds",
+    "capabilities", "resourceIds",
 }
 
 

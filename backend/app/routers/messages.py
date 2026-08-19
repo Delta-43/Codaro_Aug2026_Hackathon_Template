@@ -14,7 +14,6 @@ durable send/read/delete/list path.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -23,12 +22,9 @@ from app.db import get_supabase, get_user_client, maybe_row
 from app.errors import INVALID_RANGE, NOT_FOUND, api_error
 from app.models import ConversationCreateReq, MessageCreateReq
 from app.serialize import iso_utc, serialize_conversation, serialize_message
+from app.clock import now_utc
 
 router = APIRouter(prefix="/conversations", tags=["messages"])
-
-
-def _now() -> datetime:
-    return datetime.now(timezone.utc)
 
 
 # --- cross-user display resolution (service key — spans RLS boundaries) -----
@@ -90,6 +86,50 @@ def _load_conversation(uc, conversation_id: str) -> dict:
     return row
 
 
+def _repoint_preview(uc, conversation_id: str, deleted_created_at: str) -> None:
+    """Re-point a thread's inbox preview at the latest *surviving* message.
+
+    `last_message_at`/`last_message_preview` are stamped by the `on_message_insert`
+    trigger, which — being an insert trigger — never fires on a soft delete. So
+    deleting the newest message blanked it in the thread while the inbox went on
+    displaying its text indefinitely: exactly the text the user asked to retract,
+    left in the one view that summarises the conversation.
+
+    The write is a compare-and-set on `deleted_created_at` (the `created_at` of
+    the row just deleted), because this is a read-modify-write racing that same
+    trigger: if the other participant's INSERT commits between our SELECT and our
+    UPDATE, an unguarded write would overwrite their fresh preview with an older
+    message and drag `last_message_at` backwards, sorting the thread below
+    strictly less recent ones. Filtering on the value we believe we are replacing
+    makes the update a no-op in that case — and also when the deleted message was
+    never the latest, which is the common case and needs no repoint at all.
+
+    `last_message_at` is only rewritten when a surviving message supplies a new
+    one. When every message in the thread is deleted the preview text must go, but
+    the timestamp carries *ordering*, not content — clearing it too would drop the
+    thread to the bottom of the inbox and render it as "No messages yet", when it
+    is a real conversation whose messages are all tombstones.
+    """
+    latest = maybe_row(
+        uc.table("messages")
+        .select("body,created_at")
+        .eq("conversation_id", conversation_id)
+        .is_("deleted_at", "null")
+        .order("created_at", desc=True)
+        .limit(1)
+    )
+    patch: dict = {"last_message_preview": latest["body"] if latest else None}
+    if latest:
+        patch["last_message_at"] = latest["created_at"]
+    (
+        uc.table("conversations")
+        .update(patch)
+        .eq("id", conversation_id)
+        .eq("last_message_at", deleted_created_at)
+        .execute()
+    )
+
+
 # --- endpoints -------------------------------------------------------------
 
 
@@ -105,18 +145,23 @@ def list_conversations(user: AuthUser = Depends(require_user)):
     prov_map = _provider_map(db, [c["provider_id"] for c in convs])
 
     # Unread = the other party's un-read, non-deleted messages, tallied per thread.
+    # The predicate goes to PostgREST rather than being applied here: counting in
+    # Python meant every read of the inbox dragged back *every message of every
+    # thread* — the whole history, to report a handful of integers.
     unread_rows = (
         uc.table("messages")
-        .select("conversation_id,sender_id,read_at,deleted_at")
+        .select("conversation_id")
         .in_("conversation_id", conv_ids)
+        .neq("sender_id", user.id)
+        .is_("read_at", "null")
+        .is_("deleted_at", "null")
         .execute()
         .data
         or []
     )
     unread: dict[str, int] = {}
     for m in unread_rows:
-        if m.get("read_at") is None and m.get("deleted_at") is None and m["sender_id"] != user.id:
-            unread[m["conversation_id"]] = unread.get(m["conversation_id"], 0) + 1
+        unread[m["conversation_id"]] = unread.get(m["conversation_id"], 0) + 1
 
     user_cache: dict[str, dict] = {}
     out = [
@@ -143,17 +188,16 @@ def get_conversation(conversation_id: str, user: AuthUser = Depends(require_user
     other = _other_party(db, conv, user.id, prov_map, {})
     rows = (
         uc.table("messages")
-        .select("sender_id,read_at,deleted_at")
+        .select("id")
         .eq("conversation_id", conversation_id)
+        .neq("sender_id", user.id)
+        .is_("read_at", "null")
+        .is_("deleted_at", "null")
         .execute()
         .data
         or []
     )
-    unread = sum(
-        1
-        for m in rows
-        if m.get("read_at") is None and m.get("deleted_at") is None and m["sender_id"] != user.id
-    )
+    unread = len(rows)
     return serialize_conversation(conv, other_party=other, unread_count=unread)
 
 
@@ -188,7 +232,7 @@ def send_message(
         "sender_id": user.id,
         "body": body,
         "reply_to_id": payload.reply_to_id or None,
-        "delivered_at": iso_utc(_now()),
+        "delivered_at": iso_utc(now_utc()),
     }
     inserted = uc.table("messages").insert(row).execute().data
     inserted = enforce_rls_write(inserted, entity="message")
@@ -203,7 +247,7 @@ def mark_read(conversation_id: str, user: AuthUser = Depends(require_user)):
     _load_conversation(uc, conversation_id)  # 404s non-participants
     updated = (
         uc.table("messages")
-        .update({"read_at": iso_utc(_now())})
+        .update({"read_at": iso_utc(now_utc())})
         .eq("conversation_id", conversation_id)
         .neq("sender_id", user.id)
         .is_("read_at", "null")
@@ -224,7 +268,7 @@ def delete_message(
     _load_conversation(uc, conversation_id)  # 404s non-participants
     updated = (
         uc.table("messages")
-        .update({"deleted_at": iso_utc(_now())})
+        .update({"deleted_at": iso_utc(now_utc())})
         .eq("id", message_id)
         .eq("conversation_id", conversation_id)
         .eq("sender_id", user.id)
@@ -234,6 +278,7 @@ def delete_message(
     )
     if not updated:
         raise api_error(NOT_FOUND, "That message could not be found.")
+    _repoint_preview(uc, conversation_id, updated[0].get("created_at"))
     return serialize_message(updated[0], me_id=user.id)
 
 

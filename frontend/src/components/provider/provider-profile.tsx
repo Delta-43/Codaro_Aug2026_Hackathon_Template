@@ -43,7 +43,7 @@ export function ProviderProfile({
   showFollow?: boolean;
 }) {
   const vertical = useVertical();
-  const { selectService, selectResource, lockInProvider } = useApp();
+  const { selectService, selectResource, lockInProvider, capability } = useApp();
   const router = useRouter();
   const { isFollowing, busy, toggle } = useFollow(p);
   const [picker, setPicker] = useState<Service | null>(null);
@@ -120,9 +120,11 @@ export function ProviderProfile({
         </span>
       </div>
 
-      {/* Actions — follow + message the business. */}
+      {/* Actions — follow + message the business. Follow is additionally gated on
+          `capabilities.follows`, which the backend already refuses, so the button
+          would otherwise 404. */}
       <div className="mt-4 flex flex-wrap gap-2">
-        {showFollow ? (
+        {showFollow && capability("follows") ? (
           <Button variant={isFollowing ? "secondary" : "outline"} isDisabled={busy} onPress={toggle}>
             {isFollowing ? "Following" : "Follow"}
           </Button>

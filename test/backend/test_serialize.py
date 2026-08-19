@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 import pytest
 
 from app import serialize as S
-from app.rules import effective_auto_approve
+from app.rules import capability, effective_auto_approve
 
 # A fixed "now" so the time-dependent ladders are deterministic.
 NOW = datetime(2026, 6, 1, 12, 0, 0, tzinfo=timezone.utc)
@@ -227,25 +227,30 @@ def test_provider_price_from_zero_currency_still_defaults_empty():
 # --- discovery: price_from_by_provider + build_provider --------------------
 
 
+class _Table:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def select(self, *_a, **_k):
+        return self
+
+    def execute(self):
+        return type("R", (), {"data": self._rows})()
+
+
+class _DB:
+    """A services table standing in for the whole-table scan the discovery
+    helpers do. Hoisted to module level so the price tests below can share it."""
+
+    def __init__(self, rows):
+        self._rows = rows
+
+    def table(self, _name):
+        return _Table(self._rows)
+
+
 def test_discovery_price_from_picks_cheapest_service_currency():
     from app import discovery as D
-
-    class _Table:
-        def __init__(self, rows):
-            self._rows = rows
-
-        def select(self, *_a, **_k):
-            return self
-
-        def execute(self):
-            return type("R", (), {"data": self._rows})()
-
-    class _DB:
-        def __init__(self, rows):
-            self._rows = rows
-
-        def table(self, _name):
-            return _Table(self._rows)
 
     rows = [
         {"provider_id": "prov-1", "price_minor_units": 9000, "currency": "PLN"},
@@ -281,6 +286,69 @@ def test_discovery_price_from_picks_cheapest_service_currency():
     assert p3["currency"] == ""
 
 
+def test_discovery_price_from_resolves_a_metadata_pricing_override():
+    """A service priced ONLY through `metadata.pricing` must drive the provider's
+    `priceFromMinorUnits`. Reading `price_minor_units` reported 0 for it while
+    `serialize_service` and `quote()` used the real amount — the provider card
+    and the price facet were computed from a number nothing else in the engine
+    used. This is also the only coverage of `_resolved_price`'s override branch;
+    every other price test builds rows from plain columns."""
+    from app import discovery as D
+
+    rows = [
+        {"provider_id": "prov-1", "price_minor_units": 9000, "currency": "PLN", "metadata": {}},
+        # Column says 0; the override is what the engine actually charges.
+        {
+            "provider_id": "prov-1",
+            "price_minor_units": 0,
+            "currency": "EUR",
+            "metadata": {"pricing": {"rate": {"per": "slot", "amountMinorUnits": 3300}}},
+        },
+    ]
+    by = D.price_from_by_provider(_DB(rows))
+    assert by["prov-1"] == (3300, "EUR")
+
+
+def test_discovery_price_fast_path_agrees_with_the_full_resolver():
+    """`_resolved_price` skips `effective_service_pricing` for any row with no
+    `metadata.pricing` block. That shortcut is only equivalent because
+    `price_minor_units`/`currency` are NOT NULL DEFAULT and the resolver folds
+    them over the global block unconditionally — facts in schema.sql and
+    rules.py that nothing else pins. Make the columns nullable, or reorder the
+    fold-in, and discovery silently starts reporting a different price from
+    `quote()`; this is what fails when that happens."""
+    from app import discovery as D
+    from app.rules import effective_service_pricing
+
+    def resolved(row):
+        pricing = effective_service_pricing(row)
+        return (
+            int((pricing.get("rate") or {}).get("amountMinorUnits") or 0),
+            pricing.get("currency") or "",
+        )
+
+    fallback = D._global_price_fallback()
+    rows = [
+        {"price_minor_units": 1000, "currency": "EUR", "metadata": {}},
+        {"price_minor_units": 0, "currency": "EUR", "metadata": {}},
+        {"price_minor_units": 2500, "currency": "JPY", "metadata": {}},
+        {"price_minor_units": 1000, "currency": "", "metadata": {}},
+        {"price_minor_units": None, "currency": "EUR", "metadata": {}},
+        {"price_minor_units": 1000, "currency": "EUR", "metadata": {"image_url": "x"}},
+        # override branch, including shapes `surviving_overrides` rejects
+        {
+            "price_minor_units": 1000,
+            "currency": "EUR",
+            "metadata": {"pricing": {"rate": {"per": "slot", "amountMinorUnits": 7777}}},
+        },
+        {"price_minor_units": 1000, "currency": "EUR", "metadata": {"pricing": {"currency": "KWD"}}},
+        {"price_minor_units": 1000, "currency": "EUR", "metadata": {"pricing": "not-a-dict"}},
+        {"price_minor_units": 1000, "currency": "EUR", "metadata": {"pricing": {"rate": 5}}},
+    ]
+    for row in rows:
+        assert D._resolved_price(row, fallback) == resolved(row), row
+
+
 # --- serialize_service -----------------------------------------------------
 
 SERVICE_KEYS = {
@@ -297,6 +365,7 @@ SERVICE_KEYS = {
     "currency",
     "cancellationCutoffHours",
     "autoApprove",
+    "capabilities",
     "resourceIds",
 }
 
@@ -369,6 +438,26 @@ def test_service_auto_approve_key_still_wins_over_a_confirmation_override():
     row = _service_row()
     row["metadata"] = {"timing": {"confirmation": "request_approve"}, "auto_approve": True}
     assert S.serialize_service(row)["autoApprove"] is True
+
+
+def test_service_capabilities_are_resolved_per_service_not_global():
+    """The routers gate `capability(name, service)`, which resolves a service's
+    own `metadata.capabilities` over the global block. Serving only the global
+    block left the client unable to see a per-service override, so it rendered a
+    review control the API then refused with a 404."""
+    row = _service_row()
+    row["metadata"] = {"capabilities": {"reviews": False}}
+    out = S.serialize_service(row)
+    assert out["capabilities"]["reviews"] is False
+    # and it agrees with the gate the router actually applies
+    assert capability("reviews", row) is False
+
+
+def test_service_capabilities_fall_back_to_the_global_block():
+    row = _service_row()
+    row["metadata"] = {}
+    assert S.serialize_service(row)["capabilities"]["reviews"] is True
+    assert capability("reviews", row) is True
 
 
 def test_service_auto_approve_follows_the_global_confirmation_mode(domain_config):

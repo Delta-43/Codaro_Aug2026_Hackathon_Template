@@ -15,9 +15,6 @@ from helpers import (
     iso_in,
     make_booking,
     make_catalog,
-    make_client_review,
-    make_resource,
-    make_service,
     make_slot,
 )
 
@@ -1028,3 +1025,53 @@ def test_the_slot_capacity_and_not_the_config_number_is_the_ceiling(client, db, 
     resp = client.post("/bookings", json=_book_body(cat, cat["slot"], party=8))
     assert resp.status_code == 409
     assert _detail_code(resp) == "CAPACITY_EXCEEDED"
+
+
+# --- capabilities.reviews gates BOTH review directions ----------------------
+#
+# The block's contract is that a false capability hides the surface AND refuses
+# the write. It shipped gating only the customer-facing review, so an owner
+# could still write `client_reviews` — rows that feed the customer's public
+# reputation — on a deployment with reviews turned off.
+
+
+def test_customer_review_refused_when_reviews_capability_is_off(
+    client, db, auth, domain_config
+):
+    domain_config(capabilities={"reviews": False})
+    auth(role="client")
+    cat = make_catalog(db)
+    past = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=-5)
+    booking = make_booking(db, slots=[past], service=cat["service"])
+    resp = client.post(f"/bookings/{booking['id']}/review", json={"rating": 5})
+    assert resp.status_code == 404
+    assert not [r for r in db.rows("reviews") if r["booking_id"] == booking["id"]]
+
+
+def test_client_review_refused_when_reviews_capability_is_off(
+    client, db, auth, domain_config
+):
+    domain_config(capabilities={"reviews": False})
+    auth(role="owner")
+    cat = make_catalog(db)
+    booking = _completed(db, cat)
+    resp = client.post(f"/bookings/{booking['id']}/client-review", json={"rating": 4})
+    assert resp.status_code == 404
+    assert not [r for r in db.rows("client_reviews") if r["booking_id"] == booking["id"]]
+
+
+def test_both_review_directions_work_when_the_capability_is_on(client, db, auth, domain_config):
+    """Guard against the gate being written so tightly it refuses everything."""
+    domain_config(capabilities={"reviews": True})
+    cat = make_catalog(db)
+
+    auth(role="client")
+    past = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=-5)
+    booking = make_booking(db, slots=[past], service=cat["service"])
+    assert client.post(f"/bookings/{booking['id']}/review", json={"rating": 5}).status_code == 200
+
+    auth(role="owner")
+    owned = _completed(db, cat)
+    assert (
+        client.post(f"/bookings/{owned['id']}/client-review", json={"rating": 4}).status_code == 200
+    )

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from helpers import iso_in, make_booking, make_provider, make_resource, make_service, make_slot
+from helpers import make_booking, make_provider, make_resource, make_service, make_slot
 
 
 def _catalog(db, *, capacity=3):
@@ -145,6 +145,47 @@ def test_availability_falls_back_to_the_business_timezone_for_an_anonymous_viewe
 
     days = _days(client, svc)
     assert [d["date"] for d in days] == [tokyo_date]
+
+
+def test_availability_uses_this_services_own_timezone_not_the_global_block(
+    client, db, auth, domain_config
+):
+    """The business-timezone fallback resolves PER SERVICE (`location` is in
+    OVERRIDABLE_BLOCKS), but every other test here sets the GLOBAL block, where
+    passing the service and passing None merge to the same answer — so they pass
+    whether or not the lookup fires at all. Two services differing ONLY by
+    `metadata.location.timezone`, same anonymous viewer, same instant: if the
+    per-service lookup regresses to the global block, both group the same and
+    this fails."""
+    auth(anon=True)
+    domain_config(location={"timezone": "UTC"})
+
+    provider = make_provider(db, "P")
+    day = (datetime.now(timezone.utc) + timedelta(days=10)).replace(
+        hour=_LATE_UTC_HOUR, minute=0, second=0, microsecond=0
+    )
+    utc_date = day.strftime("%Y-%m-%d")
+    tokyo_date = (day + timedelta(hours=9)).strftime("%Y-%m-%d")
+    assert utc_date != tokyo_date  # the fixture is only meaningful if they differ
+
+    def _service_with(name: str, metadata: dict) -> dict:
+        svc = make_service(db, provider["id"], name, slot_duration_minutes=60, metadata=metadata)
+        res = make_resource(db, f"R-{name}", service_id=svc["id"], capacity=3)
+        make_slot(
+            db,
+            res["id"],
+            service_id=svc["id"],
+            starts_at=day.isoformat(),
+            ends_at=(day + timedelta(minutes=30)).isoformat(),
+            capacity=3,
+        )
+        return svc
+
+    tokyo = _service_with("Tokyo", {"location": {"timezone": "Asia/Tokyo"}})
+    plain = _service_with("Plain", {})
+
+    assert [d["date"] for d in _days(client, tokyo)] == [tokyo_date]
+    assert [d["date"] for d in _days(client, plain)] == [utc_date]
 
 
 def test_availability_groups_in_utc_when_the_config_declares_no_timezone(

@@ -23,7 +23,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Iterable, Optional
 
-from app.rules import effective_auto_approve, effective_service_pricing
+from app.clock import now_utc
+from app.rules import (
+    effective_auto_approve,
+    effective_service_config,
+    effective_service_pricing,
+    effective_service_rules,
+)
 
 # --- time helpers ----------------------------------------------------------
 
@@ -54,7 +60,7 @@ def iso_utc(value: Any) -> Optional[str]:
 
 
 def _now(now: Optional[datetime] = None) -> datetime:
-    return now or datetime.now(timezone.utc)
+    return now or now_utc()
 
 
 # --- derived enums ---------------------------------------------------------
@@ -158,22 +164,32 @@ def serialize_provider(
 def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
     md = row.get("metadata") or {}
     pricing = effective_service_pricing(row)
+    # Resolved, not the raw columns. `effective_service_rules` puts an explicit
+    # `metadata.timing` / `metadata.booking` override ABOVE the column, so every
+    # one of these advertised the column while the booking path enforced the
+    # override: the UI offered one slot where the API demanded four, and showed a
+    # 24h cancellation window it closed at 2h. Same fix as `priceMinorUnits`
+    # below, which is the only one of the seven that had it.
+    rules = effective_service_rules(row)
+    # Resolved ONCE and shared: both `autoApprove` and `capabilities` read from
+    # this, instead of each triggering its own full block merge + revalidation.
+    svc_config = effective_service_config(row)
     return {
         "id": row["id"],
         "providerId": row["provider_id"],
         "name": row["name"],
         "description": row.get("description") or "",
         "imageUrl": md.get("image_url"),
-        "bookingModel": row["booking_model"],
-        "slotDurationMinutes": row["slot_duration_minutes"],
-        "minSlotsPerBooking": row["min_slots_per_booking"],
-        "maxSlotsPerBooking": row["max_slots_per_booking"],
+        "bookingModel": rules["bookingModel"],
+        "slotDurationMinutes": rules["slotDurationMinutes"],
+        "minSlotsPerBooking": rules["minSlotsPerBooking"],
+        "maxSlotsPerBooking": rules["maxSlotsPerBooking"],
         # Resolved, not the raw column: a service with a `metadata.pricing`
         # override is charged through `effective_service_pricing`, so reporting
         # the column here advertised one price and billed another.
         "priceMinorUnits": pricing["rate"]["amountMinorUnits"],
         "currency": pricing["currency"],
-        "cancellationCutoffHours": row["cancellation_cutoff_hours"],
+        "cancellationCutoffHours": rules["cancellationCutoffHours"],
         # Owner-controlled: when False, new bookings for this service land as
         # 'pending' and wait in the Requests tab; when True (default) they
         # confirm immediately. Rides in metadata (services columns are fixed).
@@ -182,7 +198,12 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
         # `metadata.auto_approve` directly meant a service whose confirmation came
         # from a `timing.confirmation` override reported `autoApprove: true` on the
         # wire while actually creating pending bookings.
-        "autoApprove": effective_auto_approve(row),
+        "autoApprove": effective_auto_approve(row, config=svc_config),
+        # Resolved per service, because `capabilities` is in OVERRIDABLE_BLOCKS
+        # and the routers gate on `capability(name, service)`. Serving only the
+        # global block over /config left the client unable to see a per-service
+        # override, so it rendered a review control the API then refused.
+        "capabilities": svc_config["capabilities"],
         "resourceIds": list(resource_ids),
     }
 

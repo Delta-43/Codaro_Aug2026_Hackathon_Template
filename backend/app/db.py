@@ -46,6 +46,17 @@ _NOT_FOUND_CODE = "PGRST116"
 _INVALID_TEXT_CODE = "22P02"
 _NOT_FOUND_CODES = {_NOT_FOUND_CODE, _INVALID_TEXT_CODE}
 
+# Postgres "unique_violation" — an insert that duplicates a primary/unique key.
+# Callers whose write is idempotent (follow, for one) swallow exactly this and
+# nothing else: a blanket `except Exception` there reports success for an RLS
+# denial or a dropped connection just as happily.
+UNIQUE_VIOLATION_CODE = "23505"
+
+# Postgres "insufficient_privilege" — the raising form of an RLS refusal (a
+# WITH CHECK violation). The other form returns no rows; `enforce_rls_write`
+# covers that one. Both should reach the caller as the same 403.
+RLS_DENIED_CODE = "42501"
+
 
 def maybe_row(query):
     """Fetch a single row, returning ``None`` when nothing matches.

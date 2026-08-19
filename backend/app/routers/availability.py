@@ -11,40 +11,45 @@ from __future__ import annotations
 import calendar as _cal
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, Query
 
+from app.clock import tz_or_utc
 from app.auth import AuthUser, optional_user
-from app.config import get_config
-from app.db import get_supabase
+from app.db import get_supabase, maybe_row
+from app.rules import effective_service_config
 from app.serialize import _parse, serialize_slot
 from app.users import user_metadata
 
 router = APIRouter(tags=["availability"])
 
 
-def _tz(name: str | None) -> ZoneInfo | timezone:
-    try:
-        return ZoneInfo(name) if name else timezone.utc
-    except Exception:
-        return timezone.utc
-
-
-def _viewer_tz(tz: str | None, user: AuthUser | None):
+def _viewer_tz(tz: str | None, user: AuthUser | None, load_service=lambda: None):
     """`?tz=` -> the signed-in user's timezone -> the BUSINESS's timezone -> UTC.
 
     The third step is new. Without it an anonymous visitor always saw days
     grouped in UTC, which silently shifts every evening slot into the next day
     for a business east of Greenwich — the calendar looked wrong to exactly the
-    people who had not logged in yet."""
-    name = (
-        tz
-        or (user_metadata(user).get("timezone") if user else None)
-        or (get_config()["location"].get("timezone"))
-        or "UTC"
-    )
-    return _tz(name)
+    people who had not logged in yet.
+
+    "The business" means THIS service's business. Both endpoints here are already
+    scoped to one `service_id`, and `location` is overridable per service, but the
+    global block was read regardless — so pricing honoured a tenant's timezone
+    (`bookings._business_tz`) while the calendar next to it did not, and every
+    marketplace tenant off the platform zone had its days grouped wrong."""
+    name = tz or (user_metadata(user).get("timezone") if user else None)
+    # Only reach for the service when the first two steps missed. `load_service`
+    # is a thunk, not a row: passing the row meant the SELECT ran on every
+    # request, and the client never sends `?tz=`, so for any signed-in viewer —
+    # the whole `(app)` group is auth-gated — the row was fetched and discarded
+    # on the two most interaction-heavy endpoints in the app.
+    if not name:
+        name = effective_service_config(load_service())["location"].get("timezone")
+    return tz_or_utc(name or "UTC")
+
+
+def _service(db, service_id: str) -> dict | None:
+    return maybe_row(db.table("services").select("*").eq("id", service_id))
 
 
 def _norm_ts(value: str) -> str:
@@ -87,7 +92,7 @@ def availability(
     user: AuthUser | None = Depends(optional_user),
 ):
     db = get_supabase()
-    tzinfo = _viewer_tz(tz, user)
+    tzinfo = _viewer_tz(tz, user, lambda: _service(db, service_id))
     rids = _resource_ids(db, service_id, resource_id)
     if not rids:
         return []
@@ -130,7 +135,7 @@ def month_density(
     user: AuthUser | None = Depends(optional_user),
 ):
     db = get_supabase()
-    tzinfo = _viewer_tz(tz, user)
+    tzinfo = _viewer_tz(tz, user, lambda: _service(db, service_id))
     year, mon = int(month[:4]), int(month[5:7])
     days_in = _cal.monthrange(year, mon)[1]
 

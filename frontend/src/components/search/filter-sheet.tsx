@@ -14,9 +14,7 @@ import { Modal } from "@/components/modal";
 import { formatMoney } from "@/lib/format";
 import { DIR_ICON, ORDER_META, type OrderKey, type SortDir } from "@/lib/order-by";
 import { cn } from "@/lib/utils";
-
-const INPUT =
-  "h-11 w-full rounded-lg border border-input bg-background pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30";
+import { SEARCH_INPUT } from "@/components/search/field-class";
 
 export function FilterSheet({
   open,
@@ -87,7 +85,7 @@ export function FilterSheet({
               value={near}
               onChange={(e) => onNearChange(e.target.value)}
               placeholder="Any city"
-              className={INPUT}
+              className={SEARCH_INPUT}
             />
           </div>
         </>

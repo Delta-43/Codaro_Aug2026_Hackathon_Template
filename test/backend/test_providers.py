@@ -130,6 +130,44 @@ def test_follow_is_idempotent(client, db, auth):
     assert second["followedProviderIds"].count(p["id"]) == 1
 
 
+def test_follow_reports_403_when_rls_drops_the_write(client, db, auth, monkeypatch):
+    """RLS refuses a write in two shapes: it raises, or it returns no rows. Only
+    the raising one was handled, so a silently-dropped insert still returned 200
+    and the UI showed "Following" for a row that was never written. Every other
+    write in the codebase guards the empty-result form with `enforce_rls_write`."""
+    auth(role="client")
+    p = make_provider(db, "P")
+
+    real_table = db.table
+
+    class _Dropped:
+        """What PostgREST hands back when RLS refuses without raising: a
+        response carrying no rows. The write must NOT happen, or the fixture
+        would not be modelling a refusal at all."""
+
+        data: list = []
+
+    def _drop_follow_insert(name):
+        builder = real_table(name)
+        if name == "follows":
+
+            def _insert(*_args, **_kwargs):
+                class _Q:
+                    def execute(self):
+                        return _Dropped()
+
+                return _Q()
+
+            builder.insert = _insert
+        return builder
+
+    monkeypatch.setattr(db, "table", _drop_follow_insert)
+    resp = client.post(f"/providers/{p['id']}/follow")
+    assert resp.status_code == 403
+    # and the refusal is real: nothing was written, and /me does not list it.
+    assert not [r for r in db.rows("follows") if r["provider_id"] == p["id"]]
+
+
 def test_follow_unknown_provider_is_404(client, db, auth):
     auth(role="client")
     assert client.post("/providers/nope/follow").status_code == 404

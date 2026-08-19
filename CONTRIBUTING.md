@@ -22,9 +22,14 @@ Name the branch `<issue-number>-<short-description>`.
 
 Two rules the reviewer checks every time:
 
-- **No hard-coded domain words.** Say `resource`, never `room` or `doctor` —
-  labels render through `<Term>` from `domain.config.json`.
-- **No magic numbers.** Business values live in `rules` in `domain.config.json`.
+- **No hard-coded domain words.** Say `resource`, never `room` or `doctor`. In
+  the frontend, labels come from the vertical config — `useVertical().resourceNoun`
+  (`src/config/verticals.ts`), never a literal. Backend-side copy comes from
+  `domain.config.json`'s `terms`/`copy`.
+- **No magic numbers.** Business values live in `domain.config.json` — the v2
+  blocks (`timing`, `booking`, `pricing`, …), not the deprecated v1 `rules`
+  alias. A service row's own columns/`metadata` override the global default via
+  `rules.effective_service_rules`, so read the resolved value, never a literal.
 
 `supabase/schema.sql` is frozen; new domain data goes in `metadata jsonb`.
 

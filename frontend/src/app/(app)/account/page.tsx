@@ -16,15 +16,7 @@ import { Skeleton } from "@/components/skeleton";
 import { getMyReputation } from "@/api";
 import type { ClientReputation } from "@/types/domain";
 import { avatarDataUri } from "@/lib/business-demo";
-
-function whenLabel(iso: string | null): string {
-  if (!iso) return "";
-  try {
-    return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" }).format(new Date(iso));
-  } catch {
-    return "";
-  }
-}
+import { whenLabel } from "@/lib/format";
 
 const EMPTY_REP: ClientReputation = { score: 0, count: 0, reviews: [] };
 

@@ -223,7 +223,3 @@ def make_catalog(
     )
     return {"provider": provider, "service": service, "resource": resource, "slot": slot}
 
-
-def occupancy_for(db: FakeSupabase, slot_id: str) -> dict:
-    """Read the derived slot_occupancy view for one slot."""
-    return next(row for row in db.rows("slot_occupancy") if row["slot_id"] == slot_id)

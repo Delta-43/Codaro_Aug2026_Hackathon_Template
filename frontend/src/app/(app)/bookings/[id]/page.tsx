@@ -24,7 +24,7 @@ interface Loaded {
 }
 
 export default function BookingDetailPage({ params }: { params: { id: string } }) {
-  const { user } = useApp();
+  const { user, ready } = useApp();
   const tz = user?.timezone ?? "UTC";
 
   const data = useAsync<Loaded>(async () => {
@@ -38,7 +38,11 @@ export default function BookingDetailPage({ params }: { params: { id: string } }
     return { booking, service, provider, resourceName };
   }, [params.id]);
 
-  if (data.loading && !data.data) {
+  // `ready` too, not just this page's own fetch: capabilities default to ON
+  // until AppProvider's /config lands, and that boot is a three-call Promise.all
+  // this single fetch can easily beat. Rendering first showed a live review form
+  // on a reviews-disabled deployment for as long as the gap lasted.
+  if (!ready || (data.loading && !data.data)) {
     return (
       <section className="py-4">
         <Skeleton className="mb-4 h-7 w-24" />

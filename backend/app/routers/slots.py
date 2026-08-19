@@ -3,11 +3,16 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app.auth import AuthUser, enforce_rls_write, require_owner
-from app.config import get_config
 from app.db import get_supabase, get_user_client, maybe_row
 from app.meta import validate_metadata
 from app.models import SlotCreate, SlotUpdate
-from app.rules import RuleViolation, apply_rules, parse_ts
+from app.rules import (
+    RuleViolation,
+    apply_rules,
+    effective_service_config,
+    effective_service_rules,
+    parse_ts,
+)
 
 router = APIRouter(prefix="/slots", tags=["slots"])
 
@@ -28,17 +33,37 @@ def slot_occupancy(resource_id: str | None = None):
     return query.execute().data
 
 
+def _service_for_resource(db, resource_id: str) -> dict | None:
+    """The service a slot's resource belongs to (`resources.metadata.service_id`).
+
+    Slot geometry is a per-service fact — `services.slot_duration_minutes` is a
+    column that exists for exactly this — but slot creation read the GLOBAL
+    `timing` block, so neither that column nor a `metadata.timing` override
+    affected the grid being laid down. Returns None when the resource is
+    unlinked, and the global defaults then apply as before.
+    """
+    resource = maybe_row(db.table("resources").select("metadata").eq("id", resource_id))
+    service_id = ((resource or {}).get("metadata") or {}).get("service_id")
+    if not service_id:
+        return None
+    return maybe_row(db.table("services").select("*").eq("id", service_id))
+
+
 @router.post("")
 def create_slot(payload: SlotCreate, owner: AuthUser = Depends(require_owner)):
     db = get_supabase()
-    rules = get_config()["timing"]
+    service = _service_for_resource(db, payload.resource_id)
+    rules = effective_service_rules(service)
+    timing = effective_service_config(service)["timing"]
 
     ends_at = payload.ends_at
     if ends_at is None:
         ends_at = (
             parse_ts(payload.starts_at) + timedelta(minutes=rules["slotDurationMinutes"])
         ).isoformat()
-    capacity = payload.capacity if payload.capacity is not None else rules["maxBookingsPerSlot"]
+    capacity = (
+        payload.capacity if payload.capacity is not None else timing["maxBookingsPerSlot"]
+    )
 
     validate_metadata("slots", payload.metadata)
 
@@ -49,6 +74,7 @@ def create_slot(payload: SlotCreate, owner: AuthUser = Depends(require_owner)):
         apply_rules(
             "slot.create",
             {"starts_at": payload.starts_at, "ends_at": ends_at, "existing_slots": existing},
+            timing,
         )
     except RuleViolation as e:
         raise HTTPException(409, str(e))

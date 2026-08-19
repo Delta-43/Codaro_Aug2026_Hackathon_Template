@@ -5,7 +5,9 @@ must produce a different verdict when the number in `domain.config.json`
 changes.
 """
 
+import re
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -16,6 +18,7 @@ from app.rules import (
     UNDISPATCHED,
     RuleViolation,
     _advance_window,
+    _cancellation_window,
     _capacity,
     _lead_time,
     apply_rules,
@@ -514,11 +517,29 @@ def test_max_bookings_per_slot_is_not_dispatched_on_any_event():
         assert "maxBookingsPerSlot" not in mapping, event
 
 
-def test_the_undispatched_registry_is_exactly_the_two_known_keys():
+def test_the_undispatched_registry_is_exactly_the_three_known_keys():
     assert UNDISPATCHED == {
         "advanceBookingWindowDays": _advance_window,
         "maxBookingsPerSlot": _capacity,
+        "cancellationWindowHours": _cancellation_window,
     }
+
+
+def test_no_event_advertises_a_validator_no_router_dispatches():
+    """`cancellationWindowHours` used to sit under a `"booking.change"` event
+    that nothing fires, so the registry advertised an enforcement point that
+    could never run and a key added beside it would have been a silent no-op.
+    Every event carrying a validator must actually be dispatched somewhere."""
+    dispatched_events = set()
+    backend = Path(__file__).resolve().parents[2] / "backend"
+    for path in (backend / "app").rglob("*.py"):
+        for match in re.finditer(r'apply_rules\(\s*["\']([\w.]+)["\']', path.read_text()):
+            dispatched_events.add(match.group(1))
+    for event, mapping in RULES.items():
+        if mapping:
+            assert event in dispatched_events, (
+                f"{event} registers {sorted(mapping)} but no router dispatches it"
+            )
 
 
 def test_undispatched_keys_are_disjoint_from_everything_dispatched():
