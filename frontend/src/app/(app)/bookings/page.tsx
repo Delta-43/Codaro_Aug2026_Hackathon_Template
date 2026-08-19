@@ -17,6 +17,7 @@ import { getBookings } from "@/api";
 import { useApp } from "@/context/app-context";
 import { useAsync } from "@/hooks/use-async";
 import { Button } from "@/components/ui/button";
+import { buttonFx } from "@/config/buttons";
 import { Skeleton } from "@/components/skeleton";
 import { EmptyState } from "@/components/empty-state";
 import { BookingCard } from "@/components/booking/booking-card";
@@ -67,7 +68,7 @@ export default function BookingsPage() {
 
   return (
     <section className="space-y-4 py-4">
-      <h1 className="text-xl font-semibold tracking-tight md:sr-only">Bookings</h1>
+      <h1 className="text-xl font-semibold tracking-tight sr-only">Bookings</h1>
 
       {/* Calendar of my bookings — marketplace only; single-business has its own
           Calendar tab, so this would be a redundant second calendar. */}
@@ -93,7 +94,8 @@ export default function BookingsPage() {
             onClick={() => setScope(s)}
             aria-pressed={scope === s}
             className={cn(
-              "rounded-md px-4 py-1 text-sm font-medium capitalize transition-colors",
+              "rounded-md px-4 py-1 text-sm font-medium capitalize transition-all",
+              buttonFx.press,
               scope === s
                 ? "bg-primary text-primary-foreground"
                 : "text-muted-foreground hover:text-foreground",
