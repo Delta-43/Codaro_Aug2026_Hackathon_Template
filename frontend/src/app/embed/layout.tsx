@@ -64,6 +64,7 @@ export default function EmbedLayout({ children }: { children: ReactNode }) {
       className="min-h-dvh bg-background text-foreground"
       style={{
         ...(theme?.primaryColor ? { ["--primary" as string]: theme.primaryColor } : {}),
+        ...(theme?.radius ? { ["--radius" as string]: theme.radius } : {}),
         ...(theme?.fontFamily ? { fontFamily: theme.fontFamily } : {}),
       }}
     >
