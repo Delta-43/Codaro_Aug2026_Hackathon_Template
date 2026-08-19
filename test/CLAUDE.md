@@ -99,7 +99,8 @@ python -m pytest test/backend -q          # from the repo root
 
 No Supabase, no network and no `SUPABASE_*` credentials are needed: the
 suite injects an in-memory fake Supabase client and neutralises the
-FastAPI startup hooks (`create_tables_if_configured`, `seed_if_empty`).
+FastAPI startup hook (`create_tables_if_configured`); `seed_if_empty` is no
+longer called on startup but is kept inert on the seed module too.
 `backend/` is put on `sys.path` by `test/conftest.py`, so the backend's
 absolute imports (`from app.db import ...`, `from seed import ...`) resolve
 no matter which directory pytest is invoked from. Running `pytest` from

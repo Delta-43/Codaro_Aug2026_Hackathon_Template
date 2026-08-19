@@ -1,13 +1,12 @@
 /**
- * Deterministic demo helpers for business mode + user profiles.
+ * Deterministic view helpers for business mode + user profiles.
  *
  * Seeded off a stable key (the use case + entity id), so a given business/user
- * always renders the same avatar and figures across tabs and refreshes.
+ * always renders the same avatar across tabs and refreshes.
  *
- * The content *generators* that used to live here (requests, reviews, gallery,
- * metrics) were removed once no surface imported them; what remains is the
- * seeded RNG, `avatarDataUri`, and the `Metric` / `DemoBooking` shapes that the
- * owner views still type against.
+ * What lives here: the seeded RNG, `avatarDataUri`, and the `Metric` /
+ * `BookingView` shapes that the owner views (fed real `/owner/*` data) type
+ * against.
  */
 import type { Loan, PaymentState } from "@/types/domain";
 // --- deterministic RNG ------------------------------------------------------
@@ -73,16 +72,16 @@ export interface Metric {
   help: string;
 }
 
-type DemoBookingStatus = "confirmed" | "completed" | "pending";
+type BookingViewStatus = "confirmed" | "completed" | "pending";
 
-export interface DemoBooking {
+export interface BookingView {
   id: string;
   title: string;
   client: string;
   serviceLabel: string;
   startUtc: string;
   endUtc: string;
-  status: DemoBookingStatus;
+  status: BookingViewStatus;
   partySize: number;
   priceMinorUnits: number;
   currency: string;

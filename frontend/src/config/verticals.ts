@@ -155,7 +155,7 @@ export function getVertical(id: VerticalId): VerticalConfig {
 
 /** Overlay the pivot file's `terms`/`copy` onto a static vertical.
  *
- *  The three verticals above are DEMO vocabulary — they exist so the seeded
+ *  The three verticals above are default UI vocabulary — they exist so the
  *  fleet/tutoring/yoga datasets read naturally. `domain.config.json` is the real
  *  pivot surface, and until now the UI ignored its `terms`/`copy` entirely: a
  *  config declaring `service: "Plan"`, `slot: "Billing period"` still rendered

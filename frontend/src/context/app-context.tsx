@@ -2,8 +2,8 @@
 
 /**
  * The app's core client state, in one provider:
- *  - the active demo vertical + its config (labels/nouns/copy),
- *  - the signed-in mock user,
+ *  - the active vertical + its config (labels/nouns/copy),
+ *  - the signed-in user (from `/me`),
  *  - the locked-in provider / service / resource (tabs 2 & 3 operate only on
  *    this; nothing locked in → those tabs show a purposeful empty state).
  *

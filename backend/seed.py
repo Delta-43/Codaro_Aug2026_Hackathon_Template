@@ -14,9 +14,10 @@ Auth users provisioned via the Supabase admin API:
   * a **prospect** (`prospect@codaro.app`) — a fresh client whose pending
     request appears in the owner's Requests tab.
 
-`seed_if_empty()` runs on startup (default vertical when no providers exist);
-`seed_vertical(id)` is the destructive reseed used by `reseed.py` and the demo
-vertical-switch endpoint.
+`seed_if_empty()` seeds the default vertical when no providers exist. It is no
+longer called on startup — the app serves only real Supabase data; run it (or
+`make reseed`) manually to populate demo data. `seed_vertical(id)` is the
+destructive reseed used by `reseed.py` and the demo vertical-switch endpoint.
 """
 from __future__ import annotations
 

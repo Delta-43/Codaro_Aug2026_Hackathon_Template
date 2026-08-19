@@ -26,7 +26,7 @@ import { useOwner } from "@/context/owner-context";
 import { useUnreadCount } from "@/hooks/use-unread-count";
 import { BusinessBadge } from "@/components/business/verified-badge";
 import { TabBadge } from "@/components/app-shell";
-import { Button } from "@/components/ui/button";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 
 interface Tab {
   href: string;
@@ -84,7 +84,7 @@ export function BusinessShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh md:pl-60">
       {/* Desktop left drawer */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-card px-3 py-4 md:flex">
-        <Link href="/" className="mb-4 px-1">
+        <Link href="/" className="mb-4 flex items-center px-3">
           <Wordmark />
         </Link>
         <nav className="flex flex-col gap-1">
@@ -98,14 +98,10 @@ export function BusinessShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="mt-auto px-1">
-          <Button
-            variant="outline"
-            size="sm"
+          <SignOutButton
             className="w-full"
-            onPress={() => signOut().then(() => router.replace("/login"))}
-          >
-            Sign out
-          </Button>
+            onSignOut={() => signOut().then(() => router.replace("/login"))}
+          />
         </div>
       </aside>
 

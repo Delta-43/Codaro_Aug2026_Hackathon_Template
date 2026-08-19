@@ -6,7 +6,7 @@
  * Every component/hook/page goes through these functions; none touch transport
  * details. Each returns the exact domain shape from @/types/domain and throws
  * `ApiError` with the backend's code, so the UI's error handling (inline "slot
- * was just taken", disabled-with-reason, retry) is unchanged from the mock era.
+ * was just taken", disabled-with-reason, retry) stays consistent across calls.
  *
  * Auth: the signed-in Supabase session's access token is attached as
  * `Authorization: Bearer <jwt>` on every call; the backend verifies it and

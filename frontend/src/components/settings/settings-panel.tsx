@@ -15,12 +15,13 @@
  * caller wires that in), so this template just renders whatever it's handed.
  */
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Bell, LogOut, Palette, ShieldAlert } from "lucide-react";
+import { Bell, Palette, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AppearancePicker } from "@/components/account/appearance-picker";
 import { ConfirmDialog } from "@/components/business/confirm-dialog";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
@@ -94,9 +95,7 @@ export function SettingsPanel(cfg: SettingsConfig) {
 
       <Section title="Account">
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onPress={cfg.onSignOut}>
-            <LogOut aria-hidden /> Sign out
-          </Button>
+          <SignOutButton withIcon onSignOut={cfg.onSignOut} />
           <DeleteAccount onDeleteAccount={cfg.onDeleteAccount} />
         </div>
       </Section>

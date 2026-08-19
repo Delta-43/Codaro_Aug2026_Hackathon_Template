@@ -12,7 +12,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Ticket } from "lucide-react";
 import type { Booking } from "@/types/domain";
-import type { DemoBooking } from "@/lib/business-demo";
+import type { BookingView } from "@/lib/business-view";
 import { getBookings } from "@/api";
 import { useApp } from "@/context/app-context";
 import { useAsync } from "@/hooks/use-async";
@@ -28,7 +28,7 @@ type Scope = "upcoming" | "past";
 
 // The calendar renders confirmed / completed / pending only; cancelled and
 // rejected bookings drop off it (they still appear in the list below).
-function bookingToCal(b: Booking): DemoBooking | null {
+function bookingToCal(b: Booking): BookingView | null {
   if (b.status !== "confirmed" && b.status !== "completed" && b.status !== "pending") return null;
   return {
     id: b.id,
@@ -61,7 +61,7 @@ export default function BookingsPage() {
   const data = useAsync<Booking[]>(() => getBookings(scope), [scope]);
 
   const calBookings = useMemo(
-    () => (all.data ?? []).map(bookingToCal).filter((b): b is DemoBooking => b !== null),
+    () => (all.data ?? []).map(bookingToCal).filter((b): b is BookingView => b !== null),
     [all.data],
   );
   const bookings = data.data ?? [];

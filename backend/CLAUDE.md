@@ -46,7 +46,7 @@ the frontend's exact contract (`frontend/src/types/domain.ts`). See root
 - **`bookings.history` is append-only**; multi-slot bookings also write
   `booking_slots` rows and carry `slot_ids`/`change_history` in `metadata`.
 - **Single-row lookups go through `db.maybe_row()`** (reachable 404s).
-- **Startup uses FastAPI lifespan** through module-level `create_tables_if_configured` / `seed_if_empty` (tests monkeypatch them).
+- **Startup uses FastAPI lifespan** through module-level `create_tables_if_configured` (tests monkeypatch it). No demo seeding runs on startup — the app serves only real Supabase data; seed manually with `seed_if_empty()` / `make reseed`.
 
 ## Config v2 (`config_schema.py`)
 
@@ -294,8 +294,9 @@ already holding the lock must use `_seed_from_config_locked` /
 `make reload` refuses while the lock is held (`scripts/seed_in_progress.py`),
 since restarting the container kills a reseed running inside it.
 
-`seed_if_empty()` runs on startup when no providers exist; `active_vertical()`
-infers the current vertical from a service's booking model.
+`seed_if_empty()` seeds when no providers exist, but is no longer wired into
+startup (run it manually); `active_vertical()` infers the current vertical from a
+service's booking model.
 
 ## Don't
 

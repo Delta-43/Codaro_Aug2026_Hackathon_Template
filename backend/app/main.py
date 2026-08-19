@@ -24,17 +24,17 @@ from app.routers import (
     waitlist,
 )
 from app.schema_setup import create_tables_if_configured
-from seed import active_vertical, seed_if_empty
+from seed import active_vertical
 
 logging.basicConfig(level=logging.INFO)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Referenced through their module-level names so tests can monkeypatch
-    # `main.create_tables_if_configured` / `main.seed_if_empty` to no-ops.
+    # Referenced through its module-level name so tests can monkeypatch
+    # `main.create_tables_if_configured` to a no-op. No demo seeding runs on
+    # startup — the app serves only real Supabase data; seed manually if needed.
     create_tables_if_configured()
-    seed_if_empty()
     yield
 
 

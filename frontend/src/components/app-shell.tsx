@@ -31,6 +31,7 @@ import { AvatarImg } from "@/components/avatar-img";
 import { useAuth } from "@/lib/auth";
 import { useUnreadCount } from "@/hooks/use-unread-count";
 import { Button } from "@/components/ui/button";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 
 interface Tab {
   href: string;
@@ -133,14 +134,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="mt-auto px-1">
-          <Button
-            variant="outline"
-            size="sm"
+          <SignOutButton
             className="w-full"
-            onPress={() => signOut().then(() => router.replace("/login"))}
-          >
-            Sign out
-          </Button>
+            onSignOut={() => signOut().then(() => router.replace("/login"))}
+          />
         </div>
       </aside>
 
