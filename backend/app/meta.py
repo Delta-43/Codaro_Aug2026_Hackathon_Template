@@ -6,7 +6,8 @@ pivot that adds/removes a domain field needs no code change. Semantics:
 * **Lenient on undeclared keys** — the ``metadata jsonb`` column is the
   extension point, so unknown keys pass through untouched.
 * **Strict on declared keys** — a declared field present with the wrong type
-  is a 422 with ``{field, label, expected}`` detail.
+  is a 422 carrying the frontend ``ApiError`` envelope (``VALIDATION_ERROR``
+  with ``{field, label, expected}`` in ``details``).
 * **Optional by default** — a declared field may set ``"required": true`` to
   force its presence; otherwise its absence is fine.
 
@@ -24,10 +25,9 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from fastapi import HTTPException
-
 from app.config import get_config
 from app.config_schema import META_FIELD_TYPE_ALIASES
+from app.errors import VALIDATION_ERROR, api_error
 
 
 def _is_date(value) -> bool:
@@ -70,14 +70,23 @@ def validate_metadata(entity: str, metadata: dict | None) -> None:
         ftype = field.get("type")
         if key not in metadata:
             if field.get("required"):
-                raise HTTPException(
-                    422, {"field": key, "label": label, "error": "required"}
+                # ApiError envelope, not a bare detail dict: the frontend seam
+                # reads {code, message} and would otherwise render this as a
+                # raw "POST ... failed (422)" NETWORK error.
+                raise api_error(
+                    VALIDATION_ERROR,
+                    f"{label} is required.",
+                    details={"field": key, "label": label, "error": "required"},
+                    status=422,
                 )
             continue
         check = _CHECKS.get(META_FIELD_TYPE_ALIASES.get(ftype, ftype))
         if check is not None and not check(metadata[key]):
-            raise HTTPException(
-                422, {"field": key, "label": label, "expected": ftype}
+            raise api_error(
+                VALIDATION_ERROR,
+                f"{label} must be a {ftype} value.",
+                details={"field": key, "label": label, "expected": ftype},
+                status=422,
             )
 
 

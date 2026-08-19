@@ -18,7 +18,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth import AuthUser, enforce_rls_write, require_user
-from app.db import get_supabase, get_user_client, maybe_row
+from app.db import fetch_all, get_supabase, get_user_client, maybe_row
 from app.errors import INVALID_RANGE, NOT_FOUND, api_error
 from app.models import ConversationCreateReq, MessageCreateReq
 from app.serialize import iso_utc, serialize_conversation, serialize_message
@@ -137,7 +137,7 @@ def _repoint_preview(uc, conversation_id: str, deleted_created_at: str) -> None:
 def list_conversations(user: AuthUser = Depends(require_user)):
     db = get_supabase()
     uc = get_user_client(user.token)
-    convs = uc.table("conversations").select("*").execute().data or []
+    convs = fetch_all(uc.table("conversations").select("*"))
     if not convs:
         return []
 
@@ -148,16 +148,13 @@ def list_conversations(user: AuthUser = Depends(require_user)):
     # The predicate goes to PostgREST rather than being applied here: counting in
     # Python meant every read of the inbox dragged back *every message of every
     # thread* — the whole history, to report a handful of integers.
-    unread_rows = (
+    unread_rows = fetch_all(
         uc.table("messages")
-        .select("conversation_id")
+        .select("id,conversation_id")
         .in_("conversation_id", conv_ids)
         .neq("sender_id", user.id)
         .is_("read_at", "null")
         .is_("deleted_at", "null")
-        .execute()
-        .data
-        or []
     )
     unread: dict[str, int] = {}
     for m in unread_rows:
@@ -186,16 +183,13 @@ def get_conversation(conversation_id: str, user: AuthUser = Depends(require_user
     conv = _load_conversation(uc, conversation_id)
     prov_map = _provider_map(db, [conv["provider_id"]])
     other = _other_party(db, conv, user.id, prov_map, {})
-    rows = (
+    rows = fetch_all(
         uc.table("messages")
         .select("id")
         .eq("conversation_id", conversation_id)
         .neq("sender_id", user.id)
         .is_("read_at", "null")
         .is_("deleted_at", "null")
-        .execute()
-        .data
-        or []
     )
     unread = len(rows)
     return serialize_conversation(conv, other_party=other, unread_count=unread)
@@ -205,14 +199,11 @@ def get_conversation(conversation_id: str, user: AuthUser = Depends(require_user
 def list_messages(conversation_id: str, user: AuthUser = Depends(require_user)):
     uc = get_user_client(user.token)
     _load_conversation(uc, conversation_id)  # 404s non-participants
-    rows = (
-        uc.table("messages")
-        .select("*")
-        .eq("conversation_id", conversation_id)
-        .order("created_at")
-        .execute()
-        .data
-        or []
+    # Paged with a (created_at, id) total order: the raw 1000-row page cut off
+    # the NEWEST messages of a long thread (ascending order keeps the oldest).
+    rows = fetch_all(
+        uc.table("messages").select("*").eq("conversation_id", conversation_id),
+        order=("created_at", "id"),
     )
     return [serialize_message(r, me_id=user.id) for r in rows]
 
@@ -316,15 +307,34 @@ def start_conversation(payload: ConversationCreateReq, user: AuthUser = Depends(
     if existing is not None:
         conv = existing
     else:
-        inserted = (
-            uc.table("conversations")
-            .insert(
-                {"provider_id": payload.provider_id, "client_id": client_id, "owner_id": owner_id}
+        try:
+            inserted = (
+                uc.table("conversations")
+                .insert(
+                    {"provider_id": payload.provider_id, "client_id": client_id, "owner_id": owner_id}
+                )
+                .execute()
+                .data
             )
-            .execute()
-            .data
-        )
-        conv = enforce_rls_write(inserted, entity="conversation")[0]
+            conv = enforce_rls_write(inserted, entity="conversation")[0]
+        except Exception as exc:
+            # unique (provider_id, client_id): the thread exists but was
+            # invisible to the RLS-scoped find (e.g. created while the provider
+            # had no owner_id). Return it instead of a 500 — and stamp the
+            # owner in so the next RLS lookup can see it.
+            if getattr(exc, "code", None) != "23505":
+                raise
+            conv = maybe_row(
+                db.table("conversations")
+                .select("*")
+                .eq("provider_id", payload.provider_id)
+                .eq("client_id", client_id)
+            )
+            if conv is None:
+                raise
+            if owner_id and not conv.get("owner_id"):
+                db.table("conversations").update({"owner_id": owner_id}).eq("id", conv["id"]).execute()
+                conv = {**conv, "owner_id": owner_id}
 
     other = _other_party(db, conv, user.id, _provider_map(db, [conv["provider_id"]]), {})
     return serialize_conversation(conv, other_party=other, unread_count=0)

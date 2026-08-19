@@ -18,7 +18,7 @@ from app.auth import AuthUser, enforce_rls_write, require_user
 from app.clock import now_utc
 from app.db import get_supabase, get_user_client, maybe_row
 from app.errors import INVALID_RANGE, NOT_FOUND, api_error
-from app.rules import capability, effective_service_config
+from app.rules import capability, effective_service_config, parse_ts
 from app.serialize import iso_utc
 
 logger = logging.getLogger(__name__)
@@ -74,6 +74,13 @@ def join_waitlist(slot_id: str, user: AuthUser = Depends(require_user)):
     cfg = waitlist_config(service)
     if not cfg.get("enabled"):
         raise api_error(INVALID_RANGE, "This service does not offer a waitlist.")
+
+    # Direct bookings refuse past slots in `_resolve_selection`; the queue must
+    # too, or a cancellation on an elapsed slot mints a pending booking for a
+    # time that already happened (which approve then permanently refuses).
+    starts_at = parse_ts(slot.get("starts_at"))
+    if starts_at and starts_at <= now_utc():
+        raise api_error(INVALID_RANGE, "That time has already started.")
 
     occ = maybe_row(db.table("slot_occupancy").select("*").eq("slot_id", slot_id))
     remaining = int((occ or {}).get("available_count") or 0)

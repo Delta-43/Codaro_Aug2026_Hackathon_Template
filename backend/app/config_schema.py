@@ -496,6 +496,8 @@ def validate(cfg: dict) -> list[str]:
         errors.append(f"pricing.currency must be a 3-letter ISO 4217 code, got {pricing.get('currency')!r}")
     if pricing.get("secondaryRate") is not None:
         _enum(errors, pricing["secondaryRate"].get("per"), RATE_PERIODS, "pricing.secondaryRate.per")
+        _int(errors, pricing["secondaryRate"].get("amountMinorUnits"),
+             "pricing.secondaryRate.amountMinorUnits", minimum=0)
     for i, tier in enumerate(pricing.get("tiers") or []):
         if not isinstance(tier, dict):
             errors.append(f"pricing.tiers[{i}] must be an object")
@@ -530,6 +532,16 @@ def validate(cfg: dict) -> list[str]:
         elif kind == "flat":
             _int(errors, fee.get("amountMinorUnits"), f"pricing.fees[{i}].amountMinorUnits", minimum=0)
     _enum(errors, (pricing.get("deposit") or {}).get("kind"), DEPOSIT_KINDS, "pricing.deposit.kind")
+    # These three reach pricing arithmetic through `pricing._int`, which coerces
+    # junk to 0 — an unvalidated cap of "free" would zero every price at quote
+    # time instead of failing here at the edit.
+    _int(errors, (pricing.get("deposit") or {}).get("value"),
+         "pricing.deposit.value", minimum=0)
+    caps = pricing.get("caps") or {}
+    _int(errors, caps.get("perBookingMinorUnits"),
+         "pricing.caps.perBookingMinorUnits", minimum=0, allow_none=True)
+    _int(errors, caps.get("perDayMinorUnits"),
+         "pricing.caps.perDayMinorUnits", minimum=0, allow_none=True)
 
     payments = cfg["payments"]
     _enum(errors, payments.get("flow"), PAYMENT_FLOWS, "payments.flow")

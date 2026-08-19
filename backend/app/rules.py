@@ -570,7 +570,12 @@ def payment_state(metadata: dict | None, service: dict | None = None,
         "depositMinorUnits": deposit,
         "paidMinorUnits": paid,
         "outstandingMinorUnits": max(0, total - paid) if state not in ("none", "not_required") else 0,
-        "currency": md.get("currency") or "EUR",
+        # The label must come from the same chain as the amounts: a seeded row
+        # with no stored currency was reported as EUR while quote/create billed
+        # the service's effective currency.
+        "currency": md.get("currency")
+        or effective_service_pricing(service).get("currency")
+        or "EUR",
     }
 
 

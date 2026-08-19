@@ -234,6 +234,9 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
         # What must be satisfied before this can be confirmed. Declared in the
         # config since v2 and served nowhere, so a customer met the block only
         # as a rejection after committing.
+        # Gated on the capability like waitlist/recurrence below: enforcement
+        # (bookings.create/approve) ANDs the capability, so serving the list on
+        # a capability-off deployment advertised a step the API never enforced.
         "prerequisites": [
             {
                 "key": p.get("key"),
@@ -247,7 +250,7 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
             # deliberately absent from OVERRIDABLE_BLOCKS (block overrides
             # deep-merge dicts) and `effective_service_config` never carries it.
             for p in (get_config().get("prerequisites") or [])
-        ],
+        ] if capability("prerequisites", row) else [],
         # What repeat patterns this service offers (`recurrence`). Gated on the
         # capability too, so a config that declares patterns but turns the
         # capability off never renders a control the API would refuse.
