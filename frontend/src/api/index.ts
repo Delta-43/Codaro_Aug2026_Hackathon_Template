@@ -313,8 +313,11 @@ export const FALLBACK_PIVOT_CONFIG: PivotConfig = {
   theme: { primaryColor: null, radius: null },
 };
 
-export async function getPivotConfig(): Promise<PivotConfig> {
-  const cfg = await request<unknown>("/config");
+/** The pure half of `getPivotConfig` — a raw `/config` payload in, the parsed
+ *  shape out, no transport. Split out so `scripts/check_pivot_frontend.mts` can
+ *  run every `pivots/*.json` through the SAME parsers the app uses, rather than
+ *  a reimplementation that could drift from them. */
+export function parsePivotConfig(cfg: unknown): PivotConfig {
   return {
     tenancy: tenancyFromConfig(cfg),
     location: locationFromConfig(cfg),
@@ -323,6 +326,10 @@ export async function getPivotConfig(): Promise<PivotConfig> {
     copy: stringsOnly<keyof ConfigCopy>((cfg as { copy?: unknown })?.copy),
     theme: themeFromConfig(cfg),
   };
+}
+
+export async function getPivotConfig(): Promise<PivotConfig> {
+  return parsePivotConfig(await request<unknown>("/config"));
 }
 
 /** Price a selection WITHOUT booking it, through the engine that will charge.

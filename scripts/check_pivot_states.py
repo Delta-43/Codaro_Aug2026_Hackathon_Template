@@ -34,6 +34,10 @@ from seed_config import spec_from_config  # noqa: E402
 
 PIVOTS = REPO_ROOT / "pivots"
 
+# Every value `rules.payment_state` may produce. An unlisted one means the
+# resolver grew a state the UI has no label for.
+_PAYMENT_STATES = {"none", "not_required", "invoiced", "deposit_due", "due", "paid"}
+
 
 def services_of(spec: dict) -> list[dict]:
     """Every service the seeder would build from this spec."""
@@ -72,12 +76,18 @@ def check_one(path: Path) -> tuple[list[str], dict]:
 
     # Imported here: they read the config through get_config() at call time, so
     # the swap above is what they see.
-    from app.rules import (capability, effective_auto_approve,  # noqa: PLC0415
-                           effective_service_config, effective_service_rules)
-    from app.serialize import serialize_service  # noqa: PLC0415
+    from app.pricing import quote  # noqa: PLC0415
+    from app.rules import (blocking_prerequisites, capability,  # noqa: PLC0415
+                           effective_auto_approve, effective_service_config,
+                           effective_service_pricing, effective_service_rules,
+                           payment_state, resolve_entitlement,
+                           unmet_prerequisites)
+    from app.serialize import (serialize_booking,  # noqa: PLC0415
+                               serialize_quote, serialize_service)
 
     granularity = cfg["booking"]["granularity"]
-    facts = {"domain": cfg["domain"], "granularity": granularity, "durations": set()}
+    facts = {"domain": cfg["domain"], "granularity": granularity, "durations": set(),
+             "models": set(), "flows": set(), "paymentStates": set()}
 
     svcs = services_of(spec)
     if not svcs:
@@ -102,6 +112,55 @@ def check_one(path: Path) -> tuple[list[str], dict]:
         capability("reviews", row)
         out = serialize_service(row, resource_ids=["00000000-0000-0000-0000-000000000003"])
         facts["durations"].add(out["slotDurationMinutes"])
+        facts["models"].add(out["pricingModel"])
+        facts["flows"].add(out["paymentFlow"])
+
+        # --- the BOOKING path: everything wired after the config audit ------
+        # A pivot can serialize a service fine and still explode the moment a
+        # booking exists, which is where payment state, the loan leg and the
+        # prerequisite gate all live.
+        priced = quote(effective_service_pricing(row), {
+            "slot_count": svc["minSlotsPerBooking"],
+            "party_size": 1,
+            "duration_minutes": svc["slotDurationMinutes"] * svc["minSlotsPerBooking"],
+            "entitlement": resolve_entitlement([], row),
+        })
+        serialize_quote(priced, row)
+        booking_md = {
+            "party_size": 1,
+            "price_minor_units": priced["amountMinorUnits"],
+            "deposit_minor_units": priced["depositMinorUnits"],
+            "currency": priced["currency"],
+            "service_id": row["id"],
+            "provider_id": row["provider_id"],
+            "slot_ids": ["00000000-0000-0000-0000-000000000004"],
+            "prerequisites_pending": [p["key"] for p in blocking_prerequisites(row)
+                                      if p.get("key")],
+        }
+        booked = serialize_booking(
+            {"id": "00000000-0000-0000-0000-000000000005", "status": "confirmed",
+             "client_id": "u", "metadata": booking_md, "created_at": "2026-01-01T00:00:00Z"},
+            slot_ids=booking_md["slot_ids"],
+            start_utc="2026-06-01T09:00:00Z", end_utc="2026-06-01T10:00:00Z",
+            service=row,
+        )
+        facts["paymentStates"].add(booked["payment"]["state"])
+        unmet_prerequisites(booking_md, row)
+        payment_state(booking_md, row, "confirmed")
+
+        if booked["payment"]["state"] not in _PAYMENT_STATES:
+            fails.append(f"{name}: unknown payment state {booked['payment']['state']!r}")
+        # A loan leg must appear exactly when the config asks for one.
+        wants_loan = bool(effective_service_config(row)["inventory"].get("returnRequired"))
+        if wants_loan != (booked["loan"] is not None):
+            fails.append(
+                f"{name}: inventory.returnRequired={wants_loan} but loan="
+                f"{'present' if booked['loan'] else 'absent'}"
+            )
+        # Declaring a repeat pattern the engine will refuse is a dead control.
+        rec = out["recurrence"]
+        if rec["enabled"] and not rec["patterns"]:
+            fails.append(f"{name}: recurrence enabled with no patterns")
 
         name = f"{path.name}:{svc['name']}"
         if out["slotDurationMinutes"] <= 0:
@@ -141,6 +200,9 @@ def main() -> int:
     all_fails: list[str] = []
     by_granularity: dict[str, set[int]] = {}
     durations: Counter[int] = Counter()
+    # Union across pivots, so the summary shows the breadth actually exercised
+    # rather than only whether each pivot passed on its own.
+    seen_any: dict[str, set] = {"models": set(), "flows": set(), "paymentStates": set()}
     for path in paths:
         try:
             fails, facts = check_one(path)
@@ -150,9 +212,15 @@ def main() -> int:
         all_fails += fails
         by_granularity.setdefault(facts["granularity"], set()).update(facts["durations"])
         durations.update(facts["durations"])
+        for key in seen_any:
+            seen_any[key].update(facts[key])
 
     print(f"pivots checked                  : {len(paths)}")
     print(f"load -> spec -> rules -> serialize : {len(paths) - len({f.split(':')[0] for f in all_fails})} ok")
+    print("\ncoverage across all pivots:")
+    for label, key in (("pricing models", "models"), ("payment flows", "flows"),
+                       ("payment states reached", "paymentStates")):
+        print(f"  {label:24s} {sorted(seen_any[key])}")
     print("\nslot length per granularity:")
     for gran in sorted(by_granularity):
         got = sorted(by_granularity[gran])

@@ -1,4 +1,4 @@
-.PHONY: help start stop logs reload reset reseed checkseed checkstates
+.PHONY: help start stop logs reload reset reseed checkseed checkstates checkfront checklive
 
 help:
 	@echo "make start   - build (if needed) and start frontend :3000 + backend :8000"
@@ -9,6 +9,8 @@ help:
 	@echo "make reseed  - wipe + rebuild demo data from the current domain.config.json"
 	@echo "make checkseed - report where the seeded data and domain.config.json disagree"
 	@echo "make checkstates - run every pivots/*.json through load -> spec -> rules -> serialize"
+	@echo "make checkfront  - run every pivots/*.json through the frontend's own parsers"
+	@echo "make checklive   - DESTRUCTIVE: seed+book a sample of pivots for real (ARGS=\"3 7 11\")"
 
 start:
 	docker compose up -d --build
@@ -34,3 +36,10 @@ checkseed:
 
 checkstates:
 	docker compose exec backend python /workspace/scripts/check_pivot_states.py $(ARGS)
+
+checkfront:
+	cd frontend && npx tsx ../scripts/check_pivot_frontend.mts $(ARGS)
+
+# DESTRUCTIVE — wipes and reseeds the demo dataset once per pivot.
+checklive:
+	./scripts/check_pivot_live.sh $(ARGS)
