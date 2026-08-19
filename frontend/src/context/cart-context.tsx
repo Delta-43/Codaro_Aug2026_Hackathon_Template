@@ -24,6 +24,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -71,6 +72,13 @@ const STORAGE_KEY = "codaro.cart.v1";
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [busy, setBusy] = useState(false);
+  // Live view of the basket for the checkout loop: the callback's `items`
+  // closure is a snapshot, so removals made while booking is in flight would
+  // otherwise still be booked. Also the re-entrancy latch — `busy` state
+  // re-renders too late to stop a double press.
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const checkingOut = useRef(false);
 
   // Hydrated after mount, never during render: the server has no localStorage
   // and a first paint that differs from the server's would hydrate-mismatch.
@@ -94,10 +102,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const add = useCallback((item: Omit<CartItem, "key">) => {
     setItems((prev) => {
       // The same slots twice is a mistake, not two bookings: the second would
-      // be refused by the server for capacity it is itself holding.
+      // be refused by the server for capacity it is itself holding. But a
+      // re-add IS a changed intent (new party size / options), so it replaces
+      // the stored item rather than being silently ignored.
       const slotKey = item.slotIds.join(",");
-      if (prev.some((i) => i.slotIds.join(",") === slotKey)) return prev;
-      return [...prev, { ...item, key: `${item.serviceId}:${slotKey}` }];
+      const rest = prev.filter((i) => i.slotIds.join(",") !== slotKey);
+      return [...rest, { ...item, key: `${item.serviceId}:${slotKey}` }];
     });
   }, []);
 
@@ -108,13 +118,18 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const clear = useCallback(() => setItems([]), []);
 
   const checkout = useCallback(async (): Promise<CheckoutResult> => {
+    if (checkingOut.current) return { booked: [], failed: [] };
+    checkingOut.current = true;
     setBusy(true);
     const booked: Booking[] = [];
+    const bookedKeys = new Set<string>();
     const failed: CheckoutResult["failed"] = [];
     try {
       // Sequential, not parallel: two items competing for the last place in the
       // same slot must lose one and keep one, and the server decides which.
-      for (const item of items) {
+      for (const item of itemsRef.current) {
+        // Removed from the basket while earlier items were booking — honor it.
+        if (!itemsRef.current.some((i) => i.key === item.key)) continue;
         try {
           booked.push(
             await createBooking({
@@ -128,6 +143,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
               metadata: item.metadata,
             }),
           );
+          bookedKeys.add(item.key);
         } catch (e) {
           failed.push({
             key: item.key,
@@ -136,13 +152,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
           });
         }
       }
-      const failedKeys = new Set(failed.map((f) => f.key));
-      setItems((prev) => prev.filter((i) => failedKeys.has(i.key)));
+      // Drop exactly what was booked. Failures stay for another try, and so
+      // does anything added mid-checkout that this run never attempted.
+      setItems((prev) => prev.filter((i) => !bookedKeys.has(i.key)));
     } finally {
+      checkingOut.current = false;
       setBusy(false);
     }
     return { booked, failed };
-  }, [items]);
+  }, []);
 
   const value = useMemo(
     () => ({ items, add, remove, clear, checkout, busy }),

@@ -78,7 +78,16 @@ async function toApiError(res: Response, method: string, path: string): Promise<
   try {
     const body = await res.json();
     const d = (body as { detail?: unknown })?.detail;
-    if (d && typeof d === "object") {
+    if (Array.isArray(d)) {
+      // FastAPI/Pydantic 422: [{loc, msg, type}, ...] — surface the first
+      // problem instead of discarding the whole list as "an object".
+      const first = d[0] as { msg?: string; loc?: unknown[] } | undefined;
+      if (typeof first?.msg === "string") {
+        code = "VALIDATION_ERROR";
+        const field = Array.isArray(first.loc) ? String(first.loc[first.loc.length - 1]) : "";
+        message = field && field !== "body" ? `${field}: ${first.msg}` : first.msg;
+      }
+    } else if (d && typeof d === "object") {
       // Backend's structured envelope: { code, message, details? }.
       const obj = d as { code?: string; message?: string; details?: Record<string, unknown> };
       if (typeof obj.code === "string") code = obj.code as ApiErrorCode;
@@ -379,6 +388,9 @@ export type PivotConfig = {
   metaFields: MetaFields;
   /** `discovery.facets` — which search dimensions this deployment offers. */
   facets: SearchFacets;
+  /** `pricing.currency` — the deployment's default currency, so a first offer
+   *  on an empty catalogue isn't created under a hardcoded fallback. */
+  currency: string;
 };
 
 /** The all-fallbacks value used when `/config` is unreachable. Boot must not hang
@@ -400,6 +412,7 @@ export const FALLBACK_PIVOT_CONFIG: PivotConfig = {
   // pre-pivot behaviour.
   terms: {},
   copy: {},
+  currency: "EUR",
 };
 
 /** The pure half of `getPivotConfig` — a raw `/config` payload in, the parsed
@@ -416,7 +429,13 @@ export function parsePivotConfig(cfg: unknown): PivotConfig {
     copy: stringsOnly<keyof ConfigCopy>((cfg as { copy?: unknown })?.copy),
     metaFields: metaFieldsFromConfig(cfg),
     facets: facetsFromConfig(cfg),
+    currency: currencyFromConfig(cfg),
   };
+}
+
+function currencyFromConfig(cfg: unknown): string {
+  const c = (cfg as { pricing?: { currency?: unknown } })?.pricing?.currency;
+  return typeof c === "string" && c.length === 3 ? c : FALLBACK_PIVOT_CONFIG.currency;
 }
 
 export async function getPivotConfig(): Promise<PivotConfig> {

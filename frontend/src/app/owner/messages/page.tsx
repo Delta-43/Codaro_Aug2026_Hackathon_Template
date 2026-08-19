@@ -13,7 +13,7 @@
  * (Pass 2 will turn an approved request into a live thread and add an Archived
  * view of rejected/completed relationships.)
  */
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Clock, ShieldCheck, Star, TriangleAlert, Users, X } from "lucide-react";
 import { useOwner } from "@/context/owner-context";
 import { Skeleton } from "@/components/skeleton";
@@ -42,7 +42,7 @@ function memberLabel(iso: string | null): string {
 }
 
 export default function MessagesPage() {
-  const { ready, vocab } = useOwner();
+  const { ready, vocab, activeProvider } = useOwner();
   const [requests, setRequests] = useState<OwnerRequest[]>([]);
   const [services, setServices] = useState<OwnerServiceSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,19 +50,22 @@ export default function MessagesPage() {
   const [decided, setDecided] = useState<Record<string, Decision>>({});
   const [error, setError] = useState<string | null>(null);
 
-  const load = async () => {
+  // Scoped to the active provider like the Services tab — the owner endpoints
+  // return every business the owner has, and the auto-approve master switch
+  // below must never flip another business's offers.
+  const load = useCallback(async () => {
     const [reqs, svcs] = await Promise.all([
       getOwnerRequests().catch(() => [] as OwnerRequest[]),
       getOwnerServices().catch(() => [] as OwnerServiceSummary[]),
     ]);
-    setRequests(reqs);
-    setServices(svcs);
+    setRequests(activeProvider ? reqs.filter((r) => r.providerId === activeProvider.id) : reqs);
+    setServices(activeProvider ? svcs.filter((s) => s.providerId === activeProvider.id) : svcs);
     setLoading(false);
-  };
+  }, [activeProvider]);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   const autoApprove = services.length > 0 && services.every((s) => s.autoApprove);
   const pending = useMemo(() => requests.filter((r) => !decided[r.id]), [requests, decided]);
@@ -75,15 +78,18 @@ export default function MessagesPage() {
       await Promise.all(
         services.filter((s) => s.autoApprove !== next).map((s) => updateService(s.id, { autoApprove: next })),
       );
-      await load();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't update auto-approve.");
     } finally {
+      // Refetch even on partial failure — some services may have flipped.
+      await load();
       setBusy(false);
     }
   }
 
   async function decide(r: OwnerRequest, d: Decision) {
+    if (busy) return; // no double-fire: approve-then-reject during the round-trip
+    setBusy(true);
     setError(null);
     try {
       if (d === "approved") await approveBooking(r.id);
@@ -91,6 +97,8 @@ export default function MessagesPage() {
       setDecided((prev) => ({ ...prev, [r.id]: d }));
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "That didn't go through. Try again.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -136,6 +144,7 @@ export default function MessagesPage() {
               request={r}
               partyNoun={vocab.partyNoun}
               decision={decided[r.id]}
+              busy={busy}
               onDecide={(d) => decide(r, d)}
             />
           ))}
@@ -180,11 +189,13 @@ function RequestCard({
   request: r,
   partyNoun,
   decision,
+  busy,
   onDecide,
 }: {
   request: OwnerRequest;
   partyNoun: string | null;
   decision?: Decision;
+  busy: boolean;
   onDecide: (d: Decision) => void;
 }) {
   const browserTz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
@@ -262,10 +273,10 @@ function RequestCard({
           </span>
         ) : (
           <>
-            <Button size="sm" onPress={() => onDecide("approved")}>
+            <Button size="sm" isDisabled={busy} onPress={() => onDecide("approved")}>
               <Check aria-hidden /> Approve
             </Button>
-            <Button variant="outline" size="sm" onPress={() => onDecide("rejected")}>
+            <Button variant="outline" size="sm" isDisabled={busy} onPress={() => onDecide("rejected")}>
               <X aria-hidden /> Reject
             </Button>
           </>

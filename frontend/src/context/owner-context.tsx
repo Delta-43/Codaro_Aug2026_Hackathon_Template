@@ -66,6 +66,8 @@ interface OwnerContextValue {
   /** `metaFields.{entity}` — the domain fields this deployment declares, so the
    *  owner's own create/edit forms can offer what the backend already validates. */
   metaFields: MetaFields;
+  /** `pricing.currency` — the deployment's default currency for a first offer. */
+  currency: string;
   setActiveProviderId: (id: string) => void;
   refreshProviders: () => Promise<void>;
   /** Replace one already-loaded provider in place (e.g. after an avatar edit),
@@ -87,6 +89,7 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
     FALLBACK_PIVOT_CONFIG.tenancyTerms,
   );
   const [metaFields, setMetaFields] = useState<MetaFields>({});
+  const [currency, setCurrency] = useState(FALLBACK_PIVOT_CONFIG.currency);
 
   const refreshProviders = useCallback(async () => {
     try {
@@ -114,6 +117,7 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
       setCopy(pivot.copy);
       setTenancyTerms(pivot.tenancyTerms);
       setMetaFields(pivot.metaFields);
+      setCurrency(pivot.currency);
       const stored = typeof window !== "undefined" ? localStorage.getItem(PID_KEY) : null;
       setPid(list.find((p) => p.id === stored)?.id ?? list[0]?.id ?? null);
       setReady(true);
@@ -146,6 +150,7 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
     capability,
     tenancyTerms,
     metaFields,
+    currency,
     providers,
     activeProvider,
     vocab: applyPivotVocabulary(VERTICALS[vertical] ?? VERTICALS.fleet, terms, copy),

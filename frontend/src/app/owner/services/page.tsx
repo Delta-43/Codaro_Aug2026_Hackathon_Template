@@ -36,7 +36,7 @@ const MODELS: { id: BookingModel; label: string }[] = [
 const modelLabel = (m: BookingModel) => MODELS.find((x) => x.id === m)?.label ?? m;
 
 export default function ServicesPage() {
-  const { ready, activeProvider, vocab } = useOwner();
+  const { ready, activeProvider, vocab, currency: configCurrency } = useOwner();
   const [services, setServices] = useState<OwnerServiceSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -53,15 +53,19 @@ export default function ServicesPage() {
     void load();
   }, [load]);
 
-  const currency = services[0]?.currency ?? "EUR";
+  const currency = services[0]?.currency ?? configCurrency;
 
-  async function run(action: () => Promise<unknown>) {
+  /** Resolves `true` on success — callers must not close/unmount a form on
+   *  failure, or the owner's input is lost behind the error banner. */
+  async function run(action: () => Promise<unknown>): Promise<boolean> {
     setError(null);
     try {
       await action();
       await load();
+      return true;
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "That change didn't go through.");
+      return false;
     }
   }
 
@@ -102,7 +106,9 @@ export default function ServicesPage() {
           serviceNoun={vocab.serviceNoun}
           onCancel={() => setCreating(false)}
           onCreate={(input) =>
-            run(() => createService({ providerId: activeProvider.id, ...input })).then(() => setCreating(false))
+            run(() => createService({ providerId: activeProvider.id, ...input })).then((ok) => {
+              if (ok) setCreating(false);
+            })
           }
         />
       ) : null}
@@ -120,8 +126,16 @@ export default function ServicesPage() {
               open={openId === s.id}
               onToggle={() => setOpenId((id) => (id === s.id ? null : s.id))}
               onToggleAutoApprove={() => run(() => updateService(s.id, { autoApprove: !s.autoApprove }))}
-              onSave={(patch) => run(() => updateService(s.id, patch)).then(() => setOpenId(null))}
-              onDelete={() => run(() => deleteService(s.id)).then(() => setOpenId(null))}
+              onSave={(patch) =>
+                run(() => updateService(s.id, patch)).then((ok) => {
+                  if (ok) setOpenId(null);
+                })
+              }
+              onDelete={() =>
+                run(() => deleteService(s.id)).then((ok) => {
+                  if (ok) setOpenId(null);
+                })
+              }
             />
           ))}
         </ul>
@@ -258,12 +272,29 @@ function ServiceEditor({
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  // Max may never drop below the service's own minimum, or the bounds invert
+  // and every booking is refused as INVALID_RANGE.
+  const minSlots = Math.max(1, s.minSlotsPerBooking ?? 1);
+  const clampedMax = Math.max(minSlots, maxSlots);
+
   const dirty =
     name !== s.name ||
     toMinorUnits(priceMajor, s.currency) !== s.priceMinorUnits ||
     duration !== s.slotDurationMinutes ||
     maxSlots !== s.maxSlotsPerBooking ||
     cutoff !== s.cancellationCutoffHours;
+
+  // A cleared number input coerces to 0 (`+"" === 0`), so "cleared to retype"
+  // must not be saveable as a real zero duration or a negative value.
+  const valid =
+    Number.isFinite(priceMajor) &&
+    priceMajor >= 0 &&
+    Number.isFinite(duration) &&
+    duration >= 1 &&
+    Number.isFinite(maxSlots) &&
+    maxSlots >= 1 &&
+    Number.isFinite(cutoff) &&
+    cutoff >= 0;
 
   return (
     <div className="rounded-2xl border border-border bg-background/40 p-3">
@@ -288,7 +319,7 @@ function ServiceEditor({
       <p className="mt-2 text-[11px] text-muted-foreground">Booking model: {modelLabel(s.bookingModel)}.</p>
 
       <div className="mt-3 flex items-center gap-2">
-        <Button size="sm" isDisabled={!dirty} onPress={() => setConfirming(true)}>
+        <Button size="sm" isDisabled={!dirty || !valid} onPress={() => setConfirming(true)}>
           Save changes
         </Button>
         <Button variant="destructive" size="sm" onPress={() => setDeleting(true)}>
@@ -304,7 +335,7 @@ function ServiceEditor({
             name,
             priceMinorUnits: toMinorUnits(priceMajor, s.currency),
             slotDurationMinutes: duration,
-            maxSlotsPerBooking: Math.max(1, maxSlots),
+            maxSlotsPerBooking: clampedMax,
             cancellationCutoffHours: cutoff,
           });
           setConfirming(false);
@@ -315,7 +346,7 @@ function ServiceEditor({
         <p className="font-medium">{name}</p>
         <ul className="mt-1 list-disc pl-4 text-xs text-muted-foreground">
           <li>Price {formatMoney(toMinorUnits(priceMajor, s.currency), s.currency)}</li>
-          <li>{formatDuration(duration)} per slot · up to {Math.max(1, maxSlots)}</li>
+          <li>{formatDuration(duration)} per slot · up to {clampedMax}</li>
           <li>{cutoff}h cancellation cutoff</li>
         </ul>
       </ConfirmDialog>
@@ -379,7 +410,9 @@ function OfferForm({
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    // Cleared number inputs coerce to 0 — refuse zero/negative durations and
+    // negative money rather than creating an unbookable offer.
+    if (!name.trim() || !(duration >= 1) || !(priceMajor >= 0) || !(cutoff >= 0)) return;
     onCreate({
       name: name.trim(),
       bookingModel: model,

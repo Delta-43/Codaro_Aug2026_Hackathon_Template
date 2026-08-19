@@ -45,7 +45,7 @@ const STATUS_CLASS: Record<DemoBooking["status"], string> = {
 };
 
 export default function BookingsPage() {
-  const { ready, vocab, capability } = useOwner();
+  const { ready, vocab, capability, activeProvider } = useOwner();
   const router = useRouter();
   const tz = browserTz();
   const [raw, setRaw] = useState<OwnerBooking[]>([]);
@@ -85,7 +85,9 @@ export default function BookingsPage() {
       getOwnerServices().catch(() => [] as OwnerServiceSummary[]),
     ]).then(([bookings, services]) => {
       if (cancel) return;
-      setRaw(bookings);
+      // The owner endpoints return every business the owner has; scope the
+      // calendar to the selected provider like the Services tab does.
+      setRaw(activeProvider ? bookings.filter((b) => b.providerId === activeProvider.id) : bookings);
       setNames(Object.fromEntries(services.map((s) => [s.id, s.name])));
       setReviewsByService(
         Object.fromEntries(services.map((s) => [s.id, s.capabilities.reviews !== false])),
@@ -95,7 +97,7 @@ export default function BookingsPage() {
     return () => {
       cancel = true;
     };
-  }, []);
+  }, [activeProvider]);
 
   // Prefer the per-service value; fall back to the global block for any service
   // the map does not cover. `getOwnerServices()` swallows its own failure, so
