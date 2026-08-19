@@ -9,7 +9,6 @@
 import { useRef } from "react";
 import { ChevronLeft, ChevronRight, Star } from "lucide-react";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";
-import { ScrollCue } from "@/components/landing/scroll-cue";
 
 type Review =
   | {
@@ -161,9 +160,7 @@ export function Testimonials() {
               </button>
             </div>
           </div>
-        </GlassPanel>
-        <ScrollCue />
-      </div>
+        </GlassPanel>      </div>
     </section>
   );
 }

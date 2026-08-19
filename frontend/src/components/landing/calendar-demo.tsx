@@ -23,7 +23,6 @@ import {
   isPastDay,
 } from "@/lib/calendar";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";
-import { ScrollCue } from "@/components/landing/scroll-cue";
 import { cn } from "@/lib/utils";
 
 const TZ = "Europe/Warsaw";
@@ -207,8 +206,6 @@ export function CalendarDemo() {
             </div>
           </div>
         </GlassPanel>
-
-        <ScrollCue />
       </div>
     </section>
   );
