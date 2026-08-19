@@ -68,11 +68,12 @@ reschedule flows special-case the codes for re-pick / disabled-with-reason.
   a session; `getCurrentUser`/`updateUser` map to `/me`.
 - Env: `NEXT_PUBLIC_API_BASE`, `NEXT_PUBLIC_SUPABASE_URL`,
   `NEXT_PUBLIC_SUPABASE_ANON_KEY` (see `.env.local.example`).
-- **Theming** is `next-themes` (`attribute="class"`, `defaultTheme="light"`,
+- **Theming** is `next-themes` (`attribute="class"`, `defaultTheme="system"`,
   `enableSystem`) mounted in `src/app/layout.tsx`; dark tokens live under `.dark`
   in `globals.css`. The Account tab's `theme-toggle.tsx` sets Light / Dark /
-  Smart (`"system"`). First load is always light; the choice persists and
-  Smart tracks the OS `prefers-color-scheme` live.
+  Smart (`"system"`); the landing footer carries a light/dark toggle too. First
+  load follows the OS `prefers-color-scheme` live (system default); flipping a
+  toggle pins an explicit choice, which then persists.
 
 ## Views (per README)
 

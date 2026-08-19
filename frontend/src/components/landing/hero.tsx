@@ -22,7 +22,7 @@ export function Hero({ authed }: { authed: boolean }) {
           <div>
             <p className="text-xl font-bold tracking-tight text-primary">
               <span className="inline-block origin-center cursor-pointer transition-transform duration-200 ease-out hover:scale-125">
-                service.com
+                Arbor
               </span>
             </p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">

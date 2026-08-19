@@ -7,18 +7,16 @@
  * Fixed, so the glass chapters float over it.
  *
  * It also hosts the `#liquid-glass-distortion` SVG filter + the `.liquid-glass`
- * class the plates use: `backdrop-filter: url(#…)` runs a feDisplacementMap over
- * whatever sits behind each plate, so the background bends/warps through the
- * glass (real refraction/lensing) instead of only blurring. Safari (which
- * ignores url() filters in backdrop-filter) falls back to a plain frosted blur.
+ * class the plates use — the `.liquid-glass` blur/saturate is what frosts the
+ * backdrop behind each plate.
  */
 import { Particles } from "@/components/landing/particles";
 
 export function SceneBackground() {
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-      {/* Soft themed gradient base */}
-      <div className="absolute inset-0 bg-gradient-to-br from-sky-100 via-background to-pink-100 dark:from-slate-950 dark:via-background dark:to-slate-900" />
+      {/* Plain black/white base — white in light mode, black in dark */}
+      <div className="absolute inset-0 bg-white dark:bg-black" />
 
       {/* Blurred colour blooms — give the glass something to bend, add depth */}
       <div className="absolute -top-1/4 -left-16 size-[55%] rounded-full bg-primary/25 blur-[120px] dark:bg-primary/20" />
@@ -43,9 +41,9 @@ export function SceneBackground() {
       <style
         dangerouslySetInnerHTML={{
           __html: `
-        /* Liquid-glass material: refract the backdrop through a displacement
-           map (Chromium) + saturate it; Safari ignores url() here and gets a
-           plain frosted blur instead. */
+        /* Liquid-glass material: frost + saturate the backdrop behind a plate.
+           (The url() displacement is a Chromium-only nicety; every browser at
+           least gets the blur/saturate, which is the look that matters here.) */
         .liquid-glass {
           -webkit-backdrop-filter: blur(11px) saturate(180%);
           backdrop-filter: blur(2px) saturate(180%) url(#liquid-glass-distortion);
