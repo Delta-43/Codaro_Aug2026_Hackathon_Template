@@ -125,34 +125,36 @@ extension points. `apply_rules(event, ctx, timing)` takes the **resolved** block
 for the service being acted on (`effective_service_config(service)["timing"]`) —
 reading the global block made it the one resolver that skipped the service layer,
 so a per-service `leadTimeMinutes` was accepted on write and enforced by nothing.
-`advanceBookingWindowDays` sits in
-`UNDISPATCHED` on purpose — the seed lays slots 56 days out while the config
-allows 30, so enforcing it today would make half the seeded calendar unbookable.
+`advanceBookingWindowDays` is now **dispatched** under `booking.create`:
+`seed_config._grid` seeds exactly the declared window, so the seed horizon and
+the config finally agree. A business wanting a longer horizon raises the key
+(pivots 007/019/041 do).
 Parse all timestamps through `parse_ts()` / `serialize._parse` — never compare
 naive to aware.
 
 ## Declared but NOT enforced
 
 v1's real failure was config that looked live and did nothing (`copy`, `theme`
-and `advanceBookingWindowDays` had zero readers). Keep that honest — if a key
+and `advanceBookingWindowDays` had zero readers; `theme` has since been removed
+outright). Keep that honest — if a key
 lands in `DEFAULTS` before its enforcement does, say so here and in a comment
 next to it:
 
 | Key | Why not yet | Needs |
 |-----|-------------|-------|
-| `timing.advanceBookingWindowDays` | seed lays slots 56 days out, config allows 30 | reconcile the seed horizon, then move out of `rules.UNDISPATCHED` |
 | `pricing.caps.perDayMinorUnits` | needs the customer's other bookings that day | a query, not arithmetic |
-| `payments.noShowFee` | no payments table exists | the `PaymentAdapter` layer |
+| `payments.noShowFee` | nothing marks a no-show | a no-show action + the `PaymentAdapter` layer |
 | `timing.approvalWindowHours` | nothing expires a stale request | a scheduled job |
 | `pricing.tiers[].quantityCap` | needs a sold-count | a query |
-| `capabilities.*` except `reviews`/`follows` | those surfaces have no backend yet | the feature, plus its write gate |
+| `capabilities.quotes` / `.cart` | those surfaces have no backend yet | the feature, plus its write gate |
 | `pricing.currencyExponent` | rendering uses the currency's own ISO exponent via `Intl` | only a currency `Intl` cannot resolve |
-| `terms.*` (bar `admin`/`slot`), `copy`, `theme` | the frontend takes vocabulary from `src/config/verticals.ts` | E10 per-service vocabulary |
+| `terms.staff`/`.subject`/`.admin` | the UI has one slot per concept, already fed by `terms.resource`/`.service` | E10 per-service vocabulary |
 
 `scripts/check_pivots.py` now **fails** if a `DEFAULTS` leaf appears in neither
 its `ENFORCED` nor its `DECLARED_ONLY` map. That table is the promise that no key
 looks live and does nothing; nothing had been checking it, and 43 paths had
-already slipped through — including all of `copy` and `theme`, the very keys the
+already slipped through — including all of `copy` and the since-removed `theme`,
+the very keys the
 script's own header names as v1's cautionary tale.
 
 `rules.UNDISPATCHED` also holds `maxBookingsPerSlot` **deliberately**: capacity is
@@ -274,6 +276,19 @@ manual-approve primary service (`_seed_requests`) so the owner's Requests tab is
 populated. Auth users provisioned via the admin API: `demo@codaro.app` (client),
 the holds user, `owner@codaro.app` (owns the demo provider — the business login),
 and `prospect@codaro.app` (a fresh client whose request is pending).
+**Seeding is serialised by a Postgres advisory lock** (`seed.seed_lock`). A
+seed is a TRUNCATE on a direct connection followed by hundreds of PostgREST
+inserts — not one transaction, not one connection — so two overlapping seeders
+corrupt each other: whichever truncates second deletes rows the other is still
+referencing, surfacing as `services_provider_id_fkey` violations against a
+provider inserted seconds earlier. `seed_vertical` WAITS for the lock (an
+explicit reseed should happen); `seed_if_empty` uses try-lock and skips, because
+a seeder mid-wipe makes its "is providers empty?" read meaningless. A caller
+already holding the lock must use `_seed_from_config_locked` /
+`_seed_vertical_locked` — re-taking it opens a second connection and deadlocks.
+`make reload` refuses while the lock is held (`scripts/seed_in_progress.py`),
+since restarting the container kills a reseed running inside it.
+
 `seed_if_empty()` runs on startup when no providers exist; `active_vertical()`
 infers the current vertical from a service's booking model.
 

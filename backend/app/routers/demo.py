@@ -34,6 +34,11 @@ def set_vertical(payload: VerticalReq, _user: AuthUser = Depends(require_user)):
 
 @router.post("/reset")
 def reset(_user: AuthUser = Depends(require_user)):
-    vid = seed.active_vertical()
-    seed.seed_vertical(vid)
-    return {"verticalId": vid}
+    """Rebuild the demo data from the loaded `domain.config.json`.
+
+    Reset means "make the data describe what is configured now", so it goes
+    through the config-driven seed rather than rebuilding whichever hardcoded
+    vertical happened to be in the DB. `POST /demo/vertical` is still the way to
+    load one of the three canned verticals on purpose."""
+    seed.seed_from_config()
+    return {"verticalId": seed.active_vertical()}

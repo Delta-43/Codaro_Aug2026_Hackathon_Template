@@ -116,6 +116,7 @@ class _Query:
         self._filters: list[tuple[str, str, Any]] = []
         self._single = False
         self._limit: int | None = None
+        self._range: tuple[int, int] | None = None
         self._order: tuple[str, bool] | None = None
 
     # -- builder -----------------------------------------------------
@@ -149,6 +150,13 @@ class _Query:
 
     def lt(self, column: str, value: Any) -> "_Query":
         self._filters.append(("lt", column, value))
+        return self
+
+    def range(self, start: int, end: int) -> "_Query":
+        """PostgREST's inclusive row range, as `db.fetch_all` uses it to page
+        past the implicit 1000-row cap. Without this the fake raised
+        AttributeError on every paged read."""
+        self._range = (start, end)
         return self
 
     def limit(self, count: int) -> "_Query":
@@ -212,6 +220,9 @@ class _Query:
         if self._order:
             column, desc = self._order
             rows.sort(key=lambda r: r.get(column), reverse=desc)
+        if self._range is not None:
+            start, end = self._range
+            rows = rows[start : end + 1]  # PostgREST's range is inclusive
         if self._limit is not None:
             rows = rows[: self._limit]
         if self._single:

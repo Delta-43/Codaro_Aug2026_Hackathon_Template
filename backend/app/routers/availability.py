@@ -16,8 +16,8 @@ from fastapi import APIRouter, Depends, Query
 
 from app.clock import tz_or_utc
 from app.auth import AuthUser, optional_user
-from app.db import get_supabase, maybe_row
-from app.rules import effective_service_config
+from app.db import fetch_all, get_supabase, maybe_row
+from app.rules import closure_reason, effective_service_config
 from app.serialize import _parse, serialize_slot
 from app.users import user_metadata
 
@@ -92,23 +92,34 @@ def availability(
     user: AuthUser | None = Depends(optional_user),
 ):
     db = get_supabase()
-    tzinfo = _viewer_tz(tz, user, lambda: _service(db, service_id))
+    # Fetched once: the viewer-timezone fallback and the closure test below both
+    # need it, and it used to be loaded twice on the busiest read in the app.
+    service = _service(db, service_id)
+    tzinfo = _viewer_tz(tz, user, lambda: service)
     rids = _resource_ids(db, service_id, resource_id)
     if not rids:
         return []
-    rows = (
+    # Date-bounded, so this is far less exposed than `/slots` — but a wide
+    # range on a busy multi-resource service still passes 1000 rows, and a
+    # truncated day reads as "no availability" rather than as an error.
+    rows = fetch_all(
         db.table("slot_occupancy")
         .select("*")
         .in_("resource_id", rids)
         .gte("starts_at", _norm_ts(from_))
-        .lt("starts_at", _norm_ts(to))
-        .execute()
-        .data
-        or []
+        .lt("starts_at", _norm_ts(to)),
+        # The view has no `id`; see the note in routers/slots.py.
+        order="slot_id",
     )
     now = datetime.now(timezone.utc)
+    # A day the business has declared shut (`timing.blackouts` / outside
+    # `timing.seasons`) carries no availability. Tested against the BUSINESS's
+    # calendar even though the grouping below is the viewer's, because a closure
+    # is the business's own date.
     days: dict[str, list[dict]] = defaultdict(list)
     for r in rows:
+        if closure_reason(r["starts_at"], service):
+            continue
         local_date = _parse(r["starts_at"]).astimezone(tzinfo).strftime("%Y-%m-%d")
         days[local_date].append(r)
 
@@ -135,7 +146,8 @@ def month_density(
     user: AuthUser | None = Depends(optional_user),
 ):
     db = get_supabase()
-    tzinfo = _viewer_tz(tz, user, lambda: _service(db, service_id))
+    service = _service(db, service_id)
+    tzinfo = _viewer_tz(tz, user, lambda: service)
     year, mon = int(month[:4]), int(month[5:7])
     days_in = _cal.monthrange(year, mon)[1]
 
@@ -162,6 +174,10 @@ def month_density(
     total_by: dict[str, int] = defaultdict(int)
     remaining_by: dict[str, int] = defaultdict(int)
     for r in rows:
+        # Same closure test as the day view, so the month heatmap and the day it
+        # opens agree about which days are shut.
+        if closure_reason(r["starts_at"], service):
+            continue
         d = _parse(r["starts_at"]).astimezone(tzinfo).strftime("%Y-%m-%d")
         total_by[d] += r["capacity"]
         end = _parse(r["ends_at"])

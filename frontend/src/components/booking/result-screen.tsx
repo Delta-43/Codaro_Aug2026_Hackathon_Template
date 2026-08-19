@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { Button } from "@/components/ui/button";
 import { formatDate, formatMoney, formatTimeRange, zoneAbbrev } from "@/lib/format";
+import { useApp } from "@/context/app-context";
 
 export function ResultScreen({
   booking,
@@ -23,12 +24,40 @@ export function ResultScreen({
   tz: string;
   onDone: () => void;
 }) {
+  const { copy, vertical } = useApp();
+  // A `timing.confirmation: request_approve` pivot lands the booking as PENDING,
+  // and this screen still said "You're booked" — the one moment the config has a
+  // dedicated sentence for (`copy.requestPending`) was the moment it was wrong.
+  // A quote request is a pending booking with a different meaning, and the
+  // config has always carried its own sentence (`copy.quoteRequested`) — it was
+  // just never rendered, so a quote-model deployment said "request sent" where
+  // it meant "we'll price this and come back to you".
+  const byQuote = service.pricingModel === "quote" && service.capabilities.quotes !== false;
+  const headline =
+    booking.status !== "pending"
+      ? (copy.confirmTitle ?? "You're booked")
+      : byQuote
+        ? (copy.quoteRequested ?? "Your quote request has been sent")
+        : (copy.requestPending ?? "Your request has been sent");
   return (
     <section className="flex flex-col items-center py-10 text-center">
       <div className="grid size-14 place-items-center rounded-full bg-primary/10 text-primary">
         <Check className="size-7" aria-hidden />
       </div>
-      <h1 className="mt-4 text-xl font-semibold tracking-tight">You&apos;re booked</h1>
+      <h1 className="mt-4 text-xl font-semibold tracking-tight">{headline}</h1>
+
+      {/* A repeating series: say exactly how many landed. A customer who asked
+          for 12 and got 3 must not have to count their own bookings to find
+          out — `skipped` is reported by the server for precisely this. */}
+      {booking.series ? (
+        <p className="mt-2 max-w-sm text-sm text-muted-foreground">
+          {booking.series.bookedIds.length} of {booking.series.requested}{" "}
+          {booking.series.pattern} {vertical.bookingNounPlural.toLowerCase()} booked
+          {booking.series.skipped.length
+            ? ` — ${booking.series.skipped.length} had no availability and were skipped.`
+            : "."}
+        </p>
+      ) : null}
 
       <p className="mt-4 text-xs uppercase tracking-wide text-muted-foreground">Reference</p>
       <p className="font-mono text-2xl font-semibold tracking-widest">{booking.reference}</p>

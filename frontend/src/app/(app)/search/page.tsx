@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { QrCode, Search as SearchIcon, SlidersHorizontal } from "lucide-react";
 import type { Provider } from "@/types/domain";
-import { getSearchFacets, searchProviders, type SearchFacets } from "@/api";
+import { DEFAULT_FACETS, getSearchFacets, searchProviders } from "@/api";
 import { useApp, useVertical } from "@/context/app-context";
 import { useAsync } from "@/hooks/use-async";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -24,8 +24,6 @@ import { distanceKm, geoOrigin } from "@/lib/geo";
 import { ORDER_KEYS, ORDER_META, type OrderKey, type SortDir } from "@/lib/order-by";
 import { cn } from "@/lib/utils";
 import { SEARCH_INPUT } from "@/components/search/field-class";
-
-const ALL_FACETS: SearchFacets = { price: true, distance: true, rating: true };
 
 export default function SearchPage() {
   const vertical = useVertical();
@@ -79,7 +77,7 @@ export default function SearchPage() {
   // no distance. Defaults to all-on while loading. Sort keys share the facet
   // names, so a disabled facet drops its sort option too.
   const facetsQ = useAsync(() => getSearchFacets(), []);
-  const facets = facetsQ.data ?? ALL_FACETS;
+  const facets = facetsQ.data ?? DEFAULT_FACETS;
   const enabledOrderKeys = useMemo(() => ORDER_KEYS.filter((k) => facets[k]), [facets]);
 
   // If the active sort key becomes unavailable (facets loaded/pivoted), fall

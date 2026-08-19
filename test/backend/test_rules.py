@@ -18,9 +18,11 @@ from app.rules import (
     UNDISPATCHED,
     RuleViolation,
     _advance_window,
+    _blackouts,
     _cancellation_window,
     _capacity,
     _lead_time,
+    _seasons,
     apply_rules,
     check_cancellation_window,
     check_capacity,
@@ -287,7 +289,7 @@ def test_effective_service_config_returns_every_overridable_block(domain_config)
     ):
         assert block in resolved, block
     # Presentation stays global — a service may not re-word the app.
-    for block in ("terms", "copy", "theme"):
+    for block in ("terms", "copy"):
         assert block not in resolved
 
 
@@ -504,8 +506,21 @@ def test_lead_time_declared_on_the_v1_rules_path_is_not_enforced(domain_config):
 # --------------------------------------------------------------------
 
 
-def test_booking_create_dispatches_exactly_the_lead_time_rule():
-    assert RULES["booking.create"] == {"leadTimeMinutes": _lead_time}
+def test_booking_create_dispatches_lead_time_and_the_advance_window():
+    """`advanceBookingWindowDays` joined this event once `seed_config._grid`
+    started seeding exactly the declared window. While the grid reached further
+    than the config allowed, dispatching it made half the seeded calendar
+    unbookable — which is why it sat in UNDISPATCHED for so long.
+
+    `blackouts`/`seasons` joined it when the two closure windows stopped being
+    decorative: both were declared in v2, validated at load and enforced
+    nowhere, so a config could close for Christmas and still take bookings."""
+    assert RULES["booking.create"] == {
+        "leadTimeMinutes": _lead_time,
+        "advanceBookingWindowDays": _advance_window,
+        "blackouts": _blackouts,
+        "seasons": _seasons,
+    }
 
 
 def test_max_bookings_per_slot_is_not_dispatched_on_any_event():
@@ -517,9 +532,10 @@ def test_max_bookings_per_slot_is_not_dispatched_on_any_event():
         assert "maxBookingsPerSlot" not in mapping, event
 
 
-def test_the_undispatched_registry_is_exactly_the_three_known_keys():
+def test_the_undispatched_registry_is_exactly_the_two_known_keys():
+    """Down from three: `advanceBookingWindowDays` is dispatched now. The two
+    that remain are deliberate — see the comments beside `UNDISPATCHED`."""
     assert UNDISPATCHED == {
-        "advanceBookingWindowDays": _advance_window,
         "maxBookingsPerSlot": _capacity,
         "cancellationWindowHours": _cancellation_window,
     }

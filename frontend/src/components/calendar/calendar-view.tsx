@@ -39,6 +39,7 @@ export function CalendarView({
   tz,
   selectedIds,
   onSelect,
+  onWaitlist,
   reloadKey = 0,
 }: {
   service: Service;
@@ -46,6 +47,8 @@ export function CalendarView({
   tz: string;
   selectedIds?: Set<string>;
   onSelect?: (slot: Slot) => void;
+  /** Passed straight to the day view; see its note. */
+  onWaitlist?: (slot: Slot) => void;
   /** Bump to force an availability refetch (e.g. after SLOT_UNAVAILABLE). */
   reloadKey?: number;
 }) {
@@ -215,6 +218,7 @@ export function CalendarView({
           nameFor={nameFor}
           selectedIds={selected}
           onSelect={onSelect}
+          onWaitlist={onWaitlist}
         />
       )}
     </div>

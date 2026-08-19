@@ -56,6 +56,10 @@ def quote(pricing: dict, ctx: dict) -> dict:
         zone              str|None  seat/area zone key
         subject           dict|None the pet/vehicle/child the booking is about
         distance_km       float|None travel distance (distance-band fees)
+        addons            list|None resolved `booking.options` lines to add to the
+                                total (`{key, label, amountMinorUnits}` each)
+        entitlement       dict|None  the resolved plan the customer holds
+                                     (`{key, label, discountBps}`), or None
 
     Returns `{amountMinorUnits, currency, depositMinorUnits, breakdown[]}`.
     """
@@ -102,6 +106,57 @@ def quote(pricing: dict, ctx: dict) -> dict:
         total += sec
         breakdown.append(
             {"key": "secondary", "label": _money_label(sec_per), "amountMinorUnits": sec}
+        )
+
+    # An entitlement the customer holds — a membership, a pass — discounts the
+    # SERVICE CHARGE (base + secondary), not the fees below it.
+    #
+    # `entitlements.plans[].discountBps` was declared, validated and read by
+    # nothing: member pricing could only be faked by hand-passing a `zone` the
+    # customer could have chosen themselves. This is the hook that makes it real.
+    #
+    # Discounting before the fee loop is deliberate and is the conservative
+    # reading: fees are typically pass-through (a booking fee, a cleaning
+    # charge), and percentage fees below therefore compute off the discounted
+    # charge. Whether a platform's commission sits on the net or the gross is
+    # already an open question in this schema — see scripts/check_pivots.py #65 —
+    # and a member discount must not quietly answer it a second way.
+    entitlement = ctx.get("entitlement")
+    if isinstance(entitlement, dict):
+        bps = _int(entitlement.get("discountBps"))
+        if bps > 0 and total > 0:
+            # Negative line: the breakdown reads as an itemised bill, so a
+            # discount belongs in it as a discount, not as a silently smaller base.
+            discount = -round(total * min(bps, 10000) / 10000)
+            total += discount
+            breakdown.append(
+                {
+                    "key": f"entitlement:{entitlement.get('key')}",
+                    "label": entitlement.get("label") or "Member discount",
+                    "amountMinorUnits": discount,
+                }
+            )
+
+    # Paid add-ons the customer chose (`booking.options`), already resolved to
+    # `{key, label, amountMinorUnits}` by `rules.resolve_options` — this module
+    # only ever sees the `pricing` block, so the caller does the config lookup.
+    #
+    # Placed AFTER the entitlement discount and BEFORE the fees on purpose: a
+    # member discount is on the service, not on the hired kit or the meal, while
+    # a percentage fee (cleaning, service charge) is levied on everything sold.
+    for addon in (ctx.get("addons") or []):
+        if not isinstance(addon, dict):
+            continue
+        amount = _int(addon.get("amountMinorUnits"))
+        if not amount:
+            continue
+        total += amount
+        breakdown.append(
+            {
+                "key": f"option:{addon.get('key')}",
+                "label": addon.get("label") or "Extra",
+                "amountMinorUnits": amount,
+            }
         )
 
     for i, fee in enumerate(pricing.get("fees") or []):

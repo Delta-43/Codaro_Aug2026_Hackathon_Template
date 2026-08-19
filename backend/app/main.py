@@ -22,6 +22,7 @@ from app.routers import (
     resources,
     services,
     slots,
+    waitlist,
 )
 from app.schema_setup import create_tables_if_configured
 from seed import seed_if_empty
@@ -64,6 +65,8 @@ app.include_router(services.router)
 app.include_router(resources.router)
 app.include_router(slots.router)
 app.include_router(availability.router)
+# After `slots`: both mount /slots, and the waitlist adds sub-paths only.
+app.include_router(waitlist.router)
 app.include_router(bookings.router)
 app.include_router(me.router)
 app.include_router(messages.router)

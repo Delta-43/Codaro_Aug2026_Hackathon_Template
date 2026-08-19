@@ -1,0 +1,311 @@
+{
+  "configVersion": 2,
+  "domain": "maximal-everything",
+  "tenancy": {
+    "mode": "multi",
+    "providerCode": null,
+    "selfOnboarding": true,
+    "tenantVerification": {
+      "required": false,
+      "credentials": []
+    },
+    "commission": {
+      "enabled": true,
+      "rateBps": 1000,
+      "chargedOn": "completion"
+    }
+  },
+  "capabilities": {
+    "payments": true,
+    "inventory": true,
+    "waitlist": true,
+    "quotes": false,
+    "recurrence": true,
+    "prerequisites": true,
+    "entitlements": true,
+    "cart": false,
+    "reviews": true,
+    "follows": true
+  },
+  "booking": {
+    "unitKind": "class_capacity",
+    "granularity": "minute",
+    "duration": {
+      "mode": "customer_chosen",
+      "minUnits": 2,
+      "maxUnits": 12,
+      "incrementUnits": 1
+    },
+    "party": {
+      "mode": "group",
+      "min": 1,
+      "max": 6,
+      "composition": null,
+      "matchResourceCapacity": true
+    },
+    "sequence": {
+      "enabled": false,
+      "steps": 1,
+      "minGapHours": 0,
+      "maxGapHours": null
+    },
+    "subject": {
+      "enabled": false,
+      "noun": "Subject",
+      "fields": []
+    },
+    "options": []
+  },
+  "pricing": {
+    "model": "tiered",
+    "currency": "EUR",
+    "currencyExponent": 2,
+    "rate": {
+      "per": "hour",
+      "amountMinorUnits": 4000
+    },
+    "secondaryRate": {
+      "per": "person",
+      "amountMinorUnits": 400
+    },
+    "tiers": [
+      {
+        "key": "offpeak",
+        "label": "Off-peak",
+        "amountMinorUnits": 2200,
+        "appliesWhen": {
+          "timeOfDay": {
+            "from": "18:00",
+            "to": "06:00"
+          }
+        }
+      },
+      {
+        "key": "peak",
+        "label": "Peak",
+        "amountMinorUnits": 6000,
+        "appliesWhen": {
+          "timeOfDay": {
+            "from": "06:00",
+            "to": "18:00"
+          }
+        }
+      }
+    ],
+    "chargePerPerson": false,
+    "caps": {
+      "perBookingMinorUnits": 50000,
+      "perDayMinorUnits": null,
+      "perPersonMinorUnits": null
+    },
+    "fees": [
+      {
+        "key": "booking_fee",
+        "label": "Booking fee",
+        "kind": "flat",
+        "amountMinorUnits": 150
+      },
+      {
+        "key": "cleaning",
+        "label": "Deep clean",
+        "kind": "percent",
+        "rateBps": 500
+      }
+    ],
+    "deposit": {
+      "enabled": true,
+      "kind": "percent",
+      "value": 25,
+      "refundable": true
+    }
+  },
+  "payments": {
+    "flow": "invoice_after",
+    "payer": "customer",
+    "schedule": [],
+    "billingCycle": "monthly",
+    "noShowFee": {
+      "enabled": false,
+      "amountMinorUnits": 0
+    },
+    "usageMetered": false,
+    "adapter": "manual"
+  },
+  "inventory": {
+    "mode": "rentable",
+    "reservationWindowMinutes": 15,
+    "loanPeriodHours": 72,
+    "returnRequired": true,
+    "overdueFeePerDayMinorUnits": 250,
+    "restockCycle": "none",
+    "ratioConstraint": null
+  },
+  "location": {
+    "modes": [
+      "on_site"
+    ],
+    "default": "on_site",
+    "timezone": "UTC",
+    "distanceUnit": "km",
+    "origin": null,
+    "serviceArea": {
+      "radiusKm": null,
+      "travelBufferMinutes": 0,
+      "feeBands": []
+    },
+    "remote": {
+      "meetingLinkMode": "none"
+    },
+    "fulfilment": {
+      "windowMinutes": 60,
+      "cutoffHoursBefore": 0
+    }
+  },
+  "prerequisites": [
+    {
+      "key": "hygiene",
+      "kind": "credential",
+      "label": "Food hygiene cert",
+      "appliesTo": "customer",
+      "required": true,
+      "blocksConfirmation": true
+    },
+    {
+      "key": "member",
+      "kind": "membership",
+      "label": "Membership",
+      "appliesTo": "customer",
+      "required": true,
+      "blocksConfirmation": true
+    },
+    {
+      "key": "induction",
+      "kind": "waiver",
+      "label": "Safety induction",
+      "appliesTo": "customer",
+      "required": true,
+      "blocksConfirmation": false
+    }
+  ],
+  "timing": {
+    "confirmation": "request_approve",
+    "approvalWindowHours": 48,
+    "leadTimeMinutes": 60,
+    "waitlist": {
+      "enabled": true,
+      "autoPromote": true,
+      "maxPerSlot": 25
+    },
+    "seasons": [],
+    "blackouts": [],
+    "slotDurationMinutes": 30,
+    "maxBookingsPerSlot": 1,
+    "cancellationWindowHours": 24,
+    "advanceBookingWindowDays": 120,
+    "bufferMinutes": 0
+  },
+  "recurrence": {
+    "enabled": true,
+    "patterns": [
+      "weekly",
+      "biweekly",
+      "monthly"
+    ],
+    "maxOccurrences": 12,
+    "term": {
+      "mode": "rolling",
+      "noticePeriodDays": 30
+    }
+  },
+  "entitlements": {
+    "enabled": true,
+    "kind": "membership",
+    "plans": [
+      {
+        "key": "resident",
+        "label": "Resident",
+        "priceMinorUnits": 15000,
+        "cycle": "monthly",
+        "credits": null,
+        "appliesToServices": [],
+        "discountBps": 1500
+      },
+      {
+        "key": "tenpass",
+        "label": "Ten-session pass",
+        "priceMinorUnits": 18000,
+        "cycle": "none",
+        "credits": 10,
+        "appliesToServices": [],
+        "discountBps": 500
+      }
+    ]
+  },
+  "discovery": {
+    "mode": "browse",
+    "facets": {
+      "price": true,
+      "distance": true,
+      "rating": true,
+      "availability": true,
+      "unitKind": false
+    },
+    "matching": {
+      "enabled": false,
+      "source": "intake_form"
+    }
+  },
+  "terms": {
+    "provider": "Venue",
+    "providers": "Venues",
+    "service": "Room type",
+    "services": "Room types",
+    "staff": "Staff",
+    "subject": "Subject",
+    "party": "Group",
+    "resource": "Room",
+    "resources": "Rooms",
+    "slot": "Session",
+    "slots": "Sessions",
+    "booking": "Reservation",
+    "bookings": "Reservations",
+    "client": "Customer",
+    "clients": "Customers",
+    "admin": "Business",
+    "admins": "Businesses"
+  },
+  "copy": {
+    "landingTitle": "Shared Kitchen Marketplace",
+    "landingSubtitle": "Certified kitchen hours — peak / off-peak tiers.",
+    "confirmTitle": "Booking confirmed",
+    "emptyStateSlots": "No sessions available yet.",
+    "emptyStateBookings": "You have no reservations yet.",
+    "requestPending": "Your request has been sent.",
+    "waitlistJoined": "You're on the waitlist.",
+    "quoteRequested": "Your quote request has been sent.",
+    "depositDue": "A deposit is due to confirm this booking.",
+    "prerequisiteBlocked": "Some details are needed before this can be confirmed."
+  },
+  "metaFields": {
+    "providers": [],
+    "services": [],
+    "resources": [],
+    "slots": [],
+    "bookings": [],
+    "subjects": []
+  },
+  "rules": {
+    "slotDurationMinutes": 30,
+    "maxBookingsPerSlot": 1,
+    "cancellationWindowHours": 24,
+    "advanceBookingWindowDays": 120,
+    "bufferMinutes": 0
+  },
+  "search": {
+    "facets": {
+      "price": true,
+      "distance": true,
+      "rating": true
+    }
+  }
+}

@@ -25,13 +25,23 @@ import {
   getCurrentUser,
   getProviderByCode,
   getPivotConfig,
+  type MetaFields,
+  type SearchFacets,
+  type TenancyTerms,
   resetDemoData as apiResetDemoData,
   searchProviders,
   setVertical as apiSetVertical,
+  FALLBACK_PIVOT_CONFIG,
   type Capabilities,
-  type PivotConfig,
+  type ConfigCopy,
+  type ConfigTerms,
 } from "@/api";
-import { DEFAULT_VERTICAL, getVertical, type VerticalConfig } from "@/config/verticals";
+import {
+  applyPivotVocabulary,
+  DEFAULT_VERTICAL,
+  getVertical,
+  type VerticalConfig,
+} from "@/config/verticals";
 import { setGeoSettings } from "@/lib/geo";
 
 interface AppContextValue {
@@ -39,7 +49,21 @@ interface AppContextValue {
   ready: boolean;
 
   verticalId: VerticalId;
+  /** The active vertical's vocabulary with the pivot file's `terms`/`copy`
+   *  overlaid — so a config that renames `service` to "Plan" renames it on every
+   *  screen. Falls back to the static vertical for anything the config omits. */
   vertical: VerticalConfig;
+  /** The pivot file's `copy` block verbatim, for the named moments that have no
+   *  vertical equivalent (`confirmTitle`, `requestPending`, the empty states). */
+  copy: ConfigCopy;
+  /** `metaFields.{entity}` — the domain fields this deployment declares. The
+   *  backend validates them on write; the booking form renders them. */
+  metaFields: MetaFields;
+  /** `discovery.facets` — which search dimensions this deployment offers. */
+  facets: SearchFacets;
+  /** `tenancy` — self-onboarding, tenant verification and the platform's cut.
+   *  Owner-facing: the business needs to see the terms it trades under. */
+  tenancyTerms: TenancyTerms;
   user: User | null;
 
   /** Single-business pivot (`tenancy.mode === "single"`): the site itself is the
@@ -87,6 +111,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // the code isn't in the active vertical, the catalog's first provider).
   const [singleBusiness, setSingleBusiness] = useState(false);
   const [capabilities, setCapabilities] = useState<Capabilities>({});
+  const [terms, setTerms] = useState<ConfigTerms>({});
+  const [copy, setCopy] = useState<ConfigCopy>({});
+  const [metaFields, setMetaFields] = useState<MetaFields>({});
+  const [facets, setFacets] = useState<SearchFacets>(FALLBACK_PIVOT_CONFIG.facets);
+  const [tenancyTerms, setTenancyTerms] = useState<TenancyTerms>(
+    FALLBACK_PIVOT_CONFIG.tenancyTerms,
+  );
   const [soleProviderCode, setSoleProviderCode] = useState<string | null>(null);
 
   const [activeProvider, setActiveProvider] = useState<Provider | null>(null);
@@ -153,15 +184,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // and no retry.
         getActiveVertical().catch(() => DEFAULT_VERTICAL),
         getCurrentUser().catch(() => null),
-        getPivotConfig().catch(
-          (): PivotConfig => ({
-            tenancy: { mode: "multi", providerCode: null },
-            location: { origin: null, distanceUnit: "km", timezone: "UTC" },
-            // /config unreachable: leave every capability ON. The backend is
-            // still the authority and refuses anything actually disabled.
-            capabilities: {},
-          }),
-        ),
+        getPivotConfig().catch(() => FALLBACK_PIVOT_CONFIG),
       ]);
       if (isCancelled()) return;
       setVerticalId(vid);
@@ -169,6 +192,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Distances render from the pivot file's origin/unit, not a hardcoded city.
       setGeoSettings(pivot.location);
       setCapabilities(pivot.capabilities);
+      // Vocabulary comes from the config too. Applied here (not in a render
+      // effect) so a `reload()` after `make reload` repaints without a refresh.
+      setTerms(pivot.terms);
+      setCopy(pivot.copy);
+      setMetaFields(pivot.metaFields);
+      setFacets(pivot.facets);
+      setTenancyTerms(pivot.tenancyTerms);
       const { tenancy } = pivot;
       const single = tenancy.mode === "single";
       setSingleBusiness(single);
@@ -246,7 +276,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value: AppContextValue = {
     ready,
     verticalId,
-    vertical: getVertical(verticalId),
+    vertical: applyPivotVocabulary(getVertical(verticalId), terms, copy),
+    copy,
+    metaFields,
+    facets,
+    tenancyTerms,
     user,
     singleBusiness,
     capability,

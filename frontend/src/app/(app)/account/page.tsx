@@ -15,12 +15,70 @@ import { cn } from "@/lib/utils";
 import { useApp } from "@/context/app-context";
 import { AvatarImg } from "@/components/avatar-img";
 import { Skeleton } from "@/components/skeleton";
-import { getMyReputation } from "@/api";
+import { getMyEntitlements, getMyReputation } from "@/api";
 import type { ClientReputation } from "@/types/domain";
 import { avatarDataUri } from "@/lib/business-demo";
-import { whenLabel } from "@/lib/format";
+import { formatMoney, whenLabel } from "@/lib/format";
 
 const EMPTY_REP: ClientReputation = { score: 0, count: 0, reviews: [] };
+
+/** What the customer holds under `entitlements`, and what is on offer.
+ *
+ *  Renders nothing at all when the deployment sells no plans — `entitlements`
+ *  is off in most configs, and an empty "Membership" heading is worse than no
+ *  section. The catalogue and the held rows arrive in one response, so this is
+ *  a single request that can also say "become a Member" to someone who is not.
+ */
+function MembershipCard() {
+  const [data, setData] = useState<Awaited<ReturnType<typeof getMyEntitlements>> | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    getMyEntitlements()
+      .then((d) => !cancelled && setData(d))
+      .catch(() => !cancelled && setData(null));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!data?.enabled || !data.plans.length) return null;
+  const held = data.held.filter((h) => h.status === "active");
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <h2 className="text-sm font-semibold">Membership</h2>
+      {held.length ? (
+        <ul className="mt-2 space-y-1">
+          {held.map((h) => (
+            <li key={h.id} className="flex items-baseline justify-between text-sm">
+              <span className="font-medium">{h.label}</span>
+              <span className="text-muted-foreground">
+                {h.creditsRemaining !== null
+                  ? `${h.creditsRemaining} left`
+                  : h.discountBps > 0
+                    ? `${h.discountBps / 100}% off`
+                    : "Active"}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <ul className="mt-2 space-y-1">
+          {data.plans.map((p) => (
+            <li key={p.key} className="flex items-baseline justify-between text-sm">
+              <span className="text-muted-foreground">{p.label}</span>
+              <span className="text-muted-foreground">
+                {p.priceMinorUnits !== null ? formatMoney(p.priceMinorUnits, "EUR") : ""}
+                {p.cycle !== "none" ? ` / ${p.cycle}` : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 
 export default function ProfilePage() {
   const { ready, user } = useApp();
@@ -65,6 +123,8 @@ export default function ProfilePage() {
           <Settings className="size-5" aria-hidden />
         </Link>
       </header>
+
+      <MembershipCard />
 
       {/* Reputation */}
       <div className="rounded-2xl border border-border bg-card p-4">

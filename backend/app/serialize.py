@@ -20,11 +20,15 @@ Time: every timestamp on the wire is UTC ISO-8601 with a trailing 'Z'.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable, Optional
 
 from app.clock import now_utc
+from app.config import get_config
 from app.rules import (
+    capability,
+    payment_state,
+    entitlement_plan,
     effective_auto_approve,
     effective_service_config,
     effective_service_pricing,
@@ -32,6 +36,18 @@ from app.rules import (
 )
 
 # --- time helpers ----------------------------------------------------------
+
+
+def _attribute_rows(value: object) -> list[dict]:
+    """Normalise `resources.metadata.attributes` to the [{label, value}] the
+    clients expect. Anything else degrades to an empty list rather than being
+    passed through to break the caller; a dict is rendered as its own pairs,
+    which is the one wrong shape with an obvious right reading."""
+    if isinstance(value, list):
+        return [r for r in value if isinstance(r, dict) and "label" in r and "value" in r]
+    if isinstance(value, dict):
+        return [{"label": str(k), "value": str(v)} for k, v in value.items()]
+    return []
 
 
 def _parse(value: Any) -> Optional[datetime]:
@@ -204,7 +220,192 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
         # global block over /config left the client unable to see a per-service
         # override, so it rendered a review control the API then refused.
         "capabilities": svc_config["capabilities"],
+        # The shape of the offer, so the UI can describe it before a selection
+        # exists. `priceMinorUnits` above is only the base rate; under any model
+        # other than the default it is not the price, and rendering it alone as
+        # "€65" was wrong for every tiered/per-person/subscription service.
+        "pricingModel": pricing.get("model") or "fixed",
+        "rateUnit": (pricing.get("rate") or {}).get("per") or "slot",
+        # How money is collected. `none` means the product carries no payment at
+        # all; `invoice_after` means nothing is due at booking time — a confirm
+        # screen showing "Total" with a pay affordance is wrong in both cases.
+        "paymentFlow": svc_config["payments"].get("flow") or "none",
+        "billingCycle": svc_config["payments"].get("billingCycle") or "none",
+        # What must be satisfied before this can be confirmed. Declared in the
+        # config since v2 and served nowhere, so a customer met the block only
+        # as a rejection after committing.
+        "prerequisites": [
+            {
+                "key": p.get("key"),
+                "kind": p.get("kind"),
+                "label": p.get("label") or p.get("key"),
+                "appliesTo": p.get("appliesTo"),
+                "required": bool(p.get("required")),
+                "blocksConfirmation": bool(p.get("blocksConfirmation")),
+            }
+            # Global, not per-service: `prerequisites` is a LIST, so it is
+            # deliberately absent from OVERRIDABLE_BLOCKS (block overrides
+            # deep-merge dicts) and `effective_service_config` never carries it.
+            for p in (get_config().get("prerequisites") or [])
+        ],
+        # What repeat patterns this service offers (`recurrence`). Gated on the
+        # capability too, so a config that declares patterns but turns the
+        # capability off never renders a control the API would refuse.
+        # Whether this service runs a queue for full slots (`timing.waitlist`),
+        # already gated on the capability so the UI needs only this one flag.
+        "waitlist": {
+            "enabled": bool((svc_config["timing"].get("waitlist") or {}).get("enabled"))
+            and capability("waitlist", row),
+        },
+        "recurrence": {
+            "enabled": bool(svc_config["recurrence"].get("enabled"))
+            and capability("recurrence", row),
+            "patterns": list(svc_config["recurrence"].get("patterns") or []),
+            "maxOccurrences": int(svc_config["recurrence"].get("maxOccurrences") or 1),
+        },
+        # The SHAPE of the offer. Every one of these blocks shipped in v2, was
+        # validated at load, and then reached no client — so a config could
+        # declare child pricing, paid add-ons, a per-participant intake, a course
+        # of four sessions or a two-part payment schedule and the app had no way
+        # to render, let alone collect, any of it.
+        #
+        # Resolved per service (all of `booking`/`payments`/`location` are in
+        # OVERRIDABLE_BLOCKS), so a marketplace where one tenant sells add-ons
+        # and another does not serves each the truth about itself.
+        "unitKind": svc_config["booking"].get("unitKind") or "time_slot",
+        "party": {
+            "mode": (svc_config["booking"].get("party") or {}).get("mode") or "individual",
+            "min": int((svc_config["booking"].get("party") or {}).get("min") or 1),
+            "max": (svc_config["booking"].get("party") or {}).get("max"),
+            # [{key, label, priceFactor}] — the bands a party splits into. Empty
+            # list (not null) so the client can render `.length` without a guard.
+            "composition": list((svc_config["booking"].get("party") or {}).get("composition") or []),
+            "matchResourceCapacity": bool(
+                (svc_config["booking"].get("party") or {}).get("matchResourceCapacity")
+            ),
+        },
+        "subject": {
+            "enabled": bool((svc_config["booking"].get("subject") or {}).get("enabled")),
+            "noun": (svc_config["booking"].get("subject") or {}).get("noun") or "Subject",
+            "fields": list((svc_config["booking"].get("subject") or {}).get("fields") or []),
+        },
+        # Paid extras. Priced server-side by `rules.resolve_options`, so these
+        # descriptors are for rendering the controls only — a client that invents
+        # an option key or a price is rejected, not believed.
+        "options": list(svc_config["booking"].get("options") or []),
+        "sequence": {
+            "enabled": bool((svc_config["booking"].get("sequence") or {}).get("enabled")),
+            "steps": int((svc_config["booking"].get("sequence") or {}).get("steps") or 1),
+            "minGapHours": int((svc_config["booking"].get("sequence") or {}).get("minGapHours") or 0),
+            "maxGapHours": (svc_config["booking"].get("sequence") or {}).get("maxGapHours"),
+        },
+        # When each part of the money is due (`payments.schedule`). Display-only:
+        # no payments table exists, so this describes the terms the customer is
+        # agreeing to, which is exactly what a confirm screen owes them.
+        "paymentSchedule": list(svc_config["payments"].get("schedule") or []),
+        # Where the service happens. A deployment offering pickup/delivery/remote
+        # has to say so before the booking, not after.
+        "locationModes": list(svc_config["location"].get("modes") or ["on_site"]),
+        "locationDefault": svc_config["location"].get("default") or "on_site",
         "resourceIds": list(resource_ids),
+    }
+
+
+def loan_state(md: dict, end_utc, service: dict | None = None, now=None) -> dict | None:
+    """The return leg of a rentable booking, or None when nothing is loaned.
+
+    `inventory.returnRequired` deployments (ski hire, a tool library, plant
+    rental) do not finish when the slot ends — the item has to come back, and
+    late costs money. The whole block was declared and enforced by nothing: a
+    tool library could state a 168-hour loan and a 100/day overdue fee and the
+    engine would treat the booking as complete the moment the slot ended.
+
+    The booking IS the loan record, so this rides in `bookings.metadata` rather
+    than a new table — base tables stay frozen and new fields go in metadata.
+
+    `dueBackUtc` is slot end + `loanPeriodHours`; a null loan period means the
+    item is due when the booking ends. The fee is computed, never stored: it
+    changes with the clock, so persisting it would be stale the next day.
+    """
+    inventory = (effective_service_config(service) if service is not None
+                 else {"inventory": get_config()["inventory"]})["inventory"]
+    if not inventory.get("returnRequired"):
+        return None
+    end = _parse(end_utc)
+    if end is None:
+        return None
+    hours = inventory.get("loanPeriodHours")
+    due = end + timedelta(hours=int(hours)) if hours else end
+    returned_at = md.get("returned_at_utc")
+    now = now or datetime.now(timezone.utc)
+    reference = _parse(returned_at) if returned_at else now
+    # Whole days late, floored: a business that charges "per day overdue" does
+    # not bill a day that has not elapsed.
+    days_late = max(0, (reference - due).days) if reference > due else 0
+    per_day = int(inventory.get("overdueFeePerDayMinorUnits") or 0)
+    return {
+        "dueBackUtc": iso_utc(due),
+        "returnedAtUtc": iso_utc(returned_at) if returned_at else None,
+        "daysOverdue": days_late,
+        "overdueFeeMinorUnits": days_late * per_day,
+        "overdueFeePerDayMinorUnits": per_day,
+    }
+
+
+def serialize_entitlement(row: dict) -> dict:
+    """One `entitlements` row on the wire. `plan` is resolved from the config so
+    the client never has to hold the catalogue to render what it owns."""
+    plan = entitlement_plan(row.get("plan_key")) or {}
+    total = row.get("credits_total")
+    return {
+        "id": row["id"],
+        "planKey": row.get("plan_key"),
+        # Falls back to the raw key: a retired plan still has to render as
+        # SOMETHING in the customer's history rather than an empty label.
+        "label": plan.get("label") or row.get("plan_key"),
+        "status": row.get("status"),
+        "discountBps": int(plan.get("discountBps") or 0),
+        "creditsTotal": total,
+        "creditsUsed": int(row.get("credits_used") or 0),
+        "creditsRemaining": None if total is None
+        else max(0, int(total) - int(row.get("credits_used") or 0)),
+        "startsAt": iso_utc(row.get("starts_at")) if row.get("starts_at") else None,
+        "endsAt": iso_utc(row.get("ends_at")) if row.get("ends_at") else None,
+    }
+
+
+def serialize_quote(priced: dict, service: dict | None = None, *,
+                    entitlement: dict | None = None) -> dict:
+    """A `pricing.quote()` result on the wire.
+
+    `breakdown` is the engine's own line list — base rate, tier, each fee, the
+    cap adjustment — so the UI can show WHY a total is what it is instead of
+    reproducing the arithmetic and drifting from it.
+    """
+    config = effective_service_config(service) if service is not None else None
+    payments = (config or {}).get("payments") or {}
+    return {
+        "amountMinorUnits": priced.get("amountMinorUnits", 0),
+        "currency": priced.get("currency") or "EUR",
+        "depositMinorUnits": priced.get("depositMinorUnits", 0) or 0,
+        "breakdown": [
+            {
+                "label": line.get("label"),
+                "amountMinorUnits": line.get("amountMinorUnits", 0),
+            }
+            for line in (priced.get("breakdown") or [])
+        ],
+        # Repeated here so a quote is self-contained: the confirm screen decides
+        # what to say about money from this one response.
+        "paymentFlow": payments.get("flow") or "none",
+        # The entitlement that was applied, so the customer can see WHY they were
+        # charged less — a silent discount is as confusing as a silent surcharge.
+        "entitlement": None if not entitlement else {
+            "key": entitlement.get("key"),
+            "label": entitlement.get("label"),
+            "discountBps": entitlement.get("discountBps", 0),
+            "creditsRemaining": entitlement.get("creditsRemaining"),
+        },
     }
 
 
@@ -217,7 +418,12 @@ def serialize_resource(row: dict) -> dict:
         "description": row.get("description"),
         "imageUrl": md.get("image_url"),
         "capacity": int(md.get("capacity", 1)),
-        "attributes": md.get("attributes") or [],
+        # `metadata` is the no-migration extension point, so its contents are
+        # not schema-checked: a row can carry anything. The API contract here is
+        # a LIST of {label,value} (see types/domain.ts) and the provider page
+        # maps over it, so a dict or string sent straight through crashed the
+        # page with "attributes.slice is not a function". Coerce instead.
+        "attributes": _attribute_rows(md.get("attributes")),
         "active": bool(md.get("active", True)),
     }
 
@@ -268,6 +474,11 @@ def serialize_booking(
     include_client: bool = False,
     provider_name: str = "",
     service_name: str = "",
+    # Optional: `inventory` is in OVERRIDABLE_BLOCKS, so a caller that already
+    # has the service row gets its override honoured. Callers that don't fall
+    # back to the global block, which is right for every single-tenant
+    # deployment and for any service that declares no override.
+    service: Optional[dict] = None,
 ) -> dict:
     md = row.get("metadata") or {}
     review_out = None
@@ -300,6 +511,22 @@ def serialize_booking(
         "cancelledAtUtc": iso_utc(md.get("cancelled_at_utc")) if md.get("cancelled_at_utc") else None,
         "changeHistory": _change_history(md),
         "review": review_out,
+        # None unless `inventory.returnRequired` — the overwhelming majority of
+        # deployments loan nothing and must not grow a return surface.
+        "loan": loan_state(md, end_utc, service, now),
+        # What still blocks confirmation. Empty on every deployment that
+        # declares no blocking prerequisite, which is almost all of them.
+        "prerequisitesPending": list(md.get("prerequisites_pending") or []),
+        "prerequisitesMet": list(md.get("prerequisites_met") or []),
+        # What is owed and whether it is settled — derived from `payments.flow`,
+        # never stored, so it cannot drift from the config after a pivot.
+        "payment": payment_state(md, service, row.get("status")),
+        # What the customer actually chose, where the config offers a choice.
+        # All three are absent on a deployment that declares no composition, no
+        # options and no subject, which is most of them.
+        "partyBands": md.get("party_bands") or None,
+        "options": list(md.get("options") or []),
+        "subject": md.get("subject") or None,
     }
     if include_client:
         # Owner-only view: who booked. An additive field (never sent to clients).

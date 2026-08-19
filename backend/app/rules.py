@@ -102,6 +102,99 @@ def _buffer(minutes, ctx) -> None:
             )
 
 
+def _window_dates(window: dict) -> tuple[str, str]:
+    return str(window.get("startDate") or ""), str(window.get("endDate") or "")
+
+
+def _local_date(ctx: dict) -> str:
+    """The slot's date in the BUSINESS's timezone, as `YYYY-MM-DD`.
+
+    `timing.blackouts` and `timing.seasons` are written as local dates — a
+    business closing for Christmas closes on its own calendar, not on UTC's — so
+    comparing a UTC date would close the wrong day either side of midnight. The
+    router passes the resolved zone; UTC is the fallback when it cannot.
+    """
+    start = parse_ts(ctx["slot_starts_at"])
+    name = ctx.get("timezone")
+    if name:
+        try:
+            from zoneinfo import ZoneInfo
+
+            start = start.astimezone(ZoneInfo(str(name)))
+        except Exception:
+            pass
+    return start.date().isoformat()
+
+
+def _blackouts(windows, ctx) -> None:
+    """`timing.blackouts` — dates the business is closed.
+
+    Declared in v2, validated at load for shape, and enforced by nothing: a
+    config could black out Christmas and the engine would take bookings all
+    through it. Inclusive at both ends, because a closure written 24th–26th
+    means the 26th is shut.
+    """
+    if not windows:
+        return
+    today = _local_date(ctx)
+    for window in windows:
+        if not isinstance(window, dict):
+            continue
+        start, end = _window_dates(window)
+        if start and end and start <= today <= end:
+            label = window.get("label") or window.get("key") or "that period"
+            raise RuleViolation(f"Closed for {label}.")
+
+
+def _seasons(windows, ctx) -> None:
+    """`timing.seasons` — the periods the business actually trades.
+
+    A declared season list is a statement that the business is OPEN then, which
+    only means something if it is shut otherwise; a config with no seasons
+    trades year-round and this is a no-op. Same inclusive bounds as a blackout.
+    """
+    if not windows:
+        return
+    today = _local_date(ctx)
+    dated = [w for w in windows if isinstance(w, dict) and all(_window_dates(w))]
+    if not dated:
+        return
+    for window in dated:
+        start, end = _window_dates(window)
+        if start <= today <= end:
+            return
+    raise RuleViolation("That date is outside the season this runs in.")
+
+
+def closure_reason(slot_starts_at: str | datetime, service: dict | None = None) -> str | None:
+    """Why this instant is not bookable at all, or None.
+
+    The same two windows `apply_rules` enforces on create (`timing.blackouts`,
+    `timing.seasons`), reached from the READ path so the calendar does not offer
+    a slot the booking call will refuse. Showing a bookable-looking slot inside a
+    declared closure is the failure mode this repo keeps fixing elsewhere; a
+    closure the customer only meets at the confirm screen is the same bug.
+
+    Deliberately narrower than `apply_rules`: lead time and the advance window
+    are about a slot being too soon or too far, not about the business being
+    shut, and they already render as their own states.
+    """
+    cfg = effective_service_config(service)
+    timing = cfg.get("timing") or {}
+    if not (timing.get("blackouts") or timing.get("seasons")):
+        return None
+    ctx = {
+        "slot_starts_at": slot_starts_at,
+        "timezone": (cfg.get("location") or {}).get("timezone") or "UTC",
+    }
+    try:
+        _blackouts(timing.get("blackouts"), ctx)
+        _seasons(timing.get("seasons"), ctx)
+    except RuleViolation as e:
+        return str(e)
+    return None
+
+
 # -- registry: event -> {config key -> validator} ------------------------
 
 # Events a router may dispatch. An event with an empty map is a live extension
@@ -110,12 +203,21 @@ def _buffer(minutes, ctx) -> None:
 # disables it again — no router change either way. That is the escape hatch the
 # README promises, and it is why this registry exists rather than a pile of ifs.
 #
-# `advanceBookingWindowDays` is registered but deliberately NOT dispatched: the
-# demo seed lays down slots 56 days out (seed_data.py grids) while the shipped
-# config allows 30, so enforcing it today would make half the seeded calendar
-# unbookable. Wire it once the seed horizon and the config agree.
+# `advanceBookingWindowDays` IS dispatched now: `seed_config._grid` seeds
+# exactly the declared window, so the seed horizon and the config finally agree.
 RULES = {
-    "booking.create": {"leadTimeMinutes": _lead_time},
+    "booking.create": {
+        "leadTimeMinutes": _lead_time,
+        # Dispatched now that the seed lays down exactly
+        # `advanceBookingWindowDays` of slots (see seed_config._grid). While the
+        # grid reached further than the config allowed, enforcing this made half
+        # the seeded calendar unbookable, which is why it sat in UNDISPATCHED.
+        "advanceBookingWindowDays": _advance_window,
+        # Both shipped in v2 and enforced nothing until now — exactly the
+        # "config key plus a validator" this registry exists for.
+        "blackouts": _blackouts,
+        "seasons": _seasons,
+    },
     "booking.change": {},
     "booking.approve": {},
     "booking.cancel": {},
@@ -127,7 +229,6 @@ RULES = {
 
 # Registered, not dispatched.
 #
-# `advanceBookingWindowDays`: see the note above (56-day seed vs 30-day config).
 # `maxBookingsPerSlot`: capacity is enforced upstream by `_resolve_selection` +
 # the `slot_occupancy` view, which understand party size and multi-slot holds.
 # Dispatching `_capacity` here as well would re-apply `min(capacity, maxPerSlot)`
@@ -143,7 +244,6 @@ RULES = {
 # rule with a `<` where `within_cutoff` has `>=`; dispatching it would
 # double-enforce on a subtly different boundary.
 UNDISPATCHED = {
-    "advanceBookingWindowDays": _advance_window,
     "maxBookingsPerSlot": _capacity,
     "cancellationWindowHours": _cancellation_window,
 }
@@ -212,7 +312,7 @@ _SERVICE_RULE_MAP = {
 }
 
 # The v2 blocks a service may override wholesale via `services.metadata.<block>`.
-# `terms`/`copy`/`theme` are deliberately absent: presentation stays global for
+# `terms`/`copy` are deliberately absent: presentation stays global for
 # now (per-service vocabulary is a frontend change, not a backend one).
 OVERRIDABLE_BLOCKS = (
     "booking",
@@ -421,8 +521,308 @@ def capability(name: str, service: dict | None = None) -> bool:
     return bool(get_config()["capabilities"].get(name, True))
 
 
+def payment_state(metadata: dict | None, service: dict | None = None,
+                  status: str | None = None) -> dict:
+    """What is owed on a booking and whether it has been settled.
+
+    `payments.flow` decided nothing before this: a deployment could declare
+    `prepay` or `invoice_after` and the engine recorded no notion of money owed,
+    so an owner had no way to tell a paid booking from an unpaid one.
+
+    The state is DERIVED from the flow plus what has been recorded as paid,
+    rather than stored as a free-standing field, so it cannot drift out of sync
+    with the config the way a persisted enum would after a pivot.
+
+      none         — the product carries no payment at all
+      not_required — cancelled/rejected: nothing is owed either way
+      paid         — settled (recorded via POST /bookings/{id}/pay)
+      deposit_due  — a deposit is owed now, the balance later
+      due          — the full amount is owed now (prepay / pay_on_site)
+      invoiced     — nothing owed at booking time; billed afterwards
+    """
+    md = metadata or {}
+    flow = (effective_service_config(service)["payments"] or {}).get("flow") or "none"
+    total = int(md.get("price_minor_units") or 0)
+    deposit = int(md.get("deposit_minor_units") or 0)
+    paid = int(md.get("amount_paid_minor_units") or 0)
+
+    if flow == "none":
+        state = "none"
+    elif status in ("cancelled", "rejected"):
+        # A cancelled booking owes nothing. Any refund is the business's own
+        # process; the engine does not pretend to run one.
+        state = "not_required"
+    elif paid >= total and total > 0:
+        state = "paid"
+    elif flow == "invoice_after":
+        state = "invoiced"
+    elif deposit > 0 and paid < deposit:
+        state = "deposit_due"
+    elif total > 0:
+        state = "due"
+    else:
+        state = "none"
+
+    return {
+        "flow": flow,
+        "state": state,
+        "totalMinorUnits": total,
+        "depositMinorUnits": deposit,
+        "paidMinorUnits": paid,
+        "outstandingMinorUnits": max(0, total - paid) if state not in ("none", "not_required") else 0,
+        "currency": md.get("currency") or "EUR",
+    }
+
+
+def blocking_prerequisites(service: dict | None = None) -> list[dict]:
+    """Prerequisites that must be satisfied before a booking may CONFIRM.
+
+    `prerequisites` is a list, so it is not in OVERRIDABLE_BLOCKS and stays
+    global — `service` is accepted for symmetry and future per-service support.
+
+    The block shipped in v2 and gated nothing: a config could declare a required
+    committee approval or a licence check and the engine would confirm the
+    booking anyway, which is the exact failure `capability()` exists to prevent,
+    one level up.
+    """
+    out = []
+    for p in get_config().get("prerequisites") or []:
+        if isinstance(p, dict) and p.get("blocksConfirmation"):
+            out.append(p)
+    return out
+
+
+def unmet_prerequisites(metadata: dict | None, service: dict | None = None) -> list[str]:
+    """Which blocking prerequisites this booking has NOT satisfied.
+
+    Satisfaction is recorded on the booking (`metadata.prerequisites_met`), not
+    on the customer: the same person can be cleared for one booking and not
+    another, and a licence checked last year is not evidence about today.
+    """
+    met = set((metadata or {}).get("prerequisites_met") or [])
+    return [p["key"] for p in blocking_prerequisites(service)
+            if p.get("key") and p["key"] not in met]
+
+
+def entitlement_plan(plan_key: str, service: dict | None = None) -> dict | None:
+    """The config's `entitlements.plans[]` entry for `plan_key`, or None.
+
+    Plans live in `domain.config.json`, not the database, so a stored
+    entitlement row names its plan by key. A key that no longer resolves — the
+    plan was renamed or retired — yields None and the entitlement goes inert
+    rather than erroring: history must survive a config edit.
+    """
+    if not plan_key:
+        return None
+    block = effective_service_config(service)["entitlements"] if service is not None \
+        else get_config()["entitlements"]
+    for plan in block.get("plans") or []:
+        if isinstance(plan, dict) and plan.get("key") == plan_key:
+            return plan
+    return None
+
+
+def resolve_entitlement(rows: list[dict], service: dict | None = None,
+                        now: datetime | None = None) -> dict | None:
+    """Pick the entitlement that applies to a booking, resolved against config.
+
+    `rows` are this customer's `entitlements` rows. Returns the engine-facing
+    shape `pricing.quote()` expects — `{key, label, discountBps, row, plan}` —
+    or None when the customer holds nothing that applies.
+
+    Selection rules, in order:
+      * the row must be `active` and inside its `starts_at`/`ends_at` window;
+      * its `plan_key` must still resolve in the config;
+      * a `pass`/`credits` plan must have a credit left to spend;
+      * the plan must cover this service (`appliesToServices` empty = all).
+    Ties break on the LARGEST discount, so a customer holding two plans is never
+    quietly charged the worse of the two.
+    """
+    now = now or datetime.now(timezone.utc)
+    service_id = (service or {}).get("id")
+    best: dict | None = None
+    for row in rows or []:
+        if row.get("status") != "active":
+            continue
+        starts, ends = row.get("starts_at"), row.get("ends_at")
+        if starts and parse_ts(starts) > now:
+            continue
+        if ends and parse_ts(ends) <= now:
+            continue
+        plan = entitlement_plan(row.get("plan_key"), service)
+        if plan is None:
+            continue
+        applies = plan.get("appliesToServices") or []
+        if applies and service_id and service_id not in applies:
+            continue
+        total = row.get("credits_total")
+        if total is not None and int(row.get("credits_used") or 0) >= int(total):
+            continue
+        candidate = {
+            "key": plan.get("key"),
+            "label": plan.get("label") or plan.get("key"),
+            "discountBps": int(plan.get("discountBps") or 0),
+            "creditsRemaining": None if total is None
+            else int(total) - int(row.get("credits_used") or 0),
+            "row": row,
+            "plan": plan,
+        }
+        if best is None or candidate["discountBps"] > best["discountBps"]:
+            best = candidate
+    return best
+
+
 def within_cutoff(slot_starts_at: str | datetime, cutoff_hours, now: datetime | None = None) -> bool:
     """True when `now` is inside the cancellation/change cutoff of a slot start
     (the point past which a client may no longer cancel/reschedule)."""
     now = now or datetime.now(timezone.utc)
     return now >= parse_ts(slot_starts_at) - timedelta(hours=cutoff_hours)
+
+
+# -- booking-shape resolvers ---------------------------------------------
+#
+# `booking.party.composition`, `booking.options` and `booking.subject` shipped in
+# v2 and were read by nothing: the config could declare child pricing, paid
+# add-ons and a per-subject intake and the booking path ignored all three. The
+# pricing engine already accepts `person_units` and `subject` in its context —
+# nothing ever built them. These three turn a request body into exactly those
+# inputs, validating against the SERVICE's resolved `booking` block so a
+# per-service override is honoured like every other block.
+#
+# They raise RuleViolation (not ApiError) so this module stays free of FastAPI;
+# the routers map it to INVALID_RANGE the same way they do for `apply_rules`.
+
+
+def _booking_block(service: dict | None) -> dict:
+    return effective_service_config(service).get("booking") or {}
+
+
+def resolve_party_bands(
+    bands: dict | None, party_size: int, service: dict | None = None
+) -> tuple[float | None, dict | None]:
+    """Turn `{adult: 2, child: 1}` into a weighted head count.
+
+    `party.composition` gives each band a `priceFactor`, so three heads are not
+    automatically three units of the rate: 2 adults + 1 child at 0.5 is 2.5.
+    Returns `(person_units, normalised_bands)`, both None when the deployment
+    declares no composition or the caller sent none — in which case pricing
+    falls back to the raw party size, exactly as before.
+
+    The counts must add up to `partySize`, because both numbers reach the
+    engine: the party size holds capacity and the bands price it, and a
+    disagreement means one of the two is wrong.
+    """
+    composition = (_booking_block(service).get("party") or {}).get("composition")
+    if not composition:
+        return None, None
+    if not bands:
+        return None, None
+    known = {b.get("key"): b for b in composition if isinstance(b, dict) and b.get("key")}
+    counts: dict[str, int] = {}
+    for key, count in bands.items():
+        if key not in known:
+            raise RuleViolation(f"Unknown party band {key!r}.")
+        n = int(count or 0)
+        if n < 0:
+            raise RuleViolation(f"Party band {key!r} cannot be negative.")
+        if n:
+            counts[key] = n
+    if not counts:
+        return None, None
+    if sum(counts.values()) != int(party_size):
+        raise RuleViolation(
+            f"The party bands add up to {sum(counts.values())}, not the party size "
+            f"of {int(party_size)}."
+        )
+    units = 0.0
+    for key, n in counts.items():
+        factor = known[key].get("priceFactor")
+        units += n * (1.0 if factor is None else float(factor))
+    return units, counts
+
+
+def resolve_options(
+    selections: dict | None, service: dict | None = None
+) -> list[dict]:
+    """Turn `{kitHire: true, mealPlan: "lunch"}` into priced add-on lines.
+
+    Each line is `{key, label, amountMinorUnits}` — the shape `pricing.quote()`
+    adds to the subtotal, so an add-on is charged, shown in the breakdown, and
+    covered by percentage fees and the deposit like any other part of the price.
+
+    A boolean option contributes its own `priceMinorUnits`; a select option
+    contributes the chosen `choices[]` entry's. An unknown option key or choice
+    is a rejection, not a silent zero: a client sending `mealPlan: "banquet"`
+    against a config that never declared it must not book a free banquet.
+    """
+    declared = _booking_block(service).get("options") or []
+    if not selections:
+        return []
+    by_key = {o.get("key"): o for o in declared if isinstance(o, dict) and o.get("key")}
+    lines: list[dict] = []
+    for key, value in selections.items():
+        option = by_key.get(key)
+        if option is None:
+            raise RuleViolation(f"Unknown option {key!r}.")
+        label = option.get("label") or key
+        if option.get("type") == "select":
+            if value in (None, False, ""):
+                continue
+            choice = next(
+                (c for c in (option.get("choices") or [])
+                 if isinstance(c, dict) and c.get("key") == value),
+                None,
+            )
+            if choice is None:
+                raise RuleViolation(f"Unknown choice {value!r} for option {key!r}.")
+            amount = int(choice.get("priceMinorUnits") or 0)
+            lines.append({
+                "key": key,
+                "label": f"{label} — {choice.get('label') or choice.get('key')}",
+                "choice": choice.get("key"),
+                "amountMinorUnits": amount,
+            })
+        else:
+            if not value:
+                continue
+            lines.append({
+                "key": key,
+                "label": label,
+                "choice": True,
+                "amountMinorUnits": int(option.get("priceMinorUnits") or 0),
+            })
+    return lines
+
+
+def resolve_subject(subject: dict | None, service: dict | None = None) -> dict | None:
+    """Validate the thing the booking is ABOUT (`booking.subject`).
+
+    A vet books a pet, a garage books a vehicle, a school books a child. The
+    block declares the noun and the fields; this keeps only declared fields and
+    refuses a missing required one, so the intake is enforced at the booking
+    rather than discovered at the counter.
+
+    `pricing.match_tier` already reads `ctx["subject"]` for a `subjectField`
+    tier, which is why the validated dict is returned rather than just checked.
+    """
+    block = _booking_block(service).get("subject") or {}
+    if not block.get("enabled"):
+        return None
+    fields = [f for f in (block.get("fields") or []) if isinstance(f, dict) and f.get("key")]
+    given = subject or {}
+    out: dict = {}
+    for field in fields:
+        key = field["key"]
+        value = given.get(key)
+        blank = value is None or (isinstance(value, str) and not value.strip())
+        if blank:
+            if field.get("required"):
+                noun = block.get("noun") or "Subject"
+                raise RuleViolation(f"{noun}: {field.get('label') or key} is required.")
+            continue
+        if field.get("type") == "select":
+            allowed = field.get("options") or []
+            if allowed and value not in allowed:
+                raise RuleViolation(f"{field.get('label') or key} must be one of {allowed}.")
+        out[key] = value
+    return out or None

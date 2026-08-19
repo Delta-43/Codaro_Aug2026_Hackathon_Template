@@ -13,13 +13,16 @@ which returns a list.
 """
 from __future__ import annotations
 
-from datetime import timezone
+import calendar
+from datetime import timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException
 
+import logging
+
 from app.auth import AuthUser, enforce_rls_write, require_owner, require_user
-from app.db import get_supabase, get_user_client, maybe_row
+from app.db import fetch_all, get_supabase, get_user_client, maybe_row
 from app.errors import (
     CAPACITY_EXCEEDED,
     CUTOFF_PASSED,
@@ -29,7 +32,7 @@ from app.errors import (
     api_error,
 )
 from app.meta import merged_metadata
-from app.models import BookingCreateReq, ClientReviewReq, ReviewReq, RescheduleReq
+from app.models import BookingCreateReq, ClientReviewReq, QuoteReq, ReviewReq, RescheduleReq
 from app.pricing import quote
 from app.rules import (
     RuleViolation,
@@ -39,12 +42,27 @@ from app.rules import (
     effective_service_config,
     effective_service_pricing,
     effective_service_rules,
+    blocking_prerequisites,
+    payment_state,
+    resolve_entitlement,
+    resolve_options,
+    resolve_party_bands,
+    resolve_subject,
+    unmet_prerequisites,
     within_cutoff,
 )
-from app.serialize import _parse, effective_booking_status, iso_utc, serialize_booking
+from app.routers.waitlist import promote_from_waitlist
+from app.serialize import (
+    _parse,
+    effective_booking_status,
+    iso_utc,
+    serialize_booking,
+    serialize_quote,
+)
 from app.clock import now_utc
 from app.references import booking_reference
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
 # Keys `create_booking` writes into `bookings.metadata` itself. A client-supplied
@@ -53,6 +71,7 @@ _ENGINE_BOOKING_KEYS = (
     "party_size", "reference", "price_minor_units", "currency", "price_breakdown",
     "deposit_minor_units", "provider_id", "service_id", "resource_id", "user_id",
     "slot_ids", "change_history", "cancelled_at_utc",
+    "party_bands", "options", "subject",
 )
 
 # --- lookups ---------------------------------------------------------------
@@ -293,7 +312,128 @@ def get_booking(booking_id: str, user: AuthUser = Depends(require_user)):
     return _enrich(db, uc, [booking])[0]
 
 
-def _price(service: dict | None, rows: list, party: int) -> dict:
+def _entitlement(db, user_id: str | None, service: dict | None) -> dict | None:
+    """The entitlement this customer holds that applies to this service.
+
+    Read through the SERVICE key rather than a JWT-scoped client: the quote path
+    and the create path must agree, and an owner approving a pending request
+    prices a booking that is not their own row. RLS still protects the customer's
+    own reads via `GET /me/entitlements`.
+    """
+    if not user_id or not capability("entitlements", service):
+        return None
+    try:
+        rows = (
+            db.table("entitlements").select("*")
+            .eq("user_id", user_id).eq("status", "active").execute().data
+            or []
+        )
+    except Exception:
+        # An entitlement is a discount, never a gate: a lookup failure must not
+        # take down booking. Worst case the customer pays list price and the
+        # owner refunds — far better than a 500 on the commit path.
+        logger.exception("Could not load entitlements for %s", user_id)
+        return None
+    return resolve_entitlement(rows, service)
+
+
+_PATTERN_DELTAS = {"weekly": 7, "biweekly": 14}
+
+
+# The pseudo-pattern that means `booking.sequence` rather than
+# `recurrence.patterns`. Never a config value — the client names it to say "book
+# the whole course", and `_resolve_repeat` validates it against the block.
+SEQUENCE_PATTERN = "sequence"
+
+
+def _occurrence_starts(first_start, pattern: str, count: int, gap_hours: int = 0) -> list:
+    """The start instants of a repeating series, first occurrence included.
+
+    Weekly/biweekly step whole days, so they survive a DST change with the
+    wall-clock time intact only if the caller re-localises; slots are stored in
+    UTC and matched by exact instant below, so a series that crosses a DST
+    boundary simply finds no slot for that occurrence and reports it skipped
+    rather than silently booking an hour out.
+
+    Monthly steps by calendar month and CLAMPS to the last valid day, so a
+    series starting on the 31st does not skip February.
+    """
+    out = [first_start]
+    for i in range(1, count):
+        if pattern == SEQUENCE_PATTERN:
+            # `sequence.minGapHours` is the SMALLEST legal gap; using it as the
+            # step books the course as tightly as the config allows, which is
+            # what "session 2 is a week after session 1" means in practice.
+            out.append(first_start + timedelta(hours=max(1, gap_hours) * i))
+        elif pattern in _PATTERN_DELTAS:
+            out.append(first_start + timedelta(days=_PATTERN_DELTAS[pattern] * i))
+        else:  # monthly
+            month = first_start.month - 1 + i
+            year = first_start.year + month // 12
+            month = month % 12 + 1
+            day = min(first_start.day, calendar.monthrange(year, month)[1])
+            out.append(first_start.replace(year=year, month=month, day=day))
+    return out
+
+
+def _slots_at(db, resource_id: str, starts: list) -> dict:
+    """Map each wanted start instant to the slot on that resource, if one exists.
+
+    A recurring booking can only land on a slot the business actually opened —
+    the engine never invents availability. An occurrence with no slot is
+    reported back as skipped rather than quietly dropped.
+    """
+    if not starts:
+        return {}
+    lo, hi = min(starts), max(starts)
+    # Paged: a year-long series on a 30-minute resource spans thousands of
+    # slots, and PostgREST's silent 1000-row cap would drop every occurrence
+    # past the first page — reported to the customer as NO_SLOT for slots that
+    # exist and are bookable.
+    rows = fetch_all(
+        db.table("slots").select("*").eq("resource_id", resource_id)
+        .gte("starts_at", iso_utc(lo)).lte("starts_at", iso_utc(hi))
+    )
+    by_instant = {}
+    for row in rows:
+        parsed = _parse(row["starts_at"])
+        if parsed is not None:
+            by_instant[parsed] = row
+    return {s: by_instant[s] for s in starts if s in by_instant}
+
+
+def _consume_credit(db, entitlement: dict | None, booking_id: str) -> None:
+    """Spend one credit off a `pass`/`credits` entitlement.
+
+    Only credit-bearing plans have a `credits_total`; a membership discounts
+    every booking and consumes nothing, so it is left alone.
+
+    Deliberately AFTER the booking row exists and deliberately best-effort: the
+    booking is the thing the customer is owed, and failing to decrement a
+    counter must not undo it or 500 the request. The alternative — decrement
+    first, then insert — spends a credit for a booking that may never exist,
+    which is the worse failure. The booking records which entitlement it used,
+    so a missed decrement is reconcilable.
+    """
+    if not entitlement:
+        return
+    row = entitlement.get("row") or {}
+    if row.get("credits_total") is None:
+        return
+    try:
+        db.table("entitlements").update(
+            {"credits_used": int(row.get("credits_used") or 0) + 1}
+        ).eq("id", row["id"]).execute()
+    except Exception:
+        logger.exception(
+            "Could not spend a credit on entitlement %s for booking %s",
+            row.get("id"), booking_id,
+        )
+
+
+def _price(service: dict | None, rows: list, party: int,
+           entitlement: dict | None = None, *, person_units: float | None = None,
+           addons: list | None = None, subject: dict | None = None) -> dict:
     """Quote a selection through the config-driven pricing engine.
 
     v1 computed `priceMinorUnits * len(rows) * party` inline here. The default
@@ -317,6 +457,14 @@ def _price(service: dict | None, rows: list, party: int) -> dict:
             "duration_minutes": duration,
             "now": now_utc(),
             "start_local": start.astimezone(tz) if start else None,
+            "entitlement": entitlement,
+            # The three inputs `pricing.quote()` has always documented and never
+            # been given: a weighted head count from `party.composition`, the
+            # chosen `booking.options` as priced lines, and the `booking.subject`
+            # a `subjectField` tier matches on.
+            "person_units": person_units,
+            "addons": addons or [],
+            "subject": subject,
         },
     )
 
@@ -329,6 +477,56 @@ def _business_tz(service: dict | None):
         return ZoneInfo(name)
     except Exception:
         return timezone.utc
+
+
+def _booking_shape(payload, service: dict, party: int) -> tuple[float | None, dict | None, list, dict | None]:
+    """Resolve the request's party bands, options and subject against the config.
+
+    Quote and create both call this, for the same reason `_price` is shared: the
+    number on the confirm screen has to be the number charged, and an add-on the
+    quote priced must be an add-on the booking records. A violation is raised
+    before anything is written.
+    """
+    try:
+        person_units, bands = resolve_party_bands(
+            getattr(payload, "party_bands", None), party, service
+        )
+        addons = resolve_options(getattr(payload, "options", None), service)
+        subject = resolve_subject(getattr(payload, "subject", None), service)
+    except RuleViolation as e:
+        raise api_error(INVALID_RANGE, str(e))
+    return person_units, bands, addons, subject
+
+
+@router.post("/quote")
+def quote_selection(payload: QuoteReq, user: AuthUser = Depends(require_user)):
+    """Price a selection without committing it.
+
+    Runs `_resolve_selection` + `_price` — byte for byte the path
+    `create_booking` takes — so the number shown on the confirm screen is the
+    number that will be charged. The frontend previously multiplied
+    `priceMinorUnits * slots * party` itself; that is only the DEFAULT pricing
+    block's formula, so every `per_hour` / `per_person` / `tiered` /
+    `subscription` / `free` service quoted one price and billed another, and a
+    declared fee, cap or deposit was invisible until after the booking existed.
+
+    Read-only: no row is written and no capacity is held. It still validates the
+    selection, so an unbookable range surfaces the same ApiError the create
+    would raise rather than a price for something that cannot be booked.
+    """
+    db = get_supabase()
+    service = _load_service(db, payload.service_id)
+    rules = effective_service_rules(service)
+    party = max(1, int(payload.party_size or 1))
+    occ = _occ_by_id(db, payload.slot_ids)
+    rows = _resolve_selection(rules, occ, payload.slot_ids, payload.resource_id, party, credit=set())
+    ent = _entitlement(db, user.id, service)
+    person_units, _bands, addons, subject = _booking_shape(payload, service, party)
+    priced = _price(
+        service, rows, party, ent,
+        person_units=person_units, addons=addons, subject=subject,
+    )
+    return serialize_quote(priced, service, entitlement=ent)
 
 
 @router.post("")
@@ -356,7 +554,9 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
     try:
         apply_rules(
             "booking.create",
-            {"slot_starts_at": rows[0]["starts_at"]},
+            # The zone matters: `blackouts`/`seasons` are written as local dates,
+            # so a UTC comparison closes the wrong day either side of midnight.
+            {"slot_starts_at": rows[0]["starts_at"], "timezone": str(_business_tz(service))},
             # THIS service's resolved timing, not the global block. `timing` is in
             # OVERRIDABLE_BLOCKS and the write gate accepts a per-service
             # `leadTimeMinutes` — reading the global block here made this the one
@@ -368,8 +568,32 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
         raise api_error(INVALID_RANGE, str(e))
 
     auto_approve = effective_auto_approve(service)
-    status = "confirmed" if auto_approve else "pending"
-    priced = _price(service, rows, party)
+    # A blocking prerequisite outranks auto-approve: an instant-confirmation
+    # service that also demands a committee sign-off must NOT confirm, or the
+    # gate is decorative. Pending holds no capacity, so the seat stays live
+    # until the prerequisite is actually cleared.
+    pending_prereqs = (
+        [p["key"] for p in blocking_prerequisites(service) if p.get("key")]
+        if capability("prerequisites", service) else []
+    )
+    # A quote-priced service cannot confirm on the spot either: the price does
+    # not exist yet. `pricing.model: "quote"` + `capabilities.quotes` shipped in
+    # v2 and gated nothing, so a quote request auto-confirmed at a total of zero
+    # — the customer held a booking the business had never priced.
+    by_quote = (
+        effective_service_pricing(service).get("model") == "quote"
+        and capability("quotes", service)
+    )
+    status = "confirmed" if auto_approve and not pending_prereqs and not by_quote else "pending"
+    # Validated here, before anything is written: a repeat this service cannot
+    # honour must not leave a committed first booking behind.
+    repeat = _resolve_repeat(payload, service)
+    entitlement = _entitlement(db, user.id, service)
+    person_units, bands, addons, subject = _booking_shape(payload, service, party)
+    priced = _price(
+        service, rows, party, entitlement,
+        person_units=person_units, addons=addons, subject=subject,
+    )
 
     metadata = {
         # `metaFields.bookings` domain data (the shipped medical example declares
@@ -382,6 +606,21 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
         "currency": priced["currency"],
         "price_breakdown": priced["breakdown"],
         "deposit_minor_units": priced["depositMinorUnits"],
+        # Which entitlement priced this, so a discount is auditable and a missed
+        # credit decrement can be reconciled against the bookings that used it.
+        "entitlement_key": (entitlement or {}).get("key"),
+        "entitlement_id": ((entitlement or {}).get("row") or {}).get("id"),
+        # Recorded per BOOKING, not per customer: the same person can be
+        # cleared for one booking and not another.
+        "prerequisites_met": [],
+        "prerequisites_pending": pending_prereqs,
+        # What was chosen, kept beside what it cost. The breakdown above already
+        # carries the add-on lines; these are the SELECTIONS, so the booking can
+        # be re-rendered (and an owner can see which meal to cook) without
+        # reverse-engineering it from money.
+        "party_bands": bands,
+        "options": addons,
+        "subject": subject,
         "provider_id": service["provider_id"],
         "service_id": service["id"],
         "resource_id": payload.resource_id,
@@ -400,13 +639,170 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
     uc = get_user_client(user.token)
     inserted = uc.table("bookings").insert(row).execute().data
     inserted = enforce_rls_write(inserted, entity="booking")
+    _consume_credit(db, entitlement, inserted[0]["id"] if inserted else "?")
     booking = inserted[0]
     uc.table("booking_slots").insert(
         [{"booking_id": booking["id"], "slot_id": sid} for sid in ordered]
     ).execute()
-    return serialize_booking(
-        booking, slot_ids=ordered, start_utc=start, end_utc=end, review=None, **_names_for(db, metadata)
+    out = serialize_booking(
+        booking, slot_ids=ordered, start_utc=start, end_utc=end, review=None,
+        service=service, **_names_for(db, metadata)
     )
+    out["series"] = (
+        None if repeat is None else _book_repeats(
+            db, uc, user, payload, service, rows, party, booking["id"], metadata,
+            repeat, status, (person_units, bands, addons, subject),
+        )
+    )
+    return out
+
+
+def _resolve_repeat(payload, service) -> tuple[str, int] | None:
+    """Validate the repeat request and resolve its pattern + count.
+
+    Runs BEFORE the first booking is written. These checks used to live inside
+    `_book_repeats`, which is called after the first occurrence is already
+    inserted — so an unsupported pattern returned 400 with a real booking
+    committed and holding capacity, and a client that retried on the error
+    produced a second one.
+
+    Returns None when no repeat was asked for. Raises ApiError on a repeat this
+    service cannot honour, which is now a clean rejection with nothing written.
+    """
+    repeat = payload.repeat
+    if repeat is None or int(repeat.count or 1) <= 1:
+        return None
+    # `booking.sequence` — a course, a treatment plan, a multi-dose vaccination:
+    # N sessions spaced by a fixed gap, bought as one enrolment. It is a series
+    # with a different clock, so it rides the recurrence machinery rather than
+    # growing a parallel one; the only differences are where the ceiling comes
+    # from (`steps`) and how far apart the occurrences sit (`minGapHours`).
+    if repeat.pattern == SEQUENCE_PATTERN:
+        seq = (effective_service_config(service)["booking"] or {}).get("sequence") or {}
+        if not seq.get("enabled"):
+            raise api_error(INVALID_RANGE, "This service is not booked as a sequence.")
+        steps = max(1, int(seq.get("steps") or 1))
+        return SEQUENCE_PATTERN, max(1, min(int(repeat.count), steps))
+    cfg = effective_service_config(service)["recurrence"]
+    if not cfg.get("enabled") or not capability("recurrence", service):
+        raise api_error(INVALID_RANGE, "This service cannot be booked as a repeating series.")
+    if repeat.pattern not in (cfg.get("patterns") or []):
+        allowed = ", ".join(cfg.get("patterns") or []) or "none"
+        raise api_error(INVALID_RANGE, f"Unsupported repeat pattern. Allowed: {allowed}.")
+    # The config's ceiling wins over whatever the client asked for.
+    limit = int(cfg.get("maxOccurrences") or 1)
+    return repeat.pattern, max(1, min(int(repeat.count), limit))
+
+
+def _book_repeats(db, uc, user, payload, service, rows, party, first_id, first_md,
+                  resolved: tuple[str, int], status: str,
+                  shape: tuple = (None, None, None, None)) -> dict | None:
+    """Book the remaining occurrences of a repeating series.
+
+    Returns `{id, pattern, bookedIds, skipped}` or None when the request asked
+    for no repeat. The FIRST occurrence is already committed by the caller — it
+    is the booking the customer selected, and it must succeed or fail on its
+    own merits. Every later occurrence is best-effort: it lands only if the
+    business actually opened a slot at that instant with room for the party.
+
+    Occurrences that cannot be booked are REPORTED, not silently dropped. A
+    series that quietly books 3 of 12 while the customer believes they have 12
+    is the worst outcome here, so the caller gets both lists back.
+    """
+    pattern, count = resolved
+    first_start = _parse(rows[0]["starts_at"])
+    if first_start is None:
+        return None
+
+    series_id = first_id  # the first booking's id names the series
+    # The whole SPAN repeats, not just its first slot: a two-hour clean booked
+    # weekly needs both slots each week. Shifting only the first would fail
+    # `minSlotsPerBooking` on every occurrence of any multi-slot service.
+    span = [_parse(r["starts_at"]) for r in rows]
+    offsets = [(t - first_start) for t in span if t is not None]
+    seq_gap = int(
+        ((effective_service_config(service)["booking"] or {}).get("sequence") or {}).get(
+            "minGapHours"
+        ) or 0
+    )
+    occurrence_starts = _occurrence_starts(first_start, pattern, count, seq_gap)[1:]
+    all_wanted = [o + d for o in occurrence_starts for d in offsets]
+    found = _slots_at(db, payload.resource_id, all_wanted)
+    rules = effective_service_rules(service)
+    booked, skipped = [], []
+
+    for start_at in occurrence_starts:
+        wanted_span = [start_at + d for d in offsets]
+        slots = [found.get(t) for t in wanted_span]
+        if any(sl is None for sl in slots):
+            skipped.append({"startUtc": iso_utc(start_at), "reason": "NO_SLOT"})
+            continue
+        slot_ids = [sl["id"] for sl in slots]
+        try:
+            occ = _occ_by_id(db, slot_ids)
+            occ_rows = _resolve_selection(
+                rules, occ, slot_ids, payload.resource_id, party, credit=set()
+            )
+        except HTTPException as exc:
+            detail = exc.detail if isinstance(exc.detail, dict) else {}
+            skipped.append({"startUtc": iso_utc(start_at),
+                            "reason": detail.get("code") or "UNAVAILABLE"})
+            continue
+        slot_ids = [r["slot_id"] for r in occ_rows]  # canonical start order
+        # The same gates the first occurrence passed. Skipping them let a series
+        # book past `advanceBookingWindowDays` / `leadTimeMinutes` that a direct
+        # POST for the identical date would be refused, so one rule gave two
+        # answers depending on which path reached it.
+        try:
+            apply_rules("booking.create",
+                        {"slot_starts_at": occ_rows[0]["starts_at"],
+                         "timezone": str(_business_tz(service))},
+                        effective_service_config(service)["timing"])
+        except RuleViolation as exc:
+            skipped.append({"startUtc": iso_utc(start_at), "reason": "INVALID_RANGE",
+                            "detail": str(exc)})
+            continue
+        ent = _entitlement(db, user.id, service)
+        # The SAME shape as the first occurrence. Pricing each later one as a
+        # bare selection charged a course's second session without the add-ons
+        # and without the child weighting the first one was quoted with.
+        occ_priced = _price(
+            service, occ_rows, party, ent,
+            person_units=shape[0], addons=shape[2], subject=shape[3],
+        )
+        md = {
+            **first_md,
+            "reference": booking_reference(),
+            "price_minor_units": occ_priced["amountMinorUnits"],
+            "price_breakdown": occ_priced["breakdown"],
+            "deposit_minor_units": occ_priced["depositMinorUnits"],
+            "entitlement_key": (ent or {}).get("key"),
+            "entitlement_id": ((ent or {}).get("row") or {}).get("id"),
+            "slot_ids": slot_ids,
+            "series_id": series_id,
+        }
+        made = uc.table("bookings").insert({
+            "slot_id": slot_ids[0],
+            "client_email": user.email,
+            "client_id": user.id,
+            "status": status,
+            "history": [{"status": status, "at": iso_utc(now_utc())}],
+            "metadata": md,
+        }).execute().data
+        made = enforce_rls_write(made, entity="booking")
+        _consume_credit(db, ent, made[0]["id"])
+        uc.table("booking_slots").insert(
+            [{"booking_id": made[0]["id"], "slot_id": sid} for sid in slot_ids]
+        ).execute()
+        booked.append(made[0]["id"])
+
+    return {
+        "id": series_id,
+        "pattern": pattern,
+        "requested": count,
+        "bookedIds": [first_id] + booked,
+        "skipped": skipped,
+    }
 
 
 @router.post("/{booking_id}/reschedule")
@@ -443,7 +839,7 @@ def reschedule_booking(
     ).execute()
 
     md["slot_ids"] = ordered
-    repriced = _price(service, rows, party)
+    repriced = _price(service, rows, party, _entitlement(db, user.id, service))
     md["price_minor_units"] = repriced["amountMinorUnits"]
     md["currency"] = repriced["currency"]
     md["price_breakdown"] = repriced["breakdown"]
@@ -507,9 +903,18 @@ def cancel_booking(booking_id: str, user: AuthUser = Depends(require_user)):
         .data
     )
     updated = enforce_rls_write(updated, entity="booking")
+    # A cancellation is the moment a seat frees. Hand it to the head of the
+    # queue if the config asks for that (`timing.waitlist.autoPromote`).
+    # `maybe_row`, not `_load_service`: the cancellation has already committed by
+    # this point, and a service deleted out from under an old booking would make
+    # `_load_service` raise 404 for an operation that in fact succeeded — the
+    # client shows a failure and the customer retries a cancel that already
+    # happened.
+    service = maybe_row(db.table("services").select("*").eq("id", md.get("service_id")))
+    promote_from_waitlist(db, cur_ids, service)
     return serialize_booking(
         updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end, review=None,
-        **_names_for(db, md),
+        service=service, **_names_for(db, md),
     )
 
 
@@ -554,6 +959,151 @@ def review_booking(booking_id: str, payload: ReviewReq, user: AuthUser = Depends
 # --- owner request decisions (approve / reject) ----------------------------
 
 
+@router.post("/{booking_id}/return")
+def return_booking(booking_id: str, owner: AuthUser = Depends(require_owner)):
+    """Mark a loaned item as handed back.
+
+    Owner-only on purpose: the business is the party that can actually see the
+    item come back, and a customer able to self-certify a return would be able
+    to clear their own overdue fee.
+
+    `inventory.returnRequired` deployments (ski hire, tool library, plant
+    rental) do not finish at slot end. Until this existed the return leg was
+    declared in config and enforced nowhere: the booking read as completed the
+    moment the slot ended, and a declared overdue fee could never be charged.
+
+    The overdue fee is COMPUTED from `returned_at_utc`, never stored — see
+    `serialize.loan_state`. This route only records when the item came back.
+    """
+    db = get_supabase()
+    uc = get_user_client(owner.token)
+    booking = _load_own(uc, booking_id)
+    _assert_owns_booking(db, booking, owner)
+
+    md = dict(booking.get("metadata") or {})
+    service = _load_service(db, md.get("service_id"))
+    inventory = effective_service_config(service)["inventory"]
+    if not inventory.get("returnRequired"):
+        raise api_error(INVALID_RANGE, "This service does not loan anything to return.")
+    if booking["status"] == "cancelled":
+        raise api_error(INVALID_RANGE, "A cancelled booking has nothing to return.")
+    if md.get("returned_at_utc"):
+        raise api_error(INVALID_RANGE, "This is already marked returned.")
+
+    cur_ids, cur_start, cur_end = _span_of(db, booking, uc)
+    md["returned_at_utc"] = iso_utc(now_utc())
+    updated = uc.table("bookings").update({
+        "metadata": md,
+        # Append-only, like every other status change on this table.
+        "history": list(booking.get("history") or []) + [
+            {"status": "returned", "at": md["returned_at_utc"], "actor": "owner"}
+        ],
+    }).eq("id", booking_id).execute().data
+    updated = enforce_rls_write(updated, entity="booking")
+    return serialize_booking(
+        updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end,
+        review=_reviews_map(db, [booking_id]).get(booking_id),
+        include_client=True, service=service, **_names_for(db, md),
+    )
+
+
+@router.post("/{booking_id}/pay")
+def record_payment(booking_id: str, amount: int | None = None,
+                   owner: AuthUser = Depends(require_owner)):
+    """Record money received against a booking.
+
+    Owner-only, and deliberately a RECORD rather than a charge: `payments.adapter`
+    is `manual` in every shipped config, so the engine's job is to know what is
+    owed and what has been settled, not to move money. Wiring a real PSP means
+    implementing the adapter behind this route, not changing its meaning.
+
+    `amount` defaults to whatever is still outstanding, so the common case —
+    "they paid the bill" — needs no body. Partial payments accumulate, which is
+    what `deposit_balance` pricing needs: a deposit now, the balance later.
+    """
+    db = get_supabase()
+    uc = get_user_client(owner.token)
+    booking = _load_own(uc, booking_id)
+    _assert_owns_booking(db, booking, owner)
+
+    md = dict(booking.get("metadata") or {})
+    service = _load_service(db, md.get("service_id"))
+    state = payment_state(md, service, booking["status"])
+    if state["flow"] == "none":
+        raise api_error(INVALID_RANGE, "This service does not take payment.")
+    if state["state"] in ("paid", "not_required"):
+        raise api_error(INVALID_RANGE, "There is nothing outstanding on this booking.")
+
+    due = state["outstandingMinorUnits"]
+    taken = due if amount is None else int(amount)
+    if taken <= 0:
+        raise api_error(INVALID_RANGE, "A payment must be a positive amount.")
+    # Never record more than is owed: an overpayment is a refund problem the
+    # engine has no way to resolve, so it is refused rather than absorbed.
+    if taken > due:
+        raise api_error(INVALID_RANGE, f"That is more than the {due} outstanding.")
+
+    md["amount_paid_minor_units"] = int(md.get("amount_paid_minor_units") or 0) + taken
+    cur_ids, cur_start, cur_end = _span_of(db, booking, uc)
+    updated = uc.table("bookings").update({
+        "metadata": md,
+        "history": list(booking.get("history") or []) + [
+            {"status": "payment_recorded", "amount": taken,
+             "at": iso_utc(now_utc()), "actor": "owner"}
+        ],
+    }).eq("id", booking_id).execute().data
+    updated = enforce_rls_write(updated, entity="booking")
+    return serialize_booking(
+        updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end,
+        review=_reviews_map(db, [booking_id]).get(booking_id),
+        include_client=True, service=service, **_names_for(db, md),
+    )
+
+
+@router.post("/{booking_id}/prerequisites/{key}")
+def satisfy_prerequisite(booking_id: str, key: str, owner: AuthUser = Depends(require_owner)):
+    """Record that one blocking prerequisite has been met.
+
+    Owner-only: a prerequisite is the business checking something (a licence, a
+    committee sign-off, an age check). A customer able to tick their own boxes
+    is not a gate.
+
+    Idempotent — re-recording a met prerequisite is a no-op, so a double-tap in
+    the console cannot fail.
+    """
+    db = get_supabase()
+    uc = get_user_client(owner.token)
+    booking = _load_own(uc, booking_id)
+    _assert_owns_booking(db, booking, owner)
+
+    md = dict(booking.get("metadata") or {})
+    service = _load_service(db, md.get("service_id"))
+    known = {p["key"] for p in blocking_prerequisites(service) if p.get("key")}
+    if key not in known:
+        raise api_error(NOT_FOUND, f"No blocking prerequisite named {key!r}.")
+
+    met = list(md.get("prerequisites_met") or [])
+    if key not in met:
+        met.append(key)
+    md["prerequisites_met"] = met
+    md["prerequisites_pending"] = [k for k in known if k not in met]
+
+    cur_ids, cur_start, cur_end = _span_of(db, booking, uc)
+    updated = uc.table("bookings").update({
+        "metadata": md,
+        "history": list(booking.get("history") or []) + [
+            {"status": "prerequisite_met", "key": key,
+             "at": iso_utc(now_utc()), "actor": "owner"}
+        ],
+    }).eq("id", booking_id).execute().data
+    updated = enforce_rls_write(updated, entity="booking")
+    return serialize_booking(
+        updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end,
+        review=_reviews_map(db, [booking_id]).get(booking_id),
+        include_client=True, service=service, **_names_for(db, md),
+    )
+
+
 @router.post("/{booking_id}/approve")
 def approve_booking(booking_id: str, owner: AuthUser = Depends(require_owner)):
     """Owner approves a pending request → confirmed. Capacity is re-checked now
@@ -574,6 +1124,18 @@ def approve_booking(booking_id: str, owner: AuthUser = Depends(require_owner)):
 
     occ = _occ_by_id(db, cur_ids)
     _resolve_selection(rules, occ, cur_ids, md.get("resource_id"), party, credit=set())
+
+    # The gate itself. Approving past an unmet prerequisite would make the whole
+    # block advisory, so the owner has to record it as met first.
+    if capability("prerequisites", service):
+        outstanding = unmet_prerequisites(md, service)
+        if outstanding:
+            labels = ", ".join(
+                p.get("label") or p["key"]
+                for p in blocking_prerequisites(service)
+                if p.get("key") in outstanding
+            )
+            raise api_error(INVALID_RANGE, f"Still outstanding: {labels}.")
 
     history = booking["history"] + [{"status": "confirmed", "at": iso_utc(now_utc()), "actor": "owner"}]
     updated = (

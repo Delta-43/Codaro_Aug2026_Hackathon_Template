@@ -4,7 +4,8 @@ Pure dict work: no Supabase, no FastAPI, no `domain.config.json` dependency
 beyond the two files this repo actually ships. Two jobs are pinned here.
 
 **normalize()** is the back-compat contract. v1 files declared five sections
-(`terms`/`rules`/`copy`/`theme`/`metaFields`); v2 adds fifteen more blocks. A v1
+(`terms`/`rules`/`copy`/`theme`/`metaFields`, `theme` since dropped); v2 adds
+fifteen more blocks. A v1
 file must keep booting, and the two aliased pairs (`rules` <-> `timing`,
 `search` <-> `discovery`) must never be able to disagree — a reader on either
 path sees the same number.
@@ -81,6 +82,9 @@ def test_normalize_fills_every_v2_block_a_v1_file_never_heard_of():
     resolved = normalize(v1)
 
     assert set(resolved) == set(DEFAULTS)
+    # ...except v1's `theme`, which the engine no longer has: the frontend owns
+    # its palette, so the block is dropped rather than served to nothing.
+    assert "theme" not in resolved
     assert resolved["pricing"]["rate"] == {"per": "slot", "amountMinorUnits": 0}
     assert resolved["location"]["timezone"] == "UTC"
     assert resolved["capabilities"]["payments"] is True
@@ -95,7 +99,6 @@ def test_normalize_keeps_what_the_file_declared():
     assert resolved["domain"] == "test-domain"
     assert resolved["terms"]["resource"] == "Widget"
     assert resolved["copy"]["landingTitle"] == "Book a Widget"
-    assert resolved["theme"]["primaryColor"] == "#123456"
 
 
 def test_normalize_merges_a_partial_block_key_by_key():

@@ -366,7 +366,28 @@ SERVICE_KEYS = {
     "cancellationCutoffHours",
     "autoApprove",
     "capabilities",
+    # The shape of the offer, so the UI can describe it before a selection
+    # exists — `priceMinorUnits` alone is only the base rate.
+    "pricingModel",
+    "rateUnit",
+    "paymentFlow",
+    "billingCycle",
+    "prerequisites",
+    "recurrence",
+    "waitlist",
     "resourceIds",
+    # The v2 offer-shape blocks. Every one was declared in the config, resolved
+    # per service, and served to nobody — so the client could not render (let
+    # alone collect) a party band, an add-on, a subject, a course or a payment
+    # schedule.
+    "unitKind",
+    "party",
+    "subject",
+    "options",
+    "sequence",
+    "paymentSchedule",
+    "locationModes",
+    "locationDefault",
 }
 
 
@@ -582,6 +603,16 @@ BOOKING_KEYS = {
     "cancelledAtUtc",
     "changeHistory",
     "review",
+    # None unless `inventory.returnRequired`; present on every booking so the
+    # shape does not change between deployments.
+    "loan",
+    "prerequisitesPending",
+    "prerequisitesMet",
+    "payment",
+    # What the customer chose where the config offered a choice.
+    "partyBands",
+    "options",
+    "subject",
 }
 
 

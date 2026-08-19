@@ -24,7 +24,7 @@ interface Loaded {
 }
 
 export default function BookingDetailPage({ params }: { params: { id: string } }) {
-  const { user, ready } = useApp();
+  const { user, ready, vertical } = useApp();
   const tz = user?.timezone ?? "UTC";
 
   const data = useAsync<Loaded>(async () => {
@@ -63,7 +63,7 @@ export default function BookingDetailPage({ params }: { params: { id: string } }
           <ArrowLeft className="size-4" aria-hidden /> Bookings
         </Link>
         <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-          <p>That booking could not be found.</p>
+          <p>That {vertical.bookingNoun.toLowerCase()} could not be found.</p>
           <Button className="mt-3" onPress={data.reload}>
             Try again
           </Button>

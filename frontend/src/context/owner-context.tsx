@@ -22,8 +22,18 @@ import {
   type ReactNode,
 } from "react";
 import type { Provider, VerticalId } from "@/types/domain";
-import { getActiveVertical, getMyProviders, getPivotConfig, type Capabilities } from "@/api";
-import { VERTICALS, type VerticalConfig } from "@/config/verticals";
+import {
+  getActiveVertical,
+  getMyProviders,
+  getPivotConfig,
+  FALLBACK_PIVOT_CONFIG,
+  type Capabilities,
+  type ConfigCopy,
+  type MetaFields,
+  type TenancyTerms,
+  type ConfigTerms,
+} from "@/api";
+import { applyPivotVocabulary, VERTICALS, type VerticalConfig } from "@/config/verticals";
 
 const PID_KEY = "codaro.owner.activeProviderId";
 
@@ -38,7 +48,9 @@ interface OwnerContextValue {
   ready: boolean;
   providers: Provider[] | null;
   activeProvider: Provider | null;
-  /** The live vertical's UI vocabulary (nouns/copy). */
+  /** The live vertical's UI vocabulary (nouns/copy), with the pivot file's
+   *  `terms`/`copy` overlaid — the owner console must name things exactly as the
+   *  customer side does, so both read the same overlay. */
   vocab: VerticalConfig;
   vertical: VerticalId;
   /** On-brand illustrated profile scene for the vertical. */
@@ -47,6 +59,13 @@ interface OwnerContextValue {
    *  gate per service, so prefer `Service.capabilities` and use this when the
    *  per-service value is unavailable — e.g. the services fetch failed. */
   capability: (name: string) => boolean;
+  /** `tenancy` — what this business is signed up to: whether it can onboard
+   *  itself, what it must be verified with, and what the platform takes. All
+   *  three were config-only and shown on no owner screen. */
+  tenancyTerms: TenancyTerms;
+  /** `metaFields.{entity}` — the domain fields this deployment declares, so the
+   *  owner's own create/edit forms can offer what the backend already validates. */
+  metaFields: MetaFields;
   setActiveProviderId: (id: string) => void;
   refreshProviders: () => Promise<void>;
   /** Replace one already-loaded provider in place (e.g. after an avatar edit),
@@ -62,6 +81,12 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
   const [vertical, setVertical] = useState<VerticalId>("fleet");
   const [ready, setReady] = useState(false);
   const [capabilities, setCapabilities] = useState<Capabilities>({});
+  const [terms, setTerms] = useState<ConfigTerms>({});
+  const [copy, setCopy] = useState<ConfigCopy>({});
+  const [tenancyTerms, setTenancyTerms] = useState<TenancyTerms>(
+    FALLBACK_PIVOT_CONFIG.tenancyTerms,
+  );
+  const [metaFields, setMetaFields] = useState<MetaFields>({});
 
   const refreshProviders = useCallback(async () => {
     try {
@@ -74,17 +99,21 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [list, v, caps] = await Promise.all([
+      const [list, v, pivot] = await Promise.all([
         getMyProviders().catch(() => [] as Provider[]),
         getActiveVertical().catch(() => "fleet" as VerticalId),
-        // /config unreachable: leave everything ON — the backend still refuses
-        // whatever is actually disabled.
-        getPivotConfig().then((c) => c.capabilities).catch((): Capabilities => ({})),
+        // /config unreachable: leave everything ON and keep the static
+        // vocabulary — the backend still refuses whatever is actually disabled.
+        getPivotConfig().catch(() => FALLBACK_PIVOT_CONFIG),
       ]);
       if (cancelled) return;
       setProviders(list);
       setVertical(v);
-      setCapabilities(caps);
+      setCapabilities(pivot.capabilities);
+      setTerms(pivot.terms);
+      setCopy(pivot.copy);
+      setTenancyTerms(pivot.tenancyTerms);
+      setMetaFields(pivot.metaFields);
       const stored = typeof window !== "undefined" ? localStorage.getItem(PID_KEY) : null;
       setPid(list.find((p) => p.id === stored)?.id ?? list[0]?.id ?? null);
       setReady(true);
@@ -115,9 +144,11 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
   const value: OwnerContextValue = {
     ready,
     capability,
+    tenancyTerms,
+    metaFields,
     providers,
     activeProvider,
-    vocab: VERTICALS[vertical] ?? VERTICALS.fleet,
+    vocab: applyPivotVocabulary(VERTICALS[vertical] ?? VERTICALS.fleet, terms, copy),
     vertical,
     scene: VERTICAL_SCENE[vertical] ?? "grad-amber",
     setActiveProviderId,

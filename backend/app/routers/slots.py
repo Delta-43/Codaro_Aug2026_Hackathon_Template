@@ -3,7 +3,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app.auth import AuthUser, enforce_rls_write, require_owner
-from app.db import get_supabase, get_user_client, maybe_row
+from app.db import fetch_all, get_supabase, get_user_client, maybe_row
 from app.meta import validate_metadata
 from app.models import SlotCreate, SlotUpdate
 from app.rules import (
@@ -22,7 +22,9 @@ def list_slots(resource_id: str | None = None):
     query = get_supabase().table("slots").select("*")
     if resource_id:
         query = query.eq("resource_id", resource_id)
-    return query.execute().data
+    # Paged: an unfiltered call on a busy deployment has thousands of slots and
+    # PostgREST would silently return the first 1000.
+    return fetch_all(query)
 
 
 @router.get("/occupancy")
@@ -30,7 +32,13 @@ def slot_occupancy(resource_id: str | None = None):
     query = get_supabase().table("slot_occupancy").select("*")
     if resource_id:
         query = query.eq("resource_id", resource_id)
-    return query.execute().data
+    # Paged for the same reason as `/slots`, and doubly so: these two were
+    # truncating independently, so a client joining them saw slots with no
+    # occupancy row and read the calendar as full of gaps.
+    #
+    # Ordered by `slot_id`: `slot_occupancy` is a VIEW over slots and has no
+    # `id` column, so fetch_all's default order 42703s on every call.
+    return fetch_all(query, order="slot_id")
 
 
 def _service_for_resource(db, resource_id: str) -> dict | None:

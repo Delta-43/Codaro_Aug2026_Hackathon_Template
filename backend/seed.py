@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 import secrets
 import time
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 from zoneinfo import ZoneInfo
@@ -143,15 +144,27 @@ def _wall_to_utc(y: int, m: int, d: int, hour: int, minute: int, tz: str) -> dat
     return datetime(y, m, d, hour, minute, tzinfo=ZoneInfo(tz)).astimezone(timezone.utc)
 
 
-def _local_days(tz: str, back: int, forward: int):
+def _local_days(tz: str, back: int, forward: int, step: int = 1):
+    """Local calendar days across the window, every `step`-th day.
+
+    `step` > 1 is how a multi-day unit (a week, a month) lays one slot per unit
+    instead of one per day. Anchored on today, so the sequence is stable no
+    matter how far back the window reaches."""
     today = datetime.now(ZoneInfo(tz)).date()
-    for i in range(-back, forward + 1):
+    for i in range(-back, forward + 1, max(1, step)):
         day = today + timedelta(days=i)
         yield day, day.isoweekday() % 7  # 0=Sun … 6=Sat (JS getUTCDay convention)
 
 
 def _iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).isoformat()
+
+
+def _parse_utc(iso: str) -> datetime:
+    """Parse a stored timestamp as UTC-aware, so it can be compared with `now`.
+    Postgres hands back an offset; a naive value would raise on subtraction."""
+    dt = datetime.fromisoformat(iso)
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
 def _local_date_str(iso: str, tz: str) -> str:
@@ -166,6 +179,61 @@ def _chunked_insert(db, table: str, rows: list[dict], chunk: int = 500) -> list[
     for i in range(0, len(rows), chunk):
         out += db.table(table).insert(rows[i : i + chunk]).execute().data or []
     return out
+
+
+# One seeder at a time, enforced by Postgres rather than by convention.
+#
+# Seeding is a TRUNCATE on a direct connection followed by hundreds of inserts
+# through PostgREST, which is not one transaction and not one connection. Two
+# seeders overlapping therefore corrupt each other: the documented workflow
+# (`make reload` restarting the backend while `make reseed` runs) has startup's
+# `seed_if_empty` read an empty `providers` mid-wipe and start its own seed, and
+# whichever one truncates second deletes rows the other is still referencing —
+# surfacing as `services_provider_id_fkey` / `reviews_provider_id_fkey`
+# violations against a provider that was inserted seconds earlier.
+#
+# An advisory lock is session-scoped, so the connection is held open for the
+# whole seed and released when it closes — including on a crash, which a table
+# flag would not survive.
+_SEED_LOCK_KEY = 0x0C0DA205  # arbitrary but stable; "codaro seed"
+
+
+@contextmanager
+def seed_lock(*, wait: bool = True):
+    """Serialise seeding. Yields True when the lock is held, False when another
+    seeder has it and `wait=False` — the caller should then do nothing.
+
+    Without `SUPABASE_DB_URL` there is no way to take the lock, so it yields
+    True and says so once: a deployment with no direct connection cannot wipe
+    either, so the concurrent case does not arise there.
+    """
+    url = get_db_url()
+    if not url:
+        logger.warning("No SUPABASE_DB_URL — seeding is not serialised.")
+        yield True
+        return
+    conn = psycopg.connect(url)
+    try:
+        with conn.cursor() as cur:
+            if wait:
+                cur.execute("select pg_advisory_lock(%s)", (_SEED_LOCK_KEY,))
+                held = True
+            else:
+                cur.execute("select pg_try_advisory_lock(%s)", (_SEED_LOCK_KEY,))
+                held = bool(cur.fetchone()[0])
+        conn.commit()
+        yield held
+    finally:
+        # Closing the session drops the lock; explicit unlock keeps the intent
+        # obvious and releases it fractionally sooner.
+        try:
+            if held:
+                with conn.cursor() as cur:
+                    cur.execute("select pg_advisory_unlock(%s)", (_SEED_LOCK_KEY,))
+                conn.commit()
+        except Exception:
+            logger.exception("Could not release the seed lock (session close will).")
+        conn.close()
 
 
 def _wipe(db) -> None:
@@ -211,9 +279,20 @@ def _ensure_user(db, email: str, password: str, metadata: dict) -> str:
 # --- the assembler ---------------------------------------------------------
 
 
-def seed_vertical(vertical_id: str) -> dict:
-    """Wipe and reseed the DB for one vertical. Returns a small summary."""
-    cfg = VERTICALS[vertical_id]
+def seed_vertical(vertical_id: str, spec: dict | None = None) -> dict:
+    """Wipe and reseed the DB from a vertical spec. Returns a small summary.
+
+    `spec` overrides the `seed_data.VERTICALS` entry — that is how
+    `seed_from_config()` feeds in a spec derived from `domain.config.json`
+    instead. The assembler below reads only the spec, so both sources go through
+    exactly the same code path."""
+    with seed_lock() as held:   # waits: an explicit reseed should happen, not skip
+        assert held
+        return _seed_vertical_locked(vertical_id, spec)
+
+
+def _seed_vertical_locked(vertical_id: str, spec: dict | None = None) -> dict:
+    cfg = spec or VERTICALS[vertical_id]
     tz = cfg["baseTz"]
     currency = cfg["currency"]
     model = cfg["bookingModel"]
@@ -263,6 +342,7 @@ def seed_vertical(vertical_id: str) -> dict:
             # auto_approve rides in metadata (no column): the demo's primary
             # service is manual-approve so the Requests tab has something to act on.
             "metadata": {
+                **(spec.get("metaFields", {}).get("service") or {}),
                 "image_url": tile_uri(spec["name"], spec["name"]),
                 "auto_approve": auto_approve,
             },
@@ -276,6 +356,7 @@ def seed_vertical(vertical_id: str) -> dict:
         slot_rows: list[dict] = []
         for r in resources:
             res_md = {
+                **(spec.get("metaFields", {}).get("resource") or {}),
                 "service_id": service_id,
                 "capacity": r["capacity"],
                 "active": True,
@@ -291,7 +372,9 @@ def seed_vertical(vertical_id: str) -> dict:
             }).execute().data[0]
             counts["resources"] += 1
             res_rows.append({**res, "_capacity": r["capacity"]})
-            for day, weekday in _local_days(tz, grid["daysBack"], grid["daysForward"]):
+            for day, weekday in _local_days(
+                tz, grid["daysBack"], grid["daysForward"], grid.get("dayStep", 1)
+            ):
                 if "weekdays" in grid and weekday not in grid["weekdays"]:
                     continue
                 for t in grid["startTimes"]:
@@ -302,7 +385,10 @@ def seed_vertical(vertical_id: str) -> dict:
                         "starts_at": _iso(start),
                         "ends_at": _iso(end),
                         "capacity": r["capacity"],
-                        "metadata": {"service_id": service_id},
+                        "metadata": {
+                            **(spec.get("metaFields", {}).get("slot") or {}),
+                            "service_id": service_id,
+                        },
                     })
         inserted_slots = _chunked_insert(db, "slots", slot_rows)
         counts["slots"] += len(inserted_slots)
@@ -316,6 +402,16 @@ def seed_vertical(vertical_id: str) -> dict:
             "category_id": p["categoryId"],
             "owner_id": owner_uid if i == 0 else None,  # demo owner owns the demo provider
             "metadata": {
+                # Provenance, so a checker reads what this data was built from
+                # instead of inferring it from the shape of the rows (which is
+                # how `active_vertical()` guesses, and it can only ever return
+                # one of the three canned verticals).
+                "seeded": {
+                    "source": vertical_id,
+                    "tz": tz,
+                    "currency": currency,
+                    "bookingModel": model,
+                },
                 "avatar_url": avatar_uri(p["name"], p["name"]),
                 "cover_url": cover_uri(p["name"]),
                 "tagline": p["tagline"],
@@ -353,7 +449,7 @@ def seed_vertical(vertical_id: str) -> dict:
         # established demo user, one from a fresh prospect.
         counts["bookings"] += _seed_requests(
             db, primary_service, demo_provider_id, model, currency,
-            [(demo_uid, DEMO_EMAIL), (prospect_uid, PROSPECT_EMAIL)],
+            [(demo_uid, DEMO_EMAIL), (prospect_uid, PROSPECT_EMAIL)], tz,
         )
         # The demo user's reputation: reviews the provider left about them.
         _seed_client_reviews(db, demo_uid, demo_provider_id)
@@ -382,6 +478,56 @@ def _insert_dedicated_slot(db, service_id, resource_id, capacity, start: datetim
     }).execute().data[0]
 
 
+def _align_to_unit_grid(start: datetime, dur: int, tz: str) -> datetime:
+    """Snap `start` onto the same lattice `seed_config._grid` lays down: local
+    midnight, every `dur // 1440` days, anchored on today. Slots built off this
+    tile the calendar exactly, so consecutive units abut instead of overlapping."""
+    zone = ZoneInfo(tz)
+    today = datetime.now(zone).date()
+    step = max(1, dur // 1440)
+    offset = (start.astimezone(zone).date() - today).days
+    aligned = today + timedelta(days=(round(offset / step) * step))
+    return _wall_to_utc(aligned.year, aligned.month, aligned.day, 0, 0, tz)
+
+
+def _slot_for_booking(db, service_id, resource_id, capacity, start: datetime, dur: int,
+                      used: set[str], tz: str) -> dict:
+    """The slot a demo lifecycle booking should occupy.
+
+    Below a day the grid is dense and a dedicated slot sits harmlessly between
+    two grid ones, so each booking keeps getting its own. From a day upward the
+    grid holds exactly ONE slot per unit, and a dedicated slot at an arbitrary
+    time necessarily overlaps the grid slot around it — the resource then reads
+    as double-booked and its occupancy is wrong. So reuse the nearest grid slot
+    instead, skipping any already taken by an earlier booking.
+
+    Falls back to a dedicated insert when nothing is in range — the lifecycle
+    bookings reach past both ends of the seeded window — but aligns it to the
+    same lattice first. An unaligned fallback landing just beyond the grid's
+    forward edge still overlaps the last grid slot, which is most of what this
+    function exists to prevent.
+    """
+    if dur < 1440:
+        return _insert_dedicated_slot(db, service_id, resource_id, capacity, start, dur)
+    window = timedelta(minutes=dur)
+    rows = (
+        db.table("slots").select("*").eq("resource_id", resource_id)
+        .gte("starts_at", _iso(start - window)).lte("starts_at", _iso(start + window))
+        .execute().data
+        or []
+    )
+    free = [r for r in rows if r["id"] not in used]
+    if free:
+        slot = min(free, key=lambda r: abs(_parse_utc(r["starts_at"]) - start))
+        used.add(slot["id"])
+        return slot
+    slot = _insert_dedicated_slot(
+        db, service_id, resource_id, capacity, _align_to_unit_grid(start, dur, tz), dur
+    )
+    used.add(slot["id"])
+    return slot
+
+
 def _hold(db, slot, service_id, provider_id, resource_id, party, holds_uid, currency, price) -> None:
     """A confirmed booking by the holds user, consuming `party` seats on `slot`."""
     booking = db.table("bookings").insert({
@@ -406,7 +552,7 @@ def _hold(db, slot, service_id, provider_id, resource_id, party, holds_uid, curr
     db.table("booking_slots").insert({"booking_id": booking["id"], "slot_id": slot["id"]}).execute()
 
 
-def _seed_requests(db, primary, provider_id, model, currency, requesters) -> int:
+def _seed_requests(db, primary, provider_id, model, currency, requesters, tz: str) -> int:
     """Pending booking requests on the primary (manual-approve) service, so the
     owner's Requests tab is populated. Each gets a dedicated future slot (pending
     holds no capacity, so this never collides with real occupancy). Mirrors the
@@ -422,9 +568,14 @@ def _seed_requests(db, primary, provider_id, model, currency, requesters) -> int
     day = timedelta(days=1)
 
     made = 0
+    # A pending request holds no capacity, so sharing a slot with a confirmed
+    # booking is harmless — but a dedicated slot at an arbitrary hour is not:
+    # for a day-or-longer unit it straddles the grid slot beside it, and the
+    # resource's own calendar then shows two units covering the same days.
+    used: set[str] = set()
     for i, (uid, email) in enumerate(requesters):
         start = now + (4 + 3 * i) * day + timedelta(hours=2)
-        slot = _insert_dedicated_slot(db, service_id, resource_id, capacity, start, dur)
+        slot = _slot_for_booking(db, service_id, resource_id, capacity, start, dur, used, tz)
         created = now - timedelta(hours=6 + i)
         booking = db.table("bookings").insert({
             "slot_id": slot["id"],
@@ -616,12 +767,18 @@ def _seed_bookings(db, primary, provider_id, demo_uid, demo_email, model, curren
     max_slots = spec["maxSlotsPerBooking"]
     shared = model == "shared_capacity"
     now = datetime.now(timezone.utc)
+    # Slots already claimed by an earlier lifecycle booking, so a day-or-longer
+    # unit never hands the same grid slot to two of them.
+    used_slot_ids: set[str] = set()
 
     def commit(start: datetime, party: int, status: str, created: datetime,
                *, review: dict | None = None, cancelled: datetime | None = None,
                extra_starts: list[datetime] | None = None) -> None:
         starts = [start] + (extra_starts or [])
-        slots = [_insert_dedicated_slot(db, service_id, resource_id, capacity, s, dur) for s in starts]
+        slots = [
+            _slot_for_booking(db, service_id, resource_id, capacity, s, dur, used_slot_ids, tz)
+            for s in starts
+        ]
         slot_ids = [s["id"] for s in slots]
         md = {
             "party_size": party,
@@ -661,26 +818,35 @@ def _seed_bookings(db, primary, provider_id, demo_uid, demo_email, model, curren
 
     hour = timedelta(hours=1)
     day = timedelta(days=1)
+    # These lifecycle bookings each get a DEDICATED slot, so their starts must be
+    # at least one unit apart or the same resource ends up holding overlapping
+    # slots and its capacity reads as double-booked. The day-sized offsets below
+    # were written for a 30-minute grid, where any two of them are trivially
+    # disjoint; once `booking.granularity` can make a unit a week or a month,
+    # "5 days apart" is the SAME week. So space them by whole units whenever the
+    # unit is at least a day. `created`/`cancelled` stay in real days — they are
+    # history timestamps and never define a slot.
+    step = timedelta(minutes=dur) if dur >= 1440 else day
     # 1) upcoming, outside cutoff (changeable)
-    commit(now + timedelta(seconds=cutoff_s) + 5 * day, 2 if shared else 1, "confirmed", now - 3 * day)
+    commit(now + timedelta(seconds=cutoff_s) + 5 * step, 2 if shared else 1, "confirmed", now - 3 * day)
     # 2) upcoming, inside cutoff (locked)
     inside = min(cutoff_s * 0.4, cutoff_s - _HOUR)
     commit(now + timedelta(seconds=inside) + timedelta(minutes=30), 3 if shared else 1, "confirmed", now - day)
     # 3) completed, no review
-    commit(now - 7 * day, 1, "confirmed", now - 13 * day)
+    commit(now - 7 * step, 1, "confirmed", now - 13 * day)
     # 4) completed, with review
-    past4 = now - 16 * day
+    past4 = now - 16 * step
     commit(past4, 1, "confirmed", now - 21 * day,
            review={"rating": 5, "text": "Exactly as described. Smooth from start to finish — would book again.",
                    "at": past4 + timedelta(minutes=dur) + 2 * hour})
     # 5) cancelled (capacity released — no hold)
-    commit(now + timedelta(seconds=cutoff_s) + 12 * day, 1, "cancelled", now - 10 * day,
+    commit(now + timedelta(seconds=cutoff_s) + 12 * step, 1, "cancelled", now - 10 * day,
            cancelled=now - 9 * day)
     # 6) multi-slot completed (only where the model allows > 1 slot)
     n = 6 if max_slots > 1 else 5
     if max_slots > 1:
         count = min(3, max_slots)
-        first = now - 12 * day
+        first = now - 12 * step
         commit(first, 1, "confirmed", now - 16 * day,
                extra_starts=[first + i * timedelta(minutes=dur) for i in range(1, count)])
     return n
@@ -698,6 +864,34 @@ def active_vertical() -> str:
     except Exception:
         pass
     return DEFAULT_VERTICAL
+
+
+def seed_from_config() -> dict:
+    """Wipe and reseed from the loaded `domain.config.json`.
+
+    This is what makes a pivot show up in the data: currency, timezone,
+    durations, prices, cutoffs, capacity and the single-tenant provider code all
+    come from the config rather than from `seed_data.VERTICALS`. Verify the
+    result with `scripts/check_seed.py` (`make checkseed`)."""
+    from app.config import get_config  # local: avoids a seed -> config import at module load
+    from seed_config import spec_from_config
+
+    spec = spec_from_config(get_config())
+    return seed_vertical(spec["verticalId"], spec)
+
+
+def _seed_from_config_locked() -> dict:
+    """`seed_from_config` for a caller that ALREADY holds the seed lock.
+
+    The lock is per-connection, and `seed_lock()` opens its own — so taking it
+    again from inside would wait on a lock held by a session that is waiting for
+    this call to return. That is a deadlock, not re-entrancy.
+    """
+    from app.config import get_config
+    from seed_config import spec_from_config
+
+    spec = spec_from_config(get_config())
+    return _seed_vertical_locked(spec["verticalId"], spec)
 
 
 def seed_if_empty() -> None:
@@ -723,9 +917,33 @@ def seed_if_empty() -> None:
             return
     if existing:
         return
-    seed_vertical(DEFAULT_VERTICAL)
+    # Try, never wait. A seeder already holding the lock is mid-wipe, so
+    # `providers` reading empty above says nothing about the end state — and
+    # blocking here would stall boot behind a full reseed. Skipping is correct:
+    # when that seeder finishes the data is there.
+    with seed_lock(wait=False) as held:
+        if not held:
+            logger.info("Another seed is in progress; skipping boot-time seeding.")
+            return
+        _seed_if_empty_locked()
+
+
+def _seed_if_empty_locked() -> None:
+    # Boot-time seeding is best-effort and must never take the app down with
+    # it: the check above and this insert are not one transaction, so the
+    # documented pivot workflow (`make reload` restarting the backend while
+    # `make reseed` has the tables truncated) can read "empty", then insert into
+    # a table the reseed has already refilled. That surfaced as a startup crash
+    # loop on a duplicate `providers.public_code` — the API never came up, and
+    # every screen degraded to "we couldn't load your profile" / "no business
+    # yet" with nothing pointing at the seed. A DB that already has data is the
+    # success case for this function, so log and carry on.
+    try:
+        _seed_from_config_locked()   # the lock is already held by seed_if_empty
+    except Exception:
+        logger.exception("Boot-time seed failed; starting anyway with the existing data.")
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    seed_vertical(DEFAULT_VERTICAL)
+    seed_from_config()

@@ -1,0 +1,13 @@
+{
+  // Standalone typecheck project: same compiler options as the app, but scoped
+  // to real source. The base config includes `.next/types/**/*.ts` (Next
+  // regenerates those route stubs on build/dev and re-adds the include itself),
+  // so a stale or root-owned `.next` from an old container build would other-
+  // wise fail `tsc` on generated files nobody edits.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./tsconfig.typecheck.tsbuildinfo"
+  },
+  "include": ["next-env.d.ts", "src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", ".next"]
+}

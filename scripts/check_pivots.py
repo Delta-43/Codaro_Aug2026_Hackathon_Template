@@ -46,9 +46,18 @@ NOW = datetime(2026, 8, 18, 12, 0, tzinfo=timezone.utc)
 # `backend/app`. Keep this honest — a path listed here must have a real reader,
 # and anything in DECLARED_ONLY must say what is missing. This map is what stops
 # the config growing a second generation of keys that look live and do nothing,
-# which is exactly what happened to v1's `copy` and `theme`.
+# which is exactly what happened to v1's `copy` (and to `theme`, since removed).
 # ---------------------------------------------------------------------------
 ENFORCED = {
+    "timing.advanceBookingWindowDays": "rules.RULES['booking.create'] + seed_config._grid",
+    "timing.waitlist": "routers/waitlist.py — join/leave + promote_from_waitlist",
+    "prerequisites": "rules.blocking_prerequisites + create/approve gate",
+    "recurrence": "bookings._book_repeats — series expander",
+    "entitlements": "rules.resolve_entitlement + pricing.quote discount",
+    "payments.flow": "rules.payment_state + POST /bookings/{id}/pay",
+    "inventory.returnRequired": "serialize.loan_state + POST /bookings/{id}/return",
+    "inventory.loanPeriodHours": "serialize.loan_state",
+    "inventory.overdueFeePerDayMinorUnits": "serialize.loan_state",
     "terms.admin": "auth.py owner-gate message",
     "terms.slot": "rules._term in rule-violation messages",
     "metaFields.resources": "meta.validate_metadata via routers/resources.py",
@@ -125,14 +134,9 @@ DECLARED_ONLY = {
     "location.serviceArea": "travel radius filter + travel buffer",
     "location.fulfilment": "pickup/delivery window logic",
     "location.remote": "meeting-link generation",
-    "prerequisites": "prerequisite_submissions + form renderer + confirm gate",
-    "timing.waitlist": "waitlist_entries + auto-promote (Tier 1)",
     "timing.seasons": "availability date-window filter",
     "timing.blackouts": "availability date-window filter",
     "timing.approvalWindowHours": "scheduled expiry job",
-    "timing.advanceBookingWindowDays": "rules.UNDISPATCHED — seed horizon conflict",
-    "recurrence": "booking_series entity + expander (E6)",
-    "entitlements": "entitlement_grants + credit spend",
     # `reviews`/`follows` are gated (see ENFORCED). These have no backend surface
     # to refuse yet, so the block's "hides the UI AND refuses the write" contract
     # is only half-true for them — say so rather than imply the whole block works.
@@ -150,11 +154,12 @@ DECLARED_ONLY = {
     "tenancy.commission": "no platform ledger — nothing computes or charges a commission",
     "tenancy.tenantVerification": "tenant onboarding review flow",
     # v1's cautionary tale, still true. `terms.admin` and `terms.slot` have real
-    # readers (see ENFORCED); the rest, all of `copy` and all of `theme`, are
-    # served over /config and rendered by nothing — the frontend takes its
-    # vocabulary from src/config/verticals.ts. Listing them here is the point of
-    # this map: they were previously in NEITHER, so the coverage report claimed
-    # an audit it had not done.
+    # readers (see ENFORCED); the rest, and all of `copy`, are served over
+    # /config and rendered by nothing — the frontend takes its vocabulary from
+    # src/config/verticals.ts. (v1's `theme` was the worst case and is now gone
+    # from the config entirely; the frontend owns its palette.) Listing them here
+    # is the point of this map: they were previously in NEITHER, so the coverage
+    # report claimed an audit it had not done.
     "terms.provider": "E10 per-service vocabulary (frontend reads verticals.ts)",
     "terms.providers": "E10 per-service vocabulary",
     "terms.service": "E10 per-service vocabulary",
@@ -171,7 +176,6 @@ DECLARED_ONLY = {
     "terms.clients": "E10 per-service vocabulary",
     "terms.admins": "E10 per-service vocabulary",
     "copy": "config-driven copy layer (frontend strings are literals today)",
-    "theme": "runtime theming (frontend uses its own Tailwind tokens)",
 }
 
 
@@ -280,7 +284,7 @@ SINGLE = [
                  "capabilities": {"inventory": True, "waitlist": True, "prerequisites": True, "recurrence": True},
                  "recurrence": {"enabled": True, "patterns": ["monthly"], "term": {"mode": "rolling", "noticePeriodDays": 90}},
                  "prerequisites": [{"key": "approval", "kind": "approval", "label": "Committee approval", "appliesTo": "customer", "required": True, "blocksConfirmation": True}],
-                 "timing": {"confirmation": "request_approve", "waitlist": {"enabled": True, "autoPromote": False, "maxPerSlot": 200}}},
+                 "timing": {"advanceBookingWindowDays": 365, "confirmation": "request_approve", "waitlist": {"enabled": True, "autoPromote": False, "maxPerSlot": 200}}},
          ctx={"slot_count": 1, "duration_minutes": 43200}, expect=6500,
          depends=["booking.duration.mode", "inventory.mode", "recurrence", "timing.waitlist", "prerequisites"],
          blocked="E2 — open-ended term; needs date_range availabilityStrategy"),
@@ -425,7 +429,7 @@ SINGLE += [
 
     dict(n=19, name="Self-Storage Units", booked="Serialised unit, monthly", price="Monthly subscription",
          flags="U:subsn P:subsn I:serial D:open L:onsite Y:solo Q:id T:instant M:invoice",
-         config={"booking": {"unitKind": "subscription_slot", "granularity": "month", "duration": {"mode": "open_ended"}},
+         config={"timing": {"advanceBookingWindowDays": 365}, "booking": {"unitKind": "subscription_slot", "granularity": "month", "duration": {"mode": "open_ended"}},
                  "pricing": {"model": "subscription", "chargePerPerson": False, "rate": {"per": "month", "amountMinorUnits": 8000}},
                  "payments": {"flow": "invoice_after", "billingCycle": "monthly"},
                  "inventory": {"mode": "serialised"},
@@ -738,7 +742,7 @@ MULTI += [
                  "capabilities": {"inventory": True, "prerequisites": True},
                  "location": {"modes": ["delivery"], "default": "delivery"},
                  "prerequisites": [{"key": "account", "kind": "approval", "label": "Trade account", "appliesTo": "customer", "required": True, "blocksConfirmation": True}],
-                 "timing": {"confirmation": "request_approve"}},
+                 "timing": {"advanceBookingWindowDays": 180, "confirmation": "request_approve"}},
          ctx={"slot_count": 1, "unit_count": 20, "duration_minutes": 40320}, expect=10000,
          depends=["pricing.secondaryRate", "booking.duration.mode", "payments.billingCycle"],
          blocked="E2 — open-ended term; needs date_range availabilityStrategy",
@@ -941,8 +945,9 @@ def check_audit_coverage() -> list[str]:
 
     The two maps above are the promise that no key "looks live and does nothing".
     Nothing checked that the promise was kept, and it had already been broken by
-    43 paths — all of `copy` and `theme` (the very keys the header names as v1's
-    cautionary tale), 13 of 15 `terms`, `pricing.model`, `tenancy.commission` —
+    43 paths — all of `copy` and the since-removed `theme` (the very keys the
+    header names as v1's cautionary tale), 13 of 15 `terms`, `pricing.model`,
+    `tenancy.commission` —
     so the coverage report claimed an audit it had not done. Adding a key to
     DEFAULTS now fails this script until it is classified.
     """

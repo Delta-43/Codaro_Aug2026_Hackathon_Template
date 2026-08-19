@@ -18,42 +18,61 @@ import { getOwnerDashboard } from "@/api";
 import type { OwnerDashboard, OwnerRequest } from "@/types/domain";
 import type { Metric } from "@/lib/business-demo";
 import { ownerBookingToCal } from "@/lib/owner-view";
+import { CreateBusiness } from "@/components/business/create-business";
+import type { VerticalConfig } from "@/config/verticals";
 import { browserTz, formatBookingWhen, formatMoney } from "@/lib/format";
+import type { TenancyTerms } from "@/api";
 
-function metricsOf(d: OwnerDashboard): Metric[] {
+/** `tenancy.commission` in the tile's words: what the platform takes, and what
+ *  is left. Declared since v2 and shown on no owner screen, so a marketplace
+ *  taking 12% looked to its tenants exactly like one taking nothing. */
+function commissionSub(rev: { minorUnits: number; currency: string }, terms: TenancyTerms) {
+  if (!terms.commission.enabled || !terms.commission.rateBps) return null;
+  const rate = terms.commission.rateBps / 100;
+  const net = Math.round(rev.minorUnits * (1 - terms.commission.rateBps / 10000));
+  return `${formatMoney(net, rev.currency)} after ${rate}% commission`;
+}
+
+function metricsOf(d: OwnerDashboard, vocab: VerticalConfig, terms: TenancyTerms): Metric[] {
   const { upcomingBookings: up, clientSatisfaction: sat, revenue: rev } = d.glance;
   const breakdown = up.byService.slice(0, 3).map((s) => s.count).join(" · ");
   const otherCurrencies = rev.byCurrency.slice(1).map((c) => c.currency);
   return [
     {
       key: "upcoming",
-      label: "Upcoming bookings",
+      label: `Upcoming ${vocab.bookingNounPlural.toLowerCase()}`,
       value: String(up.total),
       sub: up.byService.length ? `${breakdown} across ${up.byService.length} offers` : "next 30 days",
       tone: "neutral",
-      help: "Confirmed bookings in the next 30 days, broken down by offer. Open the calendar to manage any of them.",
+      help: `Confirmed ${vocab.bookingNounPlural.toLowerCase()} in the next 30 days, broken down by offer. Open the calendar to manage any of them.`,
     },
     {
       key: "satisfaction",
-      label: "Client satisfaction",
+      label: `${vocab.clientNoun} satisfaction`,
       value: `${sat.deltaPct >= 0 ? "+" : ""}${sat.deltaPct}%`,
       sub: "vs last month",
       tone: sat.deltaPct > 0 ? "up" : sat.deltaPct < 0 ? "down" : "neutral",
-      help: `Month-over-month change in booking volume. You're rated ${sat.currentRating.toFixed(1)} across ${sat.reviewCount} reviews.`,
+      help: `Month-over-month change in ${vocab.bookingNoun.toLowerCase()} volume. You're rated ${sat.currentRating.toFixed(1)} across ${sat.reviewCount} reviews.`,
     },
     {
       key: "revenue",
       label: "Revenue this month",
       value: formatMoney(rev.minorUnits, rev.currency),
-      sub: otherCurrencies.length ? `+ ${otherCurrencies.join(", ")}` : "confirmed this cycle",
+      sub:
+        commissionSub(rev, terms) ??
+        (otherCurrencies.length ? `+ ${otherCurrencies.join(", ")}` : "confirmed this cycle"),
       tone: "up",
-      help: `Value of confirmed bookings for ${rev.period}${otherCurrencies.length ? `, shown in your top currency (you also earn in ${otherCurrencies.join(", ")})` : ""}, before fees.`,
+      help: `Value of confirmed bookings for ${rev.period}${otherCurrencies.length ? `, shown in your top currency (you also earn in ${otherCurrencies.join(", ")})` : ""}, gross.${
+        terms.commission.enabled && terms.commission.rateBps
+          ? ` This marketplace charges ${terms.commission.rateBps / 100}% commission, on ${terms.commission.chargedOn}.`
+          : ""
+      }`,
     },
   ];
 }
 
 export default function DashboardPage() {
-  const { ready, activeProvider, scene, vocab } = useOwner();
+  const { ready, activeProvider, scene, vocab, tenancyTerms } = useOwner();
   const tz = browserTz();
   const [data, setData] = useState<OwnerDashboard | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,7 +88,10 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const metrics = useMemo(() => (data ? metricsOf(data) : []), [data]);
+  const metrics = useMemo(
+    () => (data ? metricsOf(data, vocab, tenancyTerms) : []),
+    [data, vocab, tenancyTerms],
+  );
   const week = useMemo(() => (data?.weekBookings ?? []).map((b) => ownerBookingToCal(b)), [data]);
 
   if (!ready || loading) {
@@ -84,13 +106,8 @@ export default function DashboardPage() {
 
   const provider = data?.provider ?? activeProvider;
 
-  if (!provider) {
-    return (
-      <p className="rounded-2xl border border-dashed border-border px-4 py-12 text-center text-sm text-muted-foreground">
-        No business yet. Once your {vocab.providerNoun.toLowerCase()} is set up, your dashboard lights up here.
-      </p>
-    );
-  }
+  // An owner with no provider gets the create form, not a dead end.
+  if (!provider) return <CreateBusiness />;
 
   return (
     <section className="space-y-5 py-2">
@@ -110,6 +127,24 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* `tenancy.tenantVerification` — what this marketplace requires of a
+          business before it trades. Declared in the config since v2 and shown
+          nowhere, so an owner could not find out what was being asked of them.
+          Informational: the engine does not yet gate trading on it, and saying
+          so is better than implying a check that does not run. */}
+      {tenancyTerms.verification.required ? (
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-sm font-semibold">Verification required to trade here</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {tenancyTerms.verification.credentials.length
+              ? `Hold and keep current: ${tenancyTerms.verification.credentials
+                  .map((c) => c.replace(/_/g, " "))
+                  .join(", ")}.`
+              : "This marketplace verifies its businesses before they trade."}
+          </p>
+        </div>
+      ) : null}
+
       {/* Glanceable numbers */}
       {metrics.length ? (
         <div className="flex items-stretch justify-between gap-1 rounded-2xl border border-border bg-card p-3">
@@ -124,7 +159,7 @@ export default function DashboardPage() {
 
       {/* Bookings — this week */}
       <div>
-        <SectionHeader title="Bookings" href="/owner/bookings" cta="Full calendar" />
+        <SectionHeader title={vocab.bookingNounPlural} href="/owner/bookings" cta="Full calendar" />
         <BookingCalendar bookings={week} timezone={tz} defaultView="week" compact onOpen={() => {}} />
       </div>
 

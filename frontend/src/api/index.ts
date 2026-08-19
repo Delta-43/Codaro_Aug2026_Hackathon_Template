@@ -17,6 +17,8 @@ import type {
   ClientReputation,
   Conversation,
   DayAvailability,
+  EntitlementPlan,
+  HeldEntitlement,
   ID,
   IsoUtc,
   Message,
@@ -27,8 +29,11 @@ import type {
   OwnerServiceSummary,
   Provider,
   ProviderReview,
+  Quote,
   Resource,
   Service,
+  Slot,
+  WaitlistEntry,
   User,
   VerticalId,
 } from "@/types/domain";
@@ -136,15 +141,46 @@ const del = (path: string) => request(path, { method: "DELETE" });
 
 // --- config / facets -------------------------------------------------------
 
-/** Which search facets the current catalog supports — derived server-side from
- *  the seeded data (`GET /config` → `search.facets`), so the filter UI pivots
- *  automatically. Defaults to all-on if the field is absent (older backend). */
-export type SearchFacets = { price: boolean; distance: boolean; rating: boolean };
+/** Which search facets this deployment offers (`discovery.facets`), so the
+ *  filter UI pivots with the config.
+ *
+ *  Reads `discovery` FIRST and falls back to `search`: `normalize()` mirrors the
+ *  two, but the v1 `search.facets` mirror is deliberately trimmed to the three
+ *  keys v1 declared — so reading it, as this did, made `availability` and
+ *  `unitKind` unreachable no matter what the pivot file said. */
+export type SearchFacets = {
+  price: boolean;
+  distance: boolean;
+  rating: boolean;
+  availability: boolean;
+  unitKind: boolean;
+};
+
+export const DEFAULT_FACETS: SearchFacets = {
+  price: true,
+  distance: true,
+  rating: true,
+  availability: true,
+  unitKind: false,
+};
+
+export function facetsFromConfig(cfg: unknown): SearchFacets {
+  const c = cfg as {
+    discovery?: { facets?: Partial<SearchFacets> };
+    search?: { facets?: Partial<SearchFacets> };
+  };
+  const f = { ...(c?.search?.facets ?? {}), ...(c?.discovery?.facets ?? {}) };
+  return {
+    price: f.price ?? DEFAULT_FACETS.price,
+    distance: f.distance ?? DEFAULT_FACETS.distance,
+    rating: f.rating ?? DEFAULT_FACETS.rating,
+    availability: f.availability ?? DEFAULT_FACETS.availability,
+    unitKind: f.unitKind ?? DEFAULT_FACETS.unitKind,
+  };
+}
 
 export async function getSearchFacets(): Promise<SearchFacets> {
-  const cfg = await request<{ search?: { facets?: Partial<SearchFacets> } }>("/config");
-  const f = cfg.search?.facets ?? {};
-  return { price: f.price ?? true, distance: f.distance ?? true, rating: f.rating ?? true };
+  return facetsFromConfig(await request<unknown>("/config"));
 }
 
 /** The pivot's tenancy mode. `"single"` collapses the marketplace to one implicit
@@ -214,22 +250,237 @@ function capabilitiesFromConfig(cfg: unknown): Capabilities {
   return out;
 }
 
-/** Everything `AppProvider` needs from the pivot file, in ONE request. Boot used
- *  to call `/config` for tenancy alone; this keeps the round-trip count the same
- *  while also picking up the location block. */
-export type PivotConfig = {
-  tenancy: Tenancy;
-  location: LocationConfig;
-  capabilities: Capabilities;
+/** The pivot file's `terms` block — the vocabulary the engine is configured with.
+ *  Served since v1 and read by nothing: the UI rendered `config/verticals.ts`, a
+ *  static three-vertical file, so pivoting `service` to "Plan" and `slot` to
+ *  "Billing period" changed the seed data and left every label saying "Subject"
+ *  and "session". Every key is optional — a term the config omits falls back to
+ *  the static vertical's word rather than rendering an empty label. */
+export type ConfigTerms = Partial<
+  Record<
+    | "provider"
+    | "providers"
+    | "service"
+    | "services"
+    | "resource"
+    | "resources"
+    | "slot"
+    | "slots"
+    | "booking"
+    | "bookings"
+    | "client"
+    | "clients"
+    | "party",
+    string
+  >
+>;
+
+/** The pivot file's `copy` block — whole sentences the UI shows at named moments.
+ *  Same story as `terms`: served, never read. Optional per key for the same
+ *  reason. `waitlistJoined` / `quoteRequested` / `depositDue` /
+ *  `prerequisiteBlocked` belong to surfaces that have no backend yet; they are
+ *  parsed here so the seam is ready, and deliberately not rendered. */
+export type ConfigCopy = Partial<
+  Record<
+    | "landingTitle"
+    | "landingSubtitle"
+    | "confirmTitle"
+    | "emptyStateSlots"
+    | "emptyStateBookings"
+    | "requestPending"
+    | "waitlistJoined"
+    | "quoteRequested"
+    | "depositDue"
+    | "prerequisiteBlocked",
+    string
+  >
+>;
+
+/** Keep only the string values, so a malformed config yields a *missing* key
+ *  (which falls back) rather than `undefined` rendered as a label. */
+function stringsOnly<T extends string>(raw: unknown): Partial<Record<T, string>> {
+  const out: Partial<Record<T, string>> = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === "string" && value.trim() !== "") out[key as T] = value;
+  }
+  return out;
+}
+
+/** `metaFields.{entity}` — the no-migration extension point. The backend has
+ *  validated these on write since v2 (a booking's `metadata` is checked against
+ *  `metaFields.bookings`), but nothing ever RENDERED them, so a declared domain
+ *  field had no input on any screen and could only be filled by curl. */
+export type MetaField = {
+  key: string;
+  label: string;
+  type: string;
+  options?: string[];
+  required?: boolean;
+};
+export type MetaFields = Record<string, MetaField[]>;
+
+function metaFieldsFromConfig(cfg: unknown): MetaFields {
+  const raw = (cfg as { metaFields?: Record<string, unknown> })?.metaFields ?? {};
+  const out: MetaFields = {};
+  for (const [entity, fields] of Object.entries(raw)) {
+    if (!Array.isArray(fields)) continue;
+    out[entity] = fields.filter(
+      (f): f is MetaField =>
+        !!f && typeof f === "object" && typeof (f as MetaField).key === "string",
+    );
+  }
+  return out;
+}
+
+/** The marketplace's own terms (`tenancy`): whether a tenant must be verified to
+ *  trade, and what the platform takes. Both were declared and shown nowhere. */
+export type TenancyTerms = {
+  selfOnboarding: boolean;
+  verification: { required: boolean; credentials: string[] };
+  commission: { enabled: boolean; rateBps: number; chargedOn: string };
 };
 
-export async function getPivotConfig(): Promise<PivotConfig> {
-  const cfg = await request<unknown>("/config");
+function tenancyTermsFromConfig(cfg: unknown): TenancyTerms {
+  const t =
+    (cfg as {
+      tenancy?: {
+        selfOnboarding?: boolean;
+        tenantVerification?: { required?: boolean; credentials?: unknown };
+        commission?: { enabled?: boolean; rateBps?: number; chargedOn?: string };
+      };
+    })?.tenancy ?? {};
+  const creds = t.tenantVerification?.credentials;
+  return {
+    selfOnboarding: t.selfOnboarding !== false,
+    verification: {
+      required: !!t.tenantVerification?.required,
+      credentials: Array.isArray(creds) ? creds.filter((c): c is string => typeof c === "string") : [],
+    },
+    commission: {
+      enabled: !!t.commission?.enabled,
+      rateBps: Number(t.commission?.rateBps ?? 0),
+      chargedOn: t.commission?.chargedOn ?? "completion",
+    },
+  };
+}
+
+/** Everything `AppProvider` needs from the pivot file, in ONE request. Boot used
+ *  to call `/config` for tenancy alone; this keeps the round-trip count the same
+ *  while also picking up the location and vocabulary blocks. */
+export type PivotConfig = {
+  tenancy: Tenancy;
+  tenancyTerms: TenancyTerms;
+  location: LocationConfig;
+  capabilities: Capabilities;
+  terms: ConfigTerms;
+  copy: ConfigCopy;
+  /** Declared domain fields per entity, so a form can render them. */
+  metaFields: MetaFields;
+  /** `discovery.facets` — which search dimensions this deployment offers. */
+  facets: SearchFacets;
+};
+
+/** The all-fallbacks value used when `/config` is unreachable. Boot must not hang
+ *  on the pivot file, and each caller was inlining its own copy of this. */
+export const FALLBACK_PIVOT_CONFIG: PivotConfig = {
+  tenancy: { mode: "multi", providerCode: null },
+  tenancyTerms: {
+    selfOnboarding: true,
+    verification: { required: false, credentials: [] },
+    commission: { enabled: false, rateBps: 0, chargedOn: "completion" },
+  },
+  metaFields: {},
+  facets: DEFAULT_FACETS,
+  location: { origin: null, distanceUnit: "km", timezone: "UTC" },
+  // /config unreachable: leave every capability ON. The backend is still the
+  // authority and refuses anything actually disabled.
+  capabilities: {},
+  // No terms/copy -> the static vertical's vocabulary, i.e. exactly the
+  // pre-pivot behaviour.
+  terms: {},
+  copy: {},
+};
+
+/** The pure half of `getPivotConfig` — a raw `/config` payload in, the parsed
+ *  shape out, no transport. Split out so `scripts/check_pivot_frontend.mts` can
+ *  run every `pivots/*.json` through the SAME parsers the app uses, rather than
+ *  a reimplementation that could drift from them. */
+export function parsePivotConfig(cfg: unknown): PivotConfig {
   return {
     tenancy: tenancyFromConfig(cfg),
     location: locationFromConfig(cfg),
+    tenancyTerms: tenancyTermsFromConfig(cfg),
     capabilities: capabilitiesFromConfig(cfg),
+    terms: stringsOnly<keyof ConfigTerms>((cfg as { terms?: unknown })?.terms),
+    copy: stringsOnly<keyof ConfigCopy>((cfg as { copy?: unknown })?.copy),
+    metaFields: metaFieldsFromConfig(cfg),
+    facets: facetsFromConfig(cfg),
   };
+}
+
+export async function getPivotConfig(): Promise<PivotConfig> {
+  return parsePivotConfig(await request<unknown>("/config"));
+}
+
+/** Price a selection WITHOUT booking it, through the engine that will charge.
+ *
+ *  The confirm screen used to compute `priceMinorUnits * slots * party`, which
+ *  is only the default pricing block's formula. On a tiered escape room that
+ *  showed 45000 and charged 12000. Anything that displays a total must come
+ *  from here. Throws the same ApiError an unbookable selection would raise. */
+export function getQuote(q: {
+  serviceId: ID;
+  resourceId: ID;
+  slotIds: ID[];
+  partySize: number;
+} & BookingShape): Promise<Quote> {
+  return post("/bookings/quote", {
+    serviceId: q.serviceId,
+    resourceId: q.resourceId,
+    slotIds: q.slotIds,
+    partySize: q.partySize,
+    // Priced, not just recorded: bands weight the head count, options add
+    // lines, and a `subjectField` tier matches on the subject.
+    partyBands: q.partyBands,
+    options: q.options,
+    subject: q.subject,
+  }) as Promise<Quote>;
+}
+
+/** What this deployment sells as memberships/passes, and what the user holds.
+ *  Returns an empty catalogue (not an error) when `entitlements` is off, so the
+ *  caller hides the surface on `plans.length` without special-casing. */
+export function getMyEntitlements(): Promise<{
+  enabled: boolean;
+  kind: string;
+  plans: EntitlementPlan[];
+  held: HeldEntitlement[];
+  active: HeldEntitlement | null;
+}> {
+  return request("/me/entitlements");
+}
+
+/** Owner marks a loaned item handed back (`inventory.returnRequired`). Owner-only
+ *  on the server: a customer able to self-certify could clear their own fee. */
+export function markReturned(bookingId: ID): Promise<Booking> {
+  return post(`/bookings/${bookingId}/return`, undefined) as Promise<Booking>;
+}
+
+/** Take a place in the queue for a full slot (`timing.waitlist`). Refused by the
+ *  server when the slot still has room — booking it is strictly better. */
+export function joinWaitlist(slotId: ID): Promise<WaitlistEntry> {
+  return post(`/slots/${slotId}/waitlist`, undefined) as Promise<WaitlistEntry>;
+}
+
+/** Owner records a blocking prerequisite as satisfied. */
+export function satisfyPrerequisite(bookingId: ID, key: string): Promise<Booking> {
+  return post(`/bookings/${bookingId}/prerequisites/${key}`, undefined) as Promise<Booking>;
+}
+
+/** Owner records money received. Omit `amount` to settle the outstanding balance. */
+export function recordPayment(bookingId: ID, amount?: number): Promise<Booking> {
+  return post(`/bookings/${bookingId}/pay${amount === undefined ? "" : `?amount=${amount}`}`, undefined) as Promise<Booking>;
 }
 
 // --- discovery -------------------------------------------------------------
@@ -297,12 +548,35 @@ export function getMonthDensity(q: {
 
 // --- bookings --------------------------------------------------------------
 
+/** The parts of a booking the CONFIG decides whether to ask for at all.
+ *  Sent identically by the quote and the create, because the price the customer
+ *  sees has to be the price for the thing they are actually booking. */
+export type BookingShape = {
+  /** `booking.party.composition` — heads per band ({adult: 2, child: 1}). Must
+   *  add up to `partySize`; the server weights them by `priceFactor`. */
+  partyBands?: Record<string, number>;
+  /** `booking.options` — {optionKey: true | "choiceKey"}. Prices are resolved
+   *  server-side; a key or choice the config never declared is rejected. */
+  options?: Record<string, string | boolean>;
+  /** `booking.subject` — the pet/vehicle/child the booking is about. */
+  subject?: Record<string, unknown>;
+};
+
 export function createBooking(input: {
   serviceId: ID;
   resourceId: ID;
   slotIds: ID[];
   partySize: number;
-}): Promise<Booking> {
+  /** Optional repeat (`recurrence`). `count` INCLUDES this booking, and the
+   *  server clamps it to `recurrence.maxOccurrences` — the client never sets
+   *  the ceiling. Later occurrences are best-effort and the response's
+   *  `series.skipped` names any that could not be booked. */
+  repeat?: { pattern: string; count: number };
+  /** `metaFields.bookings` — domain fields the deployment declares. Merged
+   *  UNDER the engine's own keys server-side, so a domain field can never
+   *  rewrite a price. */
+  metadata?: Record<string, unknown>;
+} & BookingShape): Promise<Booking> {
   return post("/bookings", input) as Promise<Booking>;
 }
 
@@ -486,6 +760,92 @@ export function deleteProviderAvatar(id: ID): Promise<Provider> {
   return del(`/providers/${id}/avatar`) as Promise<Provider>;
 }
 
+/** Create the business itself (owner). Until this existed the console could
+ *  create a service but not the provider that owns one, so a new owner's only
+ *  route to a business was the seed. `providerCode` is what single-tenant
+ *  deployments resolve their sole business by, so it is worth setting. */
+export function createProvider(input: {
+  name: string;
+  publicCode?: string;
+  categoryId?: string;
+  tagline?: string;
+  bio?: string;
+  location?: { city: string; country: string; lat: number; lng: number };
+}): Promise<Provider> {
+  return post("/providers", input) as Promise<Provider>;
+}
+
+/** Create a bookable unit under a service (owner).
+ *
+ *  `serviceId`, `capacity`, `active` and `attributes` ride in `metadata`: the
+ *  base tables are frozen, so everything but name/description lives there.
+ *  Callers pass them flat and this assembles the shape the API expects. */
+export function createResource(input: {
+  serviceId: ID;
+  name: string;
+  description?: string;
+  capacity: number;
+  attributes?: { label: string; value: string }[];
+}): Promise<Resource> {
+  return post("/resources", {
+    name: input.name,
+    description: input.description,
+    metadata: {
+      service_id: input.serviceId,
+      capacity: input.capacity,
+      active: true,
+      attributes: input.attributes ?? [],
+    },
+  }) as Promise<Resource>;
+}
+
+/** Open one slot on a resource (owner). `endsAt` defaults server-side to the
+ *  service's `slotDurationMinutes`, and `capacity` to the resource's own, so
+ *  the caller only has to say when. */
+export function createSlot(input: {
+  resourceId: ID;
+  startsAt: IsoUtc;
+  endsAt?: IsoUtc;
+  capacity?: number;
+}): Promise<Slot> {
+  return post("/slots", input) as Promise<Slot>;
+}
+
+/** Open a run of slots back-to-back — what "add a day of availability" means.
+ *
+ *  Issued sequentially, not in parallel: `slot.create` enforces
+ *  `timing.bufferMinutes` against the slots that already exist, so two
+ *  concurrent creates can both pass a check the pair then violates. Returns
+ *  what was opened and what the engine refused, rather than failing the batch —
+ *  a run that collides with existing availability should still open the rest.
+ */
+export async function createSlotRun(input: {
+  resourceId: ID;
+  startsAt: IsoUtc;
+  durationMinutes: number;
+  count: number;
+  capacity?: number;
+}): Promise<{ created: Slot[]; rejected: { startsAt: IsoUtc; message: string }[] }> {
+  const created: Slot[] = [];
+  const rejected: { startsAt: IsoUtc; message: string }[] = [];
+  let cursor = new Date(input.startsAt).getTime();
+  for (let i = 0; i < input.count; i++) {
+    const startsAt = new Date(cursor).toISOString();
+    const endsAt = new Date(cursor + input.durationMinutes * 60_000).toISOString();
+    try {
+      created.push(await createSlot({ resourceId: input.resourceId, startsAt, endsAt, capacity: input.capacity }));
+    } catch (e) {
+      rejected.push({ startsAt, message: e instanceof ApiError ? e.message : "Could not open that time." });
+    }
+    cursor += input.durationMinutes * 60_000;
+  }
+  return { created, rejected };
+}
+
+export function deleteResource(id: ID): Promise<void> {
+  return del(`/resources/${id}`) as Promise<void>;
+}
+
 export function createService(input: {
   providerId: ID;
   name: string;
@@ -498,6 +858,9 @@ export function createService(input: {
   currency: string;
   cancellationCutoffHours: number;
   autoApprove?: boolean;
+  /** `metaFields.services` — the deployment's own declared fields, validated
+   *  server-side against the same descriptors the form is built from. */
+  metadata?: Record<string, unknown>;
 }): Promise<Service> {
   return post("/services", input) as Promise<Service>;
 }
@@ -513,6 +876,7 @@ export function updateService(
     priceMinorUnits: number;
     cancellationCutoffHours: number;
     autoApprove: boolean;
+    metadata: Record<string, unknown>;
   }>,
 ): Promise<Service> {
   return patch(`/services/${id}`, patchBody) as Promise<Service>;

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AppProvider } from "@/context/app-context";
+import { CartProvider } from "@/context/cart-context";
 import { AppShell } from "@/components/app-shell";
 import { AuthGate } from "@/components/auth-gate";
 
@@ -13,7 +14,11 @@ export default function AppGroupLayout({ children }: { children: ReactNode }) {
   return (
     <AuthGate>
       <AppProvider>
-        <AppShell>{children}</AppShell>
+        {/* The basket is app-wide (`capabilities.cart`): it has to survive
+            moving between the calendar, search and the bookings tab. */}
+        <CartProvider>
+          <AppShell>{children}</AppShell>
+        </CartProvider>
       </AppProvider>
     </AuthGate>
   );

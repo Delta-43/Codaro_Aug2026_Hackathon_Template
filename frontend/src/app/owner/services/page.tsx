@@ -25,6 +25,8 @@ import {
 import type { BookingModel, OwnerServiceSummary } from "@/types/domain";
 import { formatDuration, formatMoney, toMajorUnits, toMinorUnits } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { ServiceResources } from "@/components/business/service-resources";
+import { FieldForm, pruneValues, type FieldValues } from "@/components/booking/field-form";
 
 const MODELS: { id: BookingModel; label: string }[] = [
   { id: "unit_selection", label: "Unit selection (many units, pick one)" },
@@ -213,6 +215,9 @@ function ServiceCard({
       {open ? (
         <div className="border-t border-border p-4">
           <ServiceEditor service={s} onSave={onSave} onDelete={onDelete} />
+          {/* Units + availability. A service with neither is inert, so this sits
+              with the editor rather than behind another navigation step. */}
+          <ServiceResources service={s} />
         </div>
       ) : null}
     </li>
@@ -343,6 +348,9 @@ interface CreateInput {
   currency: string;
   cancellationCutoffHours: number;
   autoApprove: boolean;
+  /** `metaFields.services` — validated server-side against the same descriptors
+   *  the form renders from. */
+  metadata?: Record<string, unknown>;
 }
 
 function OfferForm({
@@ -363,6 +371,11 @@ function OfferForm({
   const [maxSlots, setMaxSlots] = useState(1);
   const [cutoff, setCutoff] = useState(24);
   const [autoApprove, setAutoApprove] = useState(true);
+  // `metaFields.services` — the deployment's own declared fields. The backend
+  // has validated these on write since v2 and no form ever offered them, so an
+  // owner could not fill in a field their own config demanded.
+  const [meta, setMeta] = useState<FieldValues>({});
+  const serviceFields = useOwner().metaFields.services ?? [];
 
   function submit(e: FormEvent) {
     e.preventDefault();
@@ -377,6 +390,7 @@ function OfferForm({
       currency,
       cancellationCutoffHours: cutoff,
       autoApprove,
+      metadata: Object.keys(meta).length ? pruneValues(meta) : undefined,
     });
   }
 
@@ -412,6 +426,9 @@ function OfferForm({
           <Input type="number" value={String(cutoff)} onChange={(e) => setCutoff(+e.target.value)} />
         </Field>
       </div>
+      {serviceFields.length ? (
+        <FieldForm fields={serviceFields} values={meta} onChange={setMeta} idPrefix="svc-meta" />
+      ) : null}
       <label className="flex items-center gap-2 text-sm">
         <input
           type="checkbox"

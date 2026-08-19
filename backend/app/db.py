@@ -58,6 +58,39 @@ UNIQUE_VIOLATION_CODE = "23505"
 RLS_DENIED_CODE = "42501"
 
 
+# PostgREST caps an unbounded select at 1000 rows and says nothing about it —
+# no error, no truncation flag, just a short list. A busy service has far more
+# slots than that, so `/slots` and `/slots/occupancy` were each returning a
+# silent prefix, and because they truncate INDEPENDENTLY a client joining them
+# saw slots with no matching occupancy row and concluded the calendar was
+# fragmented. Anything that must return a COMPLETE set goes through this.
+_PAGE = 1000
+
+
+def fetch_all(query, page: int = _PAGE, order: str = "id") -> list[dict]:
+    """Every row a query matches, paging past PostgREST's implicit 1000 cap.
+
+    Stops on the first short page, so a result that fits in one page costs
+    exactly one round trip — the common case is unchanged.
+
+    Paging REQUIRES a total order. Postgres makes no promise about row order
+    across separate queries, so ranging an unordered select can return the same
+    row on two pages and never return another — duplicate slots in the calendar
+    and a real one that reads as unavailable. Concurrent inserts (a reseed, an
+    owner adding slots) make that near-certain rather than theoretical. `order`
+    is the column to sort by; it must be unique, hence `id` by default.
+    """
+    out: list[dict] = []
+    start = 0
+    query = query.order(order)
+    while True:
+        rows = query.range(start, start + page - 1).execute().data or []
+        out.extend(rows)
+        if len(rows) < page:
+            return out
+        start += page
+
+
 def maybe_row(query):
     """Fetch a single row, returning ``None`` when nothing matches.
 

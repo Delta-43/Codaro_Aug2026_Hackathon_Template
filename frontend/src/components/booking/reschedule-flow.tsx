@@ -12,6 +12,7 @@
  */
 import { useMemo, useState } from "react";
 import { ChevronLeft } from "lucide-react";
+import { useVertical } from "@/context/app-context";
 import type { Booking, Service, Slot } from "@/types/domain";
 import { getAvailability, getResources, isApiError, rescheduleBooking } from "@/api";
 import { useAsync } from "@/hooks/use-async";
@@ -37,6 +38,7 @@ export function RescheduleFlow({
   /** CUTOFF_PASSED came back mid-flow — bubble the message up to the detail. */
   onCutoff: (message: string) => void;
 }) {
+  const vertical = useVertical();
   const isRange = service.maxSlotsPerBooking > 1;
 
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -83,7 +85,7 @@ export function RescheduleFlow({
         .flatMap((d) => d.slots)
         .filter((s) => s.resourceId === start.resourceId)
         .sort((a, b) => ms(a.startUtc) - ms(b.startUtc));
-      const problem = validateSpan(span, service);
+      const problem = validateSpan(span, service, vertical.slotNounPlural);
       if (problem) {
         setRangeError(problem);
         return;
@@ -203,7 +205,7 @@ export function RescheduleFlow({
     <div className="py-4">
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
-          <h1 className="text-lg font-semibold tracking-tight">Move booking</h1>
+          <h1 className="text-lg font-semibold tracking-tight">Move {vertical.bookingNoun.toLowerCase()}</h1>
           <p className="text-sm text-muted-foreground">
             Pick a new time · {service.name}
             {resourceName ? ` · ${resourceName}` : ""}

@@ -11,11 +11,21 @@
 import type { Service, Slot } from "@/types/domain";
 import { ms } from "@/lib/format";
 
-/** Why this span cannot be booked, or null when it is valid. */
-export function validateSpan(span: Slot[], service: Service): string | null {
+/** Why this span cannot be booked, or null when it is valid.
+ *
+ *  `slotNounPlural` comes from `terms.slots`, so the limit names what is being
+ *  counted ("up to 14 nights in a row") instead of a bare number. Optional so
+ *  the pure-logic callers and tests need not thread vocabulary through. */
+export function validateSpan(
+  span: Slot[],
+  service: Service,
+  slotNounPlural?: string,
+): string | null {
   if (span.length < 1) return "Nothing selected.";
   if (span.length > service.maxSlotsPerBooking)
-    return `You can book up to ${service.maxSlotsPerBooking} in a row.`;
+    return `You can book up to ${service.maxSlotsPerBooking}${
+      slotNounPlural ? ` ${slotNounPlural.toLowerCase()}` : ""
+    } in a row.`;
   for (const s of span) {
     if (s.status !== "available" && s.status !== "partially_booked")
       return "That range includes an unavailable time.";

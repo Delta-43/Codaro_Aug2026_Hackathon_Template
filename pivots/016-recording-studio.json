@@ -1,0 +1,237 @@
+{
+  "configVersion": 2,
+  "domain": "recording-studio",
+  "tenancy": {
+    "mode": "single",
+    "providerCode": "VISTULA-4471",
+    "selfOnboarding": false,
+    "tenantVerification": {
+      "required": false,
+      "credentials": []
+    },
+    "commission": {
+      "enabled": false,
+      "rateBps": 0,
+      "chargedOn": "completion"
+    }
+  },
+  "capabilities": {
+    "payments": true,
+    "inventory": false,
+    "waitlist": false,
+    "quotes": false,
+    "recurrence": false,
+    "prerequisites": false,
+    "entitlements": false,
+    "cart": false,
+    "reviews": true,
+    "follows": true
+  },
+  "booking": {
+    "unitKind": "room",
+    "granularity": "minute",
+    "duration": {
+      "mode": "customer_chosen",
+      "minUnits": 3,
+      "maxUnits": 12,
+      "incrementUnits": 1
+    },
+    "party": {
+      "mode": "group",
+      "min": 1,
+      "max": 8,
+      "composition": null,
+      "matchResourceCapacity": true
+    },
+    "sequence": {
+      "enabled": false,
+      "steps": 1,
+      "minGapHours": 0,
+      "maxGapHours": null
+    },
+    "subject": {
+      "enabled": false,
+      "noun": "Subject",
+      "fields": []
+    },
+    "options": [
+      {
+        "key": "engineer",
+        "label": "Engineer",
+        "type": "boolean",
+        "choices": [
+          {
+            "key": "yes",
+            "label": "With engineer",
+            "priceMinorUnits": 4000,
+            "requires": []
+          }
+        ]
+      }
+    ]
+  },
+  "pricing": {
+    "model": "per_hour",
+    "currency": "EUR",
+    "currencyExponent": 2,
+    "rate": {
+      "per": "hour",
+      "amountMinorUnits": 5000
+    },
+    "secondaryRate": null,
+    "tiers": [],
+    "chargePerPerson": false,
+    "caps": {
+      "perBookingMinorUnits": null,
+      "perDayMinorUnits": null
+    },
+    "fees": [],
+    "deposit": {
+      "enabled": true,
+      "kind": "flat",
+      "value": 5000,
+      "refundable": true
+    }
+  },
+  "payments": {
+    "flow": "split",
+    "payer": "customer",
+    "schedule": [],
+    "billingCycle": "none",
+    "noShowFee": {
+      "enabled": false,
+      "amountMinorUnits": 0
+    },
+    "usageMetered": false,
+    "adapter": "manual"
+  },
+  "inventory": {
+    "mode": "none",
+    "reservationWindowMinutes": 15,
+    "loanPeriodHours": null,
+    "returnRequired": false,
+    "overdueFeePerDayMinorUnits": 0,
+    "restockCycle": "none",
+    "ratioConstraint": null
+  },
+  "location": {
+    "modes": [
+      "on_site"
+    ],
+    "default": "on_site",
+    "timezone": "UTC",
+    "distanceUnit": "km",
+    "origin": null,
+    "serviceArea": {
+      "radiusKm": null,
+      "travelBufferMinutes": 0,
+      "feeBands": []
+    },
+    "remote": {
+      "meetingLinkMode": "none"
+    },
+    "fulfilment": {
+      "windowMinutes": 60,
+      "cutoffHoursBefore": 0
+    }
+  },
+  "prerequisites": [],
+  "timing": {
+    "confirmation": "request_approve",
+    "approvalWindowHours": 48,
+    "leadTimeMinutes": 0,
+    "waitlist": {
+      "enabled": false,
+      "autoPromote": true,
+      "maxPerSlot": 0
+    },
+    "seasons": [],
+    "blackouts": [],
+    "slotDurationMinutes": 30,
+    "maxBookingsPerSlot": 1,
+    "cancellationWindowHours": 24,
+    "advanceBookingWindowDays": 30,
+    "bufferMinutes": 0
+  },
+  "recurrence": {
+    "enabled": false,
+    "patterns": [],
+    "maxOccurrences": 12,
+    "term": {
+      "mode": "fixed",
+      "noticePeriodDays": 0
+    }
+  },
+  "entitlements": {
+    "enabled": false,
+    "kind": "none",
+    "plans": []
+  },
+  "discovery": {
+    "mode": "browse",
+    "facets": {
+      "price": true,
+      "distance": true,
+      "rating": true,
+      "availability": true,
+      "unitKind": false
+    },
+    "matching": {
+      "enabled": false,
+      "source": "intake_form"
+    }
+  },
+  "terms": {
+    "provider": "Venue",
+    "providers": "Venues",
+    "service": "Room type",
+    "services": "Room types",
+    "staff": "Staff",
+    "subject": "Subject",
+    "party": "Group",
+    "resource": "Room",
+    "resources": "Rooms",
+    "slot": "Session",
+    "slots": "Sessions",
+    "booking": "Reservation",
+    "bookings": "Reservations",
+    "client": "Customer",
+    "clients": "Customers",
+    "admin": "Recording Studio",
+    "admins": "Recording Studio"
+  },
+  "copy": {
+    "landingTitle": "Recording Studio",
+    "landingSubtitle": "Room + engineer — per hour, min block.",
+    "confirmTitle": "Booking confirmed",
+    "emptyStateSlots": "No sessions available yet.",
+    "emptyStateBookings": "You have no reservations yet.",
+    "requestPending": "Your request has been sent.",
+    "waitlistJoined": "You're on the waitlist.",
+    "quoteRequested": "Your quote request has been sent.",
+    "depositDue": "A deposit is due to confirm this booking.",
+    "prerequisiteBlocked": "Some details are needed before this can be confirmed."
+  },
+  "metaFields": {
+    "providers": [],
+    "services": [],
+    "resources": [],
+    "slots": [],
+    "bookings": [],
+    "subjects": []
+  },
+  "rules": {
+    "slotDurationMinutes": 30,
+    "maxBookingsPerSlot": 1,
+    "cancellationWindowHours": 24,
+    "advanceBookingWindowDays": 30,
+    "bufferMinutes": 0
+  },
+  "search": {
+    "facets": {
+      "price": true,
+      "distance": true,
+      "rating": true
+    }
+  }
+}

@@ -22,6 +22,54 @@ class CamelModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
+class RepeatReq(CamelModel):
+    """The repeat leg of `POST /bookings`.
+
+    `recurrence` was declared, validated and read by nothing: a config could
+    state `patterns: ["weekly"], maxOccurrences: 12` and the engine had no way
+    to make a second booking from it.
+
+    `count` INCLUDES the first occurrence, so `count: 4` on a weekly pattern is
+    the selected date plus three more. It is clamped to
+    `recurrence.maxOccurrences` server-side — the client never decides the
+    ceiling.
+    """
+
+    pattern: str
+    count: int = 1
+
+
+class QuoteReq(CamelModel):
+    """POST /bookings/quote — price a selection WITHOUT committing it.
+
+    The same envelope as `BookingCreateReq` minus the domain metadata, because
+    the quote runs the identical resolve + price path the create does. The UI
+    used to compute `priceMinorUnits * slots * party` itself, which is only the
+    default `pricing` block's formula: a service billing per hour, per person,
+    by tier, or with a fee/cap/deposit displayed one number and charged another.
+    """
+
+    service_id: str
+    resource_id: str
+    slot_ids: list[str]
+    party_size: int = 1
+    # The three v2 `booking` blocks that had no input path until now. All
+    # optional: a deployment declaring none sends none and prices exactly as
+    # before.
+    #
+    # party_bands  {bandKey: count} for `booking.party.composition` — priced as a
+    #              weighted head count, and must add up to party_size.
+    # options      {optionKey: true | "choiceKey"} for `booking.options` — paid
+    #              add-ons, resolved to breakdown lines server-side so the client
+    #              can never name its own price.
+    # subject      the pet/vehicle/child the booking is about
+    #              (`booking.subject.fields`), validated against the declared
+    #              fields; a missing required one is a rejection.
+    party_bands: dict[str, int] | None = None
+    options: dict[str, object] | None = None
+    subject: dict | None = None
+
+
 class BookingCreateReq(CamelModel):
     """POST /bookings — the multi-slot, party-size booking envelope. Ownership
     (userId/email) is derived from the token, never the body."""
@@ -30,6 +78,24 @@ class BookingCreateReq(CamelModel):
     resource_id: str
     slot_ids: list[str]
     party_size: int = 1
+    # The three v2 `booking` blocks that had no input path until now. All
+    # optional: a deployment declaring none sends none and prices exactly as
+    # before.
+    #
+    # party_bands  {bandKey: count} for `booking.party.composition` — priced as a
+    #              weighted head count, and must add up to party_size.
+    # options      {optionKey: true | "choiceKey"} for `booking.options` — paid
+    #              add-ons, resolved to breakdown lines server-side so the client
+    #              can never name its own price.
+    # subject      the pet/vehicle/child the booking is about
+    #              (`booking.subject.fields`), validated against the declared
+    #              fields; a missing required one is a rejection.
+    party_bands: dict[str, int] | None = None
+    options: dict[str, object] | None = None
+    subject: dict | None = None
+    # Optional repeat. Absent (the default) books exactly the selection, which
+    # is what every non-recurring deployment does.
+    repeat: RepeatReq | None = None
     # Domain-specific fields, validated at request time from
     # `domain.config.json` metaFields.{entity}. Only `resources`/`slots` ever
     # accepted one, so a `metaFields.providers|services|bookings` descriptor (the
@@ -180,19 +246,26 @@ class ServiceUpdate(CamelModel):
     metadata: dict | None = None
 
 
-class ResourceCreate(BaseModel):
+# `CamelModel`, not `BaseModel`. These four were the only owner-side write
+# models still snake_case-only, so the frontend seam — which sends camelCase
+# everywhere — could create a provider and a service but not the resources and
+# slots they need. `SlotCreate` 422'd on `resourceId`/`startsAt`, and
+# `ResourceCreate` silently ignored the unknown keys, which is worse: a
+# camelCase resource was created with the DEFAULT capacity rather than rejected.
+# `populate_by_name` keeps existing snake_case callers (seed, tests, curl) working.
+class ResourceCreate(CamelModel):
     name: str
     description: str | None = None
     metadata: dict = Field(default_factory=dict)
 
 
-class ResourceUpdate(BaseModel):
+class ResourceUpdate(CamelModel):
     name: str | None = None
     description: str | None = None
     metadata: dict | None = None
 
 
-class SlotCreate(BaseModel):
+class SlotCreate(CamelModel):
     resource_id: str
     starts_at: str
     # Derived from rules.slotDurationMinutes when omitted (see routers/slots.py).
@@ -202,7 +275,7 @@ class SlotCreate(BaseModel):
     metadata: dict = Field(default_factory=dict)
 
 
-class SlotUpdate(BaseModel):
+class SlotUpdate(CamelModel):
     starts_at: str | None = None
     ends_at: str | None = None
     capacity: int | None = None

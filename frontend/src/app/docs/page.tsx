@@ -895,8 +895,7 @@ appliesTo ∈ customer | tenant | subject`}</Code>
           <C>landingTitle</C>, <C>landingSubtitle</C>, <C>confirmTitle</C>,{" "}
           <C>emptyStateSlots</C>, <C>emptyStateBookings</C>,{" "}
           <C>requestPending</C>, <C>waitlistJoined</C>, <C>quoteRequested</C>,{" "}
-          <C>depositDue</C>, <C>prerequisiteBlocked</C>. All must be non-empty.{" "}
-          <C>theme</C> is just <C>{"{primaryColor, radius}"}</C>.
+          <C>depositDue</C>, <C>prerequisiteBlocked</C>. All must be non-empty.
         </p>
 
         <H3 id="vocab-meta">metaFields — your own data</H3>
@@ -973,7 +972,7 @@ appliesTo ∈ customer | tenant | subject`}</Code>
         </p>
         <p>
           <C>tenancy</C>, <C>prerequisites</C>, <C>discovery</C>, <C>terms</C>,{" "}
-          <C>copy</C>, <C>theme</C> and <C>metaFields</C> stay global —
+          <C>copy</C> and <C>metaFields</C> stay global —
           presentation and platform terms are not a single service&apos;s to
           change.
         </p>
@@ -1205,7 +1204,7 @@ This is the file a pivot edits — fix the keys above.`}</Code>
 
         <p>
           Everything not named here — <C>discovery</C>, <C>recurrence</C>,{" "}
-          <C>entitlements</C>, <C>copy</C>, <C>theme</C>, the rest of{" "}
+          <C>entitlements</C>, <C>copy</C>, the rest of{" "}
           <C>booking</C> and <C>payments</C> — resolves from the defaults, which
           is why a file this short is a complete configuration.
         </p>

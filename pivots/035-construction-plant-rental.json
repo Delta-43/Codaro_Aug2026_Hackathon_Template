@@ -1,0 +1,257 @@
+{
+  "configVersion": 2,
+  "domain": "construction-plant-rental",
+  "tenancy": {
+    "mode": "multi",
+    "providerCode": null,
+    "selfOnboarding": true,
+    "tenantVerification": {
+      "required": false,
+      "credentials": []
+    },
+    "commission": {
+      "enabled": true,
+      "rateBps": 1100,
+      "chargedOn": "completion"
+    }
+  },
+  "capabilities": {
+    "payments": true,
+    "inventory": true,
+    "waitlist": false,
+    "quotes": false,
+    "recurrence": false,
+    "prerequisites": true,
+    "entitlements": false,
+    "cart": false,
+    "reviews": true,
+    "follows": true
+  },
+  "booking": {
+    "unitKind": "asset",
+    "granularity": "day",
+    "duration": {
+      "mode": "customer_chosen",
+      "minUnits": 1,
+      "maxUnits": 60,
+      "incrementUnits": 1
+    },
+    "party": {
+      "mode": "individual",
+      "min": 1,
+      "max": null,
+      "composition": null,
+      "matchResourceCapacity": false
+    },
+    "sequence": {
+      "enabled": false,
+      "steps": 1,
+      "minGapHours": 0,
+      "maxGapHours": null
+    },
+    "subject": {
+      "enabled": false,
+      "noun": "Subject",
+      "fields": []
+    },
+    "options": []
+  },
+  "pricing": {
+    "model": "per_unit",
+    "currency": "EUR",
+    "currencyExponent": 2,
+    "rate": {
+      "per": "day",
+      "amountMinorUnits": 25000
+    },
+    "secondaryRate": null,
+    "tiers": [],
+    "chargePerPerson": false,
+    "caps": {
+      "perBookingMinorUnits": null,
+      "perDayMinorUnits": null
+    },
+    "fees": [
+      {
+        "key": "delivery",
+        "label": "Delivery",
+        "kind": "distanceBand",
+        "bands": [
+          {
+            "maxKm": 10,
+            "feeMinorUnits": 3000
+          },
+          {
+            "maxKm": 50,
+            "feeMinorUnits": 8000
+          },
+          {
+            "maxKm": null,
+            "feeMinorUnits": 15000
+          }
+        ]
+      }
+    ],
+    "deposit": {
+      "enabled": true,
+      "kind": "percent",
+      "value": 20,
+      "refundable": true
+    }
+  },
+  "payments": {
+    "flow": "split",
+    "payer": "customer",
+    "schedule": [],
+    "billingCycle": "none",
+    "noShowFee": {
+      "enabled": false,
+      "amountMinorUnits": 0
+    },
+    "usageMetered": false,
+    "adapter": "manual"
+  },
+  "inventory": {
+    "mode": "serialised",
+    "reservationWindowMinutes": 15,
+    "loanPeriodHours": null,
+    "returnRequired": true,
+    "overdueFeePerDayMinorUnits": 0,
+    "restockCycle": "none",
+    "ratioConstraint": null
+  },
+  "location": {
+    "modes": [
+      "delivery"
+    ],
+    "default": "delivery",
+    "timezone": "UTC",
+    "distanceUnit": "km",
+    "origin": null,
+    "serviceArea": {
+      "radiusKm": 120,
+      "travelBufferMinutes": 0,
+      "feeBands": [
+        {
+          "maxKm": 50,
+          "feeMinorUnits": 8000
+        }
+      ]
+    },
+    "remote": {
+      "meetingLinkMode": "none"
+    },
+    "fulfilment": {
+      "windowMinutes": 60,
+      "cutoffHoursBefore": 0
+    }
+  },
+  "prerequisites": [
+    {
+      "key": "waiver",
+      "kind": "waiver",
+      "label": "Damage waiver",
+      "appliesTo": "customer",
+      "required": true,
+      "blocksConfirmation": true
+    }
+  ],
+  "timing": {
+    "confirmation": "request_approve",
+    "approvalWindowHours": 48,
+    "leadTimeMinutes": 0,
+    "waitlist": {
+      "enabled": false,
+      "autoPromote": true,
+      "maxPerSlot": 0
+    },
+    "seasons": [],
+    "blackouts": [],
+    "slotDurationMinutes": 1440,
+    "maxBookingsPerSlot": 1,
+    "cancellationWindowHours": 24,
+    "advanceBookingWindowDays": 30,
+    "bufferMinutes": 0
+  },
+  "recurrence": {
+    "enabled": false,
+    "patterns": [],
+    "maxOccurrences": 12,
+    "term": {
+      "mode": "fixed",
+      "noticePeriodDays": 0
+    }
+  },
+  "entitlements": {
+    "enabled": false,
+    "kind": "none",
+    "plans": []
+  },
+  "discovery": {
+    "mode": "browse",
+    "facets": {
+      "price": true,
+      "distance": true,
+      "rating": true,
+      "availability": true,
+      "unitKind": false
+    },
+    "matching": {
+      "enabled": false,
+      "source": "intake_form"
+    }
+  },
+  "terms": {
+    "provider": "Hire shop",
+    "providers": "Hire shops",
+    "service": "Hire",
+    "services": "Hires",
+    "staff": "Staff",
+    "subject": "Subject",
+    "party": "Guests",
+    "resource": "Item",
+    "resources": "Items",
+    "slot": "Hire period",
+    "slots": "Hire periods",
+    "booking": "Hire",
+    "bookings": "Hires",
+    "client": "Customer",
+    "clients": "Customers",
+    "admin": "Business",
+    "admins": "Businesses"
+  },
+  "copy": {
+    "landingTitle": "Construction Plant Rental",
+    "landingSubtitle": "Serialised heavy plant — per day + delivery band.",
+    "confirmTitle": "Booking confirmed",
+    "emptyStateSlots": "No hire periods available yet.",
+    "emptyStateBookings": "You have no hires yet.",
+    "requestPending": "Your request has been sent.",
+    "waitlistJoined": "You're on the waitlist.",
+    "quoteRequested": "Your quote request has been sent.",
+    "depositDue": "A deposit is due to confirm this booking.",
+    "prerequisiteBlocked": "Some details are needed before this can be confirmed."
+  },
+  "metaFields": {
+    "providers": [],
+    "services": [],
+    "resources": [],
+    "slots": [],
+    "bookings": [],
+    "subjects": []
+  },
+  "rules": {
+    "slotDurationMinutes": 1440,
+    "maxBookingsPerSlot": 1,
+    "cancellationWindowHours": 24,
+    "advanceBookingWindowDays": 30,
+    "bufferMinutes": 0
+  },
+  "search": {
+    "facets": {
+      "price": true,
+      "distance": true,
+      "rating": true
+    }
+  }
+}

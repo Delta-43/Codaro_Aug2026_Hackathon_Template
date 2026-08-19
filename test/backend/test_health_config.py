@@ -36,8 +36,12 @@ def _assert_facets(facets):
 def _assert_declared_survives(declared, served, path="config"):
     """Every value the pivot file declares must still be there, unchanged, in the
     served tree. Normalization may only ADD defaults — it must never drop or
-    rewrite what the operator actually typed."""
+    rewrite what the operator actually typed. The one exception is v1's `theme`
+    block, which the engine deliberately drops: the frontend owns its palette."""
     for key, value in declared.items():
+        if path == "config" and key == "theme":
+            assert key not in served, "the removed `theme` block is still served"
+            continue
         assert key in served, f"{path}.{key} vanished from the served config"
         if isinstance(value, dict):
             _assert_declared_survives(value, served[key], f"{path}.{key}")
@@ -295,9 +299,9 @@ def test_config_declared_true_cannot_conjure_a_missing_dimension(client, db, dom
 
 
 def test_config_exposes_every_section_the_frontend_consumes(client):
-    """lib/domain.tsx types DomainConfig with these five sections."""
+    """lib/domain.tsx types DomainConfig with these sections."""
     payload = client.get("/config").json()
-    for section in ("domain", "terms", "rules", "copy", "theme", "metaFields"):
+    for section in ("domain", "terms", "rules", "copy", "metaFields"):
         assert section in payload, f"missing config section: {section}"
     assert isinstance(payload["terms"], dict)
     assert isinstance(payload["rules"], dict)

@@ -18,7 +18,12 @@ export function SelectionBar({
   onContinue: () => void;
   onClear: () => void;
 }) {
-  const total = service.priceMinorUnits * slots.length; // party applied at confirm
+  // No total here any more. This bar renders on every slot click, so quoting it
+  // would fire a request per tap — and the only number it could compute without
+  // one is `priceMinorUnits * slots`, the default-block formula that misprices
+  // every tiered/per-person/per-hour service. The confirm screen quotes once,
+  // authoritatively; a "from" rate is honest at this stage and cannot mislead.
+  const showsRate = service.paymentFlow !== "none" && service.pricingModel === "fixed";
   return (
     <div className="sticky bottom-16 z-20 mt-3 rounded-xl border border-border bg-card p-3 shadow-lg md:bottom-3">
       {error ? <p className="mb-2 text-sm text-destructive">{error}</p> : null}
@@ -27,7 +32,11 @@ export function SelectionBar({
           <div className="font-medium">
             {formatSpan(slots.length, service.slotDurationMinutes)}
           </div>
-          <div className="text-muted-foreground">{formatMoney(total, service.currency)}</div>
+          {showsRate ? (
+            <div className="text-muted-foreground">
+              {formatMoney(service.priceMinorUnits * slots.length, service.currency)}
+            </div>
+          ) : null}
         </div>
         <div className="flex gap-2">
           <Button variant="ghost" size="sm" onPress={onClear}>

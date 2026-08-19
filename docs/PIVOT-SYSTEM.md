@@ -3,8 +3,10 @@
 How `domain.config.json` works, what every field controls, and what is actually
 wired up behind it.
 
-This is the reference. For evidence that it holds — 50 businesses expressed as
+This is the reference. For evidence that it holds — 100 businesses expressed as
 real configs and run through the engine — see [PIVOT-COVERAGE.md](PIVOT-COVERAGE.md).
+Those 100 also exist as whole, drop-in config files in
+[`pivots/`](../pivots/index.md); `python3 scripts/use_pivot.py <n>` loads one.
 
 ---
 
@@ -20,8 +22,29 @@ serves it at `GET /config`. The frontend renders from it.
 ```bash
 # edit domain.config.json, then:
 make reload    # drop the cached config
-make reseed    # rebuild demo data to match
+make reseed    # rebuild the demo data from it
+make checkseed # verify the data and the config agree
 ```
+
+### The demo data follows too
+
+`make reseed` builds its dataset from the loaded config rather than from a
+hardcoded vertical: `backend/seed_config.py` turns `domain.config.json` into the
+spec `seed_vertical()` consumes, so currency, timezone, slot duration, prices,
+cutoffs, min/max slots, slot capacity and — in single-tenant mode — the
+provider's `public_code` all come from the pivot file. `pricing.tiers` become the
+catalogue (one service per tier); `terms` supply the nouns.
+
+Two things the config cannot supply are generated: prose (taglines,
+descriptions), and the names of marketplace businesses other than the flagship —
+`domain.config.json` carries no directory of businesses. `POST /demo/vertical`
+still loads one of the three canned verticals from `seed_data.py` on purpose;
+that data will not match any pivot.
+
+`make checkseed` (`scripts/check_seed.py`) is the verification: it reports
+RESET (did the wipe leave a clean dataset?) and MATCH (does that dataset
+describe the config now loaded?) separately, deriving its expectations from
+`rules._SERVICE_RULE_MAP` so it cannot disagree with the engine's own resolver.
 
 ## 2. The mental model: three layers of precedence
 
@@ -199,8 +222,10 @@ auto-approve toggle), `approvalWindowHours`, `leadTimeMinutes` (minimum notice),
 `entitlements`: `{enabled, kind, plans[]}` — credits, memberships, passes.
 `discovery`: `{mode: browse|reverse, facets{}, matching{}}`.
 
-### `terms` · `copy` · `theme` · `metaFields`
-`terms` is 17 nouns; `copy` is 10 strings; `theme` is colour + radius.
+### `terms` · `copy` · `metaFields`
+`terms` is 17 nouns; `copy` is 10 strings. (v1's `theme` block — colour +
+radius — has been removed: the frontend owns its own palette, and a `theme` key
+left in an old pivot file is dropped at load rather than rejected.)
 `metaFields` maps six entities (`providers` `services` `resources` `slots`
 `bookings` `subjects`) to field descriptors:
 
