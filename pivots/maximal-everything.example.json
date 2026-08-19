@@ -28,7 +28,7 @@
     "follows": true
   },
   "booking": {
-    "unitKind": "room",
+    "unitKind": "class_capacity",
     "granularity": "minute",
     "duration": {
       "mode": "customer_chosen",
@@ -276,7 +276,7 @@
   },
   "copy": {
     "landingTitle": "Shared Kitchen Marketplace",
-    "landingSubtitle": "Certified kitchen hours \u2014 peak / off-peak tiers.",
+    "landingSubtitle": "Certified kitchen hours — peak / off-peak tiers.",
     "confirmTitle": "Booking confirmed",
     "emptyStateSlots": "No sessions available yet.",
     "emptyStateBookings": "You have no reservations yet.",
@@ -302,7 +302,7 @@
     "slotDurationMinutes": 30,
     "maxBookingsPerSlot": 1,
     "cancellationWindowHours": 24,
-    "advanceBookingWindowDays": 30,
+    "advanceBookingWindowDays": 120,
     "bufferMinutes": 0
   },
   "search": {

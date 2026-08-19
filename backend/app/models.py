@@ -216,19 +216,26 @@ class ServiceUpdate(CamelModel):
     metadata: dict | None = None
 
 
-class ResourceCreate(BaseModel):
+# `CamelModel`, not `BaseModel`. These four were the only owner-side write
+# models still snake_case-only, so the frontend seam — which sends camelCase
+# everywhere — could create a provider and a service but not the resources and
+# slots they need. `SlotCreate` 422'd on `resourceId`/`startsAt`, and
+# `ResourceCreate` silently ignored the unknown keys, which is worse: a
+# camelCase resource was created with the DEFAULT capacity rather than rejected.
+# `populate_by_name` keeps existing snake_case callers (seed, tests, curl) working.
+class ResourceCreate(CamelModel):
     name: str
     description: str | None = None
     metadata: dict = Field(default_factory=dict)
 
 
-class ResourceUpdate(BaseModel):
+class ResourceUpdate(CamelModel):
     name: str | None = None
     description: str | None = None
     metadata: dict | None = None
 
 
-class SlotCreate(BaseModel):
+class SlotCreate(CamelModel):
     resource_id: str
     starts_at: str
     # Derived from rules.slotDurationMinutes when omitted (see routers/slots.py).
@@ -238,7 +245,7 @@ class SlotCreate(BaseModel):
     metadata: dict = Field(default_factory=dict)
 
 
-class SlotUpdate(BaseModel):
+class SlotUpdate(CamelModel):
     starts_at: str | None = None
     ends_at: str | None = None
     capacity: int | None = None
