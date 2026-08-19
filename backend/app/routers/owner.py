@@ -84,14 +84,14 @@ class _Scope:
         # Filter server-side on the jsonb path (PostgREST accepts arrow paths
         # in filter columns) — fetching the whole table paged every tenant's
         # rows per owner request. The Python filter stays as belt-and-braces.
-        all_resources = (
-            fetch_all(
+        all_resources = []
+        # Chunked like _screening_data: hundreds of ids in one `.in_` request
+        # line 414 outright, where the pre-filter code merely paged slowly.
+        for chunk in chunked(sorted(self.service_ids)):
+            all_resources += fetch_all(
                 db.table("resources").select("*")
-                .in_("metadata->>service_id", sorted(self.service_ids))
+                .in_("metadata->>service_id", chunk)
             )
-            if self.service_ids
-            else []
-        )
         self.resources = [
             r for r in all_resources
             if (r.get("metadata") or {}).get("service_id") in self.service_ids
@@ -105,14 +105,12 @@ class _Scope:
         # all tenants' rows per owner request (and the old raw select silently
         # truncated at 1000).
         prov_set = set(self.provider_ids)
-        raw = (
-            fetch_all(
+        raw = []
+        for chunk in chunked(self.provider_ids):
+            raw += fetch_all(
                 db.table("bookings").select("*")
-                .in_("metadata->>provider_id", self.provider_ids)
+                .in_("metadata->>provider_id", chunk)
             )
-            if prov_set
-            else []
-        )
         raw = [b for b in raw if (b.get("metadata") or {}).get("provider_id") in prov_set]
         self.bookings = _enrich(db, db, raw, include_client=True)
 

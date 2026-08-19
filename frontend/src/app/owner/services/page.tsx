@@ -43,13 +43,19 @@ export default function ServicesPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Keyed on the id like the sibling owner pages: refreshProviders/
+  // replaceProvider mint new same-id objects that must not refire a refetch.
+  const activeProviderId = activeProvider?.id ?? null;
   const load = useCallback(async () => {
     const all = await getOwnerServices().catch(() => [] as OwnerServiceSummary[]);
-    setServices(activeProvider ? all.filter((s) => s.providerId === activeProvider.id) : all);
+    setServices(activeProviderId ? all.filter((s) => s.providerId === activeProviderId) : all);
     setLoading(false);
-  }, [activeProvider]);
+  }, [activeProviderId]);
 
   useEffect(() => {
+    // Back to the skeleton on a provider switch — never render business A's
+    // offers under business B's header while the refetch is in flight.
+    setLoading(true);
     void load();
   }, [load]);
 

@@ -207,9 +207,13 @@ yet — it needs a sold-count query, which is a database question.
   `GET /month-density?...&month` → `MonthDensityCell[]`. Status/occupancy derived
   server-side; occupancy already sums party size.
 - **Bookings (`require_user`, RLS-scoped user client):** multi-slot + party-size
-  create; `GET /bookings?scope=upcoming|past|all` (RLS scopes to own/owner,
-  completed-in-past derived); `GET /bookings/{id}`; reschedule (`newSlotIds`,
-  atomic slot swap + change history); idempotent cancel; `POST /{id}/review`.
+  create; `GET /bookings?scope=upcoming|past|all` (the caller's own bookings
+  **as client** — explicit `client_id` scope plus a `metadata.user_id` legacy
+  fallback, not the raw RLS view; completed-in-past derived);
+  `GET /bookings/{id}`; reschedule (`newSlotIds`, atomic slot swap + change
+  history, CAS on `confirmed`); cancel (idempotent for already-cancelled,
+  **refuses rejected requests**, CAS against racing transitions, refunds a
+  consumed pass credit); `POST /{id}/review`.
   Create honours the service's `autoApprove`: `true` (default) → `confirmed`
   immediately; `false` → `pending` (a request the owner acts on). Owner-only
   `POST /{id}/approve` (pending→confirmed, capacity re-checked; pending holds

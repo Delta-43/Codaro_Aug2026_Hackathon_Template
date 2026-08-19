@@ -1310,3 +1310,136 @@ def test_payment_currency_falls_back_to_the_service_pricing(client, db, auth):
     )
     out = client.get(f"/bookings/{booking['id']}").json()
     assert out["payment"]["currency"] == "USD"
+
+
+# ---------------------------------------------------------------------------
+# review-fix regression pins (August 2026)
+# ---------------------------------------------------------------------------
+
+
+def test_reschedule_keeps_the_credit_receipt_and_the_plan_discount(
+    client, db, auth, domain_config
+):
+    """The entitlement that priced a booking keeps pricing it across a move.
+
+    Regression: reschedule re-resolved the customer's entitlements from
+    scratch. A booking that consumed the pass's LAST credit then resolved to
+    nothing — the `entitlement_id` receipt was nulled (so cancel could never
+    refund the credit) and the booking was silently repriced at list price.
+    """
+    domain_config(
+        capabilities={"entitlements": True},
+        entitlements={
+            "enabled": True,
+            "kind": "credits",
+            "plans": [{"key": "ten-pass", "label": "10-pass", "kind": "credits",
+                       "discountBps": 10000}],  # 100% covered by the pass
+        },
+    )
+    cat = make_catalog(db, price_minor_units=1000)
+    ent = make_entitlement(db, plan_key="ten-pass", credits_total=1)  # the LAST credit
+
+    auth(role="client")
+    made = client.post(
+        "/bookings",
+        json={
+            "serviceId": cat["service"]["id"],
+            "resourceId": cat["resource"]["id"],
+            "slotIds": [cat["slot"]["id"]],
+            "partySize": 1,
+        },
+    ).json()
+    assert made["priceMinorUnits"] == 0  # fully discounted
+    assert db.get_row("entitlements", ent["id"])["credits_used"] == 1  # pass exhausted
+    assert db.get_row("bookings", made["id"])["metadata"]["entitlement_id"] == ent["id"]
+
+    new = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=72)
+    resp = client.post(f"/bookings/{made['id']}/reschedule", json={"newSlotIds": [new["id"]]})
+    assert resp.status_code == 200
+    assert resp.json()["priceMinorUnits"] == 0  # still the plan price, not list 1000
+
+    md = db.get_row("bookings", made["id"])["metadata"]
+    assert md["entitlement_id"] == ent["id"]  # the consume receipt is immutable
+    assert md["price_minor_units"] == 0
+
+    # ...so the refund path still works after the move.
+    assert client.post(f"/bookings/{made['id']}/cancel").status_code == 200
+    assert db.get_row("entitlements", ent["id"])["credits_used"] == 0
+    assert db.get_row("bookings", made["id"])["metadata"]["credit_refunded"] is True
+
+
+def test_approve_a_cancelled_booking_is_invalid_range_not_403(client, db, auth):
+    """Approving a booking that is no longer pending answers for the STATE
+    (400 INVALID_RANGE), not a security-framed 403."""
+    cat = make_catalog(db)
+    booking = make_booking(db, slots=[cat["slot"]], service=cat["service"], status="cancelled")
+    auth(role="owner")
+    resp = client.post(f"/bookings/{booking['id']}/approve")
+    assert resp.status_code == 400
+    assert _detail_code(resp) == "INVALID_RANGE"
+    assert resp.json()["detail"]["message"] == "Only pending requests can be approved."
+
+
+def test_partial_payments_accumulate_and_settle(client, db, auth):
+    """`/pay` preconditions on the PRIOR paid amount, so sequential payments
+    each match: a part-payment then a "pay the rest" both commit, and a third
+    attempt is refused because nothing is outstanding."""
+    cat = make_catalog(db, price_minor_units=1000)
+    booking = make_booking(db, slots=[cat["slot"]], service=cat["service"])
+    auth(role="owner")
+
+    first = client.post(f"/bookings/{booking['id']}/pay", params={"amount": 400})
+    assert first.status_code == 200
+    assert first.json()["payment"]["paidMinorUnits"] == 400
+    assert first.json()["payment"]["state"] == "due"
+
+    second = client.post(f"/bookings/{booking['id']}/pay")  # defaults to the rest
+    assert second.status_code == 200
+    assert second.json()["payment"]["paidMinorUnits"] == 1000
+    assert second.json()["payment"]["state"] == "paid"
+
+    row = db.get_row("bookings", booking["id"])
+    assert row["metadata"]["amount_paid_minor_units"] == 1000
+    recorded = [h for h in row["history"] if h.get("status") == "payment_recorded"]
+    assert [h["amount"] for h in recorded] == [400, 600]
+
+    third = client.post(f"/bookings/{booking['id']}/pay")
+    assert third.status_code == 400
+    assert "nothing outstanding" in third.json()["detail"]["message"]
+
+
+def test_return_twice_is_refused_not_restamped(client, db, auth, domain_config):
+    """A second `/return` is a 400, and the original timestamp survives —
+    re-stamping it would shrink a computed overdue fee."""
+    domain_config(capabilities={"inventory": True}, inventory={"returnRequired": True})
+    cat = make_catalog(db)
+    booking = make_booking(db, slots=[cat["slot"]], service=cat["service"])
+    auth(role="owner")
+
+    assert client.post(f"/bookings/{booking['id']}/return").status_code == 200
+    stamp = db.get_row("bookings", booking["id"])["metadata"]["returned_at_utc"]
+    assert stamp
+
+    second = client.post(f"/bookings/{booking['id']}/return")
+    assert second.status_code == 400
+    assert "already marked returned" in second.json()["detail"]["message"]
+
+    row = db.get_row("bookings", booking["id"])
+    assert row["metadata"]["returned_at_utc"] == stamp  # not silently re-stamped
+    assert sum(1 for h in row["history"] if h.get("status") == "returned") == 1
+
+
+def test_list_bookings_includes_a_legacy_metadata_keyed_row(client, db, auth):
+    """A row with `client_id` NULL and only `metadata.user_id` (pre-auth legacy)
+    still shows up in the caller's GET /bookings — and nobody else's."""
+    cat = make_catalog(db)
+    booking = make_booking(db, slots=[cat["slot"]], service=cat["service"])
+    db.table("bookings").update({"client_id": None}).eq("id", booking["id"]).execute()
+    assert db.get_row("bookings", booking["id"])["client_id"] is None
+
+    auth(role="client")  # DEFAULT_USER_ID == the row's metadata.user_id
+    listed = client.get("/bookings").json()
+    assert [b["id"] for b in listed] == [booking["id"]]
+
+    auth(role="client", id="66666666-6666-6666-6666-666666666666", email="x@example.com")
+    assert client.get("/bookings").json() == []

@@ -220,3 +220,112 @@ def test_no_promotion_when_auto_promote_is_off(client, db, auth, domain_config):
 
     assert db.count("bookings") == 1  # only the cancelled one
     assert db.rows("waitlist_entries")[0]["status"] == "waiting"
+
+
+# --- review-fix regression pins ---------------------------------------------
+
+
+def test_a_skipped_promotion_leaves_the_head_waiting(client, db, auth, domain_config):
+    """A promotion `_book_for_entry` refuses must leave the entry WAITING.
+
+    Regression: on a deployment whose `metaFields.bookings` declares a required
+    field, promotion cannot mint a schema-valid booking, so it skips — the old
+    code still stamped the entry `promoted` with `booking_id: None`, silently
+    dropping the customer from the queue with nothing to show for it.
+    """
+    domain_config(
+        capabilities={"waitlist": True},
+        timing={"waitlist": {"enabled": True, "autoPromote": True, "maxPerSlot": 0}},
+        metaFields={
+            "bookings": [
+                {"key": "consent", "label": "Consent", "type": "text", "required": True}
+            ]
+        },
+    )
+    cat = make_catalog(db)
+    booking = make_booking(db, slots=[cat["slot"]], service=cat["service"], user_id=USER_A)
+    # Email resolves fine — the ONLY reason to skip is the unmet booking schema.
+    db.seed_auth_user(USER_B, email="b@example.com")
+    auth(role="client", id=USER_B, email="b@example.com")
+    assert client.post(f"/slots/{cat['slot']['id']}/waitlist").status_code == 200
+
+    auth(role="client", id=USER_A, email="guest@example.com")
+    assert client.post(f"/bookings/{booking['id']}/cancel").status_code == 200
+
+    entry = db.rows("waitlist_entries")[0]
+    assert entry["status"] == "waiting"  # not stamped promoted
+    assert entry["booking_id"] is None
+    assert db.count("bookings") == 1  # no booking minted; only the cancelled one
+
+
+def test_promotion_respects_the_heads_party_size(client, db, auth, domain_config):
+    """One freed seat must not promote a party of three.
+
+    The freed capacity has to fit the head entry's whole party; otherwise the
+    minted pending booking is one approve can never satisfy. The head keeps its
+    place until enough seats free.
+    """
+    _waitlist_on(domain_config, auto_promote=True)
+    cat = make_catalog(db, capacity=3)
+    big = make_booking(
+        db, slots=[cat["slot"]], service=cat["service"], user_id=USER_A, party_size=2
+    )
+    small = make_booking(
+        db, slots=[cat["slot"]], service=cat["service"], user_id=USER_C,
+        client_email="c@example.com", party_size=1, reference="BK-TEST02",
+    )
+    assert big and small  # slot full: 3/3
+    db.seed_auth_user(USER_B, email="b@example.com")
+    auth(role="client", id=USER_B, email="b@example.com")
+    resp = client.post(f"/slots/{cat['slot']['id']}/waitlist", params={"party_size": 3})
+    assert resp.status_code == 200
+    assert resp.json()["partySize"] == 3
+
+    # Only ONE seat frees — not enough for the head's party of three.
+    auth(role="client", id=USER_C, email="c@example.com")
+    assert client.post(f"/bookings/{small['id']}/cancel").status_code == 200
+
+    entry = db.rows("waitlist_entries")[0]
+    assert entry["status"] == "waiting"
+    assert entry["booking_id"] is None
+    assert not [b for b in db.rows("bookings") if b.get("client_id") == USER_B]
+
+
+def test_join_a_blocked_capacity_zero_slot_is_refused(client, db, auth, domain_config):
+    """Capacity 0 is a BLOCKED slot: nothing ever frees on it, so a queue there
+    can never promote and must not form (was treated as bookable-with-0-left)."""
+    _waitlist_on(domain_config)
+    cat = make_catalog(db)
+    blocked = make_slot(
+        db, cat["resource"]["id"], service_id=cat["service"]["id"], capacity=0
+    )
+    auth(role="client", id=USER_B, email="b@example.com")
+    resp = client.post(f"/slots/{blocked['id']}/waitlist")
+    assert resp.status_code == 400
+    assert _detail_code(resp) == "INVALID_RANGE"
+    assert "blocked" in resp.json()["detail"]["message"]
+    assert db.count("waitlist_entries") == 0
+
+
+def test_a_party_larger_than_the_remaining_seats_may_join(client, db, auth, domain_config):
+    """Bookable means bookable FOR THIS PARTY.
+
+    Cap 4 with 3 booked: a party of 2 cannot book (only 1 seat left), so they
+    may queue even though remaining > 0. A party of 1 CAN book, so they are
+    refused with "book it instead". Refusing both paths stranded the group.
+    """
+    _waitlist_on(domain_config)
+    cat = make_catalog(db, capacity=4)
+    make_booking(db, slots=[cat["slot"]], service=cat["service"], user_id=USER_A, party_size=3)
+
+    auth(role="client", id=USER_B, email="b@example.com")
+    resp = client.post(f"/slots/{cat['slot']['id']}/waitlist", params={"party_size": 2})
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "waiting"
+    assert resp.json()["partySize"] == 2
+
+    auth(role="client", id=USER_C, email="c@example.com")
+    refused = client.post(f"/slots/{cat['slot']['id']}/waitlist", params={"party_size": 1})
+    assert refused.status_code == 400
+    assert "book it instead" in refused.json()["detail"]["message"]
+    assert db.count("waitlist_entries") == 1

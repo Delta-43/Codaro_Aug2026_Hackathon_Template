@@ -37,6 +37,14 @@ exact spot so it can be picked up cold. P1 = do first.
    last seeded day every slot later than the current time-of-day is visible
    on the calendar and refused at create. Either seed one day fewer or make
    the window a date comparison.
+5b. **Entitlement credits need a ledger** — `backend/app/routers/bookings.py`
+   `_consume_credit` / `_refund_credit`: spends and refunds are bare counter
+   updates plus a `credit_refunded` metadata stamp, not receipts. Residual
+   windows even after the CAS work: a crash between the refund decrement and
+   the stamp write double-refunds on retry, and a booking whose best-effort
+   consume failed can still refund (the entitlement drifts one credit rich).
+   Fix: one ledger row per spend, unique on `booking_id`, making consume and
+   refund naturally idempotent and auditable.
 
 ## P2 — security hardening (documented decisions needed)
 
@@ -84,10 +92,10 @@ exact spot so it can be picked up cold. P1 = do first.
 14. **Waitlist promotion runs only on cancel** — slots freed by *reschedule*
     and requests *rejected* after filling never promote
     (`promote_from_waitlist` has one call site, `bookings.py` cancel).
-15. Minor state nits: cancel flips a `rejected` booking to `cancelled`
-    (overwrites the owner's decision); `is_upcoming` counts a cancelled
-    future booking as upcoming (contradicts its own comment); a customer
-    cannot withdraw a capacity-free `pending` request inside the cutoff.
+15. Minor state nits: `is_upcoming` counts a cancelled future booking as
+    upcoming (contradicts its own comment); a customer cannot withdraw a
+    capacity-free `pending` request inside the cutoff. (The rejected→cancelled
+    flip was fixed — cancel now refuses rejected requests.)
 16. `messages.py`: `reply_to_id` accepts a message from a *different*
     conversation; `mark_read` stamps soft-deleted messages.
 17. Seed ignores `capabilities.reviews`/`.follows` (always seeds a review +

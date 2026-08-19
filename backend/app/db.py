@@ -86,7 +86,15 @@ def fetch_all(query, page: int = _PAGE, order: str | tuple = "id") -> list[dict]
     start = 0
     for col in (order,) if isinstance(order, str) else order:
         query = query.order(col)
+    # postgrest-py builders APPEND query params on every call, so re-calling
+    # `.range()` on one builder stacks duplicate offset/limit pairs that only
+    # work because PostgREST resolves duplicates last-wins. Snapshot the params
+    # after ordering and reset before each page. (The offline fake exposes no
+    # `.params` and its `.range` overwrites, so the getattr guard suffices.)
+    base_params = getattr(query, "params", None)
     while True:
+        if base_params is not None:
+            query.params = base_params
         rows = query.range(start, start + page - 1).execute().data or []
         out.extend(rows)
         if len(rows) < page:

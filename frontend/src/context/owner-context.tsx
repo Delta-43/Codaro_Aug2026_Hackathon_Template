@@ -109,33 +109,49 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
       setMetaFields(p.metaFields);
       setCurrency(p.currency);
     };
+    const derivePid = (list: Provider[]) => {
+      const stored = typeof window !== "undefined" ? localStorage.getItem(PID_KEY) : null;
+      return list.find((p) => p.id === stored)?.id ?? list[0]?.id ?? null;
+    };
     (async () => {
-      const [list, v, pivot] = await Promise.all([
-        getMyProviders().catch(() => [] as Provider[]),
+      const [listRaw, v, pivot] = await Promise.all([
+        // null = the FETCH failed (retry below); [] = genuinely no business.
+        getMyProviders().catch(() => null),
         getActiveVertical().catch(() => "fleet" as VerticalId),
         // /config unreachable: leave everything ON and keep the static
         // vocabulary — the backend still refuses whatever is actually disabled.
         getPivotConfig().catch(() => FALLBACK_PIVOT_CONFIG),
       ]);
       if (cancelled) return;
+      const list = listRaw ?? [];
       setProviders(list);
       setVertical(v);
       applyPivot(pivot);
-      if (pivot === FALLBACK_PIVOT_CONFIG) {
-        // A transient boot blip must not pin the fallback (and its EUR
-        // currency) for the whole session — a first offer created from the
-        // fallback would be persisted in the wrong currency. One delayed
-        // retry; the backend stays the authority either way.
+      if (pivot === FALLBACK_PIVOT_CONFIG || listRaw === null) {
+        // A transient boot blip must not pin the fallbacks for the whole
+        // session — a first offer created from the fallback currency would be
+        // persisted wrong, and a real owner would sit in the "no business"
+        // state. One delayed retry; the backend stays the authority.
         setTimeout(() => {
-          getPivotConfig()
-            .then((p) => {
-              if (!cancelled) applyPivot(p);
-            })
-            .catch(() => {});
+          if (pivot === FALLBACK_PIVOT_CONFIG) {
+            getPivotConfig()
+              .then((p) => {
+                if (!cancelled) applyPivot(p);
+              })
+              .catch(() => {});
+          }
+          if (listRaw === null) {
+            getMyProviders()
+              .then((l) => {
+                if (cancelled) return;
+                setProviders(l);
+                setPid((prev) => prev ?? derivePid(l));
+              })
+              .catch(() => {});
+          }
         }, 5000);
       }
-      const stored = typeof window !== "undefined" ? localStorage.getItem(PID_KEY) : null;
-      setPid(list.find((p) => p.id === stored)?.id ?? list[0]?.id ?? null);
+      setPid(derivePid(list));
       setReady(true);
     })();
     return () => {

@@ -127,7 +127,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     checkingOut.current = true;
     setBusy(true);
     const booked: Booking[] = [];
-    const bookedKeys = new Set<string>();
+    const bookedItems = new Set<CartItem>();
     const failed: CheckoutResult["failed"] = [];
     try {
       // Sequential, not parallel: two items competing for the last place in the
@@ -150,7 +150,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
               metadata: item.metadata,
             }),
           );
-          bookedKeys.add(item.key);
+          bookedItems.add(item);
         } catch (e) {
           failed.push({
             key: item.key,
@@ -159,9 +159,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
           });
         }
       }
-      // Drop exactly what was booked. Failures stay for another try, and so
-      // does anything added mid-checkout that this run never attempted.
-      setItems((prev) => prev.filter((i) => !bookedKeys.has(i.key)));
+      // Drop exactly the OBJECTS that were booked — identity, not key, so a
+      // remove-then-re-add under a booked item's key survives (this run never
+      // attempted it). Failures stay for another try too.
+      setItems((prev) => prev.filter((i) => !bookedItems.has(i)));
     } finally {
       checkingOut.current = false;
       setBusy(false);

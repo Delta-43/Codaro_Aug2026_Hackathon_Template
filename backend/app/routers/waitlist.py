@@ -88,12 +88,19 @@ def join_waitlist(slot_id: str, party_size: int = 1, user: AuthUser = Depends(re
     # booked (and charged) as a party of 1.
     if party_size < 1:
         raise api_error(INVALID_RANGE, "Party size must be at least 1.")
-    if party_size > int(slot.get("capacity") or 1):
+    # Capacity 0 is a BLOCKED slot, not a capacity of one: nothing ever frees
+    # on it, so a queue there can never promote and must not form.
+    capacity = int(slot.get("capacity") or 0)
+    if capacity <= 0:
+        raise api_error(INVALID_RANGE, "That time is blocked.")
+    if party_size > capacity:
         raise api_error(INVALID_RANGE, "Party size exceeds the capacity for that time.")
 
     occ = maybe_row(db.table("slot_occupancy").select("*").eq("slot_id", slot_id))
     remaining = int((occ or {}).get("available_count") or 0)
-    if remaining > 0:
+    # Bookable means bookable FOR THIS PARTY: with 2 seats left a party of 4
+    # can't book, so they may queue — refusing both paths stranded them.
+    if remaining >= party_size:
         raise api_error(INVALID_RANGE, "That time is still available — book it instead.")
 
     existing = (
@@ -177,7 +184,8 @@ def promote_from_waitlist(db, slot_ids: list[str], service: dict | None) -> list
     for slot_id in slot_ids:
         try:
             occ = maybe_row(db.table("slot_occupancy").select("*").eq("slot_id", slot_id))
-            if int((occ or {}).get("available_count") or 0) <= 0:
+            available = int((occ or {}).get("available_count") or 0)
+            if available <= 0:
                 continue  # nothing actually freed on this slot
             waiting = (
                 db.table("waitlist_entries").select("*")
@@ -188,10 +196,20 @@ def promote_from_waitlist(db, slot_ids: list[str], service: dict | None) -> list
             if not waiting:
                 continue
             entry = waiting[0]
+            # The freed seats must fit the head's PARTY: one seat freeing must
+            # not promote a family of four into a pending booking approve can
+            # never satisfy. The head keeps its place until enough seats free.
+            if available < int(entry.get("party_size") or 1):
+                continue
             booking = _book_for_entry(db, entry, slot_id)
+            if booking is None:
+                # A skipped promotion (started slot, unmet booking schema,
+                # unresolvable email) leaves the entry at the head of the
+                # queue for the next attempt — as the docstring promises.
+                continue
             db.table("waitlist_entries").update({
                 "status": "promoted",
-                "booking_id": booking["id"] if booking else None,
+                "booking_id": booking["id"],
             }).eq("id", entry["id"]).execute()
             promoted.append(entry)
         except Exception:

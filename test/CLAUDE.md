@@ -201,10 +201,24 @@ path the UI calls exists on the FastAPI app (method-aware) and that the
 
 ## Current state
 
-`python -m pytest test/backend -q` from the repo root: **1090 passed**
+`python -m pytest test/backend -q` from the repo root: **1099 passed**
 (0 failures, **no xfails left**, and **no known gaps pinned** — the four that
 were are now asserted as fixed behaviour, see below). `python -m pytest test/` adds the 8 live e2e
 tests, which skip without `SUPABASE_URL`/`SUPABASE_ANON_KEY`.
+
+Second review-pass pins (August 2026, +9 tests): `test_waitlist.py` — a skipped
+promotion (`metaFields.bookings` requires a field) leaves the head WAITING with
+no booking minted (was: stamped `promoted` with `booking_id` None); one freed
+seat does not promote a party of 3; a capacity-0 slot refuses the queue
+("blocked"); a party larger than the REMAINING seats may join while a party
+that still fits is told to book it instead. `test_bookings.py` — reschedule
+keeps the `entitlement_id` consume receipt and the plan discount (a pass whose
+LAST credit the booking spent still prices it at 0, and cancel still refunds);
+approve of a cancelled booking is 400 INVALID_RANGE, not 403; two sequential
+`/pay` calls accumulate (precondition matches the prior amount) and a third is
+refused; `/return` twice is 400 "already marked returned" with the stamp and
+history untouched; a legacy row (`client_id` NULL + `metadata.user_id`) still
+lists in GET /bookings, scoped to that user only.
 
 Review-pass regression pins (August 2026), spread across the per-router files:
 `_assert_owns_booking` now runs on cancel/reschedule (unrelated owner → 403).
