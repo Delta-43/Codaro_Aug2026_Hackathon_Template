@@ -93,8 +93,11 @@ reschedule flows special-case the codes for re-pick / disabled-with-reason.
    per-service overrides, applying an edit, and what the engine actually
    enforces today. *Built.*
 
-Owner/admin self-service (creating providers/services from the UI) is not built —
-seeds populate catalog data; see `TODO.md`.
+Owner/admin self-service **is** built: an owner with no business gets the
+create form (`components/business/create-business.tsx`), and each service in the
+console carries its units + availability
+(`components/business/service-resources.tsx`). Seeds are now a convenience, not
+the only route to a working catalogue.
 
 ## Testing
 

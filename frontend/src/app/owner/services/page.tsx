@@ -25,6 +25,7 @@ import {
 import type { BookingModel, OwnerServiceSummary } from "@/types/domain";
 import { formatDuration, formatMoney, toMajorUnits, toMinorUnits } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { ServiceResources } from "@/components/business/service-resources";
 
 const MODELS: { id: BookingModel; label: string }[] = [
   { id: "unit_selection", label: "Unit selection (many units, pick one)" },
@@ -213,6 +214,9 @@ function ServiceCard({
       {open ? (
         <div className="border-t border-border p-4">
           <ServiceEditor service={s} onSave={onSave} onDelete={onDelete} />
+          {/* Units + availability. A service with neither is inert, so this sits
+              with the editor rather than behind another navigation step. */}
+          <ServiceResources service={s} />
         </div>
       ) : null}
     </li>

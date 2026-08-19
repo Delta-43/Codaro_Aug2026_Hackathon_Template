@@ -32,6 +32,7 @@ import type {
   Quote,
   Resource,
   Service,
+  Slot,
   WaitlistEntry,
   User,
   VerticalId,
@@ -655,6 +656,92 @@ export function uploadProviderAvatar(id: ID, file: File): Promise<Provider> {
 
 export function deleteProviderAvatar(id: ID): Promise<Provider> {
   return del(`/providers/${id}/avatar`) as Promise<Provider>;
+}
+
+/** Create the business itself (owner). Until this existed the console could
+ *  create a service but not the provider that owns one, so a new owner's only
+ *  route to a business was the seed. `providerCode` is what single-tenant
+ *  deployments resolve their sole business by, so it is worth setting. */
+export function createProvider(input: {
+  name: string;
+  publicCode?: string;
+  categoryId?: string;
+  tagline?: string;
+  bio?: string;
+  location?: { city: string; country: string; lat: number; lng: number };
+}): Promise<Provider> {
+  return post("/providers", input) as Promise<Provider>;
+}
+
+/** Create a bookable unit under a service (owner).
+ *
+ *  `serviceId`, `capacity`, `active` and `attributes` ride in `metadata`: the
+ *  base tables are frozen, so everything but name/description lives there.
+ *  Callers pass them flat and this assembles the shape the API expects. */
+export function createResource(input: {
+  serviceId: ID;
+  name: string;
+  description?: string;
+  capacity: number;
+  attributes?: { label: string; value: string }[];
+}): Promise<Resource> {
+  return post("/resources", {
+    name: input.name,
+    description: input.description,
+    metadata: {
+      service_id: input.serviceId,
+      capacity: input.capacity,
+      active: true,
+      attributes: input.attributes ?? [],
+    },
+  }) as Promise<Resource>;
+}
+
+/** Open one slot on a resource (owner). `endsAt` defaults server-side to the
+ *  service's `slotDurationMinutes`, and `capacity` to the resource's own, so
+ *  the caller only has to say when. */
+export function createSlot(input: {
+  resourceId: ID;
+  startsAt: IsoUtc;
+  endsAt?: IsoUtc;
+  capacity?: number;
+}): Promise<Slot> {
+  return post("/slots", input) as Promise<Slot>;
+}
+
+/** Open a run of slots back-to-back — what "add a day of availability" means.
+ *
+ *  Issued sequentially, not in parallel: `slot.create` enforces
+ *  `timing.bufferMinutes` against the slots that already exist, so two
+ *  concurrent creates can both pass a check the pair then violates. Returns
+ *  what was opened and what the engine refused, rather than failing the batch —
+ *  a run that collides with existing availability should still open the rest.
+ */
+export async function createSlotRun(input: {
+  resourceId: ID;
+  startsAt: IsoUtc;
+  durationMinutes: number;
+  count: number;
+  capacity?: number;
+}): Promise<{ created: Slot[]; rejected: { startsAt: IsoUtc; message: string }[] }> {
+  const created: Slot[] = [];
+  const rejected: { startsAt: IsoUtc; message: string }[] = [];
+  let cursor = new Date(input.startsAt).getTime();
+  for (let i = 0; i < input.count; i++) {
+    const startsAt = new Date(cursor).toISOString();
+    const endsAt = new Date(cursor + input.durationMinutes * 60_000).toISOString();
+    try {
+      created.push(await createSlot({ resourceId: input.resourceId, startsAt, endsAt, capacity: input.capacity }));
+    } catch (e) {
+      rejected.push({ startsAt, message: e instanceof ApiError ? e.message : "Could not open that time." });
+    }
+    cursor += input.durationMinutes * 60_000;
+  }
+  return { created, rejected };
+}
+
+export function deleteResource(id: ID): Promise<void> {
+  return del(`/resources/${id}`) as Promise<void>;
 }
 
 export function createService(input: {

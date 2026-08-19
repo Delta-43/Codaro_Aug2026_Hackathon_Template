@@ -18,6 +18,7 @@ import { getOwnerDashboard } from "@/api";
 import type { OwnerDashboard, OwnerRequest } from "@/types/domain";
 import type { Metric } from "@/lib/business-demo";
 import { ownerBookingToCal } from "@/lib/owner-view";
+import { CreateBusiness } from "@/components/business/create-business";
 import type { VerticalConfig } from "@/config/verticals";
 import { browserTz, formatBookingWhen, formatMoney } from "@/lib/format";
 
@@ -85,13 +86,8 @@ export default function DashboardPage() {
 
   const provider = data?.provider ?? activeProvider;
 
-  if (!provider) {
-    return (
-      <p className="rounded-2xl border border-dashed border-border px-4 py-12 text-center text-sm text-muted-foreground">
-        No business yet. Once your {vocab.providerNoun.toLowerCase()} is set up, your dashboard lights up here.
-      </p>
-    );
-  }
+  // An owner with no provider gets the create form, not a dead end.
+  if (!provider) return <CreateBusiness />;
 
   return (
     <section className="space-y-5 py-2">
