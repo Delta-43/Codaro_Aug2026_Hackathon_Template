@@ -36,11 +36,13 @@ from app.auth import AuthUser, optional_user, require_user
 from app.routers import availability as availability_router
 from app.routers import bookings as bookings_router
 from app.routers import me as me_router
+from app.routers import messages as messages_router
 from app.routers import owner as owner_router
 from app.routers import providers as providers_router
 from app.routers import resources as resources_router
 from app.routers import services as services_router
 from app.routers import slots as slots_router
+from app.routers import waitlist as waitlist_router
 from fakes import FakeSupabase
 
 TEST_DIR = Path(__file__).resolve().parents[1]
@@ -63,6 +65,8 @@ _SUPABASE_MODULES = (
     availability_router,
     me_router,
     owner_router,
+    messages_router,
+    waitlist_router,
 )
 _USER_CLIENT_MODULES = (
     app_db,
@@ -72,6 +76,8 @@ _USER_CLIENT_MODULES = (
     slots_router,
     providers_router,
     services_router,
+    messages_router,
+    waitlist_router,
 )
 
 

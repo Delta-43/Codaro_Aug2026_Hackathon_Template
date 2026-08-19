@@ -316,3 +316,29 @@ def test_delete_service_removes_its_metadata_linked_resources(client, db, auth):
     assert db.count("booking_slots") == 0
     # ...but an unrelated resource stays.
     assert db.get_row("resources", other["id"]) is not None
+
+
+# --- prerequisites are only served when the capability is on (regression) ---
+
+
+def test_prerequisites_only_serialized_when_the_capability_is_on(
+    client, db, auth, domain_config
+):
+    """Enforcement (create/approve) ANDs `capabilities.prerequisites`, so
+    serving the declared list on a capability-off deployment advertised a step
+    the API never enforced — it must serialize as []."""
+    prereqs = [{
+        "key": "licence", "kind": "licence", "label": "Licence",
+        "required": True, "blocksConfirmation": True,
+    }]
+    p = make_provider(db, "P")
+    svc = make_service(db, p["id"], "S")
+
+    domain_config(prerequisites=prereqs, capabilities={"prerequisites": False})
+    assert client.get(f"/services/{svc['id']}").json()["prerequisites"] == []
+
+    domain_config(prerequisites=prereqs, capabilities={"prerequisites": True})
+    served = client.get(f"/services/{svc['id']}").json()["prerequisites"]
+    assert [x["key"] for x in served] == ["licence"]
+    assert served[0]["blocksConfirmation"] is True
+    assert served[0]["label"] == "Licence"

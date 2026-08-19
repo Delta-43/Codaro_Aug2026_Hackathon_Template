@@ -196,6 +196,30 @@ def make_client_review(
     )
 
 
+def make_entitlement(
+    db: FakeSupabase,
+    *,
+    user_id: str = DEFAULT_USER_ID,
+    plan_key: str = "ten-pass",
+    credits_total: int | None = None,
+    credits_used: int = 0,
+    status: str = "active",
+    **extra,
+) -> dict:
+    """Insert an `entitlements` row (a plan a customer holds). The plan itself
+    lives in config (`entitlements.plans[]`) — declare a matching `plan_key`
+    there via `domain_config` or the row resolves to nothing."""
+    return db.insert_row(
+        "entitlements",
+        user_id=user_id,
+        plan_key=plan_key,
+        credits_total=credits_total,
+        credits_used=credits_used,
+        status=status,
+        **extra,
+    )
+
+
 def make_catalog(
     db: FakeSupabase,
     *,

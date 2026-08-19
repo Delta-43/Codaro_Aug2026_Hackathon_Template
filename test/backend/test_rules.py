@@ -30,6 +30,7 @@ from app.rules import (
     effective_service_config,
     effective_service_pricing,
     effective_service_rules,
+    payment_state,
     within_cutoff,
 )
 
@@ -580,3 +581,30 @@ def test_apply_rules_skips_an_event_with_no_validators():
 
 def test_apply_rules_on_an_unknown_event_is_a_no_op():
     apply_rules("booking.teleport", {})
+
+
+# --- payment_state: currency comes from the same chain as the amounts -------
+
+
+def test_payment_state_currency_falls_back_to_the_effective_pricing(domain_config):
+    """A booking whose metadata never stored a currency (seeded/legacy rows)
+    must be labelled in the pricing block's currency — it was hard-coded EUR
+    while quote/create billed the effective currency."""
+    domain_config(pricing={"currency": "USD"})
+    state = payment_state({"price_minor_units": 500}, None, "confirmed")
+    assert state["currency"] == "USD"
+
+
+def test_payment_state_prefers_the_stored_currency(domain_config):
+    domain_config(pricing={"currency": "USD"})
+    state = payment_state({"price_minor_units": 500, "currency": "GBP"}, None, "confirmed")
+    assert state["currency"] == "GBP"
+
+
+def test_payment_state_currency_reads_the_service_column_too(domain_config):
+    """`effective_service_pricing` folds the legacy `currency` column in, so the
+    label follows the service, not the global default."""
+    state = payment_state(
+        {"price_minor_units": 500}, {"currency": "CHF", "metadata": {}}, "confirmed"
+    )
+    assert state["currency"] == "CHF"

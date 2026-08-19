@@ -29,7 +29,7 @@ ERRORS_TS = REPO_ROOT / "frontend" / "src" / "api" / "errors.ts"
 DOMAIN_TS = REPO_ROOT / "frontend" / "src" / "types" / "domain.ts"
 
 TEMPLATE_EXPR = re.compile(r"\$\{[^{}]*\}")
-PATH_LITERAL = re.compile(r"[`\"'](/(?:config|providers|services|resources|slots|bookings|availability|month-density|me|demo)[^`\"'\n]*)")
+PATH_LITERAL = re.compile(r"[`\"'](/(?:config|providers|services|resources|slots|bookings|availability|month-density|me|demo|conversations|owner)[^`\"'\n]*)")
 
 
 def normalize(path: str) -> str:
@@ -100,6 +100,14 @@ def test_no_frontend_path_is_unknown_to_the_backend():
         ("PATCH", "/me"),
         ("GET", "/demo/vertical"),
         ("POST", "/demo/reset"),
+        ("GET", "/conversations"),
+        ("POST", "/conversations"),
+        ("POST", "/conversations/*/messages"),
+        ("POST", "/conversations/*/read"),
+        ("DELETE", "/conversations/*/messages/*"),
+        ("GET", "/owner/dashboard"),
+        ("GET", "/owner/requests"),
+        ("GET", "/owner/calendar"),
     ],
 )
 def test_each_expected_route_exists_with_method(method, path):
