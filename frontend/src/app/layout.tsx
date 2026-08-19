@@ -9,7 +9,7 @@ import { AuthProvider } from "@/lib/auth";
 const outfit = Outfit({subsets:['latin'],variable:'--font-outfit'});
 
 export const metadata: Metadata = {
-  title: "Service.com",
+  title: "Arbor",
   description: "Booking and resource scheduling — demo build.",
 };
 

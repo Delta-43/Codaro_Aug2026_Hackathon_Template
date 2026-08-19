@@ -78,8 +78,7 @@ function BusinessLoginForm() {
               <Building2 className="size-6" aria-hidden />
             </span>
             <h1 className="text-2xl font-semibold tracking-tight">
-              <span className="text-foreground">Service</span>
-              <span className="text-primary">.com</span>
+              <span className="text-primary">Arbor</span>
               <span className="text-amber-600 dark:text-amber-400"> Business</span>
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">

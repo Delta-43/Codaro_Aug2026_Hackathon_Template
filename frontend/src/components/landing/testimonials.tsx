@@ -39,7 +39,7 @@ const REVIEWS: Review[] = [
     initials: "PW",
     rating: 5,
     message:
-      "service.com is an amazing platform, it offers awesome functionality specifically for ease of use for the business and a user. I really like how flexible and functional it is, and how it makes getting information about what you want super easy. Overall I really recommend service.com",
+      "Arbor is an amazing platform, it offers awesome functionality specifically for ease of use for the business and a user. I really like how flexible and functional it is, and how it makes getting information about what you want super easy. Overall I really recommend Arbor",
   },
   {
     kind: "review",
@@ -48,7 +48,7 @@ const REVIEWS: Review[] = [
     initials: "AB",
     rating: 5,
     message:
-      "service.com is amazing because I really like programming, crocs and also my hackathon group, yayyy",
+      "Arbor is amazing because I really like programming, crocs and also my hackathon group, yayyy",
   },
   {
     kind: "review",
@@ -65,7 +65,7 @@ const REVIEWS: Review[] = [
     initials: "PP",
     rating: 5,
     message:
-      "service.com changed everything about my life — it optimized our booking rates to 300% 📈. Now I don't need to sleep 😴 because I have to serve my customers 😤",
+      "Arbor changed everything about my life — it optimized our booking rates to 300% 📈. Now I don't need to sleep 😴 because I have to serve my customers 😤",
   },
 ];
 
@@ -80,7 +80,7 @@ export function Testimonials() {
             Built for every business — and it shows.
           </h2>
           <p className="mx-auto mt-3 max-w-md text-center text-foreground/80">
-            The team that built service.com, in their own words.
+            The team that built Arbor, in their own words.
           </p>
 
           <div className="relative mt-10">
