@@ -1,20 +1,22 @@
-"""Wipe + reseed the demo dataset to match the current domain.config.json.
+"""Wipe + rebuild the demo dataset.
 
-Delegates to `seed_vertical()`, which fully wipes the extended + booking tables
-(keeping profiles / auth.users) and rebuilds them. The vertical reseeded is the
-one currently in the DB (`active_vertical()`), falling back to the default on a
-fresh/empty DB. Deletes all existing demo data -- run only when a fresh,
-domain-matching dataset is wanted after a pivot."""
+Fully wipes the extended + booking tables (keeping profiles / auth.users) and
+rebuilds them. Deletes all existing demo data.
+
+The spec comes from `seed_config.spec_from_config()`, so the rebuilt data
+follows the loaded `domain.config.json`: its currency, timezone, durations,
+prices, cutoffs, capacity and -- in single-tenant mode -- its
+`tenancy.providerCode`. `scripts/check_seed.py` (`make checkseed`) verifies it."""
 import logging
 
 from app.db import get_db_url
-from seed import active_vertical, seed_vertical
+from seed import seed_from_config
 
 
 def reseed() -> None:
     if not get_db_url():
         raise SystemExit("SUPABASE_DB_URL must be set to reseed.")
-    seed_vertical(active_vertical())
+    seed_from_config()
 
 
 if __name__ == "__main__":

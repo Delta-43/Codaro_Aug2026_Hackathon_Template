@@ -1,0 +1,234 @@
+{
+  "configVersion": 2,
+  "domain": "parking-space-marketplace",
+  "tenancy": {
+    "mode": "multi",
+    "providerCode": null,
+    "selfOnboarding": true,
+    "tenantVerification": {
+      "required": false,
+      "credentials": []
+    },
+    "commission": {
+      "enabled": true,
+      "rateBps": 1600,
+      "chargedOn": "booking"
+    }
+  },
+  "capabilities": {
+    "payments": true,
+    "inventory": true,
+    "waitlist": false,
+    "quotes": false,
+    "recurrence": false,
+    "prerequisites": false,
+    "entitlements": false,
+    "cart": false,
+    "reviews": true,
+    "follows": true
+  },
+  "booking": {
+    "unitKind": "asset",
+    "granularity": "minute",
+    "duration": {
+      "mode": "customer_chosen",
+      "minUnits": 1,
+      "maxUnits": 24,
+      "incrementUnits": 1
+    },
+    "party": {
+      "mode": "individual",
+      "min": 1,
+      "max": null,
+      "composition": null,
+      "matchResourceCapacity": false
+    },
+    "sequence": {
+      "enabled": false,
+      "steps": 1,
+      "minGapHours": 0,
+      "maxGapHours": null
+    },
+    "subject": {
+      "enabled": true,
+      "noun": "Vehicle",
+      "fields": [
+        {
+          "key": "reg",
+          "label": "Registration",
+          "type": "text",
+          "required": true
+        }
+      ]
+    },
+    "options": []
+  },
+  "pricing": {
+    "model": "per_hour",
+    "currency": "EUR",
+    "currencyExponent": 2,
+    "rate": {
+      "per": "hour",
+      "amountMinorUnits": 350
+    },
+    "secondaryRate": null,
+    "tiers": [],
+    "chargePerPerson": false,
+    "caps": {
+      "perBookingMinorUnits": 2000,
+      "perDayMinorUnits": 2000
+    },
+    "fees": [],
+    "deposit": {
+      "enabled": false,
+      "kind": "percent",
+      "value": 0,
+      "refundable": true
+    }
+  },
+  "payments": {
+    "flow": "prepay",
+    "payer": "customer",
+    "schedule": [],
+    "billingCycle": "none",
+    "noShowFee": {
+      "enabled": false,
+      "amountMinorUnits": 0
+    },
+    "usageMetered": false,
+    "adapter": "manual"
+  },
+  "inventory": {
+    "mode": "serialised",
+    "reservationWindowMinutes": 15,
+    "loanPeriodHours": null,
+    "returnRequired": false,
+    "overdueFeePerDayMinorUnits": 0,
+    "restockCycle": "none",
+    "ratioConstraint": null
+  },
+  "location": {
+    "modes": [
+      "on_site"
+    ],
+    "default": "on_site",
+    "timezone": "UTC",
+    "distanceUnit": "km",
+    "origin": null,
+    "serviceArea": {
+      "radiusKm": null,
+      "travelBufferMinutes": 0,
+      "feeBands": []
+    },
+    "remote": {
+      "meetingLinkMode": "none"
+    },
+    "fulfilment": {
+      "windowMinutes": 60,
+      "cutoffHoursBefore": 0
+    }
+  },
+  "prerequisites": [],
+  "timing": {
+    "confirmation": "instant",
+    "approvalWindowHours": 48,
+    "leadTimeMinutes": 0,
+    "waitlist": {
+      "enabled": false,
+      "autoPromote": true,
+      "maxPerSlot": 0
+    },
+    "seasons": [],
+    "blackouts": [],
+    "slotDurationMinutes": 30,
+    "maxBookingsPerSlot": 1,
+    "cancellationWindowHours": 24,
+    "advanceBookingWindowDays": 30,
+    "bufferMinutes": 0
+  },
+  "recurrence": {
+    "enabled": false,
+    "patterns": [],
+    "maxOccurrences": 12,
+    "term": {
+      "mode": "fixed",
+      "noticePeriodDays": 0
+    }
+  },
+  "entitlements": {
+    "enabled": false,
+    "kind": "none",
+    "plans": []
+  },
+  "discovery": {
+    "mode": "browse",
+    "facets": {
+      "price": true,
+      "distance": true,
+      "rating": true,
+      "availability": true,
+      "unitKind": false
+    },
+    "matching": {
+      "enabled": false,
+      "source": "intake_form"
+    }
+  },
+  "terms": {
+    "provider": "Hire shop",
+    "providers": "Hire shops",
+    "service": "Hire",
+    "services": "Hires",
+    "staff": "Staff",
+    "subject": "Vehicle",
+    "party": "Guests",
+    "resource": "Item",
+    "resources": "Items",
+    "slot": "Hire period",
+    "slots": "Hire periods",
+    "booking": "Hire",
+    "bookings": "Hires",
+    "client": "Customer",
+    "clients": "Customers",
+    "admin": "Business",
+    "admins": "Businesses"
+  },
+  "copy": {
+    "landingTitle": "Parking Space Marketplace",
+    "landingSubtitle": "Serialised bays — per hour, daily cap.",
+    "confirmTitle": "Booking confirmed",
+    "emptyStateSlots": "No hire periods available yet.",
+    "emptyStateBookings": "You have no hires yet.",
+    "requestPending": "Your request has been sent.",
+    "waitlistJoined": "You're on the waitlist.",
+    "quoteRequested": "Your quote request has been sent.",
+    "depositDue": "A deposit is due to confirm this booking.",
+    "prerequisiteBlocked": "Some details are needed before this can be confirmed."
+  },
+  "theme": {
+    "primaryColor": "#be123c",
+    "radius": "0.5rem"
+  },
+  "metaFields": {
+    "providers": [],
+    "services": [],
+    "resources": [],
+    "slots": [],
+    "bookings": [],
+    "subjects": []
+  },
+  "rules": {
+    "slotDurationMinutes": 30,
+    "maxBookingsPerSlot": 1,
+    "cancellationWindowHours": 24,
+    "advanceBookingWindowDays": 30,
+    "bufferMinutes": 0
+  },
+  "search": {
+    "facets": {
+      "price": true,
+      "distance": true,
+      "rating": true
+    }
+  }
+}

@@ -38,3 +38,6 @@ ds-bundle/
 
 # Per-developer Claude Code settings (settings.json IS shared).
 .claude/settings.local.json
+
+# scratch backup written by scripts/use_pivot.py
+domain.config.json.bak

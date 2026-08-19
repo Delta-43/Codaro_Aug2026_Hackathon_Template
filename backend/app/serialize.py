@@ -34,6 +34,18 @@ from app.rules import (
 # --- time helpers ----------------------------------------------------------
 
 
+def _attribute_rows(value: object) -> list[dict]:
+    """Normalise `resources.metadata.attributes` to the [{label, value}] the
+    clients expect. Anything else degrades to an empty list rather than being
+    passed through to break the caller; a dict is rendered as its own pairs,
+    which is the one wrong shape with an obvious right reading."""
+    if isinstance(value, list):
+        return [r for r in value if isinstance(r, dict) and "label" in r and "value" in r]
+    if isinstance(value, dict):
+        return [{"label": str(k), "value": str(v)} for k, v in value.items()]
+    return []
+
+
 def _parse(value: Any) -> Optional[datetime]:
     """Coerce a DB timestamp (str or datetime) to an aware UTC datetime."""
     if value is None:
@@ -217,7 +229,12 @@ def serialize_resource(row: dict) -> dict:
         "description": row.get("description"),
         "imageUrl": md.get("image_url"),
         "capacity": int(md.get("capacity", 1)),
-        "attributes": md.get("attributes") or [],
+        # `metadata` is the no-migration extension point, so its contents are
+        # not schema-checked: a row can carry anything. The API contract here is
+        # a LIST of {label,value} (see types/domain.ts) and the provider page
+        # maps over it, so a dict or string sent straight through crashed the
+        # page with "attributes.slice is not a function". Coerce instead.
+        "attributes": _attribute_rows(md.get("attributes")),
         "active": bool(md.get("active", True)),
     }
 

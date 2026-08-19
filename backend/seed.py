@@ -211,9 +211,14 @@ def _ensure_user(db, email: str, password: str, metadata: dict) -> str:
 # --- the assembler ---------------------------------------------------------
 
 
-def seed_vertical(vertical_id: str) -> dict:
-    """Wipe and reseed the DB for one vertical. Returns a small summary."""
-    cfg = VERTICALS[vertical_id]
+def seed_vertical(vertical_id: str, spec: dict | None = None) -> dict:
+    """Wipe and reseed the DB from a vertical spec. Returns a small summary.
+
+    `spec` overrides the `seed_data.VERTICALS` entry — that is how
+    `seed_from_config()` feeds in a spec derived from `domain.config.json`
+    instead. The assembler below reads only the spec, so both sources go through
+    exactly the same code path."""
+    cfg = spec or VERTICALS[vertical_id]
     tz = cfg["baseTz"]
     currency = cfg["currency"]
     model = cfg["bookingModel"]
@@ -263,6 +268,7 @@ def seed_vertical(vertical_id: str) -> dict:
             # auto_approve rides in metadata (no column): the demo's primary
             # service is manual-approve so the Requests tab has something to act on.
             "metadata": {
+                **(spec.get("metaFields", {}).get("service") or {}),
                 "image_url": tile_uri(spec["name"], spec["name"]),
                 "auto_approve": auto_approve,
             },
@@ -276,6 +282,7 @@ def seed_vertical(vertical_id: str) -> dict:
         slot_rows: list[dict] = []
         for r in resources:
             res_md = {
+                **(spec.get("metaFields", {}).get("resource") or {}),
                 "service_id": service_id,
                 "capacity": r["capacity"],
                 "active": True,
@@ -302,7 +309,10 @@ def seed_vertical(vertical_id: str) -> dict:
                         "starts_at": _iso(start),
                         "ends_at": _iso(end),
                         "capacity": r["capacity"],
-                        "metadata": {"service_id": service_id},
+                        "metadata": {
+                            **(spec.get("metaFields", {}).get("slot") or {}),
+                            "service_id": service_id,
+                        },
                     })
         inserted_slots = _chunked_insert(db, "slots", slot_rows)
         counts["slots"] += len(inserted_slots)
@@ -316,6 +326,16 @@ def seed_vertical(vertical_id: str) -> dict:
             "category_id": p["categoryId"],
             "owner_id": owner_uid if i == 0 else None,  # demo owner owns the demo provider
             "metadata": {
+                # Provenance, so a checker reads what this data was built from
+                # instead of inferring it from the shape of the rows (which is
+                # how `active_vertical()` guesses, and it can only ever return
+                # one of the three canned verticals).
+                "seeded": {
+                    "source": vertical_id,
+                    "tz": tz,
+                    "currency": currency,
+                    "bookingModel": model,
+                },
                 "avatar_url": avatar_uri(p["name"], p["name"]),
                 "cover_url": cover_uri(p["name"]),
                 "tagline": p["tagline"],
@@ -700,6 +720,20 @@ def active_vertical() -> str:
     return DEFAULT_VERTICAL
 
 
+def seed_from_config() -> dict:
+    """Wipe and reseed from the loaded `domain.config.json`.
+
+    This is what makes a pivot show up in the data: currency, timezone,
+    durations, prices, cutoffs, capacity and the single-tenant provider code all
+    come from the config rather than from `seed_data.VERTICALS`. Verify the
+    result with `scripts/check_seed.py` (`make checkseed`)."""
+    from app.config import get_config  # local: avoids a seed -> config import at module load
+    from seed_config import spec_from_config
+
+    spec = spec_from_config(get_config())
+    return seed_vertical(spec["verticalId"], spec)
+
+
 def seed_if_empty() -> None:
     # On a fresh DB the tables are created via a direct Postgres connection
     # (schema_setup) moments before this runs, but PostgREST reloads its schema
@@ -723,9 +757,21 @@ def seed_if_empty() -> None:
             return
     if existing:
         return
-    seed_vertical(DEFAULT_VERTICAL)
+    # Boot-time seeding is best-effort and must never take the app down with
+    # it: the check above and this insert are not one transaction, so the
+    # documented pivot workflow (`make reload` restarting the backend while
+    # `make reseed` has the tables truncated) can read "empty", then insert into
+    # a table the reseed has already refilled. That surfaced as a startup crash
+    # loop on a duplicate `providers.public_code` — the API never came up, and
+    # every screen degraded to "we couldn't load your profile" / "no business
+    # yet" with nothing pointing at the seed. A DB that already has data is the
+    # success case for this function, so log and carry on.
+    try:
+        seed_from_config()
+    except Exception:
+        logger.exception("Boot-time seed failed; starting anyway with the existing data.")
 
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    seed_vertical(DEFAULT_VERTICAL)
+    seed_from_config()

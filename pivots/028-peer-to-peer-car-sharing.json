@@ -1,0 +1,239 @@
+{
+  "configVersion": 2,
+  "domain": "peer-to-peer-car-sharing",
+  "tenancy": {
+    "mode": "multi",
+    "providerCode": null,
+    "selfOnboarding": true,
+    "tenantVerification": {
+      "required": true,
+      "credentials": []
+    },
+    "commission": {
+      "enabled": true,
+      "rateBps": 1500,
+      "chargedOn": "completion"
+    }
+  },
+  "capabilities": {
+    "payments": true,
+    "inventory": true,
+    "waitlist": false,
+    "quotes": false,
+    "recurrence": false,
+    "prerequisites": true,
+    "entitlements": false,
+    "cart": false,
+    "reviews": true,
+    "follows": true
+  },
+  "booking": {
+    "unitKind": "asset",
+    "granularity": "minute",
+    "duration": {
+      "mode": "customer_chosen",
+      "minUnits": 1,
+      "maxUnits": 48,
+      "incrementUnits": 1
+    },
+    "party": {
+      "mode": "individual",
+      "min": 1,
+      "max": null,
+      "composition": null,
+      "matchResourceCapacity": false
+    },
+    "sequence": {
+      "enabled": false,
+      "steps": 1,
+      "minGapHours": 0,
+      "maxGapHours": null
+    },
+    "subject": {
+      "enabled": true,
+      "noun": "Vehicle",
+      "fields": []
+    },
+    "options": []
+  },
+  "pricing": {
+    "model": "per_hour",
+    "currency": "EUR",
+    "currencyExponent": 2,
+    "rate": {
+      "per": "hour",
+      "amountMinorUnits": 800
+    },
+    "secondaryRate": {
+      "per": "unit",
+      "amountMinorUnits": 25
+    },
+    "tiers": [],
+    "chargePerPerson": false,
+    "caps": {
+      "perBookingMinorUnits": null,
+      "perDayMinorUnits": null
+    },
+    "fees": [],
+    "deposit": {
+      "enabled": true,
+      "kind": "percent",
+      "value": 10,
+      "refundable": true
+    }
+  },
+  "payments": {
+    "flow": "split",
+    "payer": "customer",
+    "schedule": [],
+    "billingCycle": "none",
+    "noShowFee": {
+      "enabled": false,
+      "amountMinorUnits": 0
+    },
+    "usageMetered": true,
+    "adapter": "manual"
+  },
+  "inventory": {
+    "mode": "serialised",
+    "reservationWindowMinutes": 15,
+    "loanPeriodHours": null,
+    "returnRequired": false,
+    "overdueFeePerDayMinorUnits": 0,
+    "restockCycle": "none",
+    "ratioConstraint": null
+  },
+  "location": {
+    "modes": [
+      "pickup"
+    ],
+    "default": "pickup",
+    "timezone": "UTC",
+    "distanceUnit": "km",
+    "origin": null,
+    "serviceArea": {
+      "radiusKm": null,
+      "travelBufferMinutes": 0,
+      "feeBands": []
+    },
+    "remote": {
+      "meetingLinkMode": "none"
+    },
+    "fulfilment": {
+      "windowMinutes": 60,
+      "cutoffHoursBefore": 0
+    }
+  },
+  "prerequisites": [
+    {
+      "key": "licence",
+      "kind": "licence",
+      "label": "Driving licence",
+      "appliesTo": "customer",
+      "required": true,
+      "blocksConfirmation": true
+    }
+  ],
+  "timing": {
+    "confirmation": "instant",
+    "approvalWindowHours": 48,
+    "leadTimeMinutes": 0,
+    "waitlist": {
+      "enabled": false,
+      "autoPromote": true,
+      "maxPerSlot": 0
+    },
+    "seasons": [],
+    "blackouts": [],
+    "slotDurationMinutes": 30,
+    "maxBookingsPerSlot": 1,
+    "cancellationWindowHours": 24,
+    "advanceBookingWindowDays": 30,
+    "bufferMinutes": 0
+  },
+  "recurrence": {
+    "enabled": false,
+    "patterns": [],
+    "maxOccurrences": 12,
+    "term": {
+      "mode": "fixed",
+      "noticePeriodDays": 0
+    }
+  },
+  "entitlements": {
+    "enabled": false,
+    "kind": "none",
+    "plans": []
+  },
+  "discovery": {
+    "mode": "browse",
+    "facets": {
+      "price": true,
+      "distance": true,
+      "rating": true,
+      "availability": true,
+      "unitKind": false
+    },
+    "matching": {
+      "enabled": false,
+      "source": "intake_form"
+    }
+  },
+  "terms": {
+    "provider": "Hire shop",
+    "providers": "Hire shops",
+    "service": "Hire",
+    "services": "Hires",
+    "staff": "Staff",
+    "subject": "Vehicle",
+    "party": "Guests",
+    "resource": "Item",
+    "resources": "Items",
+    "slot": "Hire period",
+    "slots": "Hire periods",
+    "booking": "Hire",
+    "bookings": "Hires",
+    "client": "Customer",
+    "clients": "Customers",
+    "admin": "Business",
+    "admins": "Businesses"
+  },
+  "copy": {
+    "landingTitle": "Peer-to-Peer Car Sharing",
+    "landingSubtitle": "Member-owned cars — per hour + per km metered.",
+    "confirmTitle": "Booking confirmed",
+    "emptyStateSlots": "No hire periods available yet.",
+    "emptyStateBookings": "You have no hires yet.",
+    "requestPending": "Your request has been sent.",
+    "waitlistJoined": "You're on the waitlist.",
+    "quoteRequested": "Your quote request has been sent.",
+    "depositDue": "A deposit is due to confirm this booking.",
+    "prerequisiteBlocked": "Some details are needed before this can be confirmed."
+  },
+  "theme": {
+    "primaryColor": "#c2410c",
+    "radius": "0.5rem"
+  },
+  "metaFields": {
+    "providers": [],
+    "services": [],
+    "resources": [],
+    "slots": [],
+    "bookings": [],
+    "subjects": []
+  },
+  "rules": {
+    "slotDurationMinutes": 30,
+    "maxBookingsPerSlot": 1,
+    "cancellationWindowHours": 24,
+    "advanceBookingWindowDays": 30,
+    "bufferMinutes": 0
+  },
+  "search": {
+    "facets": {
+      "price": true,
+      "distance": true,
+      "rating": true
+    }
+  }
+}

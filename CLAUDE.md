@@ -80,7 +80,8 @@ the current verified snapshot.
 | `supabase/` | `schema.sql` — neutral base tables + extended entities (providers/services/booking_slots/reviews/follows), occupancy view, RLS | [supabase/CLAUDE.md](supabase/CLAUDE.md) |
 | `test/` | Stack + API tests (owned exclusively by the `test-writer` agent, see below) | [test/CLAUDE.md](test/CLAUDE.md) |
 | `domain.config.json` | The pivot file (v2) | [docs/PIVOT-SYSTEM.md](docs/PIVOT-SYSTEM.md) |
-| `scripts/check_pivots.py` | 50 pivots run through the real validator + pricing engine | [docs/PIVOT-COVERAGE.md](docs/PIVOT-COVERAGE.md) |
+| `scripts/check_pivots.py` | 100 pivots run through the real validator + pricing engine | [docs/PIVOT-COVERAGE.md](docs/PIVOT-COVERAGE.md) |
+| `pivots/` | The same 100 pivots as complete, drop-in `domain.config.json` files (generated) | [pivots/README.md](pivots/README.md) |
 
 `backend/`, `frontend/`, and `supabase/` are built out **independently** —
 each has its own `CLAUDE.md` with the requirements and conventions for that
@@ -132,6 +133,7 @@ the PR. This keeps a durable trail per issue, independent of the `REPORT.md`/
 cp backend/.env.example backend/.env   # SUPABASE_URL + SERVICE_KEY + ANON_KEY + JWT_SECRET (+ DB_URL)
 make start                             # frontend :3000, backend :8000
 make reload                            # re-read domain.config.json after an edit
-make reseed                            # wipe + reseed demo data to match current config
+make reseed                            # wipe + rebuild demo data from the current config
+make checkseed                         # report where the seeded data and the config disagree
 make logs / make stop / make reset     # see `make` with no args for the full list
 ```

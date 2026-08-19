@@ -1,0 +1,243 @@
+{
+  "configVersion": 2,
+  "domain": "pharmacy-click-and-collect",
+  "tenancy": {
+    "mode": "multi",
+    "providerCode": null,
+    "selfOnboarding": true,
+    "tenantVerification": {
+      "required": false,
+      "credentials": []
+    },
+    "commission": {
+      "enabled": true,
+      "rateBps": 400,
+      "chargedOn": "completion"
+    }
+  },
+  "capabilities": {
+    "payments": true,
+    "inventory": true,
+    "waitlist": false,
+    "quotes": false,
+    "recurrence": false,
+    "prerequisites": true,
+    "entitlements": false,
+    "cart": false,
+    "reviews": true,
+    "follows": true
+  },
+  "booking": {
+    "unitKind": "stock_item",
+    "granularity": "minute",
+    "duration": {
+      "mode": "fixed",
+      "minUnits": 1,
+      "maxUnits": 1,
+      "incrementUnits": 1
+    },
+    "party": {
+      "mode": "individual",
+      "min": 1,
+      "max": null,
+      "composition": null,
+      "matchResourceCapacity": false
+    },
+    "sequence": {
+      "enabled": false,
+      "steps": 1,
+      "minGapHours": 0,
+      "maxGapHours": null
+    },
+    "subject": {
+      "enabled": false,
+      "noun": "Subject",
+      "fields": []
+    },
+    "options": []
+  },
+  "pricing": {
+    "model": "per_unit",
+    "currency": "EUR",
+    "currencyExponent": 2,
+    "rate": {
+      "per": "unit",
+      "amountMinorUnits": 1200
+    },
+    "secondaryRate": null,
+    "tiers": [],
+    "chargePerPerson": false,
+    "caps": {
+      "perBookingMinorUnits": null,
+      "perDayMinorUnits": null
+    },
+    "fees": [],
+    "deposit": {
+      "enabled": false,
+      "kind": "percent",
+      "value": 0,
+      "refundable": true
+    }
+  },
+  "payments": {
+    "flow": "pay_on_site",
+    "payer": "customer",
+    "schedule": [],
+    "billingCycle": "none",
+    "noShowFee": {
+      "enabled": false,
+      "amountMinorUnits": 0
+    },
+    "usageMetered": false,
+    "adapter": "manual"
+  },
+  "inventory": {
+    "mode": "consumable",
+    "reservationWindowMinutes": 15,
+    "loanPeriodHours": null,
+    "returnRequired": false,
+    "overdueFeePerDayMinorUnits": 0,
+    "restockCycle": "daily",
+    "ratioConstraint": null
+  },
+  "location": {
+    "modes": [
+      "pickup"
+    ],
+    "default": "pickup",
+    "timezone": "UTC",
+    "distanceUnit": "km",
+    "origin": null,
+    "serviceArea": {
+      "radiusKm": null,
+      "travelBufferMinutes": 0,
+      "feeBands": []
+    },
+    "remote": {
+      "meetingLinkMode": "none"
+    },
+    "fulfilment": {
+      "windowMinutes": 240,
+      "cutoffHoursBefore": 2
+    }
+  },
+  "prerequisites": [
+    {
+      "key": "rx",
+      "kind": "approval",
+      "label": "Prescription",
+      "appliesTo": "customer",
+      "required": true,
+      "blocksConfirmation": true
+    }
+  ],
+  "timing": {
+    "confirmation": "instant",
+    "approvalWindowHours": 48,
+    "leadTimeMinutes": 0,
+    "waitlist": {
+      "enabled": false,
+      "autoPromote": true,
+      "maxPerSlot": 0
+    },
+    "seasons": [],
+    "blackouts": [
+      {
+        "key": "bank",
+        "label": "Bank holidays",
+        "startDate": "2026-12-25",
+        "endDate": "2026-12-26"
+      }
+    ],
+    "slotDurationMinutes": 30,
+    "maxBookingsPerSlot": 1,
+    "cancellationWindowHours": 24,
+    "advanceBookingWindowDays": 30,
+    "bufferMinutes": 0
+  },
+  "recurrence": {
+    "enabled": false,
+    "patterns": [],
+    "maxOccurrences": 12,
+    "term": {
+      "mode": "fixed",
+      "noticePeriodDays": 0
+    }
+  },
+  "entitlements": {
+    "enabled": false,
+    "kind": "none",
+    "plans": []
+  },
+  "discovery": {
+    "mode": "browse",
+    "facets": {
+      "price": true,
+      "distance": true,
+      "rating": true,
+      "availability": true,
+      "unitKind": false
+    },
+    "matching": {
+      "enabled": false,
+      "source": "intake_form"
+    }
+  },
+  "terms": {
+    "provider": "Shop",
+    "providers": "Shops",
+    "service": "Product",
+    "services": "Products",
+    "staff": "Staff",
+    "subject": "Subject",
+    "party": "Guests",
+    "resource": "Item",
+    "resources": "Items",
+    "slot": "Collection window",
+    "slots": "Collection windows",
+    "booking": "Order",
+    "bookings": "Orders",
+    "client": "Customer",
+    "clients": "Customers",
+    "admin": "Business",
+    "admins": "Businesses"
+  },
+  "copy": {
+    "landingTitle": "Pharmacy Click & Collect",
+    "landingSubtitle": "Dispensed stock — per unit.",
+    "confirmTitle": "Booking confirmed",
+    "emptyStateSlots": "No collection windows available yet.",
+    "emptyStateBookings": "You have no orders yet.",
+    "requestPending": "Your request has been sent.",
+    "waitlistJoined": "You're on the waitlist.",
+    "quoteRequested": "Your quote request has been sent.",
+    "depositDue": "A deposit is due to confirm this booking.",
+    "prerequisiteBlocked": "Some details are needed before this can be confirmed."
+  },
+  "theme": {
+    "primaryColor": "#a21caf",
+    "radius": "0.5rem"
+  },
+  "metaFields": {
+    "providers": [],
+    "services": [],
+    "resources": [],
+    "slots": [],
+    "bookings": [],
+    "subjects": []
+  },
+  "rules": {
+    "slotDurationMinutes": 30,
+    "maxBookingsPerSlot": 1,
+    "cancellationWindowHours": 24,
+    "advanceBookingWindowDays": 30,
+    "bufferMinutes": 0
+  },
+  "search": {
+    "facets": {
+      "price": true,
+      "distance": true,
+      "rating": true
+    }
+  }
+}

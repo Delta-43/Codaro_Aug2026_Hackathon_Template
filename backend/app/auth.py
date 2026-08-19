@@ -38,6 +38,15 @@ CLIENT_ROLE = "client"
 
 # Supabase's default audience claim for a signed-in user.
 _AUDIENCE = "authenticated"
+# PyJWT checks `iat`/`nbf`/`exp` with zero tolerance, and Supabase stamps `iat`
+# from its own clock. A sub-second difference between that clock and ours is
+# enough to make a token the user has *just* been issued fail as
+# `ImmatureSignatureError` ("not yet valid") — which is the login-then-/me
+# sequence, so the symptom is a signed-in user whose profile will not load,
+# clearing up on its own once the clocks converge. Leeway is what the claim is
+# for: 60s absorbs ordinary skew without meaningfully extending a token's life
+# (they last an hour).
+_LEEWAY_SECONDS = 60
 
 # auto_error=False so we raise our own 401 (not FastAPI's default 403) when the
 # header is missing, and still advertise Bearer auth in the OpenAPI schema.
@@ -182,7 +191,10 @@ def _decode_asymmetric(token: str, alg: str, *, refresh: bool = True) -> dict:
     fails the retry too and still raises."""
     try:
         signing_key = _jwks_client().get_signing_key_from_jwt(token)
-        return jwt.decode(token, signing_key.key, algorithms=[alg], audience=_AUDIENCE)
+        return jwt.decode(
+            token, signing_key.key, algorithms=[alg],
+            audience=_AUDIENCE, leeway=_LEEWAY_SECONDS,
+        )
     except (jwt.PyJWKClientError, jwt.InvalidSignatureError):
         if refresh:
             _jwks_client.cache_clear()  # next call rebuilds the client + refetches the JWK set
@@ -196,7 +208,10 @@ def _decode_token(token: str) -> dict:
     HS256 (SUPABASE_JWT_SECRET). The token header's `alg` selects the path."""
     alg = jwt.get_unverified_header(token).get("alg", "HS256")
     if alg == "HS256":
-        return jwt.decode(token, _jwt_secret(), algorithms=["HS256"], audience=_AUDIENCE)
+        return jwt.decode(
+            token, _jwt_secret(), algorithms=["HS256"],
+            audience=_AUDIENCE, leeway=_LEEWAY_SECONDS,
+        )
     return _decode_asymmetric(token, alg)
 
 
