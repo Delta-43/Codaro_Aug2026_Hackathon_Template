@@ -166,7 +166,7 @@
       }
     ],
     "blackouts": [],
-    "slotDurationMinutes": 30,
+    "slotDurationMinutes": 1440,
     "maxBookingsPerSlot": 1,
     "cancellationWindowHours": 24,
     "advanceBookingWindowDays": 30,
@@ -244,7 +244,7 @@
     "subjects": []
   },
   "rules": {
-    "slotDurationMinutes": 30,
+    "slotDurationMinutes": 1440,
     "maxBookingsPerSlot": 1,
     "cancellationWindowHours": 24,
     "advanceBookingWindowDays": 30,

@@ -29,6 +29,13 @@ SERVICE_KEYS = {
     "cancellationCutoffHours",
     "autoApprove",
     "capabilities",
+    "pricingModel",
+    "rateUnit",
+    "paymentFlow",
+    "billingCycle",
+    "prerequisites",
+    "recurrence",
+    "waitlist",
     "resourceIds",
 }
 

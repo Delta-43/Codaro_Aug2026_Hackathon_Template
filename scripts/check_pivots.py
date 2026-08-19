@@ -49,6 +49,15 @@ NOW = datetime(2026, 8, 18, 12, 0, tzinfo=timezone.utc)
 # which is exactly what happened to v1's `copy` and `theme`.
 # ---------------------------------------------------------------------------
 ENFORCED = {
+    "timing.advanceBookingWindowDays": "rules.RULES['booking.create'] + seed_config._grid",
+    "timing.waitlist": "routers/waitlist.py — join/leave + promote_from_waitlist",
+    "prerequisites": "rules.blocking_prerequisites + create/approve gate",
+    "recurrence": "bookings._book_repeats — series expander",
+    "entitlements": "rules.resolve_entitlement + pricing.quote discount",
+    "payments.flow": "rules.payment_state + POST /bookings/{id}/pay",
+    "inventory.returnRequired": "serialize.loan_state + POST /bookings/{id}/return",
+    "inventory.loanPeriodHours": "serialize.loan_state",
+    "inventory.overdueFeePerDayMinorUnits": "serialize.loan_state",
     "terms.admin": "auth.py owner-gate message",
     "terms.slot": "rules._term in rule-violation messages",
     "metaFields.resources": "meta.validate_metadata via routers/resources.py",
@@ -125,14 +134,9 @@ DECLARED_ONLY = {
     "location.serviceArea": "travel radius filter + travel buffer",
     "location.fulfilment": "pickup/delivery window logic",
     "location.remote": "meeting-link generation",
-    "prerequisites": "prerequisite_submissions + form renderer + confirm gate",
-    "timing.waitlist": "waitlist_entries + auto-promote (Tier 1)",
     "timing.seasons": "availability date-window filter",
     "timing.blackouts": "availability date-window filter",
     "timing.approvalWindowHours": "scheduled expiry job",
-    "timing.advanceBookingWindowDays": "rules.UNDISPATCHED — seed horizon conflict",
-    "recurrence": "booking_series entity + expander (E6)",
-    "entitlements": "entitlement_grants + credit spend",
     # `reviews`/`follows` are gated (see ENFORCED). These have no backend surface
     # to refuse yet, so the block's "hides the UI AND refuses the write" contract
     # is only half-true for them — say so rather than imply the whole block works.
@@ -280,7 +284,7 @@ SINGLE = [
                  "capabilities": {"inventory": True, "waitlist": True, "prerequisites": True, "recurrence": True},
                  "recurrence": {"enabled": True, "patterns": ["monthly"], "term": {"mode": "rolling", "noticePeriodDays": 90}},
                  "prerequisites": [{"key": "approval", "kind": "approval", "label": "Committee approval", "appliesTo": "customer", "required": True, "blocksConfirmation": True}],
-                 "timing": {"confirmation": "request_approve", "waitlist": {"enabled": True, "autoPromote": False, "maxPerSlot": 200}}},
+                 "timing": {"advanceBookingWindowDays": 365, "confirmation": "request_approve", "waitlist": {"enabled": True, "autoPromote": False, "maxPerSlot": 200}}},
          ctx={"slot_count": 1, "duration_minutes": 43200}, expect=6500,
          depends=["booking.duration.mode", "inventory.mode", "recurrence", "timing.waitlist", "prerequisites"],
          blocked="E2 — open-ended term; needs date_range availabilityStrategy"),
@@ -425,7 +429,7 @@ SINGLE += [
 
     dict(n=19, name="Self-Storage Units", booked="Serialised unit, monthly", price="Monthly subscription",
          flags="U:subsn P:subsn I:serial D:open L:onsite Y:solo Q:id T:instant M:invoice",
-         config={"booking": {"unitKind": "subscription_slot", "granularity": "month", "duration": {"mode": "open_ended"}},
+         config={"timing": {"advanceBookingWindowDays": 365}, "booking": {"unitKind": "subscription_slot", "granularity": "month", "duration": {"mode": "open_ended"}},
                  "pricing": {"model": "subscription", "chargePerPerson": False, "rate": {"per": "month", "amountMinorUnits": 8000}},
                  "payments": {"flow": "invoice_after", "billingCycle": "monthly"},
                  "inventory": {"mode": "serialised"},
@@ -738,7 +742,7 @@ MULTI += [
                  "capabilities": {"inventory": True, "prerequisites": True},
                  "location": {"modes": ["delivery"], "default": "delivery"},
                  "prerequisites": [{"key": "account", "kind": "approval", "label": "Trade account", "appliesTo": "customer", "required": True, "blocksConfirmation": True}],
-                 "timing": {"confirmation": "request_approve"}},
+                 "timing": {"advanceBookingWindowDays": 180, "confirmation": "request_approve"}},
          ctx={"slot_count": 1, "unit_count": 20, "duration_minutes": 40320}, expect=10000,
          depends=["pricing.secondaryRate", "booking.duration.mode", "payments.billingCycle"],
          blocked="E2 — open-ended term; needs date_range availabilityStrategy",

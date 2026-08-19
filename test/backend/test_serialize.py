@@ -366,6 +366,15 @@ SERVICE_KEYS = {
     "cancellationCutoffHours",
     "autoApprove",
     "capabilities",
+    # The shape of the offer, so the UI can describe it before a selection
+    # exists — `priceMinorUnits` alone is only the base rate.
+    "pricingModel",
+    "rateUnit",
+    "paymentFlow",
+    "billingCycle",
+    "prerequisites",
+    "recurrence",
+    "waitlist",
     "resourceIds",
 }
 
@@ -582,6 +591,12 @@ BOOKING_KEYS = {
     "cancelledAtUtc",
     "changeHistory",
     "review",
+    # None unless `inventory.returnRequired`; present on every booking so the
+    # shape does not change between deployments.
+    "loan",
+    "prerequisitesPending",
+    "prerequisitesMet",
+    "payment",
 }
 
 

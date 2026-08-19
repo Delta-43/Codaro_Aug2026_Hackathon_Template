@@ -48,6 +48,30 @@ UNIT_KINDS = frozenset(
     }
 )
 GRANULARITIES = frozenset({"minute", "hour", "day", "night", "week", "month", "none"})
+
+# How long one `booking.granularity` unit lasts, in minutes. This is the DEFAULT
+# slot length for a config that does not state one — `booking.granularity`
+# already says what the business sells (a night, a day, a month), so making the
+# calendar contradict it takes a deliberate `timing.slotDurationMinutes`.
+#
+# Without this every pivot fell back to a flat 30, so a hotel declaring
+# `granularity: "night"` seeded 30-minute rooms and a monthly storage unit
+# seeded 30-minute leases. `seed_config._grid()` has always had a `>= 1440`
+# branch for day-sized units; nothing could ever reach it.
+#
+# `minute` keeps 30: it means "this business runs a minute-based grid", not
+# "one minute", and 30 is the conventional step. `none` means no time grid at
+# all, so a day-sized unit is the least-wrong shape for a calendar that still
+# has to render something.
+GRANULARITY_SLOT_MINUTES = {
+    "minute": 30,
+    "hour": 60,
+    "day": 1440,
+    "night": 1440,
+    "week": 10080,
+    "month": 43200,  # 30 days — calendar months vary; the grid needs one number
+    "none": 1440,
+}
 DURATION_MODES = frozenset({"fixed", "variable", "customer_chosen", "open_ended"})
 PARTY_MODES = frozenset({"individual", "group", "buyout"})
 PRICING_MODELS = frozenset(
@@ -316,6 +340,20 @@ def normalize(raw: dict | None) -> dict:
             value = raw_timing[key]
         elif key in raw_rules:
             value = raw_rules[key]
+        elif key == "slotDurationMinutes":
+            # Undeclared slot length follows `booking.granularity` rather than a
+            # flat 30, so the calendar matches the unit the config says is sold.
+            # An explicit value on either path still wins (both branches above).
+            #
+            # `normalize` runs before `validate`, so `granularity` here may still
+            # be any JSON value — including an unhashable list/dict, which would
+            # make a bare `.get()` raise TypeError and escape as a 500 instead of
+            # the ConfigError the caller expects. Non-strings fall through to the
+            # default and let `validate` report the real problem.
+            granularity = cfg["booking"].get("granularity")
+            value = DEFAULTS["timing"][key]
+            if isinstance(granularity, str):
+                value = GRANULARITY_SLOT_MINUTES.get(granularity, value)
         else:
             value = DEFAULTS["timing"][key]
         cfg["timing"][key] = value

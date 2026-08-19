@@ -143,15 +143,27 @@ def _wall_to_utc(y: int, m: int, d: int, hour: int, minute: int, tz: str) -> dat
     return datetime(y, m, d, hour, minute, tzinfo=ZoneInfo(tz)).astimezone(timezone.utc)
 
 
-def _local_days(tz: str, back: int, forward: int):
+def _local_days(tz: str, back: int, forward: int, step: int = 1):
+    """Local calendar days across the window, every `step`-th day.
+
+    `step` > 1 is how a multi-day unit (a week, a month) lays one slot per unit
+    instead of one per day. Anchored on today, so the sequence is stable no
+    matter how far back the window reaches."""
     today = datetime.now(ZoneInfo(tz)).date()
-    for i in range(-back, forward + 1):
+    for i in range(-back, forward + 1, max(1, step)):
         day = today + timedelta(days=i)
         yield day, day.isoweekday() % 7  # 0=Sun … 6=Sat (JS getUTCDay convention)
 
 
 def _iso(dt: datetime) -> str:
     return dt.astimezone(timezone.utc).isoformat()
+
+
+def _parse_utc(iso: str) -> datetime:
+    """Parse a stored timestamp as UTC-aware, so it can be compared with `now`.
+    Postgres hands back an offset; a naive value would raise on subtraction."""
+    dt = datetime.fromisoformat(iso)
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
 
 
 def _local_date_str(iso: str, tz: str) -> str:
@@ -298,7 +310,9 @@ def seed_vertical(vertical_id: str, spec: dict | None = None) -> dict:
             }).execute().data[0]
             counts["resources"] += 1
             res_rows.append({**res, "_capacity": r["capacity"]})
-            for day, weekday in _local_days(tz, grid["daysBack"], grid["daysForward"]):
+            for day, weekday in _local_days(
+                tz, grid["daysBack"], grid["daysForward"], grid.get("dayStep", 1)
+            ):
                 if "weekdays" in grid and weekday not in grid["weekdays"]:
                     continue
                 for t in grid["startTimes"]:
@@ -373,7 +387,7 @@ def seed_vertical(vertical_id: str, spec: dict | None = None) -> dict:
         # established demo user, one from a fresh prospect.
         counts["bookings"] += _seed_requests(
             db, primary_service, demo_provider_id, model, currency,
-            [(demo_uid, DEMO_EMAIL), (prospect_uid, PROSPECT_EMAIL)],
+            [(demo_uid, DEMO_EMAIL), (prospect_uid, PROSPECT_EMAIL)], tz,
         )
         # The demo user's reputation: reviews the provider left about them.
         _seed_client_reviews(db, demo_uid, demo_provider_id)
@@ -402,6 +416,56 @@ def _insert_dedicated_slot(db, service_id, resource_id, capacity, start: datetim
     }).execute().data[0]
 
 
+def _align_to_unit_grid(start: datetime, dur: int, tz: str) -> datetime:
+    """Snap `start` onto the same lattice `seed_config._grid` lays down: local
+    midnight, every `dur // 1440` days, anchored on today. Slots built off this
+    tile the calendar exactly, so consecutive units abut instead of overlapping."""
+    zone = ZoneInfo(tz)
+    today = datetime.now(zone).date()
+    step = max(1, dur // 1440)
+    offset = (start.astimezone(zone).date() - today).days
+    aligned = today + timedelta(days=(round(offset / step) * step))
+    return _wall_to_utc(aligned.year, aligned.month, aligned.day, 0, 0, tz)
+
+
+def _slot_for_booking(db, service_id, resource_id, capacity, start: datetime, dur: int,
+                      used: set[str], tz: str) -> dict:
+    """The slot a demo lifecycle booking should occupy.
+
+    Below a day the grid is dense and a dedicated slot sits harmlessly between
+    two grid ones, so each booking keeps getting its own. From a day upward the
+    grid holds exactly ONE slot per unit, and a dedicated slot at an arbitrary
+    time necessarily overlaps the grid slot around it — the resource then reads
+    as double-booked and its occupancy is wrong. So reuse the nearest grid slot
+    instead, skipping any already taken by an earlier booking.
+
+    Falls back to a dedicated insert when nothing is in range — the lifecycle
+    bookings reach past both ends of the seeded window — but aligns it to the
+    same lattice first. An unaligned fallback landing just beyond the grid's
+    forward edge still overlaps the last grid slot, which is most of what this
+    function exists to prevent.
+    """
+    if dur < 1440:
+        return _insert_dedicated_slot(db, service_id, resource_id, capacity, start, dur)
+    window = timedelta(minutes=dur)
+    rows = (
+        db.table("slots").select("*").eq("resource_id", resource_id)
+        .gte("starts_at", _iso(start - window)).lte("starts_at", _iso(start + window))
+        .execute().data
+        or []
+    )
+    free = [r for r in rows if r["id"] not in used]
+    if free:
+        slot = min(free, key=lambda r: abs(_parse_utc(r["starts_at"]) - start))
+        used.add(slot["id"])
+        return slot
+    slot = _insert_dedicated_slot(
+        db, service_id, resource_id, capacity, _align_to_unit_grid(start, dur, tz), dur
+    )
+    used.add(slot["id"])
+    return slot
+
+
 def _hold(db, slot, service_id, provider_id, resource_id, party, holds_uid, currency, price) -> None:
     """A confirmed booking by the holds user, consuming `party` seats on `slot`."""
     booking = db.table("bookings").insert({
@@ -426,7 +490,7 @@ def _hold(db, slot, service_id, provider_id, resource_id, party, holds_uid, curr
     db.table("booking_slots").insert({"booking_id": booking["id"], "slot_id": slot["id"]}).execute()
 
 
-def _seed_requests(db, primary, provider_id, model, currency, requesters) -> int:
+def _seed_requests(db, primary, provider_id, model, currency, requesters, tz: str) -> int:
     """Pending booking requests on the primary (manual-approve) service, so the
     owner's Requests tab is populated. Each gets a dedicated future slot (pending
     holds no capacity, so this never collides with real occupancy). Mirrors the
@@ -442,9 +506,14 @@ def _seed_requests(db, primary, provider_id, model, currency, requesters) -> int
     day = timedelta(days=1)
 
     made = 0
+    # A pending request holds no capacity, so sharing a slot with a confirmed
+    # booking is harmless — but a dedicated slot at an arbitrary hour is not:
+    # for a day-or-longer unit it straddles the grid slot beside it, and the
+    # resource's own calendar then shows two units covering the same days.
+    used: set[str] = set()
     for i, (uid, email) in enumerate(requesters):
         start = now + (4 + 3 * i) * day + timedelta(hours=2)
-        slot = _insert_dedicated_slot(db, service_id, resource_id, capacity, start, dur)
+        slot = _slot_for_booking(db, service_id, resource_id, capacity, start, dur, used, tz)
         created = now - timedelta(hours=6 + i)
         booking = db.table("bookings").insert({
             "slot_id": slot["id"],
@@ -636,12 +705,18 @@ def _seed_bookings(db, primary, provider_id, demo_uid, demo_email, model, curren
     max_slots = spec["maxSlotsPerBooking"]
     shared = model == "shared_capacity"
     now = datetime.now(timezone.utc)
+    # Slots already claimed by an earlier lifecycle booking, so a day-or-longer
+    # unit never hands the same grid slot to two of them.
+    used_slot_ids: set[str] = set()
 
     def commit(start: datetime, party: int, status: str, created: datetime,
                *, review: dict | None = None, cancelled: datetime | None = None,
                extra_starts: list[datetime] | None = None) -> None:
         starts = [start] + (extra_starts or [])
-        slots = [_insert_dedicated_slot(db, service_id, resource_id, capacity, s, dur) for s in starts]
+        slots = [
+            _slot_for_booking(db, service_id, resource_id, capacity, s, dur, used_slot_ids, tz)
+            for s in starts
+        ]
         slot_ids = [s["id"] for s in slots]
         md = {
             "party_size": party,
@@ -681,26 +756,35 @@ def _seed_bookings(db, primary, provider_id, demo_uid, demo_email, model, curren
 
     hour = timedelta(hours=1)
     day = timedelta(days=1)
+    # These lifecycle bookings each get a DEDICATED slot, so their starts must be
+    # at least one unit apart or the same resource ends up holding overlapping
+    # slots and its capacity reads as double-booked. The day-sized offsets below
+    # were written for a 30-minute grid, where any two of them are trivially
+    # disjoint; once `booking.granularity` can make a unit a week or a month,
+    # "5 days apart" is the SAME week. So space them by whole units whenever the
+    # unit is at least a day. `created`/`cancelled` stay in real days — they are
+    # history timestamps and never define a slot.
+    step = timedelta(minutes=dur) if dur >= 1440 else day
     # 1) upcoming, outside cutoff (changeable)
-    commit(now + timedelta(seconds=cutoff_s) + 5 * day, 2 if shared else 1, "confirmed", now - 3 * day)
+    commit(now + timedelta(seconds=cutoff_s) + 5 * step, 2 if shared else 1, "confirmed", now - 3 * day)
     # 2) upcoming, inside cutoff (locked)
     inside = min(cutoff_s * 0.4, cutoff_s - _HOUR)
     commit(now + timedelta(seconds=inside) + timedelta(minutes=30), 3 if shared else 1, "confirmed", now - day)
     # 3) completed, no review
-    commit(now - 7 * day, 1, "confirmed", now - 13 * day)
+    commit(now - 7 * step, 1, "confirmed", now - 13 * day)
     # 4) completed, with review
-    past4 = now - 16 * day
+    past4 = now - 16 * step
     commit(past4, 1, "confirmed", now - 21 * day,
            review={"rating": 5, "text": "Exactly as described. Smooth from start to finish — would book again.",
                    "at": past4 + timedelta(minutes=dur) + 2 * hour})
     # 5) cancelled (capacity released — no hold)
-    commit(now + timedelta(seconds=cutoff_s) + 12 * day, 1, "cancelled", now - 10 * day,
+    commit(now + timedelta(seconds=cutoff_s) + 12 * step, 1, "cancelled", now - 10 * day,
            cancelled=now - 9 * day)
     # 6) multi-slot completed (only where the model allows > 1 slot)
     n = 6 if max_slots > 1 else 5
     if max_slots > 1:
         count = min(3, max_slots)
-        first = now - 12 * day
+        first = now - 12 * step
         commit(first, 1, "confirmed", now - 16 * day,
                extra_starts=[first + i * timedelta(minutes=dur) for i in range(1, count)])
     return n

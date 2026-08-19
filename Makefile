@@ -1,4 +1,4 @@
-.PHONY: help start stop logs reload reset reseed checkseed
+.PHONY: help start stop logs reload reset reseed checkseed checkstates
 
 help:
 	@echo "make start   - build (if needed) and start frontend :3000 + backend :8000"
@@ -8,6 +8,7 @@ help:
 	@echo "make reset   - stop and remove local node_modules/.next volumes, then start fresh"
 	@echo "make reseed  - wipe + rebuild demo data from the current domain.config.json"
 	@echo "make checkseed - report where the seeded data and domain.config.json disagree"
+	@echo "make checkstates - run every pivots/*.json through load -> spec -> rules -> serialize"
 
 start:
 	docker compose up -d --build
@@ -30,3 +31,6 @@ reseed:
 
 checkseed:
 	docker compose exec backend python /workspace/scripts/check_seed.py $(ARGS)
+
+checkstates:
+	docker compose exec backend python /workspace/scripts/check_pivot_states.py $(ARGS)

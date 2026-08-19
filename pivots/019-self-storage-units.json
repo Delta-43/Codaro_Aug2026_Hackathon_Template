@@ -142,10 +142,10 @@
     },
     "seasons": [],
     "blackouts": [],
-    "slotDurationMinutes": 30,
+    "slotDurationMinutes": 43200,
     "maxBookingsPerSlot": 1,
     "cancellationWindowHours": 24,
-    "advanceBookingWindowDays": 30,
+    "advanceBookingWindowDays": 365,
     "bufferMinutes": 0
   },
   "recurrence": {
@@ -222,10 +222,10 @@
     "subjects": []
   },
   "rules": {
-    "slotDurationMinutes": 30,
+    "slotDurationMinutes": 43200,
     "maxBookingsPerSlot": 1,
     "cancellationWindowHours": 24,
-    "advanceBookingWindowDays": 30,
+    "advanceBookingWindowDays": 365,
     "bufferMinutes": 0
   },
   "search": {

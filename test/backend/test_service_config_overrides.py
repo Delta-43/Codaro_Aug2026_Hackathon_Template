@@ -52,7 +52,8 @@ SERVICE_KEYS = {
     "id", "providerId", "name", "description", "imageUrl", "bookingModel",
     "slotDurationMinutes", "minSlotsPerBooking", "maxSlotsPerBooking",
     "priceMinorUnits", "currency", "cancellationCutoffHours", "autoApprove",
-    "capabilities", "resourceIds",
+    "capabilities", "pricingModel", "rateUnit", "paymentFlow", "billingCycle",
+    "prerequisites", "recurrence", "waitlist", "resourceIds",
 }
 
 

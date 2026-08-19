@@ -111,10 +111,31 @@ def _grid(cfg: dict, duration_minutes: int) -> dict:
     these in the business's own zone, so `location.timezone` is what decides
     where they land.
     """
-    window = int(cfg["timing"].get("advanceBookingWindowDays") or 30)
-    forward = max(window, 14)
+    # Exactly the declared window. It used to be `max(window, 14)` — plus, for
+    # long units, a six-unit floor — so the seed reached past what the config
+    # said was bookable. That was harmless only while
+    # `advanceBookingWindowDays` went unenforced; now that the rule dispatches,
+    # seeding beyond it would lay down slots the booking path refuses. A
+    # business that wants a longer horizon raises the window, which is what the
+    # key is for.
+    forward = window = int(cfg["timing"].get("advanceBookingWindowDays") or 30)
     if duration_minutes >= 1440:
-        return {"daysBack": 7, "daysForward": forward, "startTimes": [{"hour": 0, "minute": 0}]}
+        # One slot per UNIT, not per day: a week-long unit laid on a daily grid
+        # would start a new 7-day slot every 24h, so seven overlapping slots
+        # would cover each week and capacity would read as sevenfold.
+        step = duration_minutes // 1440
+        # `daysBack` must be a whole number of units, so the lattice lands ON
+        # today. At a flat 7 a monthly unit stepped -7, +23, +53 … while
+        # `seed._align_to_unit_grid` anchors on today (0, +30, +60 …); a slot
+        # placed by one would sit mid-unit on the other's grid and overlap it.
+        # Ceil to at least a week so day-sized units keep their 7 days of past.
+        back = step * max(1, -(-7 // step))
+        # A window measured in DAYS starves a long unit — 30 days of a monthly
+        # unit is one bookable month — but that is the CONFIG's statement to
+        # make, not the seeder's to override. Such a business raises
+        # `advanceBookingWindowDays`; see pivots 007/019/041.
+        return {"daysBack": back, "daysForward": forward, "dayStep": step,
+                "startTimes": [{"hour": 0, "minute": 0}]}
     starts, minute = [], 9 * 60
     while minute + duration_minutes <= 18 * 60 and len(starts) < 16:
         starts.append({"hour": minute // 60, "minute": minute % 60})

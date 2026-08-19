@@ -22,6 +22,39 @@ class CamelModel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
 
+class RepeatReq(CamelModel):
+    """The repeat leg of `POST /bookings`.
+
+    `recurrence` was declared, validated and read by nothing: a config could
+    state `patterns: ["weekly"], maxOccurrences: 12` and the engine had no way
+    to make a second booking from it.
+
+    `count` INCLUDES the first occurrence, so `count: 4` on a weekly pattern is
+    the selected date plus three more. It is clamped to
+    `recurrence.maxOccurrences` server-side — the client never decides the
+    ceiling.
+    """
+
+    pattern: str
+    count: int = 1
+
+
+class QuoteReq(CamelModel):
+    """POST /bookings/quote — price a selection WITHOUT committing it.
+
+    The same envelope as `BookingCreateReq` minus the domain metadata, because
+    the quote runs the identical resolve + price path the create does. The UI
+    used to compute `priceMinorUnits * slots * party` itself, which is only the
+    default `pricing` block's formula: a service billing per hour, per person,
+    by tier, or with a fee/cap/deposit displayed one number and charged another.
+    """
+
+    service_id: str
+    resource_id: str
+    slot_ids: list[str]
+    party_size: int = 1
+
+
 class BookingCreateReq(CamelModel):
     """POST /bookings — the multi-slot, party-size booking envelope. Ownership
     (userId/email) is derived from the token, never the body."""
@@ -30,6 +63,9 @@ class BookingCreateReq(CamelModel):
     resource_id: str
     slot_ids: list[str]
     party_size: int = 1
+    # Optional repeat. Absent (the default) books exactly the selection, which
+    # is what every non-recurring deployment does.
+    repeat: RepeatReq | None = None
     # Domain-specific fields, validated at request time from
     # `domain.config.json` metaFields.{entity}. Only `resources`/`slots` ever
     # accepted one, so a `metaFields.providers|services|bookings` descriptor (the

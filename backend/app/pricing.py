@@ -56,6 +56,8 @@ def quote(pricing: dict, ctx: dict) -> dict:
         zone              str|None  seat/area zone key
         subject           dict|None the pet/vehicle/child the booking is about
         distance_km       float|None travel distance (distance-band fees)
+        entitlement       dict|None  the resolved plan the customer holds
+                                     (`{key, label, discountBps}`), or None
 
     Returns `{amountMinorUnits, currency, depositMinorUnits, breakdown[]}`.
     """
@@ -103,6 +105,35 @@ def quote(pricing: dict, ctx: dict) -> dict:
         breakdown.append(
             {"key": "secondary", "label": _money_label(sec_per), "amountMinorUnits": sec}
         )
+
+    # An entitlement the customer holds — a membership, a pass — discounts the
+    # SERVICE CHARGE (base + secondary), not the fees below it.
+    #
+    # `entitlements.plans[].discountBps` was declared, validated and read by
+    # nothing: member pricing could only be faked by hand-passing a `zone` the
+    # customer could have chosen themselves. This is the hook that makes it real.
+    #
+    # Discounting before the fee loop is deliberate and is the conservative
+    # reading: fees are typically pass-through (a booking fee, a cleaning
+    # charge), and percentage fees below therefore compute off the discounted
+    # charge. Whether a platform's commission sits on the net or the gross is
+    # already an open question in this schema — see scripts/check_pivots.py #65 —
+    # and a member discount must not quietly answer it a second way.
+    entitlement = ctx.get("entitlement")
+    if isinstance(entitlement, dict):
+        bps = _int(entitlement.get("discountBps"))
+        if bps > 0 and total > 0:
+            # Negative line: the breakdown reads as an itemised bill, so a
+            # discount belongs in it as a discount, not as a silently smaller base.
+            discount = -round(total * min(bps, 10000) / 10000)
+            total += discount
+            breakdown.append(
+                {
+                    "key": f"entitlement:{entitlement.get('key')}",
+                    "label": entitlement.get("label") or "Member discount",
+                    "amountMinorUnits": discount,
+                }
+            )
 
     for i, fee in enumerate(pricing.get("fees") or []):
         if not isinstance(fee, dict):

@@ -504,8 +504,15 @@ def test_lead_time_declared_on_the_v1_rules_path_is_not_enforced(domain_config):
 # --------------------------------------------------------------------
 
 
-def test_booking_create_dispatches_exactly_the_lead_time_rule():
-    assert RULES["booking.create"] == {"leadTimeMinutes": _lead_time}
+def test_booking_create_dispatches_lead_time_and_the_advance_window():
+    """`advanceBookingWindowDays` joined this event once `seed_config._grid`
+    started seeding exactly the declared window. While the grid reached further
+    than the config allowed, dispatching it made half the seeded calendar
+    unbookable — which is why it sat in UNDISPATCHED for so long."""
+    assert RULES["booking.create"] == {
+        "leadTimeMinutes": _lead_time,
+        "advanceBookingWindowDays": _advance_window,
+    }
 
 
 def test_max_bookings_per_slot_is_not_dispatched_on_any_event():
@@ -517,9 +524,10 @@ def test_max_bookings_per_slot_is_not_dispatched_on_any_event():
         assert "maxBookingsPerSlot" not in mapping, event
 
 
-def test_the_undispatched_registry_is_exactly_the_three_known_keys():
+def test_the_undispatched_registry_is_exactly_the_two_known_keys():
+    """Down from three: `advanceBookingWindowDays` is dispatched now. The two
+    that remain are deliberate — see the comments beside `UNDISPATCHED`."""
     assert UNDISPATCHED == {
-        "advanceBookingWindowDays": _advance_window,
         "maxBookingsPerSlot": _capacity,
         "cancellationWindowHours": _cancellation_window,
     }

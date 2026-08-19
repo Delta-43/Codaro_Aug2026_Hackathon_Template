@@ -552,3 +552,96 @@ exception
   when insufficient_privilege or undefined_table then
     raise notice 'Skipping avatars storage bucket/policies (no privilege); create manually via the Supabase dashboard.';
 end $$;
+
+-- ===========================================================================
+-- Entitlements: what a customer has BOUGHT that changes what a booking costs
+-- or whether it is allowed at all — a membership, a class pass, prepaid
+-- credits. `domain.config.json` declares the PLANS (`entitlements.plans[]`);
+-- this table records who holds one. A NEW entity, so per the pivot design it
+-- is a new table and the frozen base tables are untouched.
+--
+-- `plan_key` is not a foreign key: plans live in the config file, not the DB,
+-- so a plan can be renamed or retired without orphaning history. A row whose
+-- plan_key no longer resolves is simply inert (see rules.resolve_entitlement).
+--
+-- `credits_total`/`credits_used` back the `pass` and `credits` kinds; a
+-- `membership` leaves them null and rides on the plan's discountBps instead.
+create table if not exists entitlements (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  plan_key text not null,
+  -- Which business sold it. Null in single-tenant deployments, where there is
+  -- only ever one.
+  provider_id uuid references providers(id) on delete cascade,
+  status text not null default 'active' check (status in ('active', 'expired', 'cancelled')),
+  credits_total int,
+  credits_used int not null default 0,
+  starts_at timestamptz not null default now(),
+  -- Null = open-ended (a rolling membership with no end date).
+  ends_at timestamptz,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_entitlements_user on entitlements(user_id, status);
+create index if not exists idx_entitlements_plan on entitlements(plan_key);
+
+alter table entitlements enable row level security;
+
+-- A customer sees and manages only their own entitlements. Granting one to
+-- someone else is a system/owner action and goes through the service key,
+-- which bypasses RLS — exactly as bookings' owner-side writes already do.
+drop policy if exists entitlements_select_own on entitlements;
+create policy entitlements_select_own on entitlements for select using (user_id = auth.uid());
+
+drop policy if exists entitlements_write_own on entitlements;
+create policy entitlements_write_own on entitlements for all
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+-- ===========================================================================
+-- Waitlist: who wants a slot that is already full. `timing.waitlist` declares
+-- whether the deployment offers one, how deep it goes (`maxPerSlot`) and
+-- whether a freed seat is handed to the head of the queue automatically
+-- (`autoPromote`). The whole block shipped in v2 and was enforced by nothing:
+-- a config could advertise a 200-deep auto-promoting waitlist and the engine
+-- had no way to record a single person on it.
+--
+-- A NEW entity, so per the pivot design it is a new table; the frozen base
+-- tables are untouched.
+--
+-- `position` is assigned at join time and never renumbered — a queue that
+-- resequences on every departure lets someone move backwards, which is the one
+-- thing a queue must never do. Promotion reads the lowest position among
+-- 'waiting' rows, so gaps are harmless.
+create table if not exists waitlist_entries (
+  id uuid primary key default gen_random_uuid(),
+  slot_id uuid not null references slots(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  -- Denormalised so promotion can build a booking without re-reading the slot's
+  -- service/resource; slots carry service_id only in metadata.
+  service_id uuid references services(id) on delete cascade,
+  resource_id uuid references resources(id) on delete cascade,
+  party_size int not null default 1 check (party_size >= 1),
+  position int not null,
+  status text not null default 'waiting'
+    check (status in ('waiting', 'promoted', 'cancelled', 'expired')),
+  -- The booking created when this entry was promoted, for audit.
+  booking_id uuid references bookings(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+-- One live entry per person per slot: joining twice would take two places in
+-- the queue for one customer.
+create unique index if not exists uq_waitlist_slot_user
+  on waitlist_entries(slot_id, user_id) where status = 'waiting';
+create index if not exists idx_waitlist_slot on waitlist_entries(slot_id, status, position);
+create index if not exists idx_waitlist_user on waitlist_entries(user_id, status);
+
+alter table waitlist_entries enable row level security;
+
+-- A customer sees and manages only their own place in a queue. Promotion is a
+-- system action and runs through the service key, which bypasses RLS.
+drop policy if exists waitlist_select_own on waitlist_entries;
+create policy waitlist_select_own on waitlist_entries for select using (user_id = auth.uid());
+
+drop policy if exists waitlist_write_own on waitlist_entries;
+create policy waitlist_write_own on waitlist_entries for all
+  using (user_id = auth.uid()) with check (user_id = auth.uid());

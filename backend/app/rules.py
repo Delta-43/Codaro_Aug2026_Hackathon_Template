@@ -110,12 +110,17 @@ def _buffer(minutes, ctx) -> None:
 # disables it again — no router change either way. That is the escape hatch the
 # README promises, and it is why this registry exists rather than a pile of ifs.
 #
-# `advanceBookingWindowDays` is registered but deliberately NOT dispatched: the
-# demo seed lays down slots 56 days out (seed_data.py grids) while the shipped
-# config allows 30, so enforcing it today would make half the seeded calendar
-# unbookable. Wire it once the seed horizon and the config agree.
+# `advanceBookingWindowDays` IS dispatched now: `seed_config._grid` seeds
+# exactly the declared window, so the seed horizon and the config finally agree.
 RULES = {
-    "booking.create": {"leadTimeMinutes": _lead_time},
+    "booking.create": {
+        "leadTimeMinutes": _lead_time,
+        # Dispatched now that the seed lays down exactly
+        # `advanceBookingWindowDays` of slots (see seed_config._grid). While the
+        # grid reached further than the config allowed, enforcing this made half
+        # the seeded calendar unbookable, which is why it sat in UNDISPATCHED.
+        "advanceBookingWindowDays": _advance_window,
+    },
     "booking.change": {},
     "booking.approve": {},
     "booking.cancel": {},
@@ -127,7 +132,6 @@ RULES = {
 
 # Registered, not dispatched.
 #
-# `advanceBookingWindowDays`: see the note above (56-day seed vs 30-day config).
 # `maxBookingsPerSlot`: capacity is enforced upstream by `_resolve_selection` +
 # the `slot_occupancy` view, which understand party size and multi-slot holds.
 # Dispatching `_capacity` here as well would re-apply `min(capacity, maxPerSlot)`
@@ -143,7 +147,6 @@ RULES = {
 # rule with a `<` where `within_cutoff` has `>=`; dispatching it would
 # double-enforce on a subtly different boundary.
 UNDISPATCHED = {
-    "advanceBookingWindowDays": _advance_window,
     "maxBookingsPerSlot": _capacity,
     "cancellationWindowHours": _cancellation_window,
 }
@@ -419,6 +422,157 @@ def capability(name: str, service: dict | None = None) -> bool:
     if service is not None:
         return bool(effective_service_config(service)["capabilities"].get(name, True))
     return bool(get_config()["capabilities"].get(name, True))
+
+
+def payment_state(metadata: dict | None, service: dict | None = None,
+                  status: str | None = None) -> dict:
+    """What is owed on a booking and whether it has been settled.
+
+    `payments.flow` decided nothing before this: a deployment could declare
+    `prepay` or `invoice_after` and the engine recorded no notion of money owed,
+    so an owner had no way to tell a paid booking from an unpaid one.
+
+    The state is DERIVED from the flow plus what has been recorded as paid,
+    rather than stored as a free-standing field, so it cannot drift out of sync
+    with the config the way a persisted enum would after a pivot.
+
+      none         — the product carries no payment at all
+      not_required — cancelled/rejected: nothing is owed either way
+      paid         — settled (recorded via POST /bookings/{id}/pay)
+      deposit_due  — a deposit is owed now, the balance later
+      due          — the full amount is owed now (prepay / pay_on_site)
+      invoiced     — nothing owed at booking time; billed afterwards
+    """
+    md = metadata or {}
+    flow = (effective_service_config(service)["payments"] or {}).get("flow") or "none"
+    total = int(md.get("price_minor_units") or 0)
+    deposit = int(md.get("deposit_minor_units") or 0)
+    paid = int(md.get("amount_paid_minor_units") or 0)
+
+    if flow == "none":
+        state = "none"
+    elif status in ("cancelled", "rejected"):
+        # A cancelled booking owes nothing. Any refund is the business's own
+        # process; the engine does not pretend to run one.
+        state = "not_required"
+    elif paid >= total and total > 0:
+        state = "paid"
+    elif flow == "invoice_after":
+        state = "invoiced"
+    elif deposit > 0 and paid < deposit:
+        state = "deposit_due"
+    elif total > 0:
+        state = "due"
+    else:
+        state = "none"
+
+    return {
+        "flow": flow,
+        "state": state,
+        "totalMinorUnits": total,
+        "depositMinorUnits": deposit,
+        "paidMinorUnits": paid,
+        "outstandingMinorUnits": max(0, total - paid) if state not in ("none", "not_required") else 0,
+        "currency": md.get("currency") or "EUR",
+    }
+
+
+def blocking_prerequisites(service: dict | None = None) -> list[dict]:
+    """Prerequisites that must be satisfied before a booking may CONFIRM.
+
+    `prerequisites` is a list, so it is not in OVERRIDABLE_BLOCKS and stays
+    global — `service` is accepted for symmetry and future per-service support.
+
+    The block shipped in v2 and gated nothing: a config could declare a required
+    committee approval or a licence check and the engine would confirm the
+    booking anyway, which is the exact failure `capability()` exists to prevent,
+    one level up.
+    """
+    out = []
+    for p in get_config().get("prerequisites") or []:
+        if isinstance(p, dict) and p.get("blocksConfirmation"):
+            out.append(p)
+    return out
+
+
+def unmet_prerequisites(metadata: dict | None, service: dict | None = None) -> list[str]:
+    """Which blocking prerequisites this booking has NOT satisfied.
+
+    Satisfaction is recorded on the booking (`metadata.prerequisites_met`), not
+    on the customer: the same person can be cleared for one booking and not
+    another, and a licence checked last year is not evidence about today.
+    """
+    met = set((metadata or {}).get("prerequisites_met") or [])
+    return [p["key"] for p in blocking_prerequisites(service)
+            if p.get("key") and p["key"] not in met]
+
+
+def entitlement_plan(plan_key: str, service: dict | None = None) -> dict | None:
+    """The config's `entitlements.plans[]` entry for `plan_key`, or None.
+
+    Plans live in `domain.config.json`, not the database, so a stored
+    entitlement row names its plan by key. A key that no longer resolves — the
+    plan was renamed or retired — yields None and the entitlement goes inert
+    rather than erroring: history must survive a config edit.
+    """
+    if not plan_key:
+        return None
+    block = effective_service_config(service)["entitlements"] if service is not None \
+        else get_config()["entitlements"]
+    for plan in block.get("plans") or []:
+        if isinstance(plan, dict) and plan.get("key") == plan_key:
+            return plan
+    return None
+
+
+def resolve_entitlement(rows: list[dict], service: dict | None = None,
+                        now: datetime | None = None) -> dict | None:
+    """Pick the entitlement that applies to a booking, resolved against config.
+
+    `rows` are this customer's `entitlements` rows. Returns the engine-facing
+    shape `pricing.quote()` expects — `{key, label, discountBps, row, plan}` —
+    or None when the customer holds nothing that applies.
+
+    Selection rules, in order:
+      * the row must be `active` and inside its `starts_at`/`ends_at` window;
+      * its `plan_key` must still resolve in the config;
+      * a `pass`/`credits` plan must have a credit left to spend;
+      * the plan must cover this service (`appliesToServices` empty = all).
+    Ties break on the LARGEST discount, so a customer holding two plans is never
+    quietly charged the worse of the two.
+    """
+    now = now or datetime.now(timezone.utc)
+    service_id = (service or {}).get("id")
+    best: dict | None = None
+    for row in rows or []:
+        if row.get("status") != "active":
+            continue
+        starts, ends = row.get("starts_at"), row.get("ends_at")
+        if starts and parse_ts(starts) > now:
+            continue
+        if ends and parse_ts(ends) <= now:
+            continue
+        plan = entitlement_plan(row.get("plan_key"), service)
+        if plan is None:
+            continue
+        applies = plan.get("appliesToServices") or []
+        if applies and service_id and service_id not in applies:
+            continue
+        total = row.get("credits_total")
+        if total is not None and int(row.get("credits_used") or 0) >= int(total):
+            continue
+        candidate = {
+            "key": plan.get("key"),
+            "label": plan.get("label") or plan.get("key"),
+            "discountBps": int(plan.get("discountBps") or 0),
+            "creditsRemaining": None if total is None
+            else int(total) - int(row.get("credits_used") or 0),
+            "row": row,
+            "plan": plan,
+        }
+        if best is None or candidate["discountBps"] > best["discountBps"]:
+            best = candidate
+    return best
 
 
 def within_cutoff(slot_starts_at: str | datetime, cutoff_hours, now: datetime | None = None) -> bool:
