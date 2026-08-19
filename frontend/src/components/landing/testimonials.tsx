@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Quote, Star } from "lucide-react";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";
+import { cn } from "@/lib/utils";
 
 type Review =
   | {
