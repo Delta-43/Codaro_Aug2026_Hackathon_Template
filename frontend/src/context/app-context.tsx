@@ -28,18 +28,32 @@ import {
   resetDemoData as apiResetDemoData,
   searchProviders,
   setVertical as apiSetVertical,
+  FALLBACK_PIVOT_CONFIG,
   type Capabilities,
-  type PivotConfig,
+  type ConfigCopy,
+  type ConfigTerms,
 } from "@/api";
-import { DEFAULT_VERTICAL, getVertical, type VerticalConfig } from "@/config/verticals";
+import {
+  applyPivotVocabulary,
+  DEFAULT_VERTICAL,
+  getVertical,
+  type VerticalConfig,
+} from "@/config/verticals";
 import { setGeoSettings } from "@/lib/geo";
+import { applyPivotTheme } from "@/lib/pivot-theme";
 
 interface AppContextValue {
   /** False until the first user/vertical fetch resolves. */
   ready: boolean;
 
   verticalId: VerticalId;
+  /** The active vertical's vocabulary with the pivot file's `terms`/`copy`
+   *  overlaid — so a config that renames `service` to "Plan" renames it on every
+   *  screen. Falls back to the static vertical for anything the config omits. */
   vertical: VerticalConfig;
+  /** The pivot file's `copy` block verbatim, for the named moments that have no
+   *  vertical equivalent (`confirmTitle`, `requestPending`, the empty states). */
+  copy: ConfigCopy;
   user: User | null;
 
   /** Single-business pivot (`tenancy.mode === "single"`): the site itself is the
@@ -87,6 +101,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // the code isn't in the active vertical, the catalog's first provider).
   const [singleBusiness, setSingleBusiness] = useState(false);
   const [capabilities, setCapabilities] = useState<Capabilities>({});
+  const [terms, setTerms] = useState<ConfigTerms>({});
+  const [copy, setCopy] = useState<ConfigCopy>({});
   const [soleProviderCode, setSoleProviderCode] = useState<string | null>(null);
 
   const [activeProvider, setActiveProvider] = useState<Provider | null>(null);
@@ -153,15 +169,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         // and no retry.
         getActiveVertical().catch(() => DEFAULT_VERTICAL),
         getCurrentUser().catch(() => null),
-        getPivotConfig().catch(
-          (): PivotConfig => ({
-            tenancy: { mode: "multi", providerCode: null },
-            location: { origin: null, distanceUnit: "km", timezone: "UTC" },
-            // /config unreachable: leave every capability ON. The backend is
-            // still the authority and refuses anything actually disabled.
-            capabilities: {},
-          }),
-        ),
+        getPivotConfig().catch(() => FALLBACK_PIVOT_CONFIG),
       ]);
       if (isCancelled()) return;
       setVerticalId(vid);
@@ -169,6 +177,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // Distances render from the pivot file's origin/unit, not a hardcoded city.
       setGeoSettings(pivot.location);
       setCapabilities(pivot.capabilities);
+      // Vocabulary and brand colour come from the config too. Applied here (not
+      // in a render effect) so a `reload()` after `make reload` repaints without
+      // a refresh, and so the theme lands in the same pass as the nouns.
+      setTerms(pivot.terms);
+      setCopy(pivot.copy);
+      applyPivotTheme(pivot.theme);
       const { tenancy } = pivot;
       const single = tenancy.mode === "single";
       setSingleBusiness(single);
@@ -246,7 +260,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const value: AppContextValue = {
     ready,
     verticalId,
-    vertical: getVertical(verticalId),
+    vertical: applyPivotVocabulary(getVertical(verticalId), terms, copy),
+    copy,
     user,
     singleBusiness,
     capability,

@@ -44,7 +44,7 @@ function bookingToCal(b: Booking): DemoBooking | null {
 }
 
 export default function BookingsPage() {
-  const { user, ready, singleBusiness } = useApp();
+  const { user, ready, singleBusiness, copy } = useApp();
   const router = useRouter();
   const tz = user?.timezone ?? "UTC";
   const [scope, setScope] = useState<Scope>("upcoming");
@@ -120,7 +120,8 @@ export default function BookingsPage() {
             title={scope === "upcoming" ? "No upcoming bookings" : "No past bookings"}
             body={
               scope === "upcoming"
-                ? "Find a provider and book a time — it'll show up here."
+                ? (copy.emptyStateBookings ??
+                  "Find a provider and book a time — it'll show up here.")
                 : "Bookings you've completed or that have passed will appear here."
             }
             actionHref={scope === "upcoming" ? "/search" : undefined}

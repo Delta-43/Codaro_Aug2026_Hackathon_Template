@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { buttonVariants } from "@/components/ui/button";
 import { Button } from "@/components/ui/button";
 import { formatDate, formatMoney, formatTimeRange, zoneAbbrev } from "@/lib/format";
+import { useApp } from "@/context/app-context";
 
 export function ResultScreen({
   booking,
@@ -23,12 +24,20 @@ export function ResultScreen({
   tz: string;
   onDone: () => void;
 }) {
+  const { copy } = useApp();
+  // A `timing.confirmation: request_approve` pivot lands the booking as PENDING,
+  // and this screen still said "You're booked" — the one moment the config has a
+  // dedicated sentence for (`copy.requestPending`) was the moment it was wrong.
+  const headline =
+    booking.status === "pending"
+      ? (copy.requestPending ?? "Your request has been sent")
+      : (copy.confirmTitle ?? "You're booked");
   return (
     <section className="flex flex-col items-center py-10 text-center">
       <div className="grid size-14 place-items-center rounded-full bg-primary/10 text-primary">
         <Check className="size-7" aria-hidden />
       </div>
-      <h1 className="mt-4 text-xl font-semibold tracking-tight">You&apos;re booked</h1>
+      <h1 className="mt-4 text-xl font-semibold tracking-tight">{headline}</h1>
 
       <p className="mt-4 text-xs uppercase tracking-wide text-muted-foreground">Reference</p>
       <p className="font-mono text-2xl font-semibold tracking-widest">{booking.reference}</p>

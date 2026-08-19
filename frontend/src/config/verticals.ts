@@ -113,3 +113,61 @@ export const DEFAULT_VERTICAL: VerticalId = "fleet";
 export function getVertical(id: VerticalId): VerticalConfig {
   return VERTICALS[id];
 }
+
+// --- pivot overlay ---------------------------------------------------------
+
+/** Overlay the pivot file's `terms`/`copy` onto a static vertical.
+ *
+ *  The three verticals above are DEMO vocabulary — they exist so the seeded
+ *  fleet/tutoring/yoga datasets read naturally. `domain.config.json` is the real
+ *  pivot surface, and until now the UI ignored its `terms`/`copy` entirely: a
+ *  config declaring `service: "Plan"`, `slot: "Billing period"` still rendered
+ *  "Subject" and "session", because `getVertical()` was the only source of nouns.
+ *  This makes the config win where it speaks and the vertical fill the rest.
+ *
+ *  Per-field notes, since the two vocabularies are not the same shape:
+ *  - `bookingVerb` has no `terms` equivalent, so it always comes from the
+ *    vertical. `terms.booking` is a NOUN ("Subscription"); using it as the CTA
+ *    would render a button reading "Subscription" instead of "Book".
+ *  - `partyNoun` is overridden only when the vertical already has one. `null`
+ *    means "this vertical has no party-size concept" and drives whether the
+ *    party stepper renders at all; `terms.party` is always populated (it
+ *    defaults to "Guests"), so overriding null would surface a party control on
+ *    every one-to-one deployment.
+ *  - `categories` stay from the vertical: they must match the `categoryId`s the
+ *    backend actually seeded, which `terms` says nothing about.
+ */
+export function applyPivotVocabulary(
+  base: VerticalConfig,
+  terms: Partial<Record<string, string>>,
+  copy: Partial<Record<string, string>>,
+): VerticalConfig {
+  const pick = (term: string | undefined, fallback: string) => term ?? fallback;
+  const providerNounPlural = pick(terms.providers, base.providerNounPlural);
+  return {
+    ...base,
+    label: pick(copy.landingTitle, base.label),
+    providerNoun: pick(terms.provider, base.providerNoun),
+    providerNounPlural,
+    serviceNoun: pick(terms.service, base.serviceNoun),
+    serviceNounPlural: pick(terms.services, base.serviceNounPlural),
+    resourceNoun: pick(terms.resource, base.resourceNoun),
+    resourceNounPlural: pick(terms.resources, base.resourceNounPlural),
+    // See the note above: null is a structural signal, not a missing word.
+    partyNoun: base.partyNoun === null ? null : pick(terms.party, base.partyNoun),
+    searchPlaceholder: terms.providers
+      ? `Search ${providerNounPlural.toLowerCase()}`
+      : base.searchPlaceholder,
+    copy: {
+      // `terms.provider` alone is enough to rebuild these two: they are the
+      // "nothing locked in" empty state and only ever name the provider.
+      noProviderTitle: terms.provider
+        ? `No ${terms.provider.toLowerCase()} selected`
+        : base.copy.noProviderTitle,
+      noProviderBody: terms.provider
+        ? `Find a ${terms.provider.toLowerCase()} in Search to see what it offers.`
+        : base.copy.noProviderBody,
+      noAvailability: pick(copy.emptyStateSlots, base.copy.noAvailability),
+    },
+  };
+}

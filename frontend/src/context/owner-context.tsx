@@ -22,8 +22,17 @@ import {
   type ReactNode,
 } from "react";
 import type { Provider, VerticalId } from "@/types/domain";
-import { getActiveVertical, getMyProviders, getPivotConfig, type Capabilities } from "@/api";
-import { VERTICALS, type VerticalConfig } from "@/config/verticals";
+import {
+  getActiveVertical,
+  getMyProviders,
+  getPivotConfig,
+  FALLBACK_PIVOT_CONFIG,
+  type Capabilities,
+  type ConfigCopy,
+  type ConfigTerms,
+} from "@/api";
+import { applyPivotVocabulary, VERTICALS, type VerticalConfig } from "@/config/verticals";
+import { applyPivotTheme } from "@/lib/pivot-theme";
 
 const PID_KEY = "codaro.owner.activeProviderId";
 
@@ -38,7 +47,9 @@ interface OwnerContextValue {
   ready: boolean;
   providers: Provider[] | null;
   activeProvider: Provider | null;
-  /** The live vertical's UI vocabulary (nouns/copy). */
+  /** The live vertical's UI vocabulary (nouns/copy), with the pivot file's
+   *  `terms`/`copy` overlaid — the owner console must name things exactly as the
+   *  customer side does, so both read the same overlay. */
   vocab: VerticalConfig;
   vertical: VerticalId;
   /** On-brand illustrated profile scene for the vertical. */
@@ -62,6 +73,8 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
   const [vertical, setVertical] = useState<VerticalId>("fleet");
   const [ready, setReady] = useState(false);
   const [capabilities, setCapabilities] = useState<Capabilities>({});
+  const [terms, setTerms] = useState<ConfigTerms>({});
+  const [copy, setCopy] = useState<ConfigCopy>({});
 
   const refreshProviders = useCallback(async () => {
     try {
@@ -74,17 +87,22 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [list, v, caps] = await Promise.all([
+      const [list, v, pivot] = await Promise.all([
         getMyProviders().catch(() => [] as Provider[]),
         getActiveVertical().catch(() => "fleet" as VerticalId),
-        // /config unreachable: leave everything ON — the backend still refuses
-        // whatever is actually disabled.
-        getPivotConfig().then((c) => c.capabilities).catch((): Capabilities => ({})),
+        // /config unreachable: leave everything ON and keep the static
+        // vocabulary — the backend still refuses whatever is actually disabled.
+        getPivotConfig().catch(() => FALLBACK_PIVOT_CONFIG),
       ]);
       if (cancelled) return;
       setProviders(list);
       setVertical(v);
-      setCapabilities(caps);
+      setCapabilities(pivot.capabilities);
+      setTerms(pivot.terms);
+      setCopy(pivot.copy);
+      // The owner console mounts under its own layout, so it never passes
+      // through AppProvider — it has to apply the brand colour itself.
+      applyPivotTheme(pivot.theme);
       const stored = typeof window !== "undefined" ? localStorage.getItem(PID_KEY) : null;
       setPid(list.find((p) => p.id === stored)?.id ?? list[0]?.id ?? null);
       setReady(true);
@@ -117,7 +135,7 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
     capability,
     providers,
     activeProvider,
-    vocab: VERTICALS[vertical] ?? VERTICALS.fleet,
+    vocab: applyPivotVocabulary(VERTICALS[vertical] ?? VERTICALS.fleet, terms, copy),
     vertical,
     scene: VERTICAL_SCENE[vertical] ?? "grad-amber",
     setActiveProviderId,

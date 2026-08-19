@@ -214,13 +214,99 @@ function capabilitiesFromConfig(cfg: unknown): Capabilities {
   return out;
 }
 
+/** The pivot file's `terms` block — the vocabulary the engine is configured with.
+ *  Served since v1 and read by nothing: the UI rendered `config/verticals.ts`, a
+ *  static three-vertical file, so pivoting `service` to "Plan" and `slot` to
+ *  "Billing period" changed the seed data and left every label saying "Subject"
+ *  and "session". Every key is optional — a term the config omits falls back to
+ *  the static vertical's word rather than rendering an empty label. */
+export type ConfigTerms = Partial<
+  Record<
+    | "provider"
+    | "providers"
+    | "service"
+    | "services"
+    | "resource"
+    | "resources"
+    | "slot"
+    | "slots"
+    | "booking"
+    | "bookings"
+    | "client"
+    | "clients"
+    | "party",
+    string
+  >
+>;
+
+/** The pivot file's `copy` block — whole sentences the UI shows at named moments.
+ *  Same story as `terms`: served, never read. Optional per key for the same
+ *  reason. `waitlistJoined` / `quoteRequested` / `depositDue` /
+ *  `prerequisiteBlocked` belong to surfaces that have no backend yet; they are
+ *  parsed here so the seam is ready, and deliberately not rendered. */
+export type ConfigCopy = Partial<
+  Record<
+    | "landingTitle"
+    | "landingSubtitle"
+    | "confirmTitle"
+    | "emptyStateSlots"
+    | "emptyStateBookings"
+    | "requestPending"
+    | "waitlistJoined"
+    | "quoteRequested"
+    | "depositDue"
+    | "prerequisiteBlocked",
+    string
+  >
+>;
+
+/** The pivot file's `theme` block. `primaryColor` is any CSS colour; `radius` any
+ *  CSS length. Both map onto the `--primary` / `--radius` tokens in globals.css,
+ *  which every Tailwind utility in the app already derives from. */
+export type ConfigTheme = { primaryColor: string | null; radius: string | null };
+
+/** Keep only the string values, so a malformed config yields a *missing* key
+ *  (which falls back) rather than `undefined` rendered as a label. */
+function stringsOnly<T extends string>(raw: unknown): Partial<Record<T, string>> {
+  const out: Partial<Record<T, string>> = {};
+  if (!raw || typeof raw !== "object") return out;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (typeof value === "string" && value.trim() !== "") out[key as T] = value;
+  }
+  return out;
+}
+
+function themeFromConfig(cfg: unknown): ConfigTheme {
+  const t = (cfg as { theme?: { primaryColor?: unknown; radius?: unknown } })?.theme ?? {};
+  const str = (v: unknown) => (typeof v === "string" && v.trim() !== "" ? v : null);
+  return { primaryColor: str(t.primaryColor), radius: str(t.radius) };
+}
+
 /** Everything `AppProvider` needs from the pivot file, in ONE request. Boot used
  *  to call `/config` for tenancy alone; this keeps the round-trip count the same
- *  while also picking up the location block. */
+ *  while also picking up the location, vocabulary and theme blocks. */
 export type PivotConfig = {
   tenancy: Tenancy;
   location: LocationConfig;
   capabilities: Capabilities;
+  terms: ConfigTerms;
+  copy: ConfigCopy;
+  theme: ConfigTheme;
+};
+
+/** The all-fallbacks value used when `/config` is unreachable. Boot must not hang
+ *  on the pivot file, and each caller was inlining its own copy of this. */
+export const FALLBACK_PIVOT_CONFIG: PivotConfig = {
+  tenancy: { mode: "multi", providerCode: null },
+  location: { origin: null, distanceUnit: "km", timezone: "UTC" },
+  // /config unreachable: leave every capability ON. The backend is still the
+  // authority and refuses anything actually disabled.
+  capabilities: {},
+  // No terms/copy -> the static vertical's vocabulary, i.e. exactly the
+  // pre-pivot behaviour.
+  terms: {},
+  copy: {},
+  theme: { primaryColor: null, radius: null },
 };
 
 export async function getPivotConfig(): Promise<PivotConfig> {
@@ -229,6 +315,9 @@ export async function getPivotConfig(): Promise<PivotConfig> {
     tenancy: tenancyFromConfig(cfg),
     location: locationFromConfig(cfg),
     capabilities: capabilitiesFromConfig(cfg),
+    terms: stringsOnly<keyof ConfigTerms>((cfg as { terms?: unknown })?.terms),
+    copy: stringsOnly<keyof ConfigCopy>((cfg as { copy?: unknown })?.copy),
+    theme: themeFromConfig(cfg),
   };
 }
 

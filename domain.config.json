@@ -1,6 +1,6 @@
 {
   "configVersion": 2,
-  "domain": "krakow-escape-rooms",
+  "domain": "community-allotment-plots",
   "tenancy": {
     "mode": "single",
     "providerCode": "VISTULA-4471",
@@ -17,31 +17,31 @@
   },
   "capabilities": {
     "payments": true,
-    "inventory": false,
-    "waitlist": false,
+    "inventory": true,
+    "waitlist": true,
     "quotes": false,
-    "recurrence": false,
-    "prerequisites": false,
+    "recurrence": true,
+    "prerequisites": true,
     "entitlements": false,
     "cart": false,
     "reviews": true,
     "follows": true
   },
   "booking": {
-    "unitKind": "room",
-    "granularity": "minute",
+    "unitKind": "subscription_slot",
+    "granularity": "month",
     "duration": {
-      "mode": "fixed",
+      "mode": "open_ended",
       "minUnits": 1,
       "maxUnits": 1,
       "incrementUnits": 1
     },
     "party": {
-      "mode": "buyout",
-      "min": 2,
-      "max": 6,
+      "mode": "individual",
+      "min": 1,
+      "max": null,
       "composition": null,
-      "matchResourceCapacity": true
+      "matchResourceCapacity": false
     },
     "sequence": {
       "enabled": false,
@@ -57,36 +57,15 @@
     "options": []
   },
   "pricing": {
-    "model": "tiered",
+    "model": "subscription",
     "currency": "EUR",
     "currencyExponent": 2,
     "rate": {
       "per": "booking",
-      "amountMinorUnits": 12000
+      "amountMinorUnits": 6500
     },
     "secondaryRate": null,
-    "tiers": [
-      {
-        "key": "small",
-        "label": "2-3 players",
-        "amountMinorUnits": 9000,
-        "appliesWhen": {
-          "partySize": {
-            "max": 3
-          }
-        }
-      },
-      {
-        "key": "large",
-        "label": "4-6 players",
-        "amountMinorUnits": 12000,
-        "appliesWhen": {
-          "partySize": {
-            "min": 4
-          }
-        }
-      }
-    ],
+    "tiers": [],
     "chargePerPerson": false,
     "caps": {
       "perBookingMinorUnits": null,
@@ -101,10 +80,10 @@
     }
   },
   "payments": {
-    "flow": "prepay",
+    "flow": "invoice_after",
     "payer": "customer",
     "schedule": [],
-    "billingCycle": "none",
+    "billingCycle": "annual",
     "noShowFee": {
       "enabled": false,
       "amountMinorUnits": 0
@@ -113,7 +92,7 @@
     "adapter": "manual"
   },
   "inventory": {
-    "mode": "none",
+    "mode": "serialised",
     "reservationWindowMinutes": 15,
     "loanPeriodHours": null,
     "returnRequired": false,
@@ -142,15 +121,24 @@
       "cutoffHoursBefore": 0
     }
   },
-  "prerequisites": [],
+  "prerequisites": [
+    {
+      "key": "approval",
+      "kind": "approval",
+      "label": "Committee approval",
+      "appliesTo": "customer",
+      "required": true,
+      "blocksConfirmation": true
+    }
+  ],
   "timing": {
-    "confirmation": "instant",
+    "confirmation": "request_approve",
     "approvalWindowHours": 48,
     "leadTimeMinutes": 0,
     "waitlist": {
-      "enabled": false,
-      "autoPromote": true,
-      "maxPerSlot": 0
+      "enabled": true,
+      "autoPromote": false,
+      "maxPerSlot": 200
     },
     "seasons": [],
     "blackouts": [],
@@ -161,12 +149,14 @@
     "bufferMinutes": 0
   },
   "recurrence": {
-    "enabled": false,
-    "patterns": [],
+    "enabled": true,
+    "patterns": [
+      "monthly"
+    ],
     "maxOccurrences": 12,
     "term": {
-      "mode": "fixed",
-      "noticePeriodDays": 0
+      "mode": "rolling",
+      "noticePeriodDays": 90
     }
   },
   "entitlements": {
@@ -189,30 +179,30 @@
     }
   },
   "terms": {
-    "provider": "Venue",
-    "providers": "Venues",
-    "service": "Room type",
-    "services": "Room types",
+    "provider": "Provider",
+    "providers": "Providers",
+    "service": "Plan",
+    "services": "Plans",
     "staff": "Staff",
     "subject": "Subject",
-    "party": "Whole group",
-    "resource": "Room",
-    "resources": "Rooms",
-    "slot": "Session",
-    "slots": "Sessions",
-    "booking": "Reservation",
-    "bookings": "Reservations",
+    "party": "Guests",
+    "resource": "Plan",
+    "resources": "Plans",
+    "slot": "Billing period",
+    "slots": "Billing periods",
+    "booking": "Subscription",
+    "bookings": "Subscriptions",
     "client": "Customer",
     "clients": "Customers",
-    "admin": "Kraków Escape Rooms",
-    "admins": "Kraków Escape Rooms"
+    "admin": "Community Allotment Plots",
+    "admins": "Community Allotment Plots"
   },
   "copy": {
-    "landingTitle": "Kraków Escape Rooms",
-    "landingSubtitle": "Whole room, per group — tiered by headcount.",
+    "landingTitle": "Community Allotment Plots",
+    "landingSubtitle": "Annual plot lease — annual subscription.",
     "confirmTitle": "Booking confirmed",
-    "emptyStateSlots": "No sessions available yet.",
-    "emptyStateBookings": "You have no reservations yet.",
+    "emptyStateSlots": "No billing periods available yet.",
+    "emptyStateBookings": "You have no subscriptions yet.",
     "requestPending": "Your request has been sent.",
     "waitlistJoined": "You're on the waitlist.",
     "quoteRequested": "Your quote request has been sent.",
@@ -220,7 +210,7 @@
     "prerequisiteBlocked": "Some details are needed before this can be confirmed."
   },
   "theme": {
-    "primaryColor": "#b45309",
+    "primaryColor": "#15803d",
     "radius": "0.5rem"
   },
   "metaFields": {
