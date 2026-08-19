@@ -52,8 +52,7 @@ function isActive(pathname: string, href: string): boolean {
 function Wordmark() {
   return (
     <span className="text-lg font-semibold tracking-tight">
-      <span className="text-foreground">Service</span>
-      <span className="text-primary">.com</span>
+      <span className="text-primary">Arbor</span>
       <span className="ml-2 rounded-full bg-amber-400/15 px-2 py-0.5 align-middle text-xs font-medium text-amber-600 dark:text-amber-400">
         Business
       </span>
