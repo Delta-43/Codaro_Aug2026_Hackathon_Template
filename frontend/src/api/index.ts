@@ -473,17 +473,6 @@ export function joinWaitlist(slotId: ID): Promise<WaitlistEntry> {
   return post(`/slots/${slotId}/waitlist`, undefined) as Promise<WaitlistEntry>;
 }
 
-export function leaveWaitlist(slotId: ID): Promise<{ ok: boolean }> {
-  return del(`/slots/${slotId}/waitlist`) as Promise<{ ok: boolean }>;
-}
-
-/** This customer's place in one slot's queue, plus how deep the queue is. */
-export function getWaitlistPlace(
-  slotId: ID,
-): Promise<{ entry: WaitlistEntry | null; depth: number }> {
-  return request(`/slots/${slotId}/waitlist`);
-}
-
 /** Owner records a blocking prerequisite as satisfied. */
 export function satisfyPrerequisite(bookingId: ID, key: string): Promise<Booking> {
   return post(`/bookings/${bookingId}/prerequisites/${key}`, undefined) as Promise<Booking>;

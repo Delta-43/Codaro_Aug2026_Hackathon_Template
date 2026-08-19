@@ -118,7 +118,7 @@ def _grid(cfg: dict, duration_minutes: int) -> dict:
     # seeding beyond it would lay down slots the booking path refuses. A
     # business that wants a longer horizon raises the window, which is what the
     # key is for.
-    forward = window = int(cfg["timing"].get("advanceBookingWindowDays") or 30)
+    forward = int(cfg["timing"].get("advanceBookingWindowDays") or 30)
     if duration_minutes >= 1440:
         # One slot per UNIT, not per day: a week-long unit laid on a daily grid
         # would start a new 7-day slot every 24h, so seven overlapping slots

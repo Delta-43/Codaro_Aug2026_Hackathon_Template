@@ -19,7 +19,6 @@ which is why the invariants below are partly about variety.
 """
 from __future__ import annotations
 
-import json
 import os
 import sys
 from collections import Counter
@@ -105,6 +104,7 @@ def check_one(path: Path) -> tuple[list[str], dict]:
             )
 
     for svc in svcs:
+        name = f"{path.name}:{svc['name']}"
         row = service_row(spec, svc)
         effective_service_rules(row)
         effective_service_config(row)
@@ -162,7 +162,6 @@ def check_one(path: Path) -> tuple[list[str], dict]:
         if rec["enabled"] and not rec["patterns"]:
             fails.append(f"{name}: recurrence enabled with no patterns")
 
-        name = f"{path.name}:{svc['name']}"
         if out["slotDurationMinutes"] <= 0:
             fails.append(f"{name}: slotDurationMinutes {out['slotDurationMinutes']}")
         if out["minSlotsPerBooking"] < 1:
