@@ -108,7 +108,7 @@ export function AuthForm({
             />
             <span>
               I agree to the{" "}
-              <Link href="/privacy" target="_blank" className="font-medium text-primary hover:underline">
+              <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="font-medium text-primary hover:underline">
                 data handling &amp; privacy policy
               </Link>
               .
