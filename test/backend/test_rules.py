@@ -18,9 +18,11 @@ from app.rules import (
     UNDISPATCHED,
     RuleViolation,
     _advance_window,
+    _blackouts,
     _cancellation_window,
     _capacity,
     _lead_time,
+    _seasons,
     apply_rules,
     check_cancellation_window,
     check_capacity,
@@ -508,10 +510,16 @@ def test_booking_create_dispatches_lead_time_and_the_advance_window():
     """`advanceBookingWindowDays` joined this event once `seed_config._grid`
     started seeding exactly the declared window. While the grid reached further
     than the config allowed, dispatching it made half the seeded calendar
-    unbookable — which is why it sat in UNDISPATCHED for so long."""
+    unbookable — which is why it sat in UNDISPATCHED for so long.
+
+    `blackouts`/`seasons` joined it when the two closure windows stopped being
+    decorative: both were declared in v2, validated at load and enforced
+    nowhere, so a config could close for Christmas and still take bookings."""
     assert RULES["booking.create"] == {
         "leadTimeMinutes": _lead_time,
         "advanceBookingWindowDays": _advance_window,
+        "blackouts": _blackouts,
+        "seasons": _seasons,
     }
 
 

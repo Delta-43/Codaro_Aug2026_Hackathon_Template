@@ -56,6 +56,8 @@ def quote(pricing: dict, ctx: dict) -> dict:
         zone              str|None  seat/area zone key
         subject           dict|None the pet/vehicle/child the booking is about
         distance_km       float|None travel distance (distance-band fees)
+        addons            list|None resolved `booking.options` lines to add to the
+                                total (`{key, label, amountMinorUnits}` each)
         entitlement       dict|None  the resolved plan the customer holds
                                      (`{key, label, discountBps}`), or None
 
@@ -134,6 +136,28 @@ def quote(pricing: dict, ctx: dict) -> dict:
                     "amountMinorUnits": discount,
                 }
             )
+
+    # Paid add-ons the customer chose (`booking.options`), already resolved to
+    # `{key, label, amountMinorUnits}` by `rules.resolve_options` — this module
+    # only ever sees the `pricing` block, so the caller does the config lookup.
+    #
+    # Placed AFTER the entitlement discount and BEFORE the fees on purpose: a
+    # member discount is on the service, not on the hired kit or the meal, while
+    # a percentage fee (cleaning, service charge) is levied on everything sold.
+    for addon in (ctx.get("addons") or []):
+        if not isinstance(addon, dict):
+            continue
+        amount = _int(addon.get("amountMinorUnits"))
+        if not amount:
+            continue
+        total += amount
+        breakdown.append(
+            {
+                "key": f"option:{addon.get('key')}",
+                "label": addon.get("label") or "Extra",
+                "amountMinorUnits": amount,
+            }
+        )
 
     for i, fee in enumerate(pricing.get("fees") or []):
         if not isinstance(fee, dict):

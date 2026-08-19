@@ -190,3 +190,44 @@ export function whenLabel(iso: string | null): string {
 export function browserTz(): string {
   return typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
 }
+
+/** How a service's price should READ in a catalogue, before any selection.
+ *
+ * `service.priceMinorUnits` is only `pricing.rate.amountMinorUnits` — the base
+ * rate. Rendering it bare as "€40" was wrong for most of the pricing models the
+ * engine supports: a tiered service starts at one of several tier prices, a
+ * per-hour rate is not a total, a quote has no number at all, and a free class
+ * with a booking fee is not "€0". The confirm screen already refuses to
+ * multiply this out (it quotes the engine); the catalogue owes the same honesty
+ * one step earlier.
+ */
+export function formatOffer(service: {
+  priceMinorUnits: number;
+  currency: string;
+  pricingModel: string;
+  rateUnit: string;
+}): string {
+  if (service.pricingModel === "quote") return "Price on request";
+  if (service.pricingModel === "free" && !service.priceMinorUnits) return "Free";
+  const money = formatMoney(service.priceMinorUnits, service.currency);
+  // What one unit of the rate buys. "slot" is the engine's default and says
+  // nothing a duration line does not already say.
+  const per = service.rateUnit && service.rateUnit !== "slot" ? ` / ${service.rateUnit}` : "";
+  // Models whose final total is arrived at from this number rather than being
+  // it — so the catalogue promises a floor, not a price.
+  const FROM = ["tiered", "per_hour", "per_person", "per_unit", "deposit_balance", "subscription"];
+  return `${FROM.includes(service.pricingModel) ? "from " : ""}${money}${per}`;
+}
+
+/** `booking.unitKind` in the customer's words. */
+export const UNIT_KIND_LABELS: Record<string, string> = {
+  time_slot: "By appointment",
+  staff: "With a specialist",
+  asset: "Equipment",
+  seat: "Seated",
+  room: "Room",
+  class_capacity: "Group session",
+  stock_item: "Stock item",
+  subscription_slot: "Subscription",
+  project: "Project",
+};

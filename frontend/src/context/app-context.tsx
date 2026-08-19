@@ -25,6 +25,9 @@ import {
   getCurrentUser,
   getProviderByCode,
   getPivotConfig,
+  type MetaFields,
+  type SearchFacets,
+  type TenancyTerms,
   resetDemoData as apiResetDemoData,
   searchProviders,
   setVertical as apiSetVertical,
@@ -53,6 +56,14 @@ interface AppContextValue {
   /** The pivot file's `copy` block verbatim, for the named moments that have no
    *  vertical equivalent (`confirmTitle`, `requestPending`, the empty states). */
   copy: ConfigCopy;
+  /** `metaFields.{entity}` — the domain fields this deployment declares. The
+   *  backend validates them on write; the booking form renders them. */
+  metaFields: MetaFields;
+  /** `discovery.facets` — which search dimensions this deployment offers. */
+  facets: SearchFacets;
+  /** `tenancy` — self-onboarding, tenant verification and the platform's cut.
+   *  Owner-facing: the business needs to see the terms it trades under. */
+  tenancyTerms: TenancyTerms;
   user: User | null;
 
   /** Single-business pivot (`tenancy.mode === "single"`): the site itself is the
@@ -102,6 +113,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [capabilities, setCapabilities] = useState<Capabilities>({});
   const [terms, setTerms] = useState<ConfigTerms>({});
   const [copy, setCopy] = useState<ConfigCopy>({});
+  const [metaFields, setMetaFields] = useState<MetaFields>({});
+  const [facets, setFacets] = useState<SearchFacets>(FALLBACK_PIVOT_CONFIG.facets);
+  const [tenancyTerms, setTenancyTerms] = useState<TenancyTerms>(
+    FALLBACK_PIVOT_CONFIG.tenancyTerms,
+  );
   const [soleProviderCode, setSoleProviderCode] = useState<string | null>(null);
 
   const [activeProvider, setActiveProvider] = useState<Provider | null>(null);
@@ -180,6 +196,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // effect) so a `reload()` after `make reload` repaints without a refresh.
       setTerms(pivot.terms);
       setCopy(pivot.copy);
+      setMetaFields(pivot.metaFields);
+      setFacets(pivot.facets);
+      setTenancyTerms(pivot.tenancyTerms);
       const { tenancy } = pivot;
       const single = tenancy.mode === "single";
       setSingleBusiness(single);
@@ -259,6 +278,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     verticalId,
     vertical: applyPivotVocabulary(getVertical(verticalId), terms, copy),
     copy,
+    metaFields,
+    facets,
+    tenancyTerms,
     user,
     singleBusiness,
     capability,

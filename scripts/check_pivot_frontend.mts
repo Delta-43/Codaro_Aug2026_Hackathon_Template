@@ -31,7 +31,7 @@ const NOUNS: (keyof VerticalConfig)[] = [
 
 const files = readdirSync(PIVOTS).filter((f) => /^\d+.*\.json$/.test(f)).sort();
 const fails: string[] = [];
-const seen = { tenancy: new Set<string>(), unit: new Set<string>(), themed: 0, single: 0 };
+const seen = { tenancy: new Set<string>(), unit: new Set<string>(), single: 0 };
 
 for (const file of files) {
   const raw = JSON.parse(readFileSync(join(PIVOTS, file), "utf8"));
@@ -45,7 +45,6 @@ for (const file of files) {
 
   seen.tenancy.add(parsed.tenancy.mode);
   if (parsed.tenancy.mode === "single") seen.single++;
-  if (parsed.theme.primaryColor) seen.themed++;
 
   // Single-tenant collapses the marketplace onto one business resolved by code.
   // Without one the app renders its "no business" empty state forever.
@@ -69,9 +68,6 @@ for (const file of files) {
       if (typeof v !== "string" || !v.trim())
         fails.push(`${file}: ${block}.${k} is ${JSON.stringify(v)}, silently ignored`);
 
-  // A radius/colour the browser cannot parse yields an invisible broken theme.
-  if (parsed.theme.radius && !/^-?[\d.]+(rem|px|em|%)$/.test(parsed.theme.radius))
-    fails.push(`${file}: theme.radius ${parsed.theme.radius}`);
 
   // The overlay must produce a complete vocabulary from EVERY vertical, because
   // which one is active is decided by the seeded data, not by the config.
@@ -91,7 +87,6 @@ for (const file of files) {
 
 console.log(`pivots checked            : ${files.length}`);
 console.log(`tenancy modes             : ${[...seen.tenancy].sort().join(", ")} (${seen.single} single)`);
-console.log(`configs with a theme colour: ${seen.themed}`);
 console.log(`distinct slot nouns rendered: ${seen.unit.size}`);
 
 if (fails.length) {

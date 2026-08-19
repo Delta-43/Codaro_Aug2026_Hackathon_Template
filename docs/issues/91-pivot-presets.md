@@ -326,3 +326,98 @@ and a pivot config no longer gets a say in colour or radius.
 Rationale: `theme` was the clearest case of config that looks live and does
 nothing, and per-pivot colours were never worth the coupling between the pivot
 file and the frontend's design tokens.
+
+
+## Follow-up (2026-08-19): the offer-shape blocks reach the client
+
+A second audit — this time against a purpose-built maximal config
+(`pivots/everything-on.example.json`, every capability on and every optional
+block populated) — found the same class of gap one level down. `terms`/`copy`
+now pivot the vocabulary, but the blocks that describe **what is being sold**
+were still config-only: declared, validated at load, and reaching neither the
+client nor, in several cases, the engine.
+
+### What was declared and dead
+
+| Block | State before |
+|---|---|
+| `booking.party.composition` | `pricing.quote()` accepted `ctx["person_units"]`; **no caller ever built it** — a family of 2 adults + 2 children paid four adult fares |
+| `booking.options` | Paid extras with nowhere to be chosen and no price path at all |
+| `booking.subject` | The pet/vehicle/child a booking is about — no capture, no validation on create |
+| `booking.sequence` | A course of N sessions could not be bought as one enrolment |
+| `payments.schedule` | Not serialized, not shown — the customer never saw the terms |
+| `timing.blackouts` / `timing.seasons` | Shape-validated at load, **enforced by nothing**: a config could close for Christmas and take bookings all through it |
+| `capabilities.quotes` | A quote-priced service auto-confirmed at a total of zero |
+| `capabilities.cart` | No basket anywhere in either half of the stack |
+| `metaFields.*` | Validated on write since v2, rendered by no form — fillable only by curl |
+| `discovery.facets` | Read from the v1 `search.facets` mirror, which `normalize()` trims to three keys, so `availability`/`unitKind` were unreachable |
+| `tenancy.commission` / `tenantVerification` | Never shown to the tenant they apply to |
+| `payments.flow` | The confirm screen branched on `"deposit"` — **not a value the schema accepts** — so `split`/`pay_on_site` fell through to a "Total" label |
+| `recurrence.patterns` | Only `patterns[0]` was ever offered; the rest were dead config |
+
+### Backend
+
+- `rules.py` — `resolve_party_bands` / `resolve_options` / `resolve_subject`
+  turn a request body into the exact context `pricing.quote()` has always
+  documented. They raise `RuleViolation`, so the module stays FastAPI-free and
+  the routers map it to `INVALID_RANGE` as they do for `apply_rules`.
+- `pricing.py` — add-ons are added between the entitlement discount and the
+  fees: a member discount is on the service, a percentage fee is on everything
+  sold. Prices are re-derived server-side; a client cannot name its own.
+- `rules.py` — `_blackouts` / `_seasons` validators registered on
+  `booking.create`, exactly the "config key plus a validator" the registry
+  exists for, plus `closure_reason()` so `/availability` and `/month-density`
+  stop offering slots the create call would refuse. Windows compare in the
+  **business's** timezone, not UTC.
+- `bookings.py` — `_booking_shape()` is shared by the quote and the create, so
+  the number on the confirm screen is the number charged; later occurrences of a
+  series are priced with the same bands and add-ons as the first;
+  `booking.sequence` rides the recurrence machinery under a `"sequence"`
+  pseudo-pattern stepped by `minGapHours`; a quote-priced service can no longer
+  auto-confirm.
+- `serialize.py` — the service projection gained `unitKind`, `party` (with
+  `composition`), `subject`, `options`, `sequence`, `paymentSchedule`,
+  `locationModes`/`locationDefault`; the booking gained `partyBands`, `options`
+  and `subject`.
+
+### Frontend
+
+- `components/booking/field-form.tsx` — one descriptor-driven form, used by both
+  `booking.subject.fields` and `metaFields.{entity}`, since both describe fields
+  the same way.
+- `party-bands.tsx` (bands replace the flat stepper and drive the party size),
+  `options-picker.tsx`, and a confirm screen that now collects bands, extras,
+  subject and declared booking fields, shows the payment schedule and the
+  location mode, offers the whole course, and labels money by the real
+  `payments.flow` values.
+- `context/cart-context.tsx` + `cart-sheet.tsx` — the basket for
+  `capabilities.cart`. Checkout is a sequence of ordinary bookings that reports
+  per-item outcomes and keeps failures in the basket; a basket claiming to be
+  atomic would be lying about an engine that commits one booking at a time.
+- A quote-model service asks for a quote instead of quoting one, and the result
+  screen finally renders `copy.quoteRequested`.
+- Facets read `discovery` first; `unitKind` gates a chip in the catalogue, where
+  the price now reads through `formatOffer()` ("from €40 / hour", "Price on
+  request") instead of printing a base rate as if it were a total.
+- Owner console: the commission the marketplace takes and the credentials it
+  requires; `metaFields.services` on the create form.
+
+### Verification
+
+`1036 backend tests pass` (19 new in `test/backend/test_booking_shape.py`),
+`make checkstates` 100/100, `make checkseed` RESET 9/9 + MATCH 14/14,
+`make checkfront` 101/101, `tsc --noEmit` and `next lint` clean.
+
+`scripts/check_pivot_frontend.mts` still asserted on `parsed.theme` — missed by
+the theme-removal commit above, which made `make checkfront` crash. Fixed here.
+
+### Still not wired
+
+- `discovery.facets.availability` now reaches the client but gates nothing:
+  there is no availability dimension in search to gate. It needs a
+  next-available aggregate on the provider payload first.
+- `location.serviceArea` fee bands and `fulfilment` are serialized only as far
+  as the mode label; `pricing.quote()` accepts a `distance_km` that still has no
+  customer address to compute from.
+- `payments.schedule` is display-only, as is the verification panel — there is
+  no payments table and no credential store to enforce either against.

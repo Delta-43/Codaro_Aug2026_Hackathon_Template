@@ -29,6 +29,8 @@ import {
   FALLBACK_PIVOT_CONFIG,
   type Capabilities,
   type ConfigCopy,
+  type MetaFields,
+  type TenancyTerms,
   type ConfigTerms,
 } from "@/api";
 import { applyPivotVocabulary, VERTICALS, type VerticalConfig } from "@/config/verticals";
@@ -57,6 +59,13 @@ interface OwnerContextValue {
    *  gate per service, so prefer `Service.capabilities` and use this when the
    *  per-service value is unavailable — e.g. the services fetch failed. */
   capability: (name: string) => boolean;
+  /** `tenancy` — what this business is signed up to: whether it can onboard
+   *  itself, what it must be verified with, and what the platform takes. All
+   *  three were config-only and shown on no owner screen. */
+  tenancyTerms: TenancyTerms;
+  /** `metaFields.{entity}` — the domain fields this deployment declares, so the
+   *  owner's own create/edit forms can offer what the backend already validates. */
+  metaFields: MetaFields;
   setActiveProviderId: (id: string) => void;
   refreshProviders: () => Promise<void>;
   /** Replace one already-loaded provider in place (e.g. after an avatar edit),
@@ -74,6 +83,10 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
   const [capabilities, setCapabilities] = useState<Capabilities>({});
   const [terms, setTerms] = useState<ConfigTerms>({});
   const [copy, setCopy] = useState<ConfigCopy>({});
+  const [tenancyTerms, setTenancyTerms] = useState<TenancyTerms>(
+    FALLBACK_PIVOT_CONFIG.tenancyTerms,
+  );
+  const [metaFields, setMetaFields] = useState<MetaFields>({});
 
   const refreshProviders = useCallback(async () => {
     try {
@@ -99,6 +112,8 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
       setCapabilities(pivot.capabilities);
       setTerms(pivot.terms);
       setCopy(pivot.copy);
+      setTenancyTerms(pivot.tenancyTerms);
+      setMetaFields(pivot.metaFields);
       const stored = typeof window !== "undefined" ? localStorage.getItem(PID_KEY) : null;
       setPid(list.find((p) => p.id === stored)?.id ?? list[0]?.id ?? null);
       setReady(true);
@@ -129,6 +144,8 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
   const value: OwnerContextValue = {
     ready,
     capability,
+    tenancyTerms,
+    metaFields,
     providers,
     activeProvider,
     vocab: applyPivotVocabulary(VERTICALS[vertical] ?? VERTICALS.fleet, terms, copy),

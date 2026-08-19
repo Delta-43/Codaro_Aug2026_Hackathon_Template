@@ -172,6 +172,41 @@ export function BookingDetail({
         </div>
       ) : null}
 
+      {/* What was chosen where the config offered a choice — the party split
+          (`party.composition`), the paid extras (`booking.options`) and the
+          subject (`booking.subject`). All three were collected at booking time
+          and then invisible afterwards, so a customer could not check what they
+          had actually bought, and an owner could not see whose lunch to cook. */}
+      {booking.partyBands || booking.options.length || booking.subject ? (
+        <div className="mt-3 rounded-xl border border-border bg-card p-4">
+          {booking.partyBands
+            ? Object.entries(booking.partyBands).map(([key, count]) => (
+                <DetailRow
+                  key={key}
+                  label={service.party.composition.find((b) => b.key === key)?.label ?? key}
+                  value={`${count}`}
+                />
+              ))
+            : null}
+          {booking.options.map((option) => (
+            <DetailRow
+              key={option.key}
+              label={option.label}
+              value={formatMoney(option.amountMinorUnits, booking.currency)}
+            />
+          ))}
+          {booking.subject
+            ? Object.entries(booking.subject).map(([key, value]) => (
+                <DetailRow
+                  key={key}
+                  label={service.subject.fields.find((f) => f.key === key)?.label ?? key}
+                  value={String(value)}
+                />
+              ))
+            : null}
+        </div>
+      ) : null}
+
       {/* Still blocking confirmation (`prerequisites`). Shown to the customer
           so a booking sitting at pending has a visible reason. */}
       {booking.prerequisitesPending.length ? (

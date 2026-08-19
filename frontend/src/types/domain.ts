@@ -72,8 +72,10 @@ export interface Service {
   /** `pricing.rate.per` — what one unit of the base rate buys ("slot", "hour",
    *  "person", "booking", "unit"). */
   rateUnit: string;
-  /** `payments.flow` — when money is collected: "none" (no payment in the
-   *  product at all), "prepay", "deposit", "invoice_after". */
+  /** `payments.flow` — when money is collected. One of the engine's five:
+   *  "none" (no payment in the product at all), "prepay", "pay_on_site",
+   *  "invoice_after", "split". NOT "deposit" — that is a `pricing.deposit`
+   *  concern, and branching on it here matched nothing. */
   paymentFlow: string;
   /** `payments.billingCycle` — "none" for one-off, else "monthly"/"annual". */
   billingCycle: string;
@@ -84,7 +86,72 @@ export interface Service {
   recurrence: { enabled: boolean; patterns: string[]; maxOccurrences: number };
   /** Whether full slots offer a queue (`timing.waitlist`), capability-gated. */
   waitlist: { enabled: boolean };
+  /** `booking.unitKind` — what one bookable unit IS ("time_slot", "seat",
+   *  "room", "asset", "class_capacity"…). Vocabulary, not behaviour. */
+  unitKind: string;
+  /** `booking.party` — how many, and (with `composition`) of what kinds. A
+   *  non-empty `composition` means the party splits into priced bands: the
+   *  booking sends counts per band and the engine weights them. */
+  party: {
+    mode: string;
+    min: number;
+    max: number | null;
+    composition: PartyBand[];
+    matchResourceCapacity: boolean;
+  };
+  /** `booking.subject` — the pet/vehicle/child the booking is ABOUT. When
+   *  enabled the fields are collected on the confirm screen and validated
+   *  server-side; a missing required one is a rejection. */
+  subject: { enabled: boolean; noun: string; fields: SubjectField[] };
+  /** `booking.options` — paid extras. Descriptors only: the price of a chosen
+   *  option is resolved server-side, never taken from the client. */
+  options: BookingOption[];
+  /** `booking.sequence` — a course/programme booked as N sessions with a gap
+   *  between them, rather than one appointment. */
+  sequence: { enabled: boolean; steps: number; minGapHours: number; maxGapHours: number | null };
+  /** `payments.schedule` — when each part of the money falls due. Display-only
+   *  (no PSP exists), but it is what the customer is agreeing to. */
+  paymentSchedule: PaymentStep[];
+  /** `location.modes` — on_site / at_customer / remote / delivery / pickup. */
+  locationModes: string[];
+  locationDefault: string;
   resourceIds: ID[];
+}
+
+/** One band of `booking.party.composition` — an adult, a child, a senior.
+ *  `priceFactor` multiplies the base rate for each head in that band. */
+export interface PartyBand {
+  key: string;
+  label: string;
+  priceFactor?: number;
+}
+
+/** One field of `booking.subject.fields`. */
+export interface SubjectField {
+  key: string;
+  label: string;
+  type: string;
+  required?: boolean;
+  options?: string[];
+}
+
+/** One entry of `booking.options` — a paid extra. A "boolean" option is a
+ *  toggle worth `priceMinorUnits`; a "select" option offers `choices`. */
+export interface BookingOption {
+  key: string;
+  label: string;
+  type: string;
+  priceMinorUnits?: number;
+  choices?: { key: string; label: string; priceMinorUnits?: number }[];
+}
+
+/** One step of `payments.schedule` — "25% deposit now, balance 48h before". */
+export interface PaymentStep {
+  key: string;
+  label?: string;
+  kind: string;
+  value: number;
+  dueOffsetHours?: number;
 }
 
 /** One entry of the config's `prerequisites` block. */
@@ -187,6 +254,14 @@ export interface Booking {
   /** What is owed and whether it is settled. Derived from `payments.flow`
    *  server-side, so it never drifts from the config after a pivot. */
   payment: PaymentState;
+  /** What the customer chose where the config offered a choice. All three are
+   *  null/empty on a deployment that declares no composition, options or
+   *  subject — i.e. on most of them. */
+  partyBands: Record<string, number> | null;
+  /** Chosen `booking.options`, with the price the engine actually charged. */
+  options: { key: string; label: string; amountMinorUnits: number }[];
+  /** The `booking.subject` this booking is about, as validated on create. */
+  subject: Record<string, unknown> | null;
 }
 
 /** Derived payment position on a booking (`payments.flow`). `state` is one of

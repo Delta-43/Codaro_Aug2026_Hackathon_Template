@@ -102,6 +102,99 @@ def _buffer(minutes, ctx) -> None:
             )
 
 
+def _window_dates(window: dict) -> tuple[str, str]:
+    return str(window.get("startDate") or ""), str(window.get("endDate") or "")
+
+
+def _local_date(ctx: dict) -> str:
+    """The slot's date in the BUSINESS's timezone, as `YYYY-MM-DD`.
+
+    `timing.blackouts` and `timing.seasons` are written as local dates — a
+    business closing for Christmas closes on its own calendar, not on UTC's — so
+    comparing a UTC date would close the wrong day either side of midnight. The
+    router passes the resolved zone; UTC is the fallback when it cannot.
+    """
+    start = parse_ts(ctx["slot_starts_at"])
+    name = ctx.get("timezone")
+    if name:
+        try:
+            from zoneinfo import ZoneInfo
+
+            start = start.astimezone(ZoneInfo(str(name)))
+        except Exception:
+            pass
+    return start.date().isoformat()
+
+
+def _blackouts(windows, ctx) -> None:
+    """`timing.blackouts` — dates the business is closed.
+
+    Declared in v2, validated at load for shape, and enforced by nothing: a
+    config could black out Christmas and the engine would take bookings all
+    through it. Inclusive at both ends, because a closure written 24th–26th
+    means the 26th is shut.
+    """
+    if not windows:
+        return
+    today = _local_date(ctx)
+    for window in windows:
+        if not isinstance(window, dict):
+            continue
+        start, end = _window_dates(window)
+        if start and end and start <= today <= end:
+            label = window.get("label") or window.get("key") or "that period"
+            raise RuleViolation(f"Closed for {label}.")
+
+
+def _seasons(windows, ctx) -> None:
+    """`timing.seasons` — the periods the business actually trades.
+
+    A declared season list is a statement that the business is OPEN then, which
+    only means something if it is shut otherwise; a config with no seasons
+    trades year-round and this is a no-op. Same inclusive bounds as a blackout.
+    """
+    if not windows:
+        return
+    today = _local_date(ctx)
+    dated = [w for w in windows if isinstance(w, dict) and all(_window_dates(w))]
+    if not dated:
+        return
+    for window in dated:
+        start, end = _window_dates(window)
+        if start <= today <= end:
+            return
+    raise RuleViolation("That date is outside the season this runs in.")
+
+
+def closure_reason(slot_starts_at: str | datetime, service: dict | None = None) -> str | None:
+    """Why this instant is not bookable at all, or None.
+
+    The same two windows `apply_rules` enforces on create (`timing.blackouts`,
+    `timing.seasons`), reached from the READ path so the calendar does not offer
+    a slot the booking call will refuse. Showing a bookable-looking slot inside a
+    declared closure is the failure mode this repo keeps fixing elsewhere; a
+    closure the customer only meets at the confirm screen is the same bug.
+
+    Deliberately narrower than `apply_rules`: lead time and the advance window
+    are about a slot being too soon or too far, not about the business being
+    shut, and they already render as their own states.
+    """
+    cfg = effective_service_config(service)
+    timing = cfg.get("timing") or {}
+    if not (timing.get("blackouts") or timing.get("seasons")):
+        return None
+    ctx = {
+        "slot_starts_at": slot_starts_at,
+        "timezone": (cfg.get("location") or {}).get("timezone") or "UTC",
+    }
+    try:
+        _blackouts(timing.get("blackouts"), ctx)
+        _seasons(timing.get("seasons"), ctx)
+    except RuleViolation as e:
+        return str(e)
+    return None
+
+
 # -- registry: event -> {config key -> validator} ------------------------
 
 # Events a router may dispatch. An event with an empty map is a live extension
@@ -120,6 +213,10 @@ RULES = {
         # grid reached further than the config allowed, enforcing this made half
         # the seeded calendar unbookable, which is why it sat in UNDISPATCHED.
         "advanceBookingWindowDays": _advance_window,
+        # Both shipped in v2 and enforced nothing until now — exactly the
+        # "config key plus a validator" this registry exists for.
+        "blackouts": _blackouts,
+        "seasons": _seasons,
     },
     "booking.change": {},
     "booking.approve": {},
@@ -580,3 +677,152 @@ def within_cutoff(slot_starts_at: str | datetime, cutoff_hours, now: datetime | 
     (the point past which a client may no longer cancel/reschedule)."""
     now = now or datetime.now(timezone.utc)
     return now >= parse_ts(slot_starts_at) - timedelta(hours=cutoff_hours)
+
+
+# -- booking-shape resolvers ---------------------------------------------
+#
+# `booking.party.composition`, `booking.options` and `booking.subject` shipped in
+# v2 and were read by nothing: the config could declare child pricing, paid
+# add-ons and a per-subject intake and the booking path ignored all three. The
+# pricing engine already accepts `person_units` and `subject` in its context —
+# nothing ever built them. These three turn a request body into exactly those
+# inputs, validating against the SERVICE's resolved `booking` block so a
+# per-service override is honoured like every other block.
+#
+# They raise RuleViolation (not ApiError) so this module stays free of FastAPI;
+# the routers map it to INVALID_RANGE the same way they do for `apply_rules`.
+
+
+def _booking_block(service: dict | None) -> dict:
+    return effective_service_config(service).get("booking") or {}
+
+
+def resolve_party_bands(
+    bands: dict | None, party_size: int, service: dict | None = None
+) -> tuple[float | None, dict | None]:
+    """Turn `{adult: 2, child: 1}` into a weighted head count.
+
+    `party.composition` gives each band a `priceFactor`, so three heads are not
+    automatically three units of the rate: 2 adults + 1 child at 0.5 is 2.5.
+    Returns `(person_units, normalised_bands)`, both None when the deployment
+    declares no composition or the caller sent none — in which case pricing
+    falls back to the raw party size, exactly as before.
+
+    The counts must add up to `partySize`, because both numbers reach the
+    engine: the party size holds capacity and the bands price it, and a
+    disagreement means one of the two is wrong.
+    """
+    composition = (_booking_block(service).get("party") or {}).get("composition")
+    if not composition:
+        return None, None
+    if not bands:
+        return None, None
+    known = {b.get("key"): b for b in composition if isinstance(b, dict) and b.get("key")}
+    counts: dict[str, int] = {}
+    for key, count in bands.items():
+        if key not in known:
+            raise RuleViolation(f"Unknown party band {key!r}.")
+        n = int(count or 0)
+        if n < 0:
+            raise RuleViolation(f"Party band {key!r} cannot be negative.")
+        if n:
+            counts[key] = n
+    if not counts:
+        return None, None
+    if sum(counts.values()) != int(party_size):
+        raise RuleViolation(
+            f"The party bands add up to {sum(counts.values())}, not the party size "
+            f"of {int(party_size)}."
+        )
+    units = 0.0
+    for key, n in counts.items():
+        factor = known[key].get("priceFactor")
+        units += n * (1.0 if factor is None else float(factor))
+    return units, counts
+
+
+def resolve_options(
+    selections: dict | None, service: dict | None = None
+) -> list[dict]:
+    """Turn `{kitHire: true, mealPlan: "lunch"}` into priced add-on lines.
+
+    Each line is `{key, label, amountMinorUnits}` — the shape `pricing.quote()`
+    adds to the subtotal, so an add-on is charged, shown in the breakdown, and
+    covered by percentage fees and the deposit like any other part of the price.
+
+    A boolean option contributes its own `priceMinorUnits`; a select option
+    contributes the chosen `choices[]` entry's. An unknown option key or choice
+    is a rejection, not a silent zero: a client sending `mealPlan: "banquet"`
+    against a config that never declared it must not book a free banquet.
+    """
+    declared = _booking_block(service).get("options") or []
+    if not selections:
+        return []
+    by_key = {o.get("key"): o for o in declared if isinstance(o, dict) and o.get("key")}
+    lines: list[dict] = []
+    for key, value in selections.items():
+        option = by_key.get(key)
+        if option is None:
+            raise RuleViolation(f"Unknown option {key!r}.")
+        label = option.get("label") or key
+        if option.get("type") == "select":
+            if value in (None, False, ""):
+                continue
+            choice = next(
+                (c for c in (option.get("choices") or [])
+                 if isinstance(c, dict) and c.get("key") == value),
+                None,
+            )
+            if choice is None:
+                raise RuleViolation(f"Unknown choice {value!r} for option {key!r}.")
+            amount = int(choice.get("priceMinorUnits") or 0)
+            lines.append({
+                "key": key,
+                "label": f"{label} — {choice.get('label') or choice.get('key')}",
+                "choice": choice.get("key"),
+                "amountMinorUnits": amount,
+            })
+        else:
+            if not value:
+                continue
+            lines.append({
+                "key": key,
+                "label": label,
+                "choice": True,
+                "amountMinorUnits": int(option.get("priceMinorUnits") or 0),
+            })
+    return lines
+
+
+def resolve_subject(subject: dict | None, service: dict | None = None) -> dict | None:
+    """Validate the thing the booking is ABOUT (`booking.subject`).
+
+    A vet books a pet, a garage books a vehicle, a school books a child. The
+    block declares the noun and the fields; this keeps only declared fields and
+    refuses a missing required one, so the intake is enforced at the booking
+    rather than discovered at the counter.
+
+    `pricing.match_tier` already reads `ctx["subject"]` for a `subjectField`
+    tier, which is why the validated dict is returned rather than just checked.
+    """
+    block = _booking_block(service).get("subject") or {}
+    if not block.get("enabled"):
+        return None
+    fields = [f for f in (block.get("fields") or []) if isinstance(f, dict) and f.get("key")]
+    given = subject or {}
+    out: dict = {}
+    for field in fields:
+        key = field["key"]
+        value = given.get(key)
+        blank = value is None or (isinstance(value, str) and not value.strip())
+        if blank:
+            if field.get("required"):
+                noun = block.get("noun") or "Subject"
+                raise RuleViolation(f"{noun}: {field.get('label') or key} is required.")
+            continue
+        if field.get("type") == "select":
+            allowed = field.get("options") or []
+            if allowed and value not in allowed:
+                raise RuleViolation(f"{field.get('label') or key} must be one of {allowed}.")
+        out[key] = value
+    return out or None

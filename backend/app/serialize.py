@@ -263,6 +263,50 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
             "patterns": list(svc_config["recurrence"].get("patterns") or []),
             "maxOccurrences": int(svc_config["recurrence"].get("maxOccurrences") or 1),
         },
+        # The SHAPE of the offer. Every one of these blocks shipped in v2, was
+        # validated at load, and then reached no client — so a config could
+        # declare child pricing, paid add-ons, a per-participant intake, a course
+        # of four sessions or a two-part payment schedule and the app had no way
+        # to render, let alone collect, any of it.
+        #
+        # Resolved per service (all of `booking`/`payments`/`location` are in
+        # OVERRIDABLE_BLOCKS), so a marketplace where one tenant sells add-ons
+        # and another does not serves each the truth about itself.
+        "unitKind": svc_config["booking"].get("unitKind") or "time_slot",
+        "party": {
+            "mode": (svc_config["booking"].get("party") or {}).get("mode") or "individual",
+            "min": int((svc_config["booking"].get("party") or {}).get("min") or 1),
+            "max": (svc_config["booking"].get("party") or {}).get("max"),
+            # [{key, label, priceFactor}] — the bands a party splits into. Empty
+            # list (not null) so the client can render `.length` without a guard.
+            "composition": list((svc_config["booking"].get("party") or {}).get("composition") or []),
+            "matchResourceCapacity": bool(
+                (svc_config["booking"].get("party") or {}).get("matchResourceCapacity")
+            ),
+        },
+        "subject": {
+            "enabled": bool((svc_config["booking"].get("subject") or {}).get("enabled")),
+            "noun": (svc_config["booking"].get("subject") or {}).get("noun") or "Subject",
+            "fields": list((svc_config["booking"].get("subject") or {}).get("fields") or []),
+        },
+        # Paid extras. Priced server-side by `rules.resolve_options`, so these
+        # descriptors are for rendering the controls only — a client that invents
+        # an option key or a price is rejected, not believed.
+        "options": list(svc_config["booking"].get("options") or []),
+        "sequence": {
+            "enabled": bool((svc_config["booking"].get("sequence") or {}).get("enabled")),
+            "steps": int((svc_config["booking"].get("sequence") or {}).get("steps") or 1),
+            "minGapHours": int((svc_config["booking"].get("sequence") or {}).get("minGapHours") or 0),
+            "maxGapHours": (svc_config["booking"].get("sequence") or {}).get("maxGapHours"),
+        },
+        # When each part of the money is due (`payments.schedule`). Display-only:
+        # no payments table exists, so this describes the terms the customer is
+        # agreeing to, which is exactly what a confirm screen owes them.
+        "paymentSchedule": list(svc_config["payments"].get("schedule") or []),
+        # Where the service happens. A deployment offering pickup/delivery/remote
+        # has to say so before the booking, not after.
+        "locationModes": list(svc_config["location"].get("modes") or ["on_site"]),
+        "locationDefault": svc_config["location"].get("default") or "on_site",
         "resourceIds": list(resource_ids),
     }
 
@@ -477,6 +521,12 @@ def serialize_booking(
         # What is owed and whether it is settled — derived from `payments.flow`,
         # never stored, so it cannot drift from the config after a pivot.
         "payment": payment_state(md, service, row.get("status")),
+        # What the customer actually chose, where the config offers a choice.
+        # All three are absent on a deployment that declares no composition, no
+        # options and no subject, which is most of them.
+        "partyBands": md.get("party_bands") or None,
+        "options": list(md.get("options") or []),
+        "subject": md.get("subject") or None,
     }
     if include_client:
         # Owner-only view: who booked. An additive field (never sent to clients).

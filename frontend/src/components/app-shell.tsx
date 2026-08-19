@@ -17,12 +17,16 @@ import {
   CircleUser,
   Search,
   Send,
+  ShoppingBag,
   Store,
   type LucideIcon,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { useApp } from "@/context/app-context";
+import { useCart } from "@/context/cart-context";
+import { CartSheet } from "@/components/booking/cart-sheet";
+import { browserTz } from "@/lib/format";
 import { AvatarImg } from "@/components/avatar-img";
 import { useAuth } from "@/lib/auth";
 import { useUnreadCount } from "@/hooks/use-unread-count";
@@ -65,6 +69,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { user, ready, reload, activeProvider, singleBusiness, vertical } = useApp();
   const [retrying, setRetrying] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
 
   // AuthGate has already established a session, so a finished boot with no
   // profile means `/me` failed. Boot degrades each leg independently rather than
@@ -142,6 +147,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             <p className="truncate text-xs text-muted-foreground">{activeProvider.name}</p>
           ) : null}
         </div>
+        <div className="flex items-center gap-2">
+        <CartButton onOpen={() => setCartOpen(true)} />
         <Link
           href="/account/settings"
           className="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 hover:bg-muted"
@@ -155,6 +162,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           />
           <span className="max-w-[10rem] truncate text-sm">{user?.displayName ?? "Account"}</span>
         </Link>
+        </div>
       </header>
 
       {/* Mobile compact header */}
@@ -165,7 +173,14 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="ml-2 font-normal text-muted-foreground">{activeProvider.name}</span>
           ) : null}
         </span>
+        <div className="ml-auto">
+          <CartButton onOpen={() => setCartOpen(true)} />
+        </div>
       </header>
+
+      {/* `capabilities.cart` — one basket for the whole app, so it survives
+          moving between tabs while the customer picks the next thing. */}
+      <CartSheet open={cartOpen} onClose={() => setCartOpen(false)} tz={browserTz()} />
 
       <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-2 md:px-6 md:pb-10">
         {profileFailed ? (
@@ -232,6 +247,29 @@ function NavItem({ tab, active, badge = 0 }: { tab: Tab; active: boolean; badge?
       </span>
       {tab.label}
     </Link>
+  );
+}
+
+/** Basket entry point. Renders nothing where `capabilities.cart` is off, which
+ *  is every deployment that does not sell more than one thing at a time. */
+function CartButton({ onOpen }: { onOpen: () => void }) {
+  const { capability } = useApp();
+  const { items } = useCart();
+  if (!capability("cart")) return null;
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`Basket (${items.length})`}
+      className="relative grid size-9 place-items-center rounded-full hover:bg-muted"
+    >
+      <ShoppingBag className="size-5" aria-hidden />
+      {items.length ? (
+        <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[10px] font-semibold text-primary-foreground">
+          {items.length}
+        </span>
+      ) : null}
+    </button>
   );
 }
 

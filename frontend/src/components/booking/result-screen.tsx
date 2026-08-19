@@ -28,10 +28,17 @@ export function ResultScreen({
   // A `timing.confirmation: request_approve` pivot lands the booking as PENDING,
   // and this screen still said "You're booked" — the one moment the config has a
   // dedicated sentence for (`copy.requestPending`) was the moment it was wrong.
+  // A quote request is a pending booking with a different meaning, and the
+  // config has always carried its own sentence (`copy.quoteRequested`) — it was
+  // just never rendered, so a quote-model deployment said "request sent" where
+  // it meant "we'll price this and come back to you".
+  const byQuote = service.pricingModel === "quote" && service.capabilities.quotes !== false;
   const headline =
-    booking.status === "pending"
-      ? (copy.requestPending ?? "Your request has been sent")
-      : (copy.confirmTitle ?? "You're booked");
+    booking.status !== "pending"
+      ? (copy.confirmTitle ?? "You're booked")
+      : byQuote
+        ? (copy.quoteRequested ?? "Your quote request has been sent")
+        : (copy.requestPending ?? "Your request has been sent");
   return (
     <section className="flex flex-col items-center py-10 text-center">
       <div className="grid size-14 place-items-center rounded-full bg-primary/10 text-primary">

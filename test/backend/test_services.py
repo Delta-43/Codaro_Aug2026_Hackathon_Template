@@ -37,6 +37,18 @@ SERVICE_KEYS = {
     "recurrence",
     "waitlist",
     "resourceIds",
+    # The v2 offer-shape blocks. Every one was declared in the config, resolved
+    # per service, and served to nobody — so the client could not render (let
+    # alone collect) a party band, an add-on, a subject, a course or a payment
+    # schedule.
+    "unitKind",
+    "party",
+    "subject",
+    "options",
+    "sequence",
+    "paymentSchedule",
+    "locationModes",
+    "locationDefault",
 }
 
 

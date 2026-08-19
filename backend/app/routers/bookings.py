@@ -45,6 +45,9 @@ from app.rules import (
     blocking_prerequisites,
     payment_state,
     resolve_entitlement,
+    resolve_options,
+    resolve_party_bands,
+    resolve_subject,
     unmet_prerequisites,
     within_cutoff,
 )
@@ -68,6 +71,7 @@ _ENGINE_BOOKING_KEYS = (
     "party_size", "reference", "price_minor_units", "currency", "price_breakdown",
     "deposit_minor_units", "provider_id", "service_id", "resource_id", "user_id",
     "slot_ids", "change_history", "cancelled_at_utc",
+    "party_bands", "options", "subject",
 )
 
 # --- lookups ---------------------------------------------------------------
@@ -336,7 +340,13 @@ def _entitlement(db, user_id: str | None, service: dict | None) -> dict | None:
 _PATTERN_DELTAS = {"weekly": 7, "biweekly": 14}
 
 
-def _occurrence_starts(first_start, pattern: str, count: int) -> list:
+# The pseudo-pattern that means `booking.sequence` rather than
+# `recurrence.patterns`. Never a config value — the client names it to say "book
+# the whole course", and `_resolve_repeat` validates it against the block.
+SEQUENCE_PATTERN = "sequence"
+
+
+def _occurrence_starts(first_start, pattern: str, count: int, gap_hours: int = 0) -> list:
     """The start instants of a repeating series, first occurrence included.
 
     Weekly/biweekly step whole days, so they survive a DST change with the
@@ -350,7 +360,12 @@ def _occurrence_starts(first_start, pattern: str, count: int) -> list:
     """
     out = [first_start]
     for i in range(1, count):
-        if pattern in _PATTERN_DELTAS:
+        if pattern == SEQUENCE_PATTERN:
+            # `sequence.minGapHours` is the SMALLEST legal gap; using it as the
+            # step books the course as tightly as the config allows, which is
+            # what "session 2 is a week after session 1" means in practice.
+            out.append(first_start + timedelta(hours=max(1, gap_hours) * i))
+        elif pattern in _PATTERN_DELTAS:
             out.append(first_start + timedelta(days=_PATTERN_DELTAS[pattern] * i))
         else:  # monthly
             month = first_start.month - 1 + i
@@ -417,7 +432,8 @@ def _consume_credit(db, entitlement: dict | None, booking_id: str) -> None:
 
 
 def _price(service: dict | None, rows: list, party: int,
-           entitlement: dict | None = None) -> dict:
+           entitlement: dict | None = None, *, person_units: float | None = None,
+           addons: list | None = None, subject: dict | None = None) -> dict:
     """Quote a selection through the config-driven pricing engine.
 
     v1 computed `priceMinorUnits * len(rows) * party` inline here. The default
@@ -442,6 +458,13 @@ def _price(service: dict | None, rows: list, party: int,
             "now": now_utc(),
             "start_local": start.astimezone(tz) if start else None,
             "entitlement": entitlement,
+            # The three inputs `pricing.quote()` has always documented and never
+            # been given: a weighted head count from `party.composition`, the
+            # chosen `booking.options` as priced lines, and the `booking.subject`
+            # a `subjectField` tier matches on.
+            "person_units": person_units,
+            "addons": addons or [],
+            "subject": subject,
         },
     )
 
@@ -454,6 +477,25 @@ def _business_tz(service: dict | None):
         return ZoneInfo(name)
     except Exception:
         return timezone.utc
+
+
+def _booking_shape(payload, service: dict, party: int) -> tuple[float | None, dict | None, list, dict | None]:
+    """Resolve the request's party bands, options and subject against the config.
+
+    Quote and create both call this, for the same reason `_price` is shared: the
+    number on the confirm screen has to be the number charged, and an add-on the
+    quote priced must be an add-on the booking records. A violation is raised
+    before anything is written.
+    """
+    try:
+        person_units, bands = resolve_party_bands(
+            getattr(payload, "party_bands", None), party, service
+        )
+        addons = resolve_options(getattr(payload, "options", None), service)
+        subject = resolve_subject(getattr(payload, "subject", None), service)
+    except RuleViolation as e:
+        raise api_error(INVALID_RANGE, str(e))
+    return person_units, bands, addons, subject
 
 
 @router.post("/quote")
@@ -479,7 +521,12 @@ def quote_selection(payload: QuoteReq, user: AuthUser = Depends(require_user)):
     occ = _occ_by_id(db, payload.slot_ids)
     rows = _resolve_selection(rules, occ, payload.slot_ids, payload.resource_id, party, credit=set())
     ent = _entitlement(db, user.id, service)
-    return serialize_quote(_price(service, rows, party, ent), service, entitlement=ent)
+    person_units, _bands, addons, subject = _booking_shape(payload, service, party)
+    priced = _price(
+        service, rows, party, ent,
+        person_units=person_units, addons=addons, subject=subject,
+    )
+    return serialize_quote(priced, service, entitlement=ent)
 
 
 @router.post("")
@@ -507,7 +554,9 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
     try:
         apply_rules(
             "booking.create",
-            {"slot_starts_at": rows[0]["starts_at"]},
+            # The zone matters: `blackouts`/`seasons` are written as local dates,
+            # so a UTC comparison closes the wrong day either side of midnight.
+            {"slot_starts_at": rows[0]["starts_at"], "timezone": str(_business_tz(service))},
             # THIS service's resolved timing, not the global block. `timing` is in
             # OVERRIDABLE_BLOCKS and the write gate accepts a per-service
             # `leadTimeMinutes` — reading the global block here made this the one
@@ -527,12 +576,24 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
         [p["key"] for p in blocking_prerequisites(service) if p.get("key")]
         if capability("prerequisites", service) else []
     )
-    status = "confirmed" if auto_approve and not pending_prereqs else "pending"
+    # A quote-priced service cannot confirm on the spot either: the price does
+    # not exist yet. `pricing.model: "quote"` + `capabilities.quotes` shipped in
+    # v2 and gated nothing, so a quote request auto-confirmed at a total of zero
+    # — the customer held a booking the business had never priced.
+    by_quote = (
+        effective_service_pricing(service).get("model") == "quote"
+        and capability("quotes", service)
+    )
+    status = "confirmed" if auto_approve and not pending_prereqs and not by_quote else "pending"
     # Validated here, before anything is written: a repeat this service cannot
     # honour must not leave a committed first booking behind.
     repeat = _resolve_repeat(payload, service)
     entitlement = _entitlement(db, user.id, service)
-    priced = _price(service, rows, party, entitlement)
+    person_units, bands, addons, subject = _booking_shape(payload, service, party)
+    priced = _price(
+        service, rows, party, entitlement,
+        person_units=person_units, addons=addons, subject=subject,
+    )
 
     metadata = {
         # `metaFields.bookings` domain data (the shipped medical example declares
@@ -553,6 +614,13 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
         # cleared for one booking and not another.
         "prerequisites_met": [],
         "prerequisites_pending": pending_prereqs,
+        # What was chosen, kept beside what it cost. The breakdown above already
+        # carries the add-on lines; these are the SELECTIONS, so the booking can
+        # be re-rendered (and an owner can see which meal to cook) without
+        # reverse-engineering it from money.
+        "party_bands": bands,
+        "options": addons,
+        "subject": subject,
         "provider_id": service["provider_id"],
         "service_id": service["id"],
         "resource_id": payload.resource_id,
@@ -583,7 +651,7 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
     out["series"] = (
         None if repeat is None else _book_repeats(
             db, uc, user, payload, service, rows, party, booking["id"], metadata,
-            repeat, status,
+            repeat, status, (person_units, bands, addons, subject),
         )
     )
     return out
@@ -604,6 +672,17 @@ def _resolve_repeat(payload, service) -> tuple[str, int] | None:
     repeat = payload.repeat
     if repeat is None or int(repeat.count or 1) <= 1:
         return None
+    # `booking.sequence` — a course, a treatment plan, a multi-dose vaccination:
+    # N sessions spaced by a fixed gap, bought as one enrolment. It is a series
+    # with a different clock, so it rides the recurrence machinery rather than
+    # growing a parallel one; the only differences are where the ceiling comes
+    # from (`steps`) and how far apart the occurrences sit (`minGapHours`).
+    if repeat.pattern == SEQUENCE_PATTERN:
+        seq = (effective_service_config(service)["booking"] or {}).get("sequence") or {}
+        if not seq.get("enabled"):
+            raise api_error(INVALID_RANGE, "This service is not booked as a sequence.")
+        steps = max(1, int(seq.get("steps") or 1))
+        return SEQUENCE_PATTERN, max(1, min(int(repeat.count), steps))
     cfg = effective_service_config(service)["recurrence"]
     if not cfg.get("enabled") or not capability("recurrence", service):
         raise api_error(INVALID_RANGE, "This service cannot be booked as a repeating series.")
@@ -616,7 +695,8 @@ def _resolve_repeat(payload, service) -> tuple[str, int] | None:
 
 
 def _book_repeats(db, uc, user, payload, service, rows, party, first_id, first_md,
-                  resolved: tuple[str, int], status: str) -> dict | None:
+                  resolved: tuple[str, int], status: str,
+                  shape: tuple = (None, None, None, None)) -> dict | None:
     """Book the remaining occurrences of a repeating series.
 
     Returns `{id, pattern, bookedIds, skipped}` or None when the request asked
@@ -640,7 +720,12 @@ def _book_repeats(db, uc, user, payload, service, rows, party, first_id, first_m
     # `minSlotsPerBooking` on every occurrence of any multi-slot service.
     span = [_parse(r["starts_at"]) for r in rows]
     offsets = [(t - first_start) for t in span if t is not None]
-    occurrence_starts = _occurrence_starts(first_start, pattern, count)[1:]
+    seq_gap = int(
+        ((effective_service_config(service)["booking"] or {}).get("sequence") or {}).get(
+            "minGapHours"
+        ) or 0
+    )
+    occurrence_starts = _occurrence_starts(first_start, pattern, count, seq_gap)[1:]
     all_wanted = [o + d for o in occurrence_starts for d in offsets]
     found = _slots_at(db, payload.resource_id, all_wanted)
     rules = effective_service_rules(service)
@@ -669,14 +754,22 @@ def _book_repeats(db, uc, user, payload, service, rows, party, first_id, first_m
         # POST for the identical date would be refused, so one rule gave two
         # answers depending on which path reached it.
         try:
-            apply_rules("booking.create", {"slot_starts_at": occ_rows[0]["starts_at"]},
+            apply_rules("booking.create",
+                        {"slot_starts_at": occ_rows[0]["starts_at"],
+                         "timezone": str(_business_tz(service))},
                         effective_service_config(service)["timing"])
         except RuleViolation as exc:
             skipped.append({"startUtc": iso_utc(start_at), "reason": "INVALID_RANGE",
                             "detail": str(exc)})
             continue
         ent = _entitlement(db, user.id, service)
-        occ_priced = _price(service, occ_rows, party, ent)
+        # The SAME shape as the first occurrence. Pricing each later one as a
+        # bare selection charged a course's second session without the add-ons
+        # and without the child weighting the first one was quoted with.
+        occ_priced = _price(
+            service, occ_rows, party, ent,
+            person_units=shape[0], addons=shape[2], subject=shape[3],
+        )
         md = {
             **first_md,
             "reference": booking_reference(),

@@ -21,7 +21,7 @@ import { EmptyState } from "@/components/empty-state";
 import { Skeleton } from "@/components/skeleton";
 import { Button } from "@/components/ui/button";
 import { ResourcePicker } from "@/components/provider/resource-picker";
-import { formatDuration, formatMoney } from "@/lib/format";
+import { formatDuration, formatOffer, UNIT_KIND_LABELS } from "@/lib/format";
 import { distanceFromHome } from "@/lib/geo";
 import { cn } from "@/lib/utils";
 
@@ -43,7 +43,7 @@ export function ProviderProfile({
   showFollow?: boolean;
 }) {
   const vertical = useVertical();
-  const { selectService, selectResource, lockInProvider, capability } = useApp();
+  const { selectService, selectResource, lockInProvider, capability, facets } = useApp();
   const router = useRouter();
   const { isFollowing, busy, toggle } = useFollow(p);
   const [picker, setPicker] = useState<Service | null>(null);
@@ -201,7 +201,7 @@ export function ProviderProfile({
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="truncate font-medium">{service.name}</span>
                   <span className="shrink-0 text-sm font-medium">
-                    {formatMoney(service.priceMinorUnits, service.currency)}
+                    {formatOffer(service)}
                   </span>
                 </div>
                 <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">
@@ -213,6 +213,30 @@ export function ProviderProfile({
                     <>
                       <span aria-hidden>·</span>
                       <span>{spots} spots per session</span>
+                    </>
+                  ) : null}
+                  {/* `discovery.facets.unitKind` — a marketplace that mixes
+                      rooms, staff and equipment says which is which; one that
+                      sells a single kind says nothing, which is why it is a
+                      facet and not a permanent chip. */}
+                  {facets.unitKind && UNIT_KIND_LABELS[service.unitKind] ? (
+                    <>
+                      <span aria-hidden>·</span>
+                      <span>{UNIT_KIND_LABELS[service.unitKind]}</span>
+                    </>
+                  ) : null}
+                  {/* What the booking will additionally ask for or offer. Said
+                      here, before the customer commits to the flow. */}
+                  {service.options.length ? (
+                    <>
+                      <span aria-hidden>·</span>
+                      <span>Extras available</span>
+                    </>
+                  ) : null}
+                  {service.sequence.enabled && service.sequence.steps > 1 ? (
+                    <>
+                      <span aria-hidden>·</span>
+                      <span>{service.sequence.steps}-part course</span>
                     </>
                   ) : null}
                 </div>

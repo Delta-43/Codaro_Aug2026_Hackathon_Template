@@ -21,8 +21,19 @@ import { ownerBookingToCal } from "@/lib/owner-view";
 import { CreateBusiness } from "@/components/business/create-business";
 import type { VerticalConfig } from "@/config/verticals";
 import { browserTz, formatBookingWhen, formatMoney } from "@/lib/format";
+import type { TenancyTerms } from "@/api";
 
-function metricsOf(d: OwnerDashboard, vocab: VerticalConfig): Metric[] {
+/** `tenancy.commission` in the tile's words: what the platform takes, and what
+ *  is left. Declared since v2 and shown on no owner screen, so a marketplace
+ *  taking 12% looked to its tenants exactly like one taking nothing. */
+function commissionSub(rev: { minorUnits: number; currency: string }, terms: TenancyTerms) {
+  if (!terms.commission.enabled || !terms.commission.rateBps) return null;
+  const rate = terms.commission.rateBps / 100;
+  const net = Math.round(rev.minorUnits * (1 - terms.commission.rateBps / 10000));
+  return `${formatMoney(net, rev.currency)} after ${rate}% commission`;
+}
+
+function metricsOf(d: OwnerDashboard, vocab: VerticalConfig, terms: TenancyTerms): Metric[] {
   const { upcomingBookings: up, clientSatisfaction: sat, revenue: rev } = d.glance;
   const breakdown = up.byService.slice(0, 3).map((s) => s.count).join(" · ");
   const otherCurrencies = rev.byCurrency.slice(1).map((c) => c.currency);
@@ -47,15 +58,21 @@ function metricsOf(d: OwnerDashboard, vocab: VerticalConfig): Metric[] {
       key: "revenue",
       label: "Revenue this month",
       value: formatMoney(rev.minorUnits, rev.currency),
-      sub: otherCurrencies.length ? `+ ${otherCurrencies.join(", ")}` : "confirmed this cycle",
+      sub:
+        commissionSub(rev, terms) ??
+        (otherCurrencies.length ? `+ ${otherCurrencies.join(", ")}` : "confirmed this cycle"),
       tone: "up",
-      help: `Value of confirmed bookings for ${rev.period}${otherCurrencies.length ? `, shown in your top currency (you also earn in ${otherCurrencies.join(", ")})` : ""}, before fees.`,
+      help: `Value of confirmed bookings for ${rev.period}${otherCurrencies.length ? `, shown in your top currency (you also earn in ${otherCurrencies.join(", ")})` : ""}, gross.${
+        terms.commission.enabled && terms.commission.rateBps
+          ? ` This marketplace charges ${terms.commission.rateBps / 100}% commission, on ${terms.commission.chargedOn}.`
+          : ""
+      }`,
     },
   ];
 }
 
 export default function DashboardPage() {
-  const { ready, activeProvider, scene, vocab } = useOwner();
+  const { ready, activeProvider, scene, vocab, tenancyTerms } = useOwner();
   const tz = browserTz();
   const [data, setData] = useState<OwnerDashboard | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,7 +88,10 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const metrics = useMemo(() => (data ? metricsOf(data, vocab) : []), [data, vocab]);
+  const metrics = useMemo(
+    () => (data ? metricsOf(data, vocab, tenancyTerms) : []),
+    [data, vocab, tenancyTerms],
+  );
   const week = useMemo(() => (data?.weekBookings ?? []).map((b) => ownerBookingToCal(b)), [data]);
 
   if (!ready || loading) {
@@ -106,6 +126,24 @@ export default function DashboardPage() {
           </p>
         </div>
       </div>
+
+      {/* `tenancy.tenantVerification` — what this marketplace requires of a
+          business before it trades. Declared in the config since v2 and shown
+          nowhere, so an owner could not find out what was being asked of them.
+          Informational: the engine does not yet gate trading on it, and saying
+          so is better than implying a check that does not run. */}
+      {tenancyTerms.verification.required ? (
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-sm font-semibold">Verification required to trade here</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {tenancyTerms.verification.credentials.length
+              ? `Hold and keep current: ${tenancyTerms.verification.credentials
+                  .map((c) => c.replace(/_/g, " "))
+                  .join(", ")}.`
+              : "This marketplace verifies its businesses before they trade."}
+          </p>
+        </div>
+      ) : null}
 
       {/* Glanceable numbers */}
       {metrics.length ? (

@@ -53,6 +53,21 @@ class QuoteReq(CamelModel):
     resource_id: str
     slot_ids: list[str]
     party_size: int = 1
+    # The three v2 `booking` blocks that had no input path until now. All
+    # optional: a deployment declaring none sends none and prices exactly as
+    # before.
+    #
+    # party_bands  {bandKey: count} for `booking.party.composition` — priced as a
+    #              weighted head count, and must add up to party_size.
+    # options      {optionKey: true | "choiceKey"} for `booking.options` — paid
+    #              add-ons, resolved to breakdown lines server-side so the client
+    #              can never name its own price.
+    # subject      the pet/vehicle/child the booking is about
+    #              (`booking.subject.fields`), validated against the declared
+    #              fields; a missing required one is a rejection.
+    party_bands: dict[str, int] | None = None
+    options: dict[str, object] | None = None
+    subject: dict | None = None
 
 
 class BookingCreateReq(CamelModel):
@@ -63,6 +78,21 @@ class BookingCreateReq(CamelModel):
     resource_id: str
     slot_ids: list[str]
     party_size: int = 1
+    # The three v2 `booking` blocks that had no input path until now. All
+    # optional: a deployment declaring none sends none and prices exactly as
+    # before.
+    #
+    # party_bands  {bandKey: count} for `booking.party.composition` — priced as a
+    #              weighted head count, and must add up to party_size.
+    # options      {optionKey: true | "choiceKey"} for `booking.options` — paid
+    #              add-ons, resolved to breakdown lines server-side so the client
+    #              can never name its own price.
+    # subject      the pet/vehicle/child the booking is about
+    #              (`booking.subject.fields`), validated against the declared
+    #              fields; a missing required one is a rejection.
+    party_bands: dict[str, int] | None = None
+    options: dict[str, object] | None = None
+    subject: dict | None = None
     # Optional repeat. Absent (the default) books exactly the selection, which
     # is what every non-recurring deployment does.
     repeat: RepeatReq | None = None

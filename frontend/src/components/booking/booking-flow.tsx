@@ -16,6 +16,7 @@ import { CalendarView } from "@/components/calendar/calendar-view";
 import { ConfirmScreen } from "@/components/booking/confirm-screen";
 import { ResultScreen } from "@/components/booking/result-screen";
 import { SelectionBar } from "@/components/booking/selection-bar";
+import { pruneValues, type FieldValues } from "@/components/booking/field-form";
 import { ms } from "@/lib/format";
 import { validateSpan } from "@/lib/slot-span";
 
@@ -42,12 +43,26 @@ export function BookingFlow({
   // Repeat count, 1 = no repeat. Only offered where the config enables
   // `recurrence` AND the capability is on; every other deployment never sees it.
   const [repeatCount, setRepeatCount] = useState(1);
-  // The engine accepts one pattern per series; offering the first declared one
-  // keeps the control a single stepper rather than a pattern picker nobody asked
-  // for. A config listing several still books the first.
-  const repeatPattern = service.recurrence.enabled
-    ? (service.recurrence.patterns[0] ?? null)
-    : null;
+  // The engine accepts one pattern per series, but the config may declare
+  // several. Defaulting to the first and letting the customer change it is what
+  // makes `recurrence.patterns[1..]` reachable at all — they used to be dead.
+  const patterns = service.recurrence.enabled ? service.recurrence.patterns : [];
+  const [repeatPattern, setRepeatPattern] = useState<string | null>(null);
+  const pattern = repeatPattern ?? patterns[0] ?? null;
+
+  // What the config additionally asks for, and the customer answers:
+  // `party.composition` bands, `booking.options`, `booking.subject` and
+  // `metaFields.bookings`. Every one is empty on a deployment that declares
+  // none, which is the pre-v2 behaviour exactly.
+  const bands = service.party.composition;
+  const [partyBands, setPartyBands] = useState<Record<string, number>>({});
+  const [options, setOptions] = useState<Record<string, string | boolean>>({});
+  const [subject, setSubject] = useState<FieldValues>({});
+  const [metaValues, setMetaValues] = useState<FieldValues>({});
+  // `booking.sequence` — the customer buys the course, not the first session.
+  // Defaults ON where the config declares one: a sequence service that sold a
+  // single session would be mis-sold, which is why the block exists.
+  const [bookSequence, setBookSequence] = useState(true);
   const [rangeError, setRangeError] = useState<string | null>(null);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [banner, setBanner] = useState<string | null>(null);
@@ -64,6 +79,17 @@ export function BookingFlow({
     setStart(null);
     setRangeError(null);
     setPartySize(1);
+    setPartyBands({});
+    setOptions({});
+    setSubject({});
+    setMetaValues({});
+  }
+
+  /** Party bands and party size are two views of one number, and the server
+   *  rejects them when they disagree — so the bands drive the size. */
+  function changeBands(next: Record<string, number>) {
+    setPartyBands(next);
+    setPartySize(Math.max(1, Object.values(next).reduce((sum, n) => sum + n, 0)));
   }
 
   async function handleSelect(slot: Slot) {
@@ -71,6 +97,9 @@ export function BookingFlow({
     if (!isRange) {
       setSlots([slot]);
       setPartySize(1);
+      // Seed one head in the first band, so a composition deployment opens on a
+      // party of one rather than zero (which the server rejects).
+      if (bands.length) setPartyBands({ [bands[0].key]: 1 });
       setConfirmError(null);
       setPhase("confirm");
       return;
@@ -116,10 +145,20 @@ export function BookingFlow({
         resourceId: slots[0].resourceId,
         slotIds: slots.map((s) => s.id),
         partySize,
+        // Only sent where the config declares the block, so a deployment
+        // without it posts the same body it always did.
+        partyBands: bands.length ? partyBands : undefined,
+        options: Object.keys(options).length ? options : undefined,
+        subject: service.subject.enabled ? pruneValues(subject) : undefined,
+        metadata: Object.keys(metaValues).length ? pruneValues(metaValues) : undefined,
+        // A service is a sequence OR a repeatable one-off; the sequence wins
+        // because it describes what is being SOLD, not how often it recurs.
         repeat:
-          repeatCount > 1 && repeatPattern
-            ? { pattern: repeatPattern, count: repeatCount }
-            : undefined,
+          service.sequence.enabled && service.sequence.steps > 1 && bookSequence
+            ? { pattern: "sequence", count: service.sequence.steps }
+            : repeatCount > 1 && pattern
+              ? { pattern, count: repeatCount }
+              : undefined,
       });
       setBooking(b);
       setPhase("result");
@@ -176,9 +215,21 @@ export function BookingFlow({
         vertical={vertical}
         partySize={partySize}
         onPartyChange={setPartySize}
-        repeatPattern={repeatPattern}
+        partyBands={partyBands}
+        onPartyBandsChange={changeBands}
+        options={options}
+        onOptionsChange={setOptions}
+        subject={subject}
+        onSubjectChange={setSubject}
+        metaValues={metaValues}
+        onMetaChange={setMetaValues}
+        repeatPattern={pattern}
+        repeatPatterns={patterns}
+        onRepeatPatternChange={setRepeatPattern}
         repeatCount={repeatCount}
         onRepeatChange={setRepeatCount}
+        bookSequence={bookSequence}
+        onBookSequenceChange={setBookSequence}
         busy={busy}
         error={confirmError}
         onConfirm={confirm}
@@ -226,6 +277,11 @@ export function BookingFlow({
           error={rangeError}
           onContinue={() => {
             setConfirmError(null);
+            // Same seeding as the single-slot path: a composition deployment
+            // must open the confirm screen on a party of one, not of none.
+            if (bands.length && !Object.keys(partyBands).length) {
+              changeBands({ [bands[0].key]: 1 });
+            }
             setPhase("confirm");
           }}
           onClear={resetSelection}
