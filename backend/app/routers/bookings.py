@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException
 import logging
 
 from app.auth import AuthUser, enforce_rls_write, require_owner, require_user
-from app.db import get_supabase, get_user_client, maybe_row
+from app.db import fetch_all, get_supabase, get_user_client, maybe_row
 from app.errors import (
     CAPACITY_EXCEEDED,
     CUTOFF_PASSED,
@@ -371,11 +371,13 @@ def _slots_at(db, resource_id: str, starts: list) -> dict:
     if not starts:
         return {}
     lo, hi = min(starts), max(starts)
-    rows = (
+    # Paged: a year-long series on a 30-minute resource spans thousands of
+    # slots, and PostgREST's silent 1000-row cap would drop every occurrence
+    # past the first page — reported to the customer as NO_SLOT for slots that
+    # exist and are bookable.
+    rows = fetch_all(
         db.table("slots").select("*").eq("resource_id", resource_id)
         .gte("starts_at", iso_utc(lo)).lte("starts_at", iso_utc(hi))
-        .execute().data
-        or []
     )
     by_instant = {}
     for row in rows:
@@ -526,6 +528,9 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
         if capability("prerequisites", service) else []
     )
     status = "confirmed" if auto_approve and not pending_prereqs else "pending"
+    # Validated here, before anything is written: a repeat this service cannot
+    # honour must not leave a committed first booking behind.
+    repeat = _resolve_repeat(payload, service)
     entitlement = _entitlement(db, user.id, service)
     priced = _price(service, rows, party, entitlement)
 
@@ -575,13 +580,43 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
         booking, slot_ids=ordered, start_utc=start, end_utc=end, review=None,
         service=service, **_names_for(db, metadata)
     )
-    out["series"] = _book_repeats(
-        db, uc, user, payload, service, rows, party, booking["id"], metadata,
+    out["series"] = (
+        None if repeat is None else _book_repeats(
+            db, uc, user, payload, service, rows, party, booking["id"], metadata,
+            repeat, status,
+        )
     )
     return out
 
 
-def _book_repeats(db, uc, user, payload, service, rows, party, first_id, first_md) -> dict | None:
+def _resolve_repeat(payload, service) -> tuple[str, int] | None:
+    """Validate the repeat request and resolve its pattern + count.
+
+    Runs BEFORE the first booking is written. These checks used to live inside
+    `_book_repeats`, which is called after the first occurrence is already
+    inserted — so an unsupported pattern returned 400 with a real booking
+    committed and holding capacity, and a client that retried on the error
+    produced a second one.
+
+    Returns None when no repeat was asked for. Raises ApiError on a repeat this
+    service cannot honour, which is now a clean rejection with nothing written.
+    """
+    repeat = payload.repeat
+    if repeat is None or int(repeat.count or 1) <= 1:
+        return None
+    cfg = effective_service_config(service)["recurrence"]
+    if not cfg.get("enabled") or not capability("recurrence", service):
+        raise api_error(INVALID_RANGE, "This service cannot be booked as a repeating series.")
+    if repeat.pattern not in (cfg.get("patterns") or []):
+        allowed = ", ".join(cfg.get("patterns") or []) or "none"
+        raise api_error(INVALID_RANGE, f"Unsupported repeat pattern. Allowed: {allowed}.")
+    # The config's ceiling wins over whatever the client asked for.
+    limit = int(cfg.get("maxOccurrences") or 1)
+    return repeat.pattern, max(1, min(int(repeat.count), limit))
+
+
+def _book_repeats(db, uc, user, payload, service, rows, party, first_id, first_md,
+                  resolved: tuple[str, int], status: str) -> dict | None:
     """Book the remaining occurrences of a repeating series.
 
     Returns `{id, pattern, bookedIds, skipped}` or None when the request asked
@@ -594,19 +629,7 @@ def _book_repeats(db, uc, user, payload, service, rows, party, first_id, first_m
     series that quietly books 3 of 12 while the customer believes they have 12
     is the worst outcome here, so the caller gets both lists back.
     """
-    repeat = payload.repeat
-    if repeat is None or int(repeat.count or 1) <= 1:
-        return None
-    cfg = effective_service_config(service)["recurrence"]
-    if not cfg.get("enabled") or not capability("recurrence", service):
-        raise api_error(INVALID_RANGE, "This service cannot be booked as a repeating series.")
-    if repeat.pattern not in (cfg.get("patterns") or []):
-        allowed = ", ".join(cfg.get("patterns") or []) or "none"
-        raise api_error(INVALID_RANGE, f"Unsupported repeat pattern. Allowed: {allowed}.")
-
-    # The config's ceiling wins over whatever the client asked for.
-    limit = int(cfg.get("maxOccurrences") or 1)
-    count = max(1, min(int(repeat.count), limit))
+    pattern, count = resolved
     first_start = _parse(rows[0]["starts_at"])
     if first_start is None:
         return None
@@ -617,7 +640,7 @@ def _book_repeats(db, uc, user, payload, service, rows, party, first_id, first_m
     # `minSlotsPerBooking` on every occurrence of any multi-slot service.
     span = [_parse(r["starts_at"]) for r in rows]
     offsets = [(t - first_start) for t in span if t is not None]
-    occurrence_starts = _occurrence_starts(first_start, repeat.pattern, count)[1:]
+    occurrence_starts = _occurrence_starts(first_start, pattern, count)[1:]
     all_wanted = [o + d for o in occurrence_starts for d in offsets]
     found = _slots_at(db, payload.resource_id, all_wanted)
     rules = effective_service_rules(service)
@@ -641,6 +664,17 @@ def _book_repeats(db, uc, user, payload, service, rows, party, first_id, first_m
                             "reason": detail.get("code") or "UNAVAILABLE"})
             continue
         slot_ids = [r["slot_id"] for r in occ_rows]  # canonical start order
+        # The same gates the first occurrence passed. Skipping them let a series
+        # book past `advanceBookingWindowDays` / `leadTimeMinutes` that a direct
+        # POST for the identical date would be refused, so one rule gave two
+        # answers depending on which path reached it.
+        try:
+            apply_rules("booking.create", {"slot_starts_at": occ_rows[0]["starts_at"]},
+                        effective_service_config(service)["timing"])
+        except RuleViolation as exc:
+            skipped.append({"startUtc": iso_utc(start_at), "reason": "INVALID_RANGE",
+                            "detail": str(exc)})
+            continue
         ent = _entitlement(db, user.id, service)
         occ_priced = _price(service, occ_rows, party, ent)
         md = {
@@ -654,7 +688,6 @@ def _book_repeats(db, uc, user, payload, service, rows, party, first_id, first_m
             "slot_ids": slot_ids,
             "series_id": series_id,
         }
-        status = "confirmed" if effective_auto_approve(service) else "pending"
         made = uc.table("bookings").insert({
             "slot_id": slot_ids[0],
             "client_email": user.email,
@@ -672,7 +705,7 @@ def _book_repeats(db, uc, user, payload, service, rows, party, first_id, first_m
 
     return {
         "id": series_id,
-        "pattern": repeat.pattern,
+        "pattern": pattern,
         "requested": count,
         "bookedIds": [first_id] + booked,
         "skipped": skipped,
@@ -779,10 +812,16 @@ def cancel_booking(booking_id: str, user: AuthUser = Depends(require_user)):
     updated = enforce_rls_write(updated, entity="booking")
     # A cancellation is the moment a seat frees. Hand it to the head of the
     # queue if the config asks for that (`timing.waitlist.autoPromote`).
-    promote_from_waitlist(db, cur_ids, _load_service(db, md.get("service_id")))
+    # `maybe_row`, not `_load_service`: the cancellation has already committed by
+    # this point, and a service deleted out from under an old booking would make
+    # `_load_service` raise 404 for an operation that in fact succeeded — the
+    # client shows a failure and the customer retries a cancel that already
+    # happened.
+    service = maybe_row(db.table("services").select("*").eq("id", md.get("service_id")))
+    promote_from_waitlist(db, cur_ids, service)
     return serialize_booking(
         updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end, review=None,
-        **_names_for(db, md),
+        service=service, **_names_for(db, md),
     )
 
 

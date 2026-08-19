@@ -195,7 +195,7 @@ def _book_for_entry(db, entry: dict, slot_id: str) -> dict | None:
     # Imported here: `bookings` imports this module for `promote_from_waitlist`,
     # so a module-level import in the other direction would be circular.
     from app.references import booking_reference
-    from app.routers.bookings import _load_service, _price
+    from app.routers.bookings import _consume_credit, _entitlement, _load_service, _price
     from app.serialize import iso_utc as _iso
 
     service = _load_service(db, entry["service_id"]) if entry.get("service_id") else None
@@ -215,8 +215,12 @@ def _book_for_entry(db, entry: dict, slot_id: str) -> dict | None:
         return None
 
     party = int(entry.get("party_size") or 1)
+    # Priced with the customer's entitlement, exactly as a direct booking would
+    # be. Without it, reaching a seat through the queue cost more than booking
+    # it yourself, and a pass-type plan spent no credit.
+    ent = _entitlement(db, entry["user_id"], service)
     priced = _price(service, [{"starts_at": slot["starts_at"], "ends_at": slot["ends_at"],
-                               "slot_id": slot_id}], party)
+                               "slot_id": slot_id}], party, ent)
     now = now_utc()
     rows = db.table("bookings").insert({
         "slot_id": slot_id,
@@ -231,6 +235,8 @@ def _book_for_entry(db, entry: dict, slot_id: str) -> dict | None:
             "currency": priced["currency"],
             "price_breakdown": priced["breakdown"],
             "deposit_minor_units": priced["depositMinorUnits"],
+            "entitlement_key": (ent or {}).get("key"),
+            "entitlement_id": ((ent or {}).get("row") or {}).get("id"),
             "provider_id": service["provider_id"],
             "service_id": service["id"],
             "resource_id": entry.get("resource_id") or slot.get("resource_id"),
@@ -245,4 +251,5 @@ def _book_for_entry(db, entry: dict, slot_id: str) -> dict | None:
     db.table("booking_slots").insert(
         [{"booking_id": rows[0]["id"], "slot_id": slot_id}]
     ).execute()
+    _consume_credit(db, ent, rows[0]["id"])
     return rows[0]
