@@ -37,7 +37,9 @@ export function Footer() {
           {/* Bar — brand + pitch on the left, link columns on the right */}
           <div className="flex flex-col gap-10 sm:flex-row sm:items-start sm:justify-between">
             <div className="max-w-xs">
-              <ScrollTopLink className="inline-block origin-left text-lg font-bold tracking-tight text-primary transition-transform duration-200 ease-out hover:scale-110">
+              <ScrollTopLink className="inline-flex origin-left items-center gap-1.5 text-lg font-bold tracking-tight text-primary transition-transform duration-200 ease-out hover:scale-110">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-7 -translate-y-[9%]" />
                 Arbor
               </ScrollTopLink>
               <p className="mt-3 text-sm leading-relaxed text-foreground/70">

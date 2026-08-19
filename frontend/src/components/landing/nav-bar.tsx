@@ -77,7 +77,9 @@ export function NavBar() {
       <div className="flex w-full max-w-3xl items-center gap-2 rounded-3xl border border-border/60 bg-background/70 px-4 py-2 shadow-sm backdrop-blur-xl">
         {/* Far left — the platform name; clicking it glides back to the top of
             the landing page, like the section links scroll to their anchors. */}
-        <ScrollTopLink className="shrink-0 origin-left text-base font-bold tracking-tight text-primary transition-transform duration-200 ease-out hover:scale-110">
+        <ScrollTopLink className="flex shrink-0 origin-left items-center gap-1.5 text-base font-bold tracking-tight text-primary transition-transform duration-200 ease-out hover:scale-110">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-6 -translate-y-[9%]" />
           Arbor
         </ScrollTopLink>
 

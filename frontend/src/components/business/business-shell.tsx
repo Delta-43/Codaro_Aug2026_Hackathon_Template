@@ -51,7 +51,9 @@ function isActive(pathname: string, href: string): boolean {
 
 function Wordmark() {
   return (
-    <span className="text-lg font-semibold tracking-tight">
+    <span className="inline-flex items-center gap-1.5 text-lg font-semibold tracking-tight">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-6 -translate-y-[9%]" />
       <span className="text-primary">Arbor</span>
       <span className="ml-2 rounded-full bg-amber-400/15 px-2 py-0.5 align-middle text-xs font-medium text-amber-600 dark:text-amber-400">
         Business
