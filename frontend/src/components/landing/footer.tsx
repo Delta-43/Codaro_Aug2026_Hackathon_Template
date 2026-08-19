@@ -30,8 +30,6 @@ const COL_HEAD = "text-xs font-semibold uppercase tracking-wide text-foreground/
 export function Footer({ authed }: { authed: boolean }) {
   const year = new Date().getFullYear();
   return (
-    <footer className="pb-8 pt-2 text-center">
-      <p className="text-sm font-medium text-primary">© {new Date().getFullYear()} Arbor</p>
     <footer className="flex min-h-[80vh] snap-start snap-always flex-col justify-end">
       {/* The bar */}
       <div className="mx-auto w-full max-w-5xl px-4">
