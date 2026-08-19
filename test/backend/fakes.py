@@ -49,6 +49,22 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _column_value(row: dict, column: str) -> Any:
+    """Resolve a filter column to the row's value.
+
+    Real PostgREST accepts jsonb arrow paths as filter columns (e.g.
+    ``.in_("metadata->>provider_id", ids)``): ``->>`` extracts the value as
+    text. Our stored jsonb values are already strings/uuids, so direct
+    equality against the extracted value matches the live behaviour.
+    """
+    if "->" in column:
+        value: Any = row
+        for key in column.replace("->>", "->").split("->"):
+            value = value.get(key) if isinstance(value, dict) else None
+        return value
+    return row.get(column)
+
+
 # Column defaults per supabase/schema.sql.
 TABLE_DEFAULTS: dict[str, dict[str, Any]] = {
     "resources": {"description": None, "metadata": {}},
@@ -236,7 +252,7 @@ class _Query:
     # -- internals ---------------------------------------------------
     def _matches(self, row: dict) -> bool:
         for kind, column, value in self._filters:
-            actual = row.get(column)
+            actual = _column_value(row, column)
             if kind == "eq" and actual != value:
                 return False
             if kind == "neq" and actual == value:

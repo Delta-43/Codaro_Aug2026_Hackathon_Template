@@ -1125,16 +1125,29 @@ def test_owner_reschedules_own_providers_booking_inside_the_cutoff(client, db, a
     assert resp.json()["slotIds"] == [new["id"]]
 
 
-def test_an_owner_moving_their_own_booking_acts_as_a_client(client, db, auth):
-    """The waiver is for managing OTHER people's bookings on your own business.
-    An owner cancelling a booking they made as a customer hits the cutoff."""
-    auth(role="owner")
-    cat = make_catalog(db, cancellation_cutoff_hours=24)
+def test_an_owner_booking_on_anothers_business_acts_as_a_client(client, db, auth):
+    """Owner powers hinge on owning the booking's PROVIDER, not on the role bit.
+    An owner cancelling a booking they made as a customer of somebody else's
+    business hits the cutoff like any client."""
+    auth(role="owner")  # DEFAULT_OWNER_ID, but the catalog below isn't theirs
+    cat = make_catalog(db, cancellation_cutoff_hours=24, owner_id=OTHER_OWNER_ID)
     slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=2)
     booking = make_booking(db, slots=[slot], service=cat["service"], user_id=DEFAULT_OWNER_ID)
     resp = client.post(f"/bookings/{booking['id']}/cancel")
     assert resp.status_code == 409
     assert _detail_code(resp) == "CUTOFF_PASSED"
+
+
+def test_owner_cancels_their_own_walk_in_booking_inside_the_cutoff(client, db, auth):
+    """A booking the owner recorded under their OWN account on their OWN
+    provider (walk-in/phone entry) gets the owner cutoff waiver."""
+    auth(role="owner")  # DEFAULT_OWNER_ID owns the catalog provider
+    cat = make_catalog(db, cancellation_cutoff_hours=24)
+    slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=2)
+    booking = make_booking(db, slots=[slot], service=cat["service"], user_id=DEFAULT_OWNER_ID)
+    resp = client.post(f"/bookings/{booking['id']}/cancel")
+    assert resp.status_code == 200
+    assert db.get_row("bookings", booking["id"])["status"] == "cancelled"
 
 
 # ---------------------------------------------------------------------------

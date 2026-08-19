@@ -101,6 +101,14 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    const applyPivot = (p: typeof FALLBACK_PIVOT_CONFIG) => {
+      setCapabilities(p.capabilities);
+      setTerms(p.terms);
+      setCopy(p.copy);
+      setTenancyTerms(p.tenancyTerms);
+      setMetaFields(p.metaFields);
+      setCurrency(p.currency);
+    };
     (async () => {
       const [list, v, pivot] = await Promise.all([
         getMyProviders().catch(() => [] as Provider[]),
@@ -112,12 +120,20 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       setProviders(list);
       setVertical(v);
-      setCapabilities(pivot.capabilities);
-      setTerms(pivot.terms);
-      setCopy(pivot.copy);
-      setTenancyTerms(pivot.tenancyTerms);
-      setMetaFields(pivot.metaFields);
-      setCurrency(pivot.currency);
+      applyPivot(pivot);
+      if (pivot === FALLBACK_PIVOT_CONFIG) {
+        // A transient boot blip must not pin the fallback (and its EUR
+        // currency) for the whole session — a first offer created from the
+        // fallback would be persisted in the wrong currency. One delayed
+        // retry; the backend stays the authority either way.
+        setTimeout(() => {
+          getPivotConfig()
+            .then((p) => {
+              if (!cancelled) applyPivot(p);
+            })
+            .catch(() => {});
+        }, 5000);
+      }
       const stored = typeof window !== "undefined" ? localStorage.getItem(PID_KEY) : null;
       setPid(list.find((p) => p.id === stored)?.id ?? list[0]?.id ?? null);
       setReady(true);

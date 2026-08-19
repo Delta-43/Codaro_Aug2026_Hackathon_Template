@@ -104,8 +104,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
       // The same slots twice is a mistake, not two bookings: the second would
       // be refused by the server for capacity it is itself holding. But a
       // re-add IS a changed intent (new party size / options), so it replaces
-      // the stored item rather than being silently ignored.
+      // the stored item rather than being silently ignored — EXCEPT while a
+      // checkout is running: the stored intent is being booked as-is, and a
+      // same-key replacement would be booked from the stale snapshot and then
+      // silently purged by the reconcile. It no-ops instead.
       const slotKey = item.slotIds.join(",");
+      const existing = prev.some((i) => i.slotIds.join(",") === slotKey);
+      if (existing && checkingOut.current) return prev;
       const rest = prev.filter((i) => i.slotIds.join(",") !== slotKey);
       return [...rest, { ...item, key: `${item.serviceId}:${slotKey}` }];
     });
@@ -128,8 +133,10 @@ export function CartProvider({ children }: { children: ReactNode }) {
       // Sequential, not parallel: two items competing for the last place in the
       // same slot must lose one and keep one, and the server decides which.
       for (const item of itemsRef.current) {
-        // Removed from the basket while earlier items were booking — honor it.
-        if (!itemsRef.current.some((i) => i.key === item.key)) continue;
+        // Removed (or replaced) while earlier items were booking — honor it.
+        // Identity, not key: a same-key replacement is a different object and
+        // must not cause this stale snapshot's params to be booked.
+        if (!itemsRef.current.includes(item)) continue;
         try {
           booked.push(
             await createBooking({

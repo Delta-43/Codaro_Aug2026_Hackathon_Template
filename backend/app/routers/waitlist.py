@@ -12,12 +12,13 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth import AuthUser, enforce_rls_write, require_user
 from app.clock import now_utc
 from app.db import get_supabase, get_user_client, maybe_row
 from app.errors import INVALID_RANGE, NOT_FOUND, api_error
+from app.meta import validate_metadata
 from app.rules import capability, effective_service_config, parse_ts
 from app.serialize import iso_utc
 
@@ -57,7 +58,7 @@ def serialize_entry(row: dict, *, ahead: int | None = None) -> dict:
 
 
 @router.post("/{slot_id}/waitlist")
-def join_waitlist(slot_id: str, user: AuthUser = Depends(require_user)):
+def join_waitlist(slot_id: str, party_size: int = 1, user: AuthUser = Depends(require_user)):
     """Take a place in the queue for a full slot.
 
     Refuses when the slot still has room — a waitlist for something bookable is
@@ -81,6 +82,14 @@ def join_waitlist(slot_id: str, user: AuthUser = Depends(require_user)):
     starts_at = parse_ts(slot.get("starts_at"))
     if starts_at and starts_at <= now_utc():
         raise api_error(INVALID_RANGE, "That time has already started.")
+
+    # The queue holds the party the customer actually has: promotion prices
+    # and capacity-checks with this number, so a family of 4 must not be
+    # booked (and charged) as a party of 1.
+    if party_size < 1:
+        raise api_error(INVALID_RANGE, "Party size must be at least 1.")
+    if party_size > int(slot.get("capacity") or 1):
+        raise api_error(INVALID_RANGE, "Party size exceeds the capacity for that time.")
 
     occ = maybe_row(db.table("slot_occupancy").select("*").eq("slot_id", slot_id))
     remaining = int((occ or {}).get("available_count") or 0)
@@ -108,7 +117,7 @@ def join_waitlist(slot_id: str, user: AuthUser = Depends(require_user)):
         "user_id": user.id,
         "service_id": service_id,
         "resource_id": slot.get("resource_id"),
-        "party_size": 1,
+        "party_size": party_size,
         "position": position,
     }).execute().data
     inserted = enforce_rls_write(inserted, entity="waitlist entry")
@@ -208,6 +217,20 @@ def _book_for_entry(db, entry: dict, slot_id: str) -> dict | None:
     service = _load_service(db, entry["service_id"]) if entry.get("service_id") else None
     slot = maybe_row(db.table("slots").select("*").eq("id", slot_id))
     if service is None or slot is None:
+        return None
+    # Mirror the join guard: a mid-slot cancel (started but not ended) must not
+    # mint a pending booking for a start time already past — approve's
+    # _resolve_selection would permanently refuse it once the slot ends.
+    starts_at = parse_ts(slot.get("starts_at"))
+    if starts_at and starts_at <= now_utc():
+        return None
+    # A promotion carries no customer-supplied metadata; on a deployment whose
+    # `metaFields.bookings` REQUIRES a field, the minted booking would violate
+    # the schema the direct-create path 422s on — skip promotion instead.
+    try:
+        validate_metadata("bookings", {})
+    except HTTPException:
+        logger.info("Waitlist promotion skipped: deployment requires booking metadata fields")
         return None
     # `bookings.client_email` is NOT NULL and the waitlist row cannot carry it:
     # the table is new but already created, and the schema is append-only

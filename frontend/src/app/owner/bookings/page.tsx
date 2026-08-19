@@ -78,8 +78,15 @@ export default function BookingsPage() {
     }
   }
 
+  // Keyed on the id, not the object: refreshProviders/replaceProvider mint
+  // new same-id objects that must not refire a full refetch.
+  const activeProviderId = activeProvider?.id ?? null;
   useEffect(() => {
     let cancel = false;
+    // Back to the skeleton while switching businesses — without this the
+    // previous provider's bookings render under the new provider's header
+    // for the whole refetch round-trip.
+    setLoading(true);
     Promise.all([
       getOwnerCalendar().catch(() => [] as OwnerBooking[]),
       getOwnerServices().catch(() => [] as OwnerServiceSummary[]),
@@ -87,7 +94,7 @@ export default function BookingsPage() {
       if (cancel) return;
       // The owner endpoints return every business the owner has; scope the
       // calendar to the selected provider like the Services tab does.
-      setRaw(activeProvider ? bookings.filter((b) => b.providerId === activeProvider.id) : bookings);
+      setRaw(activeProviderId ? bookings.filter((b) => b.providerId === activeProviderId) : bookings);
       setNames(Object.fromEntries(services.map((s) => [s.id, s.name])));
       setReviewsByService(
         Object.fromEntries(services.map((s) => [s.id, s.capabilities.reviews !== false])),
@@ -97,7 +104,7 @@ export default function BookingsPage() {
     return () => {
       cancel = true;
     };
-  }, [activeProvider]);
+  }, [activeProviderId]);
 
   // Prefer the per-service value; fall back to the global block for any service
   // the map does not cover. `getOwnerServices()` swallows its own failure, so

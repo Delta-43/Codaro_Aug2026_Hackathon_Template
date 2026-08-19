@@ -487,9 +487,10 @@ export function markReturned(bookingId: ID): Promise<Booking> {
 }
 
 /** Take a place in the queue for a full slot (`timing.waitlist`). Refused by the
- *  server when the slot still has room — booking it is strictly better. */
-export function joinWaitlist(slotId: ID): Promise<WaitlistEntry> {
-  return post(`/slots/${slotId}/waitlist`, undefined) as Promise<WaitlistEntry>;
+ *  server when the slot still has room — booking it is strictly better. The
+ *  party travels with the entry so a promotion books the seats actually needed. */
+export function joinWaitlist(slotId: ID, partySize = 1): Promise<WaitlistEntry> {
+  return post(`/slots/${slotId}/waitlist${qs({ party_size: partySize })}`, undefined) as Promise<WaitlistEntry>;
 }
 
 /** Owner records a blocking prerequisite as satisfied. */

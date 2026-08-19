@@ -201,14 +201,18 @@ path the UI calls exists on the FastAPI app (method-aware) and that the
 
 ## Current state
 
-`python -m pytest test/backend -q` from the repo root: **1088 passed**
+`python -m pytest test/backend -q` from the repo root: **1090 passed**
 (0 failures, **no xfails left**, and **no known gaps pinned** — the four that
 were are now asserted as fixed behaviour, see below). `python -m pytest test/` adds the 8 live e2e
 tests, which skip without `SUPABASE_URL`/`SUPABASE_ANON_KEY`.
 
 Review-pass regression pins (August 2026), spread across the per-router files:
-`_assert_owns_booking` now runs on cancel/reschedule (unrelated owner → 403; the
-own-provider cutoff waiver and the owner-as-customer cutoff both re-pinned);
+`_assert_owns_booking` now runs on cancel/reschedule (unrelated owner → 403).
+Owner powers hinge on owning the booking's PROVIDER, not the role bit: the
+own-provider cutoff waiver covers a walk-in booking the owner recorded under
+their own account on their own business (cancel inside the cutoff → 200), while
+an owner acting on a booking they made as a customer of ANOTHER owner's business
+is a client (cutoff → 409 `CUTOFF_PASSED`) — both pinned in `test_bookings.py`;
 reschedule repricing keeps `booking.options` add-on lines and refuses a new date
 inside `timing.blackouts`; metaFields 422s carry the full ApiError envelope
 (`test_resources.py`); `validate()` rejects junk in the three pricing money

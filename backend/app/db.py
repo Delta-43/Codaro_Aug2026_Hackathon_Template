@@ -94,6 +94,14 @@ def fetch_all(query, page: int = _PAGE, order: str | tuple = "id") -> list[dict]
         start += page
 
 
+def chunked(ids: list, n: int = 200):
+    """Split an id list for `.in_` filters — ~1000 ids in one URL is over
+    PostgREST's request-line limit, and one giant chunk's result set blows the
+    row cap `fetch_all` pages past. Pair each chunk with `fetch_all`."""
+    for i in range(0, len(ids), n):
+        yield ids[i : i + n]
+
+
 def maybe_row(query):
     """Fetch a single row, returning ``None`` when nothing matches.
 

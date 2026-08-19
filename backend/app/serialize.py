@@ -509,7 +509,11 @@ def serialize_booking(
         "status": effective_booking_status(row["status"], end_utc, now),
         "partySize": int(md.get("party_size", 1)),
         "priceMinorUnits": int(md.get("price_minor_units", 0)),
-        "currency": md.get("currency", "EUR"),
+        # Same fallback chain as payment_state's currency, so one payload never
+        # labels the total EUR beside a USD outstanding amount.
+        "currency": md.get("currency")
+        or effective_service_pricing(service).get("currency")
+        or "EUR",
         "createdAtUtc": iso_utc(row.get("created_at")),
         "cancelledAtUtc": iso_utc(md.get("cancelled_at_utc")) if md.get("cancelled_at_utc") else None,
         "changeHistory": _change_history(md),

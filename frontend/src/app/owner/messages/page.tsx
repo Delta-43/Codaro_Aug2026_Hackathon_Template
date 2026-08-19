@@ -52,18 +52,23 @@ export default function MessagesPage() {
 
   // Scoped to the active provider like the Services tab — the owner endpoints
   // return every business the owner has, and the auto-approve master switch
-  // below must never flip another business's offers.
+  // below must never flip another business's offers. Keyed on the id, not the
+  // object, so a provider refresh minting same-id objects doesn't refetch.
+  const activeProviderId = activeProvider?.id ?? null;
   const load = useCallback(async () => {
     const [reqs, svcs] = await Promise.all([
       getOwnerRequests().catch(() => [] as OwnerRequest[]),
       getOwnerServices().catch(() => [] as OwnerServiceSummary[]),
     ]);
-    setRequests(activeProvider ? reqs.filter((r) => r.providerId === activeProvider.id) : reqs);
-    setServices(activeProvider ? svcs.filter((s) => s.providerId === activeProvider.id) : svcs);
+    setRequests(activeProviderId ? reqs.filter((r) => r.providerId === activeProviderId) : reqs);
+    setServices(activeProviderId ? svcs.filter((s) => s.providerId === activeProviderId) : svcs);
     setLoading(false);
-  }, [activeProvider]);
+  }, [activeProviderId]);
 
   useEffect(() => {
+    // Back to the skeleton on a provider switch — never show business A's
+    // requests under business B's header while the refetch is in flight.
+    setLoading(true);
     void load();
   }, [load]);
 
