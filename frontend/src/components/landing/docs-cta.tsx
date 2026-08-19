@@ -33,7 +33,7 @@ export function DocsCta() {
           <Link
             href="/docs"
             className={cn(
-              buttonVariants({ size: "lg", variant: "outline" }),
+              buttonVariants({ size: "lg" }),
               "origin-center gap-1.5 rounded-full px-6 transition-transform duration-200 ease-out hover:scale-105",
             )}
           >

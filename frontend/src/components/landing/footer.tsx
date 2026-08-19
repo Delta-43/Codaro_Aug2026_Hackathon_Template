@@ -46,7 +46,7 @@ export function Footer({ authed }: { authed: boolean }) {
             <div className="max-w-xs">
               <Link
                 href="/"
-                className="inline-block origin-left text-lg font-bold tracking-tight text-foreground transition-transform duration-200 ease-out hover:scale-110"
+                className="inline-block origin-left text-lg font-bold tracking-tight text-primary transition-transform duration-200 ease-out hover:scale-110"
               >
                 Arbor
               </Link>
@@ -87,9 +87,14 @@ export function Footer({ authed }: { authed: boolean }) {
         </GlassPanel>
       </div>
 
-      {/* Giant fading wordmark — full-bleed, dissolving upward from the bottom. */}
+      {/* Giant fading wordmark — full-bleed, dissolving upward from the bottom.
+          The particle field finds this element by `data-wordmark` and steers its
+          dots clear of it, but only while it's actually on screen (scrolled to
+          the footer) — so nothing crawls over the closing wordmark, and the
+          field is unaffected anywhere else on the page. */}
       <div aria-hidden className="mt-10 overflow-hidden">
         <span
+          data-wordmark
           className="block origin-bottom cursor-default select-none text-center font-extrabold leading-[0.78] tracking-tighter text-black transition-transform duration-300 ease-out hover:-translate-y-1 hover:scale-[1.03] dark:text-white"
           style={{
             fontSize: "clamp(3.5rem, 24vw, 18rem)",

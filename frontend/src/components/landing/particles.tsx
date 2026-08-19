@@ -24,8 +24,10 @@ type P = {
   vy: number;
   restX: number;
   restY: number;
+  restYUp: number;
   r: number;
   a: number;
+  ky: number;
 };
 
 export function Particles() {
@@ -67,6 +69,13 @@ export function Particles() {
         const bias = Math.pow(Math.random(), 1.6); // skew toward the bottom edge
         const restX = Math.random() * W;
         const restY = H - bias * H * 0.5;
+        // Independent upper-half rest spot for the bottom-of-page state — the
+        // same bottom-weighted formula mirrored to the top edge. Drawn on its
+        // own (not reflected from restY) so *every* dot gets a real destination
+        // up top: reflecting restY would pin any dot resting near the middle to
+        // the middle line, leaving stragglers stuck there mid-migration.
+        const biasUp = Math.pow(Math.random(), 1.6);
+        const restYUp = biasUp * H * 0.5;
         return {
           x: restX + (Math.random() - 0.5) * 80,
           y: restY + (Math.random() - 0.5) * 80,
@@ -74,8 +83,15 @@ export function Particles() {
           vy: 0,
           restX,
           restY,
+          restYUp,
           r: 1 + Math.random() * 2,
           a: 0.25 + Math.random() * 0.3,
+          // Per-dot vertical spring rate. Varying it (instead of one shared
+          // constant) means dots settle — and migrate up at the bottom of the
+          // page — at their own pace, so the field never moves as one rigid
+          // sheet. That staggering dissolves the migration instead of sweeping a
+          // visible line through the middle.
+          ky: 0.0009 + Math.random() * 0.0025,
         };
       });
     };
@@ -120,12 +136,31 @@ export function Particles() {
       mouse.on = false;
     };
 
+    // The field normally gathers in the lower half of the screen. When you reach
+    // the very bottom of the landing page — i.e. the ARBOR wordmark scrolls into
+    // view — the whole field migrates up, mirroring the same distribution into
+    // the *upper* half instead, so it clears the footer/wordmark entirely. The
+    // footer mounts alongside this background; resolve it lazily (canvas is fixed
+    // & full-viewport, so viewport px === canvas px).
+    let wordEl: HTMLElement | null = null;
+
     let raf = 0;
     const tick = () => {
+      if (!wordEl) wordEl = document.querySelector<HTMLElement>("[data-wordmark]");
+      // "At the bottom of the page" once the wordmark overlaps the viewport.
+      let atBottom = false;
+      if (wordEl) {
+        const r = wordEl.getBoundingClientRect();
+        atBottom = r.width > 0 && r.bottom > 0 && r.top < H;
+      }
       for (const p of particles) {
-        // Soft spring back to the resting (bottom-weighted) position.
+        // Soft spring back to the resting spot. Horizontally it's always the
+        // same; vertically the target flips to the mirrored upper-half position
+        // (H - restY) at the bottom of the page, so the field glides from the
+        // lower half up into the upper half (and back down when you scroll away).
+        const targetY = atBottom ? p.restYUp : p.restY;
         p.vx += (p.restX - p.x) * 0.0009;
-        p.vy += (p.restY - p.y) * 0.0018;
+        p.vy += (targetY - p.y) * p.ky;
         // A little life so the field never looks frozen.
         p.vx += (Math.random() - 0.5) * 0.04;
         p.vy += (Math.random() - 0.5) * 0.04;
