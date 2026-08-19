@@ -12,6 +12,19 @@ imports). `frontend/`'s root `/` just redirects to `/login`; a visitor arrives
 here only via `landing/`'s cross-origin link, exactly like a real embedder's
 site would eventually reach this app.
 
+**One exception, both directions**: `/login` reuses the landing page's
+liquid-glass background (`SceneBackground`/`GlassPanel`), so
+`src/components/landing/{scene-background,scroll-reveal,particles}.tsx` here
+is a frozen copy of `landing/`'s originals (trimmed — `scroll-reveal.tsx`
+here only exports `GlassPanel`, not the landing-only `useScrollMotion` hook).
+Same deal for `src/config/buttons.ts` (`buttonFx`), which `landing/` also
+keeps its own copy of. Neither direction is wired together — a design/behavior
+fix to one copy needs the same fix applied to the other by hand. (This bit a
+merge from `develop` once already: a login-page redesign there added the
+`scene-background`/`scroll-reveal` imports after `landing/` had already moved
+the originals out — see `docs/issues/97-...` — so if either side's copy looks
+stale after a merge, check the other.)
+
 ## Domain + files
 
 The app models `Provider → Service → Resource → Slot → Booking → User`

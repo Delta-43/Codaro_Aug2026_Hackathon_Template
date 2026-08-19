@@ -16,7 +16,6 @@
  * dimmed at whichever end you've reached. (The day/night toggle lives in the
  * footer now, not here.)
  */
-import Link from "next/link";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";

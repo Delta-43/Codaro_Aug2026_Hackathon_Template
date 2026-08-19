@@ -3,6 +3,7 @@
 import type { MonthDensityLevel } from "@/types/domain";
 import { type CalDay, isPastDay, isToday } from "@/lib/calendar";
 import { cn } from "@/lib/utils";
+import { buttonFx } from "@/config/buttons";
 
 function DensityDots({ level }: { level: MonthDensityLevel }) {
   return (
@@ -60,7 +61,7 @@ export function MonthView({
                       ? "text-muted-foreground/30"
                       : past
                         ? "text-muted-foreground/40"
-                        : "text-foreground hover:bg-muted",
+                        : cn("text-foreground", buttonFx.tile),
                     disabled ? "cursor-default" : "",
                   )}
                 >

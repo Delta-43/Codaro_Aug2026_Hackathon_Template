@@ -32,11 +32,21 @@ possible one — a real embedder's site would use exactly this same pattern.
     evolution file-for-file.
   - `src/components/theme-toggle.tsx`, `src/components/ui/button.tsx`
   - `src/lib/{calendar,format,utils}.ts`, `src/types/domain.ts`
+  - `src/config/buttons.ts` (`buttonFx`) — the shared button-interactivity
+    tokens; the landing CTAs (`hero.tsx`, `business-cta.tsx`, `docs-cta.tsx`,
+    `nav-bar.tsx`) read it the same way `frontend/`'s do.
 
   **Don't re-couple these to `frontend/`** (a shared package, a monorepo
   workspace reference, etc.) — that would recreate the exact shared-file
   conflict surface this split was built to remove. If a real behavior fix is
   needed here, apply it here; it doesn't need to round-trip into `frontend/`.
+
+  **The reverse copy exists too**: `frontend/src/components/landing/{scene-background,scroll-reveal,particles}.tsx`
+  is a frozen copy in the other direction, kept there because `/login` reuses
+  the same liquid-glass background. See `frontend/CLAUDE.md`'s note on this —
+  when either side's copy gets a real design/behavior fix, check whether the
+  other side's copy needs the same fix by hand; nothing wires them together
+  automatically.
 
 ## No auth, ever
 
