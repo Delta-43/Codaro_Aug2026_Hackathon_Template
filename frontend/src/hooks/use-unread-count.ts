@@ -19,8 +19,9 @@ import { useCallback, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { getConversations } from "@/api";
 
-/** Window event the messaging thread fires after it marks a conversation read. */
-export const UNREAD_CHANGED_EVENT = "arbor:unread-changed";
+/** Window event the messaging thread fires after it marks a conversation read.
+ *  Internal to this module — dispatch it via `notifyUnreadChanged()`. */
+const UNREAD_CHANGED_EVENT = "arbor:unread-changed";
 
 /** Tell every mounted unread badge to refetch (call after marking read). */
 export function notifyUnreadChanged() {
