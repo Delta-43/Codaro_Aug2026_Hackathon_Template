@@ -6,10 +6,10 @@
  * two slots are left open for teammates still to add theirs. Laid out as a
  * horizontal, snap-scrolling row.
  */
-import { useRef } from "react";
-import { ChevronLeft, ChevronRight, Star } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Quote, Star } from "lucide-react";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";
-import { ScrollCue } from "@/components/landing/scroll-cue";
+import { cn } from "@/lib/utils";
 
 type Review =
   | {
@@ -72,10 +72,38 @@ const REVIEWS: Review[] = [
 export function Testimonials() {
   const { ref, style } = useScrollMotion<HTMLDivElement>();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [atStart, setAtStart] = useState(true);
+  const [atEnd, setAtEnd] = useState(false);
+
+  // Same rule as the nav chevrons: track which end of the reviews row we're at,
+  // so the matching arrow dims + disables when there's nothing left that way.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const measure = () => {
+      const max = el.scrollWidth - el.clientWidth;
+      setAtStart(el.scrollLeft <= 1);
+      setAtEnd(el.scrollLeft >= max - 1);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    el.addEventListener("scroll", measure, { passive: true });
+    return () => {
+      ro.disconnect();
+      el.removeEventListener("scroll", measure);
+    };
+  }, []);
+
   return (
     <section id="reviews" className="flex min-h-[92vh] snap-start snap-always scroll-mt-24 items-center px-4 py-20">
       <div ref={ref} style={style} className="mx-auto w-full max-w-4xl">
         <GlassPanel className="px-6 py-12 sm:px-10 sm:py-14">
+          <div className="mb-6 flex justify-center">
+            <span className="flex size-12 origin-center cursor-pointer items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm transition-all duration-200 ease-out hover:scale-[1.4] hover:-translate-y-1 hover:bg-primary hover:text-primary-foreground hover:shadow-xl">
+              <Quote className="size-6" aria-hidden />
+            </span>
+          </div>
           <h2 className="text-center text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
             Built for every business — and it shows.
           </h2>
@@ -143,10 +171,11 @@ export function Testimonials() {
               <button
                 type="button"
                 aria-label="Scroll reviews left"
+                disabled={atStart}
                 onClick={() => scrollRef.current?.scrollBy({ left: -320, behavior: "smooth" })}
-                className="pointer-events-auto grid size-8 origin-center place-items-center rounded-full border border-white/30 bg-background/60 text-foreground shadow-sm ring-1 ring-inset ring-white/20 backdrop-blur-md transition-transform duration-200 ease-out hover:scale-125"
+                className="pointer-events-auto grid size-8 origin-center place-items-center rounded-full border border-white/30 bg-background/60 text-foreground shadow-sm ring-1 ring-inset ring-white/20 backdrop-blur-md transition-all duration-200 ease-out hover:scale-125 disabled:pointer-events-none disabled:opacity-25"
               >
-                <ChevronLeft className="landing-nudge-left size-4" aria-hidden />
+                <ChevronLeft className={cn("size-4", !atStart && "landing-nudge-left")} aria-hidden />
               </button>
             </div>
             {/* Scrollable affordance — right (no dark scrim, see left). */}
@@ -154,16 +183,15 @@ export function Testimonials() {
               <button
                 type="button"
                 aria-label="Scroll reviews right"
+                disabled={atEnd}
                 onClick={() => scrollRef.current?.scrollBy({ left: 320, behavior: "smooth" })}
-                className="pointer-events-auto grid size-8 origin-center place-items-center rounded-full border border-white/30 bg-background/60 text-foreground shadow-sm ring-1 ring-inset ring-white/20 backdrop-blur-md transition-transform duration-200 ease-out hover:scale-125"
+                className="pointer-events-auto grid size-8 origin-center place-items-center rounded-full border border-white/30 bg-background/60 text-foreground shadow-sm ring-1 ring-inset ring-white/20 backdrop-blur-md transition-all duration-200 ease-out hover:scale-125 disabled:pointer-events-none disabled:opacity-25"
               >
-                <ChevronRight className="landing-nudge size-4" aria-hidden />
+                <ChevronRight className={cn("size-4", !atEnd && "landing-nudge")} aria-hidden />
               </button>
             </div>
           </div>
-        </GlassPanel>
-        <ScrollCue />
-      </div>
+        </GlassPanel>      </div>
     </section>
   );
 }

@@ -10,7 +10,6 @@ import { ArrowRight, BookOpen } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";
-import { ScrollCue } from "@/components/landing/scroll-cue";
 
 export function DocsCta() {
   const { ref, style } = useScrollMotion<HTMLDivElement>();
@@ -34,16 +33,14 @@ export function DocsCta() {
           <Link
             href="/docs"
             className={cn(
-              buttonVariants({ size: "lg", variant: "outline" }),
+              buttonVariants({ size: "lg" }),
               "origin-center gap-1.5 rounded-full px-6 transition-transform duration-200 ease-out hover:scale-105",
             )}
           >
             Read the docs
             <ArrowRight className="size-4" aria-hidden />
           </Link>
-        </GlassPanel>
-        <ScrollCue />
-      </div>
+        </GlassPanel>      </div>
     </section>
   );
 }

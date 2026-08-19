@@ -8,7 +8,7 @@
  * Paired with a short manual.
  */
 import { useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import type { DayAvailability, MonthDensityLevel, Service, Slot, SlotStatus } from "@/types/domain";
 import { MonthView } from "@/components/calendar/month-view";
 import { WeekView } from "@/components/calendar/week-view";
@@ -23,7 +23,6 @@ import {
   isPastDay,
 } from "@/lib/calendar";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";
-import { ScrollCue } from "@/components/landing/scroll-cue";
 import { cn } from "@/lib/utils";
 
 const TZ = "Europe/Warsaw";
@@ -120,6 +119,11 @@ export function CalendarDemo() {
     <section id="calendar" className="snap-start snap-always scroll-mt-24 px-4 pt-24 pb-10">
       <div ref={ref} style={style} className="mx-auto w-full max-w-4xl">
         <GlassPanel className="px-6 py-6 sm:px-10">
+          <div className="mb-4 flex justify-center">
+            <span className="flex size-12 origin-center cursor-pointer items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm transition-all duration-200 ease-out hover:scale-[1.4] hover:-translate-y-1 hover:bg-primary hover:text-primary-foreground hover:shadow-xl">
+              <CalendarDays className="size-6" aria-hidden />
+            </span>
+          </div>
           <h2 className="text-center text-2xl font-semibold tracking-tight text-foreground">
             The calendar your customers actually book on.
           </h2>
@@ -207,8 +211,6 @@ export function CalendarDemo() {
             </div>
           </div>
         </GlassPanel>
-
-        <ScrollCue />
       </div>
     </section>
   );
