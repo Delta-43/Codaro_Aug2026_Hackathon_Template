@@ -4,18 +4,18 @@
  * The business-mode shell — same responsive pattern and design language as the
  * customer AppShell (bottom tab bar under md, left drawer at md+), but a
  * completely different set of five tabs for the provider persona:
- *   Dashboard · Services · Requests · Calendar · Profile
+ *   Dashboard · Services · Requests · Calendar · Settings
  * The gold "Business" chip and verified-style avatar mark this as the business
  * account. Identity follows the active demo use case. The top-right avatar opens
- * Settings (desktop); a quick sign-out sits bottom-left of the drawer.
+ * the Profile view (desktop); a quick sign-out sits bottom-left of the drawer.
  */
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   CalendarDays,
-  CircleUser,
   Rocket,
   Send,
+  Settings,
   SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
@@ -39,9 +39,9 @@ interface Tab {
 const TABS: Tab[] = [
   { href: "/owner", label: "Dashboard", icon: Rocket },
   { href: "/owner/services", label: "Services", icon: SlidersHorizontal },
-  { href: "/owner/messages", label: "Messages", icon: Send },
+  { href: "/owner/messages", label: "Requests", icon: Send },
   { href: "/owner/bookings", label: "Bookings", icon: CalendarDays },
-  { href: "/owner/profile", label: "Profile", icon: CircleUser },
+  { href: "/owner/settings", label: "Settings", icon: Settings },
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -75,7 +75,7 @@ export function BusinessShell({ children }: { children: ReactNode }) {
     t.href === "/owner/bookings" ? { ...t, label: vocab.bookingNounPlural } : t,
   );
   const active = tabs.find((t) => isActive(pathname, t.href)) ?? tabs[0];
-  const heading = pathname.startsWith("/owner/settings") ? "Settings" : active.label;
+  const heading = pathname.startsWith("/owner/profile") ? "Profile" : active.label;
   const badgeFor = (href: string) => (href === "/owner/messages" ? unread : 0);
   // The page name in the top bar glides the content back to the top when tapped.
   const scrollTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
@@ -124,9 +124,9 @@ export function BusinessShell({ children }: { children: ReactNode }) {
           <p className="truncate text-xs text-muted-foreground">{businessName}</p>
         </div>
         <Link
-          href="/owner/settings"
+          href="/owner/profile"
           className="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 hover:bg-muted"
-          aria-label="Settings"
+          aria-label="Profile"
         >
           {/* activeProvider comes from useOwner, so an avatar edit re-renders here. */}
           <BusinessBadge avatarUrl={activeProvider?.avatarUrl} scene={scene} size="sm" />
