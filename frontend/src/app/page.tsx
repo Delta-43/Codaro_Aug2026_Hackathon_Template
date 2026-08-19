@@ -23,7 +23,7 @@ import { Footer } from "@/components/landing/footer";
 
 export default function RootPage() {
   return (
-    <main className="relative h-dvh snap-y snap-mandatory overflow-y-auto scroll-smooth">
+    <main className="relative h-dvh snap-y snap-mandatory overflow-y-auto scroll-smooth [scrollbar-gutter:stable_both-edges]">
       <SceneBackground />
       <NavBar />
       <Hero />

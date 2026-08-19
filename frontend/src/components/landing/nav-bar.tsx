@@ -3,7 +3,8 @@
 /**
  * Floating glass nav pill over the scene. Section links smooth-scroll to the
  * anchors; `route` links (Docs) are real same-origin navigations via next/link.
- * The primary button always reads "Login".
+ * The primary button reads "Dashboard" (→ the app) when a session exists, else
+ * "Login".
  *
  * Layout: the Arbor brand is pinned far-left and the Login button far-right;
  * the section links live in a scrollable middle strip. When the window is wide enough for every link, the
@@ -20,6 +21,7 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { buttonFx } from "@/config/buttons";
 import { ScrollTopLink } from "@/components/landing/scroll-top-link";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -38,6 +40,16 @@ function smoothScroll(e: MouseEvent<HTMLAnchorElement>, href: string) {
 }
 
 export function NavBar() {
+  // Wrapped in <AuthProvider> at the root layout, so the landing page can tell a
+  // signed-in visitor apart: the primary pill becomes "Dashboard" → the app,
+  // otherwise it stays "Login". `loading` keeps it as Login until the session
+  // resolves, avoiding a Dashboard→Login flicker on first paint.
+  const { session, loading, isOwner } = useAuth();
+  const signedIn = !loading && Boolean(session);
+  // Same split the login redirect uses (login/page.tsx): owners land on their
+  // console, clients on the search app. Sending an owner to /search hangs them.
+  const dashboardHref = isOwner ? "/owner" : "/search";
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const [overflow, setOverflow] = useState(false);
   const [atStart, setAtStart] = useState(true);
@@ -74,7 +86,7 @@ export function NavBar() {
 
   return (
     <nav className="fixed inset-x-0 top-4 z-50 flex justify-center px-4">
-      <div className="flex w-full max-w-3xl items-center gap-2 rounded-3xl border border-border/60 bg-background/70 px-4 py-2 shadow-sm backdrop-blur-xl">
+      <div className="flex w-full max-w-4xl items-center gap-2 rounded-3xl border border-border/60 bg-background/70 px-4 py-2 shadow-sm backdrop-blur-xl">
         {/* Far left — the platform name; clicking it glides back to the top of
             the landing page, like the section links scroll to their anchors. */}
         <ScrollTopLink className="flex shrink-0 origin-left items-center gap-1.5 text-base font-bold tracking-tight text-primary transition-transform duration-200 ease-out hover:scale-110">
@@ -132,16 +144,16 @@ export function NavBar() {
           </button>
         )}
 
-        {/* Far right — primary button (pinned), links to /login */}
+        {/* Far right — primary button (pinned): Dashboard when signed in, else Login */}
         <Link
-          href="/login"
+          href={signedIn ? dashboardHref : "/login"}
           className={cn(
             buttonVariants({ size: "sm" }),
             buttonFx.pill,
             "shrink-0 px-4",
           )}
         >
-          Login
+          {signedIn ? "Dashboard" : "Login"}
         </Link>
       </div>
     </nav>
