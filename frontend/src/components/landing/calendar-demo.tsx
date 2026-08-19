@@ -9,7 +9,7 @@
  */
 import { useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
-import type { DayAvailability, MonthDensityLevel, Service, Slot, SlotStatus } from "@/types/domain";
+import type { DayAvailability, MonthDensityLevel, Service, Slot } from "@/types/domain";
 import { MonthView } from "@/components/calendar/month-view";
 import { WeekView } from "@/components/calendar/week-view";
 import { DayView } from "@/components/calendar/day-view";
@@ -71,7 +71,7 @@ const STEPS = [
   "Set your party size and confirm — you get instant confirmation.",
 ];
 
-function slot(date: string, hour: number, status: SlotStatus, booked: number): Slot {
+function slot(date: string, hour: number, status: Slot["status"], booked: number): Slot {
   const hh = (h: number) => String(h).padStart(2, "0");
   return {
     id: `${date}-${hh(hour)}`,

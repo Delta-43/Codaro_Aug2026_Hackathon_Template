@@ -17,13 +17,11 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { GlassPanel } from "@/components/landing/scroll-reveal";
 import { ScrollTopLink } from "@/components/landing/scroll-top-link";
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
-
 const EXPLORE = [
-  { href: "#how", label: "How it works" },
-  { href: "#calendar", label: "Calendar" },
-  { href: "#reviews", label: "Reviews" },
-  { href: `${APP_URL}/docs`, label: "Docs", external: true },
+  { href: "#how", label: "How it works", anchor: true },
+  { href: "#calendar", label: "Calendar", anchor: true },
+  { href: "#reviews", label: "Reviews", anchor: true },
+  { href: "/docs", label: "Docs" },
 ];
 
 const LINK_CLASS = "text-sm text-muted-foreground transition-colors hover:text-foreground";
@@ -52,7 +50,7 @@ export function Footer() {
               <nav aria-label="Explore" className="flex flex-col gap-2.5">
                 <h3 className={COL_HEAD}>Explore</h3>
                 {EXPLORE.map((l) =>
-                  l.external ? (
+                  l.anchor ? (
                     <a key={l.href} href={l.href} className={LINK_CLASS}>
                       {l.label}
                     </a>
@@ -65,12 +63,12 @@ export function Footer() {
               </nav>
               <nav aria-label="More" className="flex flex-col gap-2.5">
                 <h3 className={COL_HEAD}>More</h3>
-                <a href={`${APP_URL}/login`} className={LINK_CLASS}>
+                <Link href="/login" className={LINK_CLASS}>
                   Login
-                </a>
-                <a href={`${APP_URL}/privacy`} className={LINK_CLASS}>
+                </Link>
+                <Link href="/privacy" className={LINK_CLASS}>
                   Data handling &amp; privacy policy
-                </a>
+                </Link>
               </nav>
             </div>
           </div>

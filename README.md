@@ -49,13 +49,11 @@ backend/                    # FastAPI generic engine
   app/routers/              #  /providers /services /resources /slots /availability
                             #  /bookings /me /conversations /owner /demo
   seed.py                   #  demo data (auto-seeds on first start; run manually to add more)
-landing/                     # Next.js 14 + Tailwind — the public marketing site,
-                            #  air-gapped from frontend/: no shared imports, only
-                            #  a cross-origin link (NEXT_PUBLIC_APP_URL) to /login
 frontend/                   # Next.js 14 + Tailwind — the app lives in src/
   src/config/verticals.ts   #  UI vocabulary per vertical (useVertical())
   src/api/index.ts          #  typed backend client (the HTTP seam)
-  src/app/page.tsx          #  redirects to /login — landing lives in landing/ now
+  src/app/page.tsx          #  public marketing landing page (root /)
+  src/components/landing/    #  landing page sections (hero, nav, footer, …)
   src/app/login/page.tsx    #  Supabase Auth sign-in / sign-up
   src/app/(app)/            #  gated customer tabs: search / provider / calendar
                             #  / bookings / account
@@ -65,15 +63,14 @@ frontend/                   # Next.js 14 + Tailwind — the app lives in src/
 
 ## Run it (Docker — one command)
 
-Everything runs in three containers. All three env files must exist first —
+Everything runs in two containers. Both env files must exist first —
 each service declares its own `env_file` in `docker-compose.yml`, so
 `make start` fails on a fresh clone without them.
 
 ```bash
 cp backend/.env.example backend/.env            # SUPABASE_URL + SUPABASE_SERVICE_KEY (+ SUPABASE_DB_URL to auto-create tables)
 cp frontend/.env.local.example frontend/.env.local  # NEXT_PUBLIC_API_BASE + Supabase anon key
-cp landing/.env.local.example landing/.env.local    # NEXT_PUBLIC_APP_URL (points at the frontend container)
-make start                              # landing :3001, frontend :3000, backend :8000
+make start                              # frontend :3000, backend :8000
 ```
 
 `make` (no args) lists every shortcut: `start`, `stop`, `logs`, `reload`
@@ -118,15 +115,7 @@ Startup does two things, both idempotent and guarded (won't crash the server):
 cd frontend
 npm install
 cp .env.local.example .env.local
-npm run dev                 # http://localhost:3000
-```
-
-**4. Landing** (the public marketing site — a separate app, see `landing/CLAUDE.md`)
-```bash
-cd landing
-npm install
-cp .env.local.example .env.local   # NEXT_PUBLIC_APP_URL=http://localhost:3000
-npm run dev                 # http://localhost:3001
+npm run dev                 # http://localhost:3000 (the marketing landing page is the app root /)
 ```
 
 ## How the pivot works (and the database)

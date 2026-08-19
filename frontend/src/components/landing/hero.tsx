@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { buttonFx } from "@/config/buttons";
@@ -7,8 +8,6 @@ import { cn } from "@/lib/utils";
 import { PipelineTerminal } from "@/components/landing/pipeline-terminal";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";
 import { ScrollCue } from "@/components/landing/scroll-cue";
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
 /**
  * Above-the-fold pitch for the product — deliberately vertical-agnostic (no
@@ -35,8 +34,8 @@ export function Hero() {
               instantly for the business you&apos;re building.
             </p>
             <div className="mt-8 flex justify-center">
-              <a
-                href={`${APP_URL}/login`}
+              <Link
+                href="/login"
                 className={cn(
                   buttonVariants({ size: "lg" }),
                   buttonFx.pill,
@@ -45,7 +44,7 @@ export function Hero() {
               >
                 Get Started
                 <ArrowRight className="size-4" aria-hidden />
-              </a>
+              </Link>
             </div>
           </div>
           <PipelineTerminal />
