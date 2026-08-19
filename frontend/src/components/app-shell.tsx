@@ -45,7 +45,7 @@ const SERVICES_TAB: Tab = { href: "/provider", label: "Services", icon: Store };
 const CALENDAR_TAB: Tab = { href: "/calendar", label: "Calendar", icon: CalendarClock };
 const MESSAGING_TAB: Tab = { href: "/messages", label: "Messaging", icon: Send };
 const BOOKINGS_TAB: Tab = { href: "/bookings", label: "Bookings", icon: CalendarDays };
-const PROFILE_TAB: Tab = { href: "/account", label: "Profile", icon: CircleUser };
+const PROFILE_TAB: Tab = { href: "/account", label: "Settings", icon: CircleUser };
 
 // Marketplace: discovery leads, and Calendar is folded into Bookings.
 const TABS: Tab[] = [SEARCH_TAB, SERVICES_TAB, MESSAGING_TAB, BOOKINGS_TAB, PROFILE_TAB];
@@ -163,9 +163,9 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="flex items-center gap-2">
         <CartButton onOpen={() => setCartOpen(true)} />
         <Link
-          href="/account/settings"
+          href="/account"
           className="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 hover:bg-muted"
-          aria-label="Settings"
+          aria-label="Profile"
         >
           <AvatarImg
             src={user?.avatarUrl}
