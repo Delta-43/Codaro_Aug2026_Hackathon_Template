@@ -1,10 +1,13 @@
 /**
  * Full-page, theme-aware backdrop behind the whole landing page.
  *
- * No photographic scene — a soft themed gradient with a couple of blurred colour
- * blooms, so the liquid-glass plates have something coloured to refract and sit
- * over. A sparse particle field (see `Particles`) gathers along the bottom edge.
- * Fixed, so the glass chapters float over it.
+ * Deliberately plain and colourless (as installed in issue 81): a solid
+ * black/white base — white in light mode, black in dark — with only the sparse
+ * *monochrome* particle field (see `Particles`) gathering along the bottom edge.
+ * No gradient, no colour blooms: the liquid-glass plates read their cleanest,
+ * footer-perfect frost when the backdrop they refract is neutral. (Colour blooms
+ * tint and muddy the same glass — that regression is what this restores.) Fixed,
+ * so the glass chapters float over it.
  *
  * It also hosts the `#liquid-glass-distortion` SVG filter + the `.liquid-glass`
  * class the plates use — the `.liquid-glass` blur/saturate is what frosts the
@@ -18,12 +21,8 @@ export function SceneBackground() {
       {/* Plain black/white base — white in light mode, black in dark */}
       <div className="absolute inset-0 bg-white dark:bg-black" />
 
-      {/* Blurred colour blooms — give the glass something to bend, add depth */}
-      <div className="absolute -top-1/4 -left-16 size-[55%] rounded-full bg-primary/25 blur-[120px] dark:bg-primary/20" />
-      <div className="absolute -bottom-1/4 -right-10 size-[55%] rounded-full bg-pink-400/20 blur-[130px] dark:bg-fuchsia-500/15" />
-      <div className="absolute top-1/3 left-1/2 size-[40%] -translate-x-1/2 rounded-full bg-sky-300/15 blur-[120px] dark:bg-sky-500/10" />
-
-      {/* Bottom-weighted particle field (hover to repulse) */}
+      {/* Bottom-weighted monochrome particle field (hover to repulse) — the only
+          texture the glass frosts, kept neutral so the frost stays clean. */}
       <Particles />
 
       {/* Refraction filter for the liquid-glass plates. Zero-size, just a def. */}
