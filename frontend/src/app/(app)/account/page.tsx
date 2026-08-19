@@ -10,6 +10,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { BadgeCheck, Settings, Star } from "lucide-react";
+import { buttonFx } from "@/config/buttons";
+import { cn } from "@/lib/utils";
 import { useApp } from "@/context/app-context";
 import { AvatarImg } from "@/components/avatar-img";
 import { Skeleton } from "@/components/skeleton";
@@ -39,7 +41,7 @@ export default function ProfilePage() {
   return (
     <section className="space-y-8 py-6">
       <header className="flex items-center gap-3">
-        <AvatarImg src={user?.avatarUrl} name={user?.displayName} alt="" className="size-14" />
+        <AvatarImg src={user?.avatarUrl} name={user?.displayName} alt="" className={cn("size-14", buttonFx.link)} />
         <div className="min-w-0 flex-1">
           <h1 className="flex items-center gap-1.5 truncate text-xl font-semibold tracking-tight">
             {user.displayName}
@@ -47,7 +49,7 @@ export default function ProfilePage() {
           </h1>
           <p className="truncate text-sm text-muted-foreground">{user.email}</p>
           <p className="mt-1 flex items-center gap-1 text-sm">
-            <Star className="size-3.5 fill-amber-400 text-amber-400" aria-hidden />
+            <Star className={cn("size-3.5 fill-amber-400 text-amber-400", buttonFx.star)} aria-hidden />
             <span className="font-medium">{rep.score.toFixed(1)}</span>
             <span className="text-muted-foreground">· {rep.count} reviews from businesses</span>
           </p>
@@ -55,7 +57,10 @@ export default function ProfilePage() {
         <Link
           href="/account/settings"
           aria-label="Settings"
-          className="grid size-9 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className={cn(
+            "grid size-9 shrink-0 place-items-center rounded-full text-primary transition-all hover:bg-primary/10",
+            buttonFx.press,
+          )}
         >
           <Settings className="size-5" aria-hidden />
         </Link>
@@ -70,7 +75,11 @@ export default function ProfilePage() {
               {[0, 1, 2, 3, 4].map((i) => (
                 <Star
                   key={i}
-                  className={`size-3.5 ${i < Math.round(rep.score) ? "fill-amber-400 text-amber-400" : "fill-muted text-muted"}`}
+                  className={cn(
+                    "size-3.5",
+                    buttonFx.star,
+                    i < Math.round(rep.score) ? "fill-amber-400 text-amber-400" : "fill-muted text-muted",
+                  )}
                   aria-hidden
                 />
               ))}
@@ -92,14 +101,14 @@ export default function ProfilePage() {
         ) : (
           <ul className="space-y-3">
             {rep.reviews.map((rv, i) => (
-              <li key={i} className="rounded-2xl border border-border bg-card p-3">
+              <li key={i} className={cn("rounded-2xl border border-border bg-card p-3", buttonFx.surface)}>
                 <div className="flex items-center gap-2">
-                  <AvatarImg src={avatarDataUri(rv.author)} alt="" className="size-8" />
+                  <AvatarImg src={avatarDataUri(rv.author)} alt="" className={cn("size-8", buttonFx.link)} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium">{rv.author}</span>
                       <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
-                        <Star className="size-3 fill-amber-400 text-amber-400" aria-hidden />
+                        <Star className={cn("size-3 fill-amber-400 text-amber-400", buttonFx.star)} aria-hidden />
                         {rv.rating.toFixed(1)}
                       </span>
                     </div>
@@ -113,13 +122,6 @@ export default function ProfilePage() {
         )}
       </div>
 
-      <p className="text-[11px] text-muted-foreground">
-        Manage your account in{" "}
-        <Link href="/account/settings" className="text-primary hover:underline">
-          Settings
-        </Link>
-        .
-      </p>
     </section>
   );
 }

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 import { PipelineTerminal } from "@/components/landing/pipeline-terminal";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";
@@ -37,7 +38,8 @@ export function Hero({ authed }: { authed: boolean }) {
                 href={authed ? "/search" : "/login"}
                 className={cn(
                   buttonVariants({ size: "lg" }),
-                  "origin-center gap-1.5 rounded-full px-6 transition-transform duration-200 ease-out hover:scale-105",
+                  buttonFx.pill,
+                  "gap-1.5 px-6",
                 )}
               >
                 {authed ? "Open app" : "Get Started"}

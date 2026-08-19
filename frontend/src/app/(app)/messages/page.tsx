@@ -36,7 +36,7 @@ export default function MessagesPage() {
 
   return (
     <section className="space-y-4 py-4">
-      <h1 className="text-xl font-semibold tracking-tight md:sr-only">Messaging</h1>
+      <h1 className="text-xl font-semibold tracking-tight sr-only">Messaging</h1>
 
       {conversations === null ? (
         <div className="space-y-2">

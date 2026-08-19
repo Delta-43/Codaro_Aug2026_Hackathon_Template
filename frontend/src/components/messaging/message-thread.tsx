@@ -22,6 +22,7 @@ import {
   sendMessage,
 } from "@/api";
 import { useAuth } from "@/lib/auth";
+import { notifyUnreadChanged } from "@/hooks/use-unread-count";
 import { AvatarImg } from "@/components/avatar-img";
 import { avatarDataUri } from "@/lib/business-demo";
 import { Input } from "@/components/ui/input";
@@ -81,7 +82,7 @@ export function MessageThread({ backHref }: { backHref: string }) {
         setConversation(conv);
         setMessages(msgs);
         setLoading(false);
-        void markConversationRead(conversationId).catch(() => {});
+        void markConversationRead(conversationId).then(notifyUnreadChanged).catch(() => {});
       })
       .catch((e) => {
         if (cancelled) return;
@@ -98,7 +99,7 @@ export function MessageThread({ backHref }: { backHref: string }) {
       setMessages((prev) => mergeIncoming(prev, m));
       // An incoming message while the thread is open → mark it read so the sender
       // sees the receipt flip live.
-      if (!m.mine && conversationId) void markConversationRead(conversationId).catch(() => {});
+      if (!m.mine && conversationId) void markConversationRead(conversationId).then(notifyUnreadChanged).catch(() => {});
     },
     [conversationId],
   );
