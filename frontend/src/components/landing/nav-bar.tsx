@@ -6,19 +6,19 @@
  * next/link instead. The primary button is auth-aware (Login → /login, or
  * Open app → /search when signed in).
  *
- * Layout: the theme toggle is pinned far-left and the Login button far-right;
- * the section links live in a scrollable middle strip. When the window is wide
- * enough for every link, the strip centres them as a group (`safe center`, so
- * nothing overflows out of reach) and no chevrons show. When the width
- * shrinks and the links no longer fit, the strip scrolls horizontally and small
- * `‹ ›` chevrons appear beside it (in-flow, so they never sit on top of a link)
- * to nudge the strip left/right — dimmed at whichever end you've reached.
+ * Layout: the Arbor brand is pinned far-left and the Login button far-right;
+ * the section links live in a scrollable middle strip. When the window is wide enough for every link, the
+ * strip centres them as a group (`safe center`, so nothing overflows out of
+ * reach) and no chevrons show. When the width shrinks and the links no longer
+ * fit, the strip scrolls horizontally and small `‹ ›` chevrons appear beside it
+ * (in-flow, so they never sit on top of a link) to nudge the strip left/right —
+ * dimmed at whichever end you've reached. (The day/night toggle lives in the
+ * footer now, not here.)
  */
 import Link from "next/link";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
-import { ThemeToggle } from "@/components/theme-toggle";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -74,8 +74,13 @@ export function NavBar({ authed }: { authed: boolean }) {
   return (
     <nav className="fixed inset-x-0 top-4 z-50 flex justify-center px-4">
       <div className="flex w-full max-w-3xl items-center gap-2 rounded-3xl border border-border/60 bg-background/70 px-4 py-2 shadow-sm backdrop-blur-xl">
-        {/* Far left — dark/light toggle (pinned) */}
-        <ThemeToggle className="shrink-0" />
+        {/* Far left — the platform name, interactive (pinned) */}
+        <Link
+          href="/"
+          className="shrink-0 origin-left text-base font-bold tracking-tight text-foreground transition-transform duration-200 ease-out hover:scale-110"
+        >
+          Arbor
+        </Link>
 
         {/* Left chevron — only while the strip can scroll */}
         {overflow && (
@@ -86,7 +91,7 @@ export function NavBar({ authed }: { authed: boolean }) {
             disabled={atStart}
             onClick={() => nudge(-1)}
           >
-            <ChevronLeft className="size-4" aria-hidden />
+            <ChevronLeft className={cn("size-4", !atStart && "landing-nudge-left")} aria-hidden />
           </button>
         )}
 
@@ -122,7 +127,7 @@ export function NavBar({ authed }: { authed: boolean }) {
             disabled={atEnd}
             onClick={() => nudge(1)}
           >
-            <ChevronRight className="size-4" aria-hidden />
+            <ChevronRight className={cn("size-4", !atEnd && "landing-nudge")} aria-hidden />
           </button>
         )}
 
