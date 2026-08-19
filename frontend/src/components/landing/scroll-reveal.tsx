@@ -1,28 +1,13 @@
 "use client";
 
 /**
- * Shared "chapter" primitives for the landing page.
- *
- * - `useScrollMotion` used to dim each chapter as it scrolled away from centre.
- *   That opacity (applied to the chapter's wrapper) forced the plate into an
- *   isolated compositing group, which changed how its liquid-glass
- *   `backdrop-filter` sampled the page behind it — so those plates frosted the
- *   background differently (weaker) than the footer, which never dimmed. To make
- *   every plate blur the backdrop the *same*, footer-perfect way, the dimming is
- *   gone; the hook is now inert and just hands back a ref (kept so the call
- *   sites don't all have to change). See the pinned reference: all plates should
- *   frost the flecks like the dark-mode footer.
- * - `GlassPanel` is the frosted-glass plate each chapter sits on.
+ * `GlassPanel` — the frosted-glass plate the login form sits on. Frozen copy
+ * of landing/'s component (see docs/issues/97-...); trimmed to just this,
+ * since login/page.tsx doesn't need the landing-only `useScrollMotion` hook
+ * that ships alongside it there.
  */
-import { useRef, type CSSProperties, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
-
-export function useScrollMotion<T extends HTMLElement>() {
-  const ref = useRef<T>(null);
-  // No dimming — a full-opacity plate keeps its backdrop-filter out of a
-  // compositing group, so the glass frosts the background exactly like the footer.
-  return { ref, style: {} as CSSProperties };
-}
 
 export function GlassPanel({
   className,

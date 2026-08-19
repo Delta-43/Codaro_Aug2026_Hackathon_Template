@@ -79,10 +79,7 @@ export interface Resource {
   active: boolean;
 }
 
-// Not exported: the only external consumer (the landing calendar demo) moved
-// to landing/ (see docs/issues/97-...), which keeps its own copy of this
-// type. Kept here, unexported, since `Slot.status` below still needs it.
-type SlotStatus =
+export type SlotStatus =
   | "available"
   | "partially_booked"
   | "full"

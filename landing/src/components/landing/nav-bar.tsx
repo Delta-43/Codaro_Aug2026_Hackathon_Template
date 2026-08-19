@@ -2,9 +2,10 @@
 
 /**
  * Floating glass nav pill over the scene. Section links smooth-scroll to the
- * anchors; `route` links (Docs) are real navigations, so they go through
- * next/link instead. The primary button is auth-aware (Login → /login, or
- * Open app → /search when signed in).
+ * anchors; `route` links (Docs) are real navigations — to the app's origin
+ * (`NEXT_PUBLIC_APP_URL`), a separate deployment now, so they're plain <a>
+ * tags, not next/link. The primary button always reads "Login": this page
+ * has no visibility into a visitor's session on the app's origin.
  *
  * Layout: the Arbor brand is pinned far-left and the Login button far-right;
  * the section links live in a scrollable middle strip. When the window is wide enough for every link, the
@@ -15,13 +16,14 @@
  * dimmed at whichever end you've reached. (The day/night toggle lives in the
  * footer now, not here.)
  */
-import Link from "next/link";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { buttonFx } from "@/config/buttons";
 import { ScrollTopLink } from "@/components/landing/scroll-top-link";
 import { cn } from "@/lib/utils";
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
 const LINKS = [
   { href: "#how", label: "How it works" },
@@ -38,7 +40,7 @@ function smoothScroll(e: MouseEvent<HTMLAnchorElement>, href: string) {
   document.querySelector(href)?.scrollIntoView({ behavior: "smooth" });
 }
 
-export function NavBar({ authed }: { authed: boolean }) {
+export function NavBar() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [overflow, setOverflow] = useState(false);
   const [atStart, setAtStart] = useState(true);
@@ -102,9 +104,9 @@ export function NavBar({ authed }: { authed: boolean }) {
         >
           {LINKS.map((l) =>
             l.route ? (
-              <Link key={l.href} href={l.href} className={LINK_CLASS}>
+              <a key={l.href} href={`${APP_URL}${l.href}`} className={LINK_CLASS}>
                 {l.label}
-              </Link>
+              </a>
             ) : (
               <a
                 key={l.href}
@@ -131,17 +133,17 @@ export function NavBar({ authed }: { authed: boolean }) {
           </button>
         )}
 
-        {/* Far right — auth-aware primary button (pinned) */}
-        <Link
-          href={authed ? "/search" : "/login"}
+        {/* Far right — primary button (pinned), links out to the app's own /login */}
+        <a
+          href={`${APP_URL}/login`}
           className={cn(
             buttonVariants({ size: "sm" }),
             buttonFx.pill,
             "shrink-0 px-4",
           )}
         >
-          {authed ? "Open app" : "Login"}
-        </Link>
+          Login
+        </a>
       </div>
     </nav>
   );

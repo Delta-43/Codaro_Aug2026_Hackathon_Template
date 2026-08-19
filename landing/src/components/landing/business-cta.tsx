@@ -5,14 +5,15 @@
  * sign-in entry point down here (the mid-page login buttons were removed), so
  * a visitor who's read the whole page still has a clear way in.
  */
-import Link from "next/link";
 import { ArrowRight, Building2 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";
 
-export function BusinessCta({ authed }: { authed: boolean }) {
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
+
+export function BusinessCta() {
   const { ref, style } = useScrollMotion<HTMLDivElement>();
   return (
     <section className="flex min-h-[92vh] snap-start snap-always items-center px-4 py-20">
@@ -30,17 +31,17 @@ export function BusinessCta({ authed }: { authed: boolean }) {
               to you — not the other way around.
             </p>
           </div>
-          <Link
-            href={authed ? "/search" : "/login"}
+          <a
+            href={`${APP_URL}/login`}
             className={cn(
               buttonVariants({ size: "lg" }),
               buttonFx.pill,
                   "gap-1.5 px-6",
             )}
           >
-            {authed ? "Open app" : "Sign in"}
+            Sign in
             <ArrowRight className="size-4" aria-hidden />
-          </Link>
+          </a>
         </GlassPanel>
       </div>
     </section>

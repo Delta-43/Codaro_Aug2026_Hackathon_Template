@@ -5,12 +5,13 @@
  * the full /docs guide. Sits between the reviews and the closing CTA; the nav's
  * "Docs" link also routes to /docs, this plate is the in-page teaser for it.
  */
-import Link from "next/link";
 import { ArrowRight, BookOpen } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
 export function DocsCta() {
   const { ref, style } = useScrollMotion<HTMLDivElement>();
@@ -31,8 +32,8 @@ export function DocsCta() {
               walk through the config, the API, and the whole booking pipeline end to end.
             </p>
           </div>
-          <Link
-            href="/docs"
+          <a
+            href={`${APP_URL}/docs`}
             className={cn(
               buttonVariants({ size: "lg" }),
               buttonFx.pill,
@@ -41,7 +42,7 @@ export function DocsCta() {
           >
             Read the docs
             <ArrowRight className="size-4" aria-hidden />
-          </Link>
+          </a>
         </GlassPanel>      </div>
     </section>
   );
