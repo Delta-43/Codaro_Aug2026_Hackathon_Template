@@ -8,6 +8,10 @@ import { getTenancy } from "@/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { buttonFx } from "@/config/buttons";
+import { cn } from "@/lib/utils";
+import { SceneBackground } from "@/components/landing/scene-background";
+import { GlassPanel } from "@/components/landing/scroll-reveal";
 import { useAuth } from "@/lib/auth";
 
 // Temporary Demo Mode (issue #23) — the seeded demo accounts. One-click entry
@@ -98,12 +102,20 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center bg-background px-4 py-10">
-      <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-6 shadow-sm">
+    <div className="relative flex min-h-dvh items-center justify-center px-4 py-10">
+      {/* Same liquid-glass scene as the landing page, so the sign-in plate frosts
+          the backdrop identically. */}
+      <SceneBackground />
+      <div className="w-full max-w-sm">
+      <GlassPanel className="p-6">
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-semibold tracking-tight">
-            <span className="text-foreground">Service</span>
-            <span className="text-primary">.com</span>
+            <Link
+              href="/"
+              className="inline-block origin-center text-primary transition-transform duration-200 ease-out hover:scale-110"
+            >
+              Arbor
+            </Link>
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {mode === "signin" ? "Sign in to continue" : "Create your account"}
@@ -118,7 +130,7 @@ function LoginForm() {
 
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email" className={cn("justify-center", buttonFx.link)}>Email</Label>
             <Input
               id="email"
               type="email"
@@ -130,7 +142,7 @@ function LoginForm() {
             />
           </div>
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password" className={cn("justify-center", buttonFx.link)}>Password</Label>
             <Input
               id="password"
               type="password"
@@ -249,6 +261,7 @@ function LoginForm() {
             {busy ? "Please wait…" : "Demo Mode for Businesses"}
           </Button>
         </div>
+      </GlassPanel>
       </div>
     </div>
   );

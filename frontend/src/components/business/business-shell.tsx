@@ -52,8 +52,7 @@ function isActive(pathname: string, href: string): boolean {
 function Wordmark() {
   return (
     <span className="text-lg font-semibold tracking-tight">
-      <span className="text-foreground">Service</span>
-      <span className="text-primary">.com</span>
+      <span className="text-primary">Arbor</span>
       <span className="ml-2 rounded-full bg-amber-400/15 px-2 py-0.5 align-middle text-xs font-medium text-amber-600 dark:text-amber-400">
         Business
       </span>
@@ -81,7 +80,7 @@ export function BusinessShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh md:pl-60">
       {/* Desktop left drawer */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-card px-3 py-4 md:flex">
-        <Link href="/owner" className="mb-4 px-1">
+        <Link href="/" className="mb-4 px-1">
           <Wordmark />
         </Link>
         <nav className="flex flex-col gap-1">
@@ -109,7 +108,15 @@ export function BusinessShell({ children }: { children: ReactNode }) {
       {/* Desktop top bar */}
       <header className="sticky top-0 z-20 hidden h-14 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur md:flex">
         <div className="min-w-0">
-          <h1 className="truncate text-sm font-semibold">{heading}</h1>
+          <h1 className="min-w-0">
+            <button
+              type="button"
+              onClick={scrollTop}
+              className="block max-w-full origin-left truncate text-sm font-semibold transition-transform duration-200 ease-out hover:scale-105"
+            >
+              {heading}
+            </button>
+          </h1>
           <p className="truncate text-xs text-muted-foreground">{businessName}</p>
         </div>
         <Link
@@ -123,11 +130,25 @@ export function BusinessShell({ children }: { children: ReactNode }) {
         </Link>
       </header>
 
-      {/* Mobile compact header */}
-      <header className="sticky top-0 z-20 flex h-12 items-center gap-2 border-b border-border bg-background/85 px-4 backdrop-blur pt-[env(safe-area-inset-top)] md:hidden">
-        <span className="truncate text-sm font-semibold">
-          {heading}
-          <span className="ml-2 font-normal text-muted-foreground">{businessName}</span>
+      {/* Mobile compact header — brand (to the landing page) on the left, the
+          current page name on the right. The page's own <h1> is sr-only on
+          mobile, so this is the single visible page title (no duplicate). */}
+      <header className="sticky top-0 z-20 flex h-12 items-center justify-between gap-2 border-b border-border bg-background/85 px-4 backdrop-blur pt-[env(safe-area-inset-top)] md:hidden">
+        <Link
+          href="/"
+          className="shrink-0 origin-left text-base font-bold tracking-tight text-primary transition-transform duration-200 ease-out hover:scale-105"
+        >
+          Arbor
+        </Link>
+        <span className="flex min-w-0 items-baseline justify-end gap-2 text-sm font-semibold">
+          <button
+            type="button"
+            onClick={scrollTop}
+            className="shrink-0 origin-right transition-transform duration-200 ease-out hover:scale-105"
+          >
+            {heading}
+          </button>
+          <span className="min-w-0 shrink truncate font-normal text-muted-foreground">{businessName}</span>
         </span>
       </header>
 
@@ -145,11 +166,11 @@ export function BusinessShell({ children }: { children: ReactNode }) {
               href={tab.href}
               aria-current={activeTab ? "page" : undefined}
               className={cn(
-                "flex min-h-[52px] flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors",
+                "group flex min-h-[52px] flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors",
                 activeTab ? "text-primary" : "text-muted-foreground hover:text-foreground",
               )}
             >
-              <span className="relative">
+              <span className="relative origin-center transition-transform duration-200 ease-out group-hover:scale-110">
                 <Icon className="size-5" aria-hidden />
                 <TabBadge count={badge} />
               </span>

@@ -13,9 +13,9 @@
  * Server component; only the nested `ThemeToggle` needs the client.
  */
 import Link from "next/link";
-import { Leaf } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { GlassPanel } from "@/components/landing/scroll-reveal";
+import { ScrollTopLink } from "@/components/landing/scroll-top-link";
 
 const EXPLORE = [
   { href: "#how", label: "How it works" },
@@ -32,24 +32,14 @@ export function Footer({ authed }: { authed: boolean }) {
   return (
     <footer className="flex min-h-[80vh] snap-start snap-always flex-col justify-end">
       {/* The bar */}
-      <div className="mx-auto w-full max-w-5xl px-4">
+      <div className="mx-auto w-full max-w-4xl px-4">
         <GlassPanel className="px-6 py-12 sm:px-10 sm:py-14">
-          {/* Centered indicator icon — big interactive Leaf, like the other plates */}
-          <div className="mb-8 flex justify-center">
-            <Link href="/" aria-label="Arbor — home" className="flex size-12 origin-center items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm transition-all duration-200 ease-out hover:scale-[1.4] hover:-translate-y-1 hover:bg-primary hover:text-primary-foreground hover:shadow-xl">
-              <Leaf className="size-6" aria-hidden />
-            </Link>
-          </div>
-
           {/* Bar — brand + pitch on the left, link columns on the right */}
           <div className="flex flex-col gap-10 sm:flex-row sm:items-start sm:justify-between">
             <div className="max-w-xs">
-              <Link
-                href="/"
-                className="inline-block origin-left text-lg font-bold tracking-tight text-foreground transition-transform duration-200 ease-out hover:scale-110"
-              >
+              <ScrollTopLink className="inline-block origin-left text-lg font-bold tracking-tight text-primary transition-transform duration-200 ease-out hover:scale-110">
                 Arbor
-              </Link>
+              </ScrollTopLink>
               <p className="mt-3 text-sm leading-relaxed text-foreground/70">
                 One booking engine, reshaped for any business — booking, scheduling, and
                 availability, without a rewrite.
@@ -87,9 +77,14 @@ export function Footer({ authed }: { authed: boolean }) {
         </GlassPanel>
       </div>
 
-      {/* Giant fading wordmark — full-bleed, dissolving upward from the bottom. */}
+      {/* Giant fading wordmark — full-bleed, dissolving upward from the bottom.
+          The particle field finds this element by `data-wordmark` and steers its
+          dots clear of it, but only while it's actually on screen (scrolled to
+          the footer) — so nothing crawls over the closing wordmark, and the
+          field is unaffected anywhere else on the page. */}
       <div aria-hidden className="mt-10 overflow-hidden">
         <span
+          data-wordmark
           className="block origin-bottom cursor-default select-none text-center font-extrabold leading-[0.78] tracking-tighter text-black transition-transform duration-300 ease-out hover:-translate-y-1 hover:scale-[1.03] dark:text-white"
           style={{
             fontSize: "clamp(3.5rem, 24vw, 18rem)",

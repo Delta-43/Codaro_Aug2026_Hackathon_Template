@@ -7,6 +7,8 @@ import { ArrowLeft, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { buttonFx } from "@/config/buttons";
+import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 
 /**
@@ -78,8 +80,12 @@ function BusinessLoginForm() {
               <Building2 className="size-6" aria-hidden />
             </span>
             <h1 className="text-2xl font-semibold tracking-tight">
-              <span className="text-foreground">Service</span>
-              <span className="text-primary">.com</span>
+              <Link
+                href="/"
+                className="inline-block origin-center text-primary transition-transform duration-200 ease-out hover:scale-110"
+              >
+                Arbor
+              </Link>
               <span className="text-amber-600 dark:text-amber-400"> Business</span>
             </h1>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -95,7 +101,7 @@ function BusinessLoginForm() {
 
           <form onSubmit={onSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="biz-email">Business user email</Label>
+              <Label htmlFor="biz-email" className={cn("justify-center", buttonFx.link)}>Business user email</Label>
               <Input
                 id="biz-email"
                 type="email"
@@ -107,7 +113,7 @@ function BusinessLoginForm() {
               />
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="biz-password">Password</Label>
+              <Label htmlFor="biz-password" className={cn("justify-center", buttonFx.link)}>Password</Label>
               <Input
                 id="biz-password"
                 type="password"

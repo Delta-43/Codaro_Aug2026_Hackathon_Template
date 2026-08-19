@@ -24,6 +24,7 @@ import { ResourcePicker } from "@/components/provider/resource-picker";
 import { formatDuration, formatOffer, UNIT_KIND_LABELS } from "@/lib/format";
 import { distanceFromHome } from "@/lib/geo";
 import { cn } from "@/lib/utils";
+import { buttonFx } from "@/config/buttons";
 
 interface ServiceWithMeta {
   service: Service;
@@ -195,7 +196,10 @@ export function ProviderProfile({
               key={service.id}
               type="button"
               onClick={() => handleSelect(service)}
-              className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3 text-left transition-colors hover:bg-muted/50"
+              className={cn(
+                "flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3 text-left",
+                buttonFx.surface,
+              )}
             >
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline justify-between gap-2">
