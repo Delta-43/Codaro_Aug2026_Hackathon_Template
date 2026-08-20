@@ -43,7 +43,7 @@ export function DemoLogins({
   // label while both stay disabled.
   const [pending, setPending] = useState<string | null>(null);
 
-  async function useDemo(account: (typeof DEMO_ACCOUNTS)[number]) {
+  async function signInAsDemo(account: (typeof DEMO_ACCOUNTS)[number]) {
     onError(null);
     setPending(account.key);
     try {
@@ -71,7 +71,7 @@ export function DemoLogins({
             variant="outline"
             size="lg"
             isDisabled={disabled || !configured || pending !== null}
-            onPress={() => useDemo(account)}
+            onPress={() => signInAsDemo(account)}
           >
             <account.Icon aria-hidden />
             {pending === account.key ? "Signing in…" : account.label}

@@ -113,6 +113,7 @@ export default function SearchPage() {
     // `ready` is a dependency because `geoOrigin()` is module state with no React
     // subscription: without it these bounds keep the pre-boot fallback origin for
     // the life of the page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allProviders.data, ready]);
 
   const followed = new Set(user?.followedProviderIds ?? []);
@@ -140,9 +141,9 @@ export default function SearchPage() {
       return sign * (va - vb);
     });
     // followedKey stands in for the `followed` set (rebuilt each render).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     // `ready` for the same reason as `bounds`: the maxDist filter calls
     // geoOrigin(), which is not reactive.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results.data, orderBy, dir, followedKey, minRating, maxPrice, maxDist, ready]);
 
   // Clicking the active order toggles its direction; a different order switches
