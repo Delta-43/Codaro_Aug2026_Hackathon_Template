@@ -14,6 +14,7 @@ import { SceneBackground } from "@/components/landing/scene-background";
 import { GlassPanel } from "@/components/landing/scroll-reveal";
 import { useAuth } from "@/lib/auth";
 import { InlineMessage } from "@/components/ui/inline-message";
+import { DemoLogins } from "@/components/demo-logins";
 
 /**
  * Customer sign-in — the default front door. Business owners tap "I'm a
@@ -176,6 +177,8 @@ function LoginForm() {
             {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create account"}
           </Button>
         </form>
+
+        <DemoLogins disabled={busy} onError={setError} />
 
         {/* Full redirect to the dedicated business sign-in. Hidden in
             single-business mode — there is no public business onboarding (the

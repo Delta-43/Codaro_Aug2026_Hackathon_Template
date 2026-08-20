@@ -13,6 +13,7 @@ import { SceneBackground } from "@/components/landing/scene-background";
 import { GlassPanel } from "@/components/landing/scroll-reveal";
 import { useAuth } from "@/lib/auth";
 import { InlineMessage } from "@/components/ui/inline-message";
+import { DemoLogins } from "@/components/demo-logins";
 
 /**
  * Business sign-in — a dedicated page reached from "I'm a business!" on the main
@@ -166,6 +167,8 @@ function BusinessLoginForm() {
             {busy ? "Please wait…" : mode === "signin" ? "Sign in" : "Create business account"}
           </Button>
         </form>
+
+        <DemoLogins disabled={busy} onError={setError} />
 
         {/* Inverse of the customer page's "I'm a business!" — back to the
             customer sign-in. */}
