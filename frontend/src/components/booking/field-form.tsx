@@ -14,6 +14,7 @@
  * so this component stays pure: descriptors in, edits out.
  */
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 
 /** The shape both `booking.subject.fields[]` and `metaFields.{entity}[]` use. */
 export type FieldDescriptor = {
@@ -25,9 +26,6 @@ export type FieldDescriptor = {
 };
 
 export type FieldValues = Record<string, unknown>;
-
-const SELECT_CLASS =
-  "h-8 w-full rounded-2xl border border-transparent bg-input/50 px-2.5 text-sm";
 
 export function FieldForm({
   fields,
@@ -64,11 +62,10 @@ export function FieldForm({
                 className="size-4 accent-primary"
               />
             ) : field.type === "select" ? (
-              <select
+              <Select
                 id={id}
                 value={typeof value === "string" ? value : ""}
                 onChange={(e) => set(field.key, e.target.value || undefined)}
-                className={SELECT_CLASS}
               >
                 <option value="">—</option>
                 {(field.options ?? []).map((option) => (
@@ -76,7 +73,7 @@ export function FieldForm({
                     {option}
                   </option>
                 ))}
-              </select>
+              </Select>
             ) : (
               // `file` renders as text on purpose: there is no upload endpoint
               // for domain metadata, so the honest control is a reference (a
@@ -109,4 +106,21 @@ export function pruneValues(values: FieldValues): FieldValues {
     out[key] = value;
   }
   return out;
+}
+
+/** The required descriptors the user has not answered yet.
+ *
+ *  Deliberately the mirror image of `pruneValues`: a field counts as missing
+ *  exactly when the value it holds is one `pruneValues` would drop from the
+ *  request — so the button this gates is disabled precisely when the backend's
+ *  `required` check would 422, and never a keystroke longer. */
+export function missingRequired(
+  fields: FieldDescriptor[],
+  values: FieldValues,
+): FieldDescriptor[] {
+  return fields.filter((field) => {
+    if (!field.required) return false;
+    const value = values[field.key];
+    return value === undefined || value === null || value === "";
+  });
 }

@@ -11,9 +11,7 @@
  */
 import type { BookingOption } from "@/types/domain";
 import { formatMoney } from "@/lib/format";
-
-const SELECT_CLASS =
-  "h-8 rounded-2xl border border-transparent bg-input/50 px-2.5 text-sm";
+import { Select } from "@/components/ui/select";
 
 export function OptionsPicker({
   options,
@@ -48,11 +46,11 @@ export function OptionsPicker({
               <label htmlFor={id} className="text-sm font-medium">
                 {option.label}
               </label>
-              <select
+              <Select
                 id={id}
                 value={value}
                 onChange={(e) => set(option.key, e.target.value)}
-                className={SELECT_CLASS}
+                className="w-auto"
               >
                 <option value="">None</option>
                 {(option.choices ?? []).map((choice) => (
@@ -61,7 +59,7 @@ export function OptionsPicker({
                     {price(choice.priceMinorUnits)}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           );
         }

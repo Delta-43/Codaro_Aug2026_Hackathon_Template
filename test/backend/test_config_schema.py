@@ -18,6 +18,7 @@ key first.
 
 from __future__ import annotations
 
+import ast
 import copy
 import json
 from pathlib import Path
@@ -34,6 +35,7 @@ from app.config_schema import (
     META_FIELD_TYPE_ALIASES,
     META_FIELD_TYPES,
     OPTION_TYPES,
+    PAYERS,
     PRICING_MODELS,
     RATE_PERIODS,
     RECURRENCE_PATTERNS,
@@ -995,19 +997,57 @@ def test_the_descriptor_checks_all_report_together():
 # declared-but-unenforced inventory
 # ======================================================================
 #
-# Three keys are in DEFAULTS but deliberately do nothing yet: each needs
+# Some keys are in DEFAULTS but do not GATE anything yet: each would need
 # machinery this repo does not have (a cross-booking daily total, a payments
 # layer, a scheduled job). The point of this section is NOT to assert behaviour
-# they lack — it is to pin the *list*, so a fourth dead key cannot be added
-# quietly and so an enforced key can't be mistaken for one of them.
+# they lack — it is to pin the *list*, so a dead key cannot be added quietly and
+# so an enforced key can't be mistaken for one of them.
+#
+# The list used to be one bucket, checked with "no engine module reads this
+# key". That conflated two different properties:
+#
+#   ENFORCED — the engine gates behaviour on the key (refuses, prices, expires).
+#   READ     — the engine merely reads it to put it on the wire.
+#
+# A display-only key is READ but not ENFORCED, so the old check failed the
+# moment `timing.approvalWindowHours` was surfaced through `serialize_service`
+# — reporting a *feature* as a regression. The invariant that still has teeth is
+# the narrower one, so it is split in two here:
+#
+#   INERT          — neither enforced nor surfaced -> must have NO reader at all.
+#   SURFACED_ONLY  — read for display -> must have a reader, that reader must be
+#                    the declared wire path and nothing else, and the key must
+#                    still change no behaviour (pinned as real assertions below).
+#
+# Deleting the check instead would have thrown away the only thing standing
+# between `backend/CLAUDE.md`'s "Declared but NOT enforced" table and v1's
+# cautionary tale of config that looks live and does nothing.
 
 BACKEND_APP = REPO_ROOT / "backend" / "app"
+BACKEND_DOC = REPO_ROOT / "backend" / "CLAUDE.md"
+CHECK_PIVOTS = REPO_ROOT / "scripts" / "check_pivots.py"
 
-UNENFORCED = {
+# Neither enforced NOR surfaced: no engine module may mention these at all.
+INERT = {
     "pricing.caps.perDayMinorUnits": "perDayMinorUnits",
     "payments.noShowFee": "noShowFee",
-    "timing.approvalWindowHours": "approvalWindowHours",
 }
+
+# Read for DISPLAY only. Value is (leaf key, the exact module set allowed to
+# read it) — the module set is what makes this non-vacuous: wiring one of these
+# into a gate means editing `bookings.py` / `pricing.py` / `rules.py`'s rule
+# dispatch, which grows the set and fails the test.
+SURFACED_ONLY = {
+    # serialize_service -> Service.approvalWindowHours ("a reply within N
+    # hours"). Nothing expires a stale pending request.
+    "timing.approvalWindowHours": ("approvalWindowHours", {"serialize.py"}),
+    # rules.payment_state -> Booking.payment.payer (address the invoice to an
+    # estate/insurer/employer). It changes nothing about what is owed.
+    "payments.payer": ("payer", {"rules.py"}),
+}
+
+UNENFORCED = {**INERT, **{path: key for path, (key, _) in SURFACED_ONLY.items()}}
+
 # Controls: same shape, but these two ARE read by engine code. They prove the
 # source scan below can actually see enforcement.
 ENFORCED_CONTROLS = {
@@ -1042,11 +1082,26 @@ def test_an_unenforced_key_is_still_declared_in_defaults(path):
     _dig(DEFAULTS, path)  # readable + overridable per service even while inert
 
 
-@pytest.mark.parametrize(("path", "key"), sorted(UNENFORCED.items()))
-def test_an_unenforced_key_is_read_by_no_engine_code(path, key):
-    """If this fails, the key was wired up — good news, but move it out of
-    UNENFORCED and add real behaviour tests for it."""
+@pytest.mark.parametrize(("path", "key"), sorted(INERT.items()))
+def test_an_inert_key_is_read_by_no_engine_code(path, key):
+    """The surviving half of the original invariant: a key that is neither
+    enforced nor surfaced must have no reader anywhere in `backend/app`.
+
+    If this fails the key was wired up — good news, but move it to
+    SURFACED_ONLY (with its wire path) or out of the inventory entirely, and
+    write the behaviour tests that now exist to be written."""
     assert _modules_reading(key) == set(), path
+
+
+@pytest.mark.parametrize(("path", "key", "readers"),
+                         sorted((p, k, r) for p, (k, r) in SURFACED_ONLY.items()))
+def test_a_surfaced_key_is_read_only_where_it_reaches_the_wire(path, key, readers):
+    """A display-only key must be read (otherwise it is inert and belongs in
+    INERT), and read ONLY by the module that puts it on the wire. Equality, not
+    a subset: a new reader in `bookings.py`/`pricing.py`/`availability.py` is
+    exactly the "it started gating something" event this section exists to
+    catch, and it must be re-classified rather than absorbed."""
+    assert _modules_reading(key) == readers, path
 
 
 @pytest.mark.parametrize(("path", "key"), sorted(ENFORCED_CONTROLS.items()))
@@ -1054,14 +1109,119 @@ def test_the_control_keys_prove_the_scan_can_see_enforcement(path, key):
     assert _modules_reading(key), path
 
 
-@pytest.mark.parametrize(("path", "key"), sorted(UNENFORCED.items()))
-def test_an_unenforced_key_carries_a_comment_saying_so(path, key):
-    """DEFAULTS is the only place an operator reads about a key, so the
-    not-yet-enforced ones must say so where they are declared."""
+@pytest.mark.parametrize(("path", "key"), sorted(INERT.items()))
+def test_an_inert_key_carries_a_comment_saying_so(path, key):
+    """DEFAULTS is the only place an operator reads about an inert key, so it
+    must say so where it is declared. (A SURFACED_ONLY key is visible on the
+    wire, so its promise is documented in the table checked below instead.)"""
     lines = (BACKEND_APP / "config_schema.py").read_text().splitlines()
     index = next(i for i, line in enumerate(lines) if f'"{key}"' in line)
     context = "\n".join(lines[max(0, index - 5):index]).lower()
     assert "enforc" in context, (path, context)
+
+
+# --- the promise the repo makes about itself, in the two places it makes it --
+#
+# `backend/CLAUDE.md`'s "Declared but NOT enforced" table and
+# `scripts/check_pivots.py`'s ENFORCED/DECLARED_ONLY maps are the human-readable
+# half of this inventory. They are only worth keeping if they agree with the
+# code, so the classification above is cross-checked against both.
+
+
+def _doc_table_row(path: str) -> str:
+    """The `backend/CLAUDE.md` row documenting `path`, lowercased."""
+    for line in BACKEND_DOC.read_text().splitlines():
+        if line.startswith("|") and f"`{path}`" in line.split("|")[1]:
+            return line.lower()
+    return ""
+
+
+@pytest.mark.parametrize("path", sorted(UNENFORCED))
+def test_every_unenforced_key_is_listed_in_the_backend_doc_table(path):
+    assert _doc_table_row(path), f"{path} is missing from backend/CLAUDE.md's table"
+
+
+@pytest.mark.parametrize("path", sorted(SURFACED_ONLY))
+def test_the_doc_table_says_a_surfaced_key_is_surfaced_but_not_enforced(path):
+    """Both halves have to be stated: a reader skimming the table must learn
+    that the key DOES reach the UI (so they don't wire it up twice) and that it
+    still enforces nothing (so they don't trust it as a gate)."""
+    row = _doc_table_row(path)
+    assert "surfaced" in row, (path, row)
+    assert "not enforced" in row, (path, row)
+
+
+@pytest.mark.parametrize("path", sorted(INERT))
+def test_check_pivots_lists_an_inert_key_as_declared_only(path):
+    """`check_pivots.py` fails on any DEFAULTS leaf in neither map, so the two
+    maps are the machine-readable version of the same promise. An inert key
+    belongs in DECLARED_ONLY ("nothing reads it yet") and must not be claimed
+    as enforced."""
+    enforced, declared_only = _check_pivots_maps()
+    assert path in declared_only, path
+    assert path not in enforced, path
+
+
+@pytest.mark.parametrize("path", sorted(SURFACED_ONLY))
+def test_check_pivots_lists_a_surfaced_key_as_read_but_not_gated(path):
+    """A surfaced key has a real reader, so it is no longer DECLARED_ONLY
+    ("nothing reads it yet") — but its ENFORCED note must admit it is only
+    displayed, or the map would over-claim exactly what this section guards."""
+    enforced, declared_only = _check_pivots_maps()
+    assert path in enforced, path
+    assert path not in declared_only, path
+    note = enforced[path].lower()
+    assert "display" in note or "not gated" in note or "expires nothing" in note, (path, note)
+
+
+def _check_pivots_maps() -> tuple[dict, dict]:
+    """ENFORCED / DECLARED_ONLY out of `scripts/check_pivots.py`, read as source
+    rather than imported: the script pulls in `app.pricing` and shells out over
+    100 pivot files, and this suite only needs its two literal maps."""
+    module: dict = {}
+    tree = ast.parse(CHECK_PIVOTS.read_text())
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):
+            name = node.targets[0].id
+            if name in ("ENFORCED", "DECLARED_ONLY"):
+                module[name] = ast.literal_eval(node.value)
+    assert set(module) == {"ENFORCED", "DECLARED_ONLY"}, sorted(module)
+    return module["ENFORCED"], module["DECLARED_ONLY"]
+
+
+# --- and the behaviour: surfaced means surfaced, not enforced ---------------
+
+
+def test_the_approval_window_reaches_the_wire_and_gates_nothing():
+    """`timing.approvalWindowHours` on `Service.approvalWindowHours`, and two
+    configs differing ONLY in that number serialize identically apart from it —
+    the mechanical statement of "display only"."""
+    from app.serialize import serialize_service
+
+    row = {"id": "s", "provider_id": "p", "name": "N", "metadata": {}}
+    a = serialize_service({**row, "metadata": {"timing": {"approvalWindowHours": 4}}})
+    b = serialize_service({**row, "metadata": {"timing": {"approvalWindowHours": 720}}})
+    assert (a["approvalWindowHours"], b["approvalWindowHours"]) == (4, 720)
+    assert {k: v for k, v in a.items() if k != "approvalWindowHours"} == {
+        k: v for k, v in b.items() if k != "approvalWindowHours"
+    }
+
+
+@pytest.mark.parametrize("payer", sorted(PAYERS))
+def test_the_payer_reaches_the_wire_and_changes_no_money(payer):
+    """`payments.payer` on `Booking.payment.payer`. Who is billed must not move
+    a single amount or the payment state — if it ever does, it has become an
+    enforced key and needs its own behaviour tests."""
+    from app.rules import payment_state
+
+    md = {"price_minor_units": 5000, "deposit_minor_units": 1000, "currency": "EUR"}
+    svc = {"metadata": {"payments": {"flow": "prepay", "payer": payer}}}
+    state = payment_state(md, svc, "confirmed")
+    baseline = payment_state(md, {"metadata": {"payments": {"flow": "prepay"}}}, "confirmed")
+    assert state["payer"] == payer
+    assert {k: v for k, v in state.items() if k != "payer"} == {
+        k: v for k, v in baseline.items() if k != "payer"
+    }
 
 
 # ======================================================================

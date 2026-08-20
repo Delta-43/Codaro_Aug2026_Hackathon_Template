@@ -55,6 +55,9 @@ ENFORCED = {
     "recurrence": "bookings._book_repeats — series expander",
     "entitlements": "rules.resolve_entitlement + pricing.quote discount",
     "payments.flow": "rules.payment_state + POST /bookings/{id}/pay",
+    # Surfaced, not gated: the engine reports WHO is billed, it does not bill.
+    "payments.payer": "rules.payment_state -> Booking.payment.payer (displayed, not gated)",
+    "timing.approvalWindowHours": "serialize_service -> Service.approvalWindowHours (displayed; still expires nothing)",
     "inventory.returnRequired": "serialize.loan_state + POST /bookings/{id}/return",
     "inventory.loanPeriodHours": "serialize.loan_state",
     "inventory.overdueFeePerDayMinorUnits": "serialize.loan_state",
@@ -80,6 +83,7 @@ ENFORCED = {
     "timing.bufferMinutes": "apply_rules('slot.create')",
     "timing.leadTimeMinutes": "apply_rules('booking.create') -> rules._lead_time",
     "timing.confirmation": "rules.effective_auto_approve",
+    "booking.granularity": "serialize_service -> Service.granularity; drives the no-date request flow",
     "booking.duration.minUnits": "effective_service_rules -> minSlotsPerBooking",
     "booking.duration.maxUnits": "effective_service_rules -> maxSlotsPerBooking",
     "pricing.currency": "pricing.quote",
@@ -97,7 +101,6 @@ ENFORCED = {
 # The value is what has to be built, phrased so it maps onto the roadmap.
 DECLARED_ONLY = {
     "booking.unitKind": "vocabulary/UI layer (E10 per-service vocabulary)",
-    "booking.granularity": "availabilityStrategy plugin (E2 date-range)",
     "booking.duration.mode": "availabilityStrategy plugin (E2)",
     "booking.party.mode": "party rules in _resolve_selection",
     "booking.party.min": "party rules in _resolve_selection",
@@ -116,7 +119,6 @@ DECLARED_ONLY = {
     "pricing.tiers[].quantityCap": "sold-count query",
     "payments.flow": "PaymentAdapter + payments table (E8)",
     "payments.schedule": "PaymentAdapter (E8)",
-    "payments.payer": "PaymentAdapter (E8)",
     "payments.billingCycle": "PaymentAdapter (E8)",
     "payments.noShowFee": "PaymentAdapter (E8)",
     "payments.usageMetered": "bookingLifecycle state machine (E7)",
@@ -136,7 +138,6 @@ DECLARED_ONLY = {
     "location.remote": "meeting-link generation",
     "timing.seasons": "availability date-window filter",
     "timing.blackouts": "availability date-window filter",
-    "timing.approvalWindowHours": "scheduled expiry job",
     # `reviews`/`follows` are gated (see ENFORCED). These have no backend surface
     # to refuse yet, so the block's "hides the UI AND refuses the write" contract
     # is only half-true for them — say so rather than imply the whole block works.

@@ -431,7 +431,54 @@ def test_provider_reviews_newest_first_with_public_display_name(client, db):
     # user_metadata), never the email local-part. Offline the FakeSupabase has
     # no auth.admin, so the name can't be resolved and it falls back to "Guest".
     assert [r["author"] for r in rows] == ["Guest", "Guest"]
-    assert set(rows[0]) == {"rating", "text", "createdAtUtc", "author"}
+    # `authorAvatarUrl` rides along with the name off the SAME admin lookup, so
+    # it degrades the same way: unknown reviewer -> "" (never absent, never the
+    # email/gravatar of a private address).
+    assert set(rows[0]) == {"rating", "text", "createdAtUtc", "author", "authorAvatarUrl"}
+    assert [r["authorAvatarUrl"] for r in rows] == ["", ""]
+
+
+def test_provider_review_author_avatar_comes_from_the_reviewers_public_profile(client, db):
+    """The positive half of the degrade pinned above: when the reviewer IS
+    resolvable, `authorAvatarUrl` is their public `user_metadata.avatar_url`,
+    resolved from the SAME admin lookup that already produced the display name
+    (which is why it was free to add). The private email still never leaves the
+    endpoint."""
+    reviewer = "33333333-3333-3333-3333-333333333333"
+    db.seed_auth_user(
+        reviewer,
+        email="ada@example.com",
+        user_metadata={"display_name": "Ada L.", "avatar_url": "http://img/ada.png"},
+    )
+    p = make_provider(db, "Acme")
+    svc = make_service(db, p["id"], "S")
+    s1 = make_slot(db, service_id=svc["id"], hours_ahead=-10)
+    b1 = make_booking(
+        db, slots=[s1], service={**svc, "provider_id": p["id"]},
+        user_id=reviewer, client_email="ada@example.com", reference="BK-1",
+    )
+    db.insert_row("reviews", booking_id=b1["id"], provider_id=p["id"], rating=5, text="great")
+
+    row = client.get(f"/providers/{p['id']}/reviews").json()[0]
+    assert row["author"] == "Ada L."
+    assert row["authorAvatarUrl"] == "http://img/ada.png"
+
+
+def test_provider_review_author_avatar_is_empty_when_the_profile_has_none(client, db):
+    """A resolvable reviewer with no photo: "" rather than a missing key, so the
+    client falls back to initials without a guard."""
+    reviewer = "44444444-4444-4444-4444-444444444444"
+    db.seed_auth_user(reviewer, email="grace@example.com",
+                      user_metadata={"display_name": "Grace H."})
+    p = make_provider(db, "Acme")
+    svc = make_service(db, p["id"], "S")
+    s1 = make_slot(db, service_id=svc["id"], hours_ahead=-10)
+    b1 = make_booking(
+        db, slots=[s1], service={**svc, "provider_id": p["id"]}, user_id=reviewer,
+    )
+    db.insert_row("reviews", booking_id=b1["id"], provider_id=p["id"], rating=4, text="fine")
+    row = client.get(f"/providers/{p['id']}/reviews").json()[0]
+    assert (row["author"], row["authorAvatarUrl"]) == ("Grace H.", "")
 
 
 def test_provider_reviews_empty_for_provider_without_reviews(client, db):

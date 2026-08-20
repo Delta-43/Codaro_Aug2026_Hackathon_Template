@@ -24,7 +24,6 @@ import {
 import { useAuth } from "@/lib/auth";
 import { notifyUnreadChanged } from "@/hooks/use-unread-count";
 import { AvatarImg } from "@/components/avatar-img";
-import { avatarDataUri } from "@/lib/business-view";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/skeleton";
@@ -176,7 +175,7 @@ export function MessageThread({ backHref }: { backHref: string }) {
   }
 
   const otherName = conversation?.otherParty.name || "Conversation";
-  const otherAvatar = conversation?.otherParty.avatarUrl || avatarDataUri(otherName);
+  const otherAvatar = conversation?.otherParty.avatarUrl;
   const lastSentId = [...messages].reverse().find((m) => m.mine && !m.deletedAtUtc)?.id;
 
   return (
