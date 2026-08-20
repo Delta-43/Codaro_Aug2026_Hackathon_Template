@@ -19,7 +19,7 @@ export const metadata: Metadata = {
  */
 export default function ShowcasePage() {
   return (
-    <div className="dark min-h-dvh bg-background text-foreground">
+    <div className="dark min-h-dvh text-foreground">
       <ShowcaseBackdrop />
       <ShowcaseHeader />
       <main className="mx-auto max-w-5xl px-4 py-12 sm:px-6">
