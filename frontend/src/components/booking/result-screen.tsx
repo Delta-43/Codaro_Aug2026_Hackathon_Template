@@ -33,6 +33,10 @@ export function ResultScreen({
   // just never rendered, so a quote-model deployment said "request sent" where
   // it meant "we'll price this and come back to you".
   const byQuote = service.pricingModel === "quote" && service.capabilities.quotes !== false;
+  // `booking.granularity: "none"` + still pending: the slot on this booking is
+  // the placeholder the flow resolved, not a date anyone has agreed to. Printing
+  // it here would announce a date the business has not yet assigned.
+  const dateHidden = booking.status === "pending" && service.granularity === "none";
   const headline =
     booking.status !== "pending"
       ? (copy.confirmTitle ?? "You're booked")
@@ -63,27 +67,40 @@ export function ResultScreen({
       <p className="font-mono text-2xl font-semibold tracking-widest">{booking.reference}</p>
 
       <div className="mt-5 w-full max-w-sm rounded-xl border border-border bg-card p-4 text-left text-sm">
-        <div className="flex justify-between py-0.5">
-          <span className="text-muted-foreground">{service.name}</span>
-        </div>
-        <div className="flex justify-between py-0.5">
-          <span className="text-muted-foreground">Date</span>
-          <span className="font-medium">
-            {formatDate(booking.startUtc, tz, { weekday: true })}
-          </span>
-        </div>
-        <div className="flex justify-between py-0.5">
-          <span className="text-muted-foreground">Time</span>
-          <span className="font-medium">
-            {formatTimeRange(booking.startUtc, booking.endUtc, tz)} {zoneAbbrev(booking.startUtc, tz)}
-          </span>
-        </div>
-        <div className="flex justify-between py-0.5">
-          <span className="text-muted-foreground">Total</span>
-          <span className="font-medium">
-            {formatMoney(booking.priceMinorUnits, booking.currency)}
-          </span>
-        </div>
+        <p className="pb-1 font-medium">{service.name}</p>
+        {dateHidden ? (
+          <div className="flex justify-between py-0.5">
+            <span className="text-muted-foreground">Date</span>
+            <span className="font-medium">To be confirmed</span>
+          </div>
+        ) : (
+          <>
+            <div className="flex justify-between py-0.5">
+              <span className="text-muted-foreground">Date</span>
+              <span className="font-medium">
+                {formatDate(booking.startUtc, tz, { weekday: true })}
+              </span>
+            </div>
+            <div className="flex justify-between py-0.5">
+              <span className="text-muted-foreground">Time</span>
+              <span className="font-medium">
+                {formatTimeRange(booking.startUtc, booking.endUtc, tz)}{" "}
+                {zoneAbbrev(booking.startUtc, tz)}
+              </span>
+            </div>
+          </>
+        )}
+        {/* No money line where there is none to show: `payments.flow: "none"`
+            carries no charge, and a quote request has not been priced yet — both
+            rendered a "Total 0.00" that reads as a bug rather than as free. */}
+        {service.paymentFlow !== "none" && !byQuote ? (
+          <div className="flex justify-between py-0.5">
+            <span className="text-muted-foreground">Total</span>
+            <span className="font-medium">
+              {formatMoney(booking.priceMinorUnits, booking.currency)}
+            </span>
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-6 flex w-full max-w-sm gap-2">

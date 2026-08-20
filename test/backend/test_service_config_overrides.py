@@ -52,13 +52,18 @@ SERVICE_KEYS = {
     "id", "providerId", "name", "description", "imageUrl", "bookingModel",
     "slotDurationMinutes", "minSlotsPerBooking", "maxSlotsPerBooking",
     "priceMinorUnits", "currency", "cancellationCutoffHours", "autoApprove",
-    "capabilities", "pricingModel", "rateUnit", "paymentFlow", "billingCycle",
-    "prerequisites", "recurrence", "waitlist", "resourceIds",
+    "capabilities", "pricingModel", "rateUnit", "chargePerPerson", "paymentFlow",
+    "billingCycle", "prerequisites", "recurrence", "waitlist", "resourceIds",
     # The v2 offer-shape blocks. Every one was declared in the config, resolved
     # per service, and served to nobody — so the client could not render (let
     # alone collect) a party band, an add-on, a subject, a course or a payment
     # schedule.
     "unitKind",
+    # `booking.granularity` (`none` = the customer picks no date at all) and
+    # `timing.approvalWindowHours` (display-only reply promise). Both are
+    # per-service overridable, hence resolved through effective_service_config.
+    "granularity",
+    "approvalWindowHours",
     "party",
     "subject",
     "options",

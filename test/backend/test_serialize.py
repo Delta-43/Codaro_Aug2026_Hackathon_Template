@@ -378,6 +378,10 @@ SERVICE_KEYS = {
     # exists — `priceMinorUnits` alone is only the base rate.
     "pricingModel",
     "rateUnit",
+    # `pricing.chargePerPerson` — whether the rate is multiplied by heads. The
+    # client previews a total with the engine's own formula; without it a
+    # shared court/table read as per-head.
+    "chargePerPerson",
     "paymentFlow",
     "billingCycle",
     "prerequisites",
@@ -389,6 +393,14 @@ SERVICE_KEYS = {
     # alone collect) a party band, an add-on, a subject, a course or a payment
     # schedule.
     "unitKind",
+    # `booking.granularity` — `none` means the customer picks NO date at all
+    # (the business assigns one afterwards), so the client needs this to choose
+    # between a date picker and a "we will contact you" form.
+    "granularity",
+    # `timing.approvalWindowHours` — DISPLAY ONLY: how fast the business says it
+    # answers a request. Nothing expires a stale request server-side (pinned in
+    # test_config_schema.py's surfaced-but-unenforced inventory).
+    "approvalWindowHours",
     "party",
     "subject",
     "options",
@@ -500,6 +512,70 @@ def test_service_auto_approve_follows_the_global_confirmation_mode(domain_config
     assert S.serialize_service(row)["autoApprove"] is True
 
 
+# --- the additive v2 offer-shape keys --------------------------------------
+#
+# `granularity` / `approvalWindowHours` / `chargePerPerson` were declared,
+# resolved per service and served to nobody. Each is a seam the client cannot
+# render the offer without, so each is pinned at BOTH ends: the value the config
+# resolves to, and the value that lands on the wire.
+
+
+def test_service_granularity_defaults_to_minute():
+    """The date-picker default. Absent config -> `minute`, never None: the
+    client branches on this value and has no sensible fallback of its own."""
+    row = _service_row()
+    row["metadata"] = {}
+    assert S.serialize_service(row)["granularity"] == "minute"
+
+
+@pytest.mark.parametrize("granularity", ["minute", "hour", "day", "none"])
+def test_service_granularity_round_trips_from_the_global_block(domain_config, granularity):
+    domain_config(booking={"granularity": granularity})
+    row = _service_row()
+    row["metadata"] = {}
+    assert S.serialize_service(row)["granularity"] == granularity
+
+
+def test_service_granularity_none_is_the_no_date_request_flow(domain_config):
+    """`booking.granularity: "none"` is the seam that tells the client the
+    customer picks NO date — the business assigns one afterwards. It must
+    survive as a per-service override beside a normal calendar service, which is
+    the whole point of a marketplace deployment."""
+    domain_config(booking={"granularity": "minute"})
+    calendar = _service_row()
+    calendar["metadata"] = {}
+    enquiry = _service_row()
+    enquiry["metadata"] = {"booking": {"granularity": "none"}}
+    assert S.serialize_service(calendar)["granularity"] == "minute"
+    assert S.serialize_service(enquiry)["granularity"] == "none"
+
+
+def test_service_approval_window_hours_comes_from_timing(domain_config):
+    domain_config(timing={"approvalWindowHours": 72})
+    row = _service_row()
+    row["metadata"] = {}
+    assert S.serialize_service(row)["approvalWindowHours"] == 72
+    # ...and a per-service override wins, so one business can promise a faster
+    # reply than the deployment default.
+    row["metadata"] = {"timing": {"approvalWindowHours": 4}}
+    assert S.serialize_service(row)["approvalWindowHours"] == 4
+
+
+def test_service_charge_per_person_mirrors_the_pricing_block():
+    """The wire flag must equal the flag `pricing.quote` bills with — this is
+    the number the client multiplies a preview by."""
+    shared = _service_row()
+    shared["metadata"] = {"pricing": {"chargePerPerson": False}}
+    per_head = _service_row()
+    per_head["metadata"] = {"pricing": {"chargePerPerson": True}}
+    assert S.serialize_service(shared)["chargePerPerson"] is False
+    assert S.serialize_service(per_head)["chargePerPerson"] is True
+    # Default when nothing declares it: per head (the engine's own default).
+    bare = _service_row()
+    bare["metadata"] = {}
+    assert S.serialize_service(bare)["chargePerPerson"] is True
+
+
 # --- serialize_resource ----------------------------------------------------
 
 RESOURCE_KEYS = {
@@ -598,6 +674,9 @@ BOOKING_KEYS = {
     "providerId",
     "serviceId",
     "providerName",
+    # The counterparty's logo, embedded beside the name for the same reason:
+    # a bookings list must not fetch each provider by id to show a face.
+    "providerAvatarUrl",
     "serviceName",
     "resourceId",
     "slotIds",
@@ -621,6 +700,10 @@ BOOKING_KEYS = {
     "partyBands",
     "options",
     "subject",
+    # The deployment's own `metaFields.bookings` values, echoed back. Present on
+    # every booking (an empty dict where nothing is declared) so the wire shape
+    # does not change between deployments.
+    "metadata",
 }
 
 
@@ -756,6 +839,81 @@ def test_booking_include_client_defaults_missing_email_to_empty_string():
         _booking_row(), slot_ids=["s1"], start_utc=FUTURE, end_utc=FUTURE, now=NOW, include_client=True
     )
     assert out["clientEmail"] == ""
+
+
+# --- providerAvatarUrl + the metaFields echo -------------------------------
+
+
+def test_booking_provider_avatar_is_passed_through_and_defaults_to_empty():
+    """Embedded beside `providerName` for the same reason: a bookings list must
+    not fetch each provider by id just to show a face. Defaults to "" (not
+    None), so the client renders it without a guard."""
+    passed = S.serialize_booking(
+        _booking_row(), slot_ids=["s1"], start_utc=FUTURE, end_utc=FUTURE,
+        provider_avatar_url="http://img/p.png", now=NOW,
+    )
+    assert passed["providerAvatarUrl"] == "http://img/p.png"
+    bare = S.serialize_booking(
+        _booking_row(), slot_ids=["s1"], start_utc=FUTURE, end_utc=FUTURE, now=NOW
+    )
+    assert bare["providerAvatarUrl"] == ""
+
+
+def test_booking_metadata_echoes_only_the_declared_meta_fields():
+    """`bookings.metadata` is a shared jsonb column: it carries the deployment's
+    own `metaFields.bookings` values NEXT TO engine-owned keys (price, ids,
+    prerequisite state), each of which already has its own serialized shape.
+    Echoing the column wholesale would duplicate — and leak — all of that, so
+    the echo is filtered to the DECLARED descriptors.
+
+    The fixture config declares exactly one booking field, `note`."""
+    row = _booking_row()
+    row["metadata"]["note"] = "Ring the bell"
+    out = S.serialize_booking(
+        row, slot_ids=["s1"], start_utc=FUTURE, end_utc=FUTURE, now=NOW
+    )
+    assert out["metadata"] == {"note": "Ring the bell"}
+    # Engine-owned keys that ARE in the same column are deliberately absent.
+    for engine_key in (
+        "reference", "provider_id", "service_id", "resource_id",
+        "party_size", "price_minor_units", "currency", "change_history",
+    ):
+        assert engine_key in row["metadata"]           # really is in the column
+        assert engine_key not in out["metadata"], engine_key
+
+
+def test_booking_metadata_follows_the_config_not_the_row(domain_config):
+    """A pivot that declares a new booking field makes it readable with no code
+    change; one that declares none serves `{}` rather than the raw column."""
+    domain_config(metaFields={"bookings": [
+        {"key": "casketType", "label": "Casket", "type": "text"},
+        {"key": "serviceDateUtc", "label": "Service date", "type": "text"},
+    ]})
+    row = _booking_row()
+    row["metadata"].update({
+        "casketType": "oak", "serviceDateUtc": "2027-03-02", "note": "undeclared now",
+    })
+    out = S.serialize_booking(
+        row, slot_ids=["s1"], start_utc=FUTURE, end_utc=FUTURE, now=NOW
+    )
+    assert out["metadata"] == {"casketType": "oak", "serviceDateUtc": "2027-03-02"}
+
+    domain_config(metaFields={"bookings": []})
+    empty = S.serialize_booking(
+        row, slot_ids=["s1"], start_utc=FUTURE, end_utc=FUTURE, now=NOW
+    )
+    assert empty["metadata"] == {}
+
+
+def test_booking_metadata_omits_a_declared_field_the_row_never_stored():
+    """Declared-but-absent is omitted, not stamped as None — the client can tell
+    "not provided" from "provided as empty"."""
+    row = _booking_row()
+    row["metadata"].pop("note", None)
+    out = S.serialize_booking(
+        row, slot_ids=["s1"], start_utc=FUTURE, end_utc=FUTURE, now=NOW
+    )
+    assert out["metadata"] == {}
 
 
 # --- serialize_user --------------------------------------------------------

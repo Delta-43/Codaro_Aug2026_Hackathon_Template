@@ -150,6 +150,21 @@ def _name_map(db, table: str, ids: set[str]) -> dict[str, str]:
     return out
 
 
+def _provider_avatar_map(db, ids: set[str]) -> dict[str, str]:
+    """Batch id->avatar_url for providers, so a bookings list can show WHO the
+    booking is with rather than a column of initials. Same batching as
+    `_name_map`: one query for the whole list, never one per row."""
+    ids = {i for i in ids if i}
+    if not ids:
+        return {}
+    out: dict[str, str] = {}
+    for chunk in _chunked(list(ids)):
+        for r in fetch_all(db.table("providers").select("id,metadata").in_("id", chunk)):
+            # The logo lives in `metadata`, not a column — schema.sql is frozen.
+            out[r["id"]] = (r.get("metadata") or {}).get("avatar_url") or ""
+    return out
+
+
 def _names_for(db, md: dict) -> dict:
     """provider_name/service_name kwargs for a single booking's metadata, so a
     mutation response embeds the same names the list/get (`_enrich`) paths do."""
@@ -157,6 +172,7 @@ def _names_for(db, md: dict) -> dict:
     return {
         "provider_name": _name_map(db, "providers", {pid}).get(pid, ""),
         "service_name": _name_map(db, "services", {sid}).get(sid, ""),
+        "provider_avatar_url": _provider_avatar_map(db, {pid}).get(pid, ""),
     }
 
 
@@ -240,6 +256,7 @@ def _enrich(db, uc, bookings: list[dict], *, include_client: bool = False) -> li
     reviews = _reviews_map(db, ids)
     metas = [b.get("metadata") or {} for b in bookings]
     prov_names = _name_map(db, "providers", {m.get("provider_id") for m in metas})
+    prov_avatars = _provider_avatar_map(db, {m.get("provider_id") for m in metas})
     # Full service rows, not just names: serialize_booking derives `loan` and
     # `payment` from the GLOBAL config when `service` is omitted, so a service
     # whose metadata overrides `payments`/`inventory` would serialize a state
@@ -263,6 +280,7 @@ def _enrich(db, uc, bookings: list[dict], *, include_client: bool = False) -> li
                 include_client=include_client,
                 service=svc_map.get(md.get("service_id")),
                 provider_name=prov_names.get(md.get("provider_id"), ""),
+                provider_avatar_url=prov_avatars.get(md.get("provider_id"), ""),
                 service_name=(svc_map.get(md.get("service_id")) or {}).get("name", ""),
             )
         )

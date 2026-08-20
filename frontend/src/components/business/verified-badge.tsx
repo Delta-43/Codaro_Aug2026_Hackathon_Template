@@ -13,11 +13,13 @@ import { cn } from "@/lib/utils";
 function VerifiedAvatar({
   src,
   alt,
+  name,
   size = "md",
   className,
 }: {
   src?: string;
   alt: string;
+  name?: string;
   size?: "sm" | "md" | "lg";
   className?: string;
 }) {
@@ -28,7 +30,7 @@ function VerifiedAvatar({
   return (
     <div className={cn("relative shrink-0", className)}>
       <div className="rounded-full bg-gradient-to-br from-amber-300 to-amber-500 p-[3px] shadow-sm">
-        <AvatarImg src={src} alt={alt} className={cn(dims, "border-2 border-card")} />
+        <AvatarImg src={src} name={name} alt={alt} className={cn(dims, "border-2 border-card")} />
       </div>
       <BadgeCheck
         className={cn(
@@ -47,17 +49,20 @@ function VerifiedAvatar({
  *  face. Callers pass the provider's `avatarUrl` (may be empty) and its `scene`. */
 export function BusinessBadge({
   avatarUrl,
+  name,
   scene,
   size = "md",
   className,
 }: {
   avatarUrl?: string;
+  /** Only used if the uploaded logo fails to load — then it draws initials. */
+  name?: string;
   scene: string;
   size?: "sm" | "md" | "lg";
   className?: string;
 }) {
   return avatarUrl ? (
-    <VerifiedAvatar src={avatarUrl} alt="" size={size} className={className} />
+    <VerifiedAvatar src={avatarUrl} name={name} alt="" size={size} className={className} />
   ) : (
     <VerifiedScene scene={scene} size={size} className={className} />
   );

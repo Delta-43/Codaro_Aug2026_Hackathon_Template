@@ -12,6 +12,7 @@ import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from
 import { ChevronDown, Plus, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { ConfirmDialog } from "@/components/business/confirm-dialog";
 import { useOwner } from "@/context/owner-context";
@@ -441,17 +442,16 @@ function OfferForm({
         <Input value={name} onChange={(e) => setName(e.target.value)} required placeholder={serviceNoun} />
       </Field>
       <Field label="Booking model">
-        <select
+        <Select
           value={model}
           onChange={(e) => setModel(e.target.value as BookingModel)}
-          className="h-8 rounded-2xl border border-transparent bg-input/50 px-2.5 text-sm"
         >
           {MODELS.map((m) => (
             <option key={m.id} value={m.id}>
               {m.label}
             </option>
           ))}
-        </select>
+        </Select>
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label={`Price (${currency})`}>

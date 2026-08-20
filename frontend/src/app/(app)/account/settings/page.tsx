@@ -2,9 +2,16 @@
 
 /**
  * User Settings Panel — the shared Settings template configured for the customer
- * persona. Reached from the top-right avatar (desktop) or the Profile tab's cog
- * (mobile). Display name is editable and persists via PATCH /me.
+ * persona. It is what the shell's Settings tab opens, mirroring the owner
+ * console's Settings tab. The profile page above it (reputation, membership,
+ * reviews) is reached from the top-right avatar on desktop and from the row this
+ * page adds to its Profile section on mobile. Display name is editable and
+ * persists via PATCH /me.
  */
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { buttonFx } from "@/config/buttons";
 import { useApp } from "@/context/app-context";
 import { useAuth } from "@/lib/auth";
 import { updateUser, uploadAvatar, deleteAvatar, deleteAccount } from "@/api";
@@ -37,6 +44,26 @@ export default function UserSettingsPage() {
         setUser(updated);
       }}
       email={user.email}
+      extraProfile={
+        <Link
+          href="/account"
+          className={cn(
+            "group flex items-center gap-3 rounded-xl border border-border bg-card p-3",
+            buttonFx.surface,
+          )}
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block font-medium">Your profile</span>
+            <span className="block text-sm text-muted-foreground">
+              Reputation, membership and reviews.
+            </span>
+          </span>
+          <ChevronRight
+            className={cn("size-5 shrink-0 text-muted-foreground", buttonFx.chevron)}
+            aria-hidden
+          />
+        </Link>
+      }
       onSignOut={signOut}
       onDeleteAccount={async () => {
         await deleteAccount();

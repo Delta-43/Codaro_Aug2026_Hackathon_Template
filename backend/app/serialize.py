@@ -226,6 +226,10 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
         # "€65" was wrong for every tiered/per-person/subscription service.
         "pricingModel": pricing.get("model") or "fixed",
         "rateUnit": (pricing.get("rate") or {}).get("per") or "slot",
+        # `pricing.chargePerPerson` — whether the rate is multiplied by heads.
+        # Served so the client can PREVIEW a total with the same formula the
+        # engine bills with; without it a shared court read as per-head.
+        "chargePerPerson": bool(pricing.get("chargePerPerson", True)),
         # How money is collected. `none` means the product carries no payment at
         # all; `invoice_after` means nothing is due at booking time — a confirm
         # screen showing "Total" with a pay affordance is wrong in both cases.
@@ -276,6 +280,17 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
         # OVERRIDABLE_BLOCKS), so a marketplace where one tenant sells add-ons
         # and another does not serves each the truth about itself.
         "unitKind": svc_config["booking"].get("unitKind") or "time_slot",
+        # The size of the unit the customer picks. `none` means there is no
+        # calendar at all — the customer sends a REQUEST and the business comes
+        # back with a time — so the client needs this to decide whether to render
+        # a date picker or a "we will contact you" form. Resolved per service, so
+        # one tenant's date-less enquiry sits beside another's time grid.
+        "granularity": svc_config["booking"].get("granularity") or "minute",
+        # How long the business says it takes to answer a request
+        # (`timing.approvalWindowHours`). Display only: nothing expires a pending
+        # request server-side yet, so this is the promise being made, not a
+        # deadline the engine keeps.
+        "approvalWindowHours": svc_config["timing"].get("approvalWindowHours"),
         "party": {
             "mode": (svc_config["booking"].get("party") or {}).get("mode") or "individual",
             "min": int((svc_config["booking"].get("party") or {}).get("min") or 1),
@@ -469,6 +484,21 @@ def _change_history(md: dict) -> list:
     return out
 
 
+
+def _declared_booking_meta(md: dict) -> dict:
+    """Only the keys `metaFields.bookings` declares, so a config's custom fields
+    round-trip to the client without leaking engine-owned metadata alongside."""
+    try:
+        fields = get_config().get("metaFields", {}).get("bookings") or []
+    except Exception:
+        return {}
+    out = {}
+    for f in fields:
+        key = f.get("key")
+        if key and key in md:
+            out[key] = md[key]
+    return out
+
 def serialize_booking(
     row: dict,
     *,
@@ -479,6 +509,7 @@ def serialize_booking(
     now: Optional[datetime] = None,
     include_client: bool = False,
     provider_name: str = "",
+    provider_avatar_url: str = "",
     service_name: str = "",
     # Optional: `inventory` is in OVERRIDABLE_BLOCKS, so a caller that already
     # has the service row gets its override honoured. Callers that don't fall
@@ -504,6 +535,9 @@ def serialize_booking(
         # service separately (was an N+1 of heavy per-id calls from the client).
         # Additive + defaulted: endpoints that don't resolve them send "".
         "providerName": provider_name,
+        # The counterparty's photo, embedded for the same reason the name is:
+        # a bookings list must not fetch each provider by id to show a face.
+        "providerAvatarUrl": provider_avatar_url,
         "serviceName": service_name,
         "resourceId": md.get("resource_id", ""),
         "slotIds": list(slot_ids),
@@ -537,6 +571,13 @@ def serialize_booking(
         "partyBands": md.get("party_bands") or None,
         "options": list(md.get("options") or []),
         "subject": md.get("subject") or None,
+        # The deployment's own `metaFields.bookings` values, echoed back so a
+        # pivot's custom fields are readable and not just writable. Filtered to
+        # the *declared* descriptors rather than dumping `metadata`: the same
+        # jsonb column carries engine-owned keys (price, ids, prerequisite
+        # state), and those already have their own serialized shapes above.
+        # Empty dict on the majority of deployments, which declare none.
+        "metadata": _declared_booking_meta(md),
     }
     if include_client:
         # Owner-only view: who booked. An additive field (never sent to clients).

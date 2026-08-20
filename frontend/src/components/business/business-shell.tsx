@@ -130,6 +130,7 @@ export function BusinessShell({ children }: { children: ReactNode }) {
           {/* activeProvider comes from useOwner, so an avatar edit re-renders here. */}
           <BusinessBadge
             avatarUrl={activeProvider?.avatarUrl}
+            name={businessName}
             scene={scene}
             size="sm"
             className={cn("shrink-0", buttonFx.groupIcon)}
@@ -160,6 +161,7 @@ export function BusinessShell({ children }: { children: ReactNode }) {
         <Link href="/owner/profile" aria-label="View your public profile" className="shrink-0">
           <BusinessBadge
             avatarUrl={activeProvider?.avatarUrl}
+            name={businessName}
             scene={scene}
             size="sm"
             className={buttonFx.icon}

@@ -15,6 +15,7 @@ import { useApp } from "@/context/app-context";
 import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { AvatarImg } from "@/components/avatar-img";
 import { StatusBadge } from "@/components/booking/status-badge";
 import { CancelDialog } from "@/components/booking/cancel-dialog";
 import { RescheduleFlow } from "@/components/booking/reschedule-flow";
@@ -62,6 +63,19 @@ export function BookingDetail({
   const withinCutoff = isWithinCutoff(booking.startUtc, service.cancellationCutoffHours);
   const canModify = booking.status === "confirmed" && !withinCutoff;
   const isShared = service.bookingModel === "shared_capacity";
+  /** `booking.granularity: "none"` and still pending — the slot on this booking
+   *  is the placeholder the request flow resolved, not a date anyone has agreed
+   *  to. The business assigns the real one on approval, at which point the
+   *  booking becomes `confirmed` and the date below becomes true. */
+  const dateUnassigned = booking.status === "pending" && service.granularity === "none";
+  /** `payments.payer: "third_party"` — somebody other than the person who made
+   *  the request settles it. Their name, where the deployment collects one,
+   *  arrives in the booking's `metaFields` as `payer_name`; it is not part of
+   *  the typed contract, so it is read defensively. */
+  const payerMeta = (booking as { metadata?: Record<string, unknown> | null }).metadata;
+  const payerNameRaw = payerMeta ? payerMeta.payer_name : undefined;
+  const payerName =
+    typeof payerNameRaw === "string" && payerNameRaw.trim() ? payerNameRaw.trim() : null;
 
   if (mode === "reschedule") {
     return (
@@ -97,7 +111,8 @@ export function BookingDetail({
 
       {/* Heading */}
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        <AvatarImg src={provider.avatarUrl} name={provider.name} alt="" className="size-12" />
+        <div className="min-w-0 flex-1">
           <h1 className="truncate text-xl font-semibold tracking-tight">{service.name}</h1>
           <p className="truncate text-sm text-muted-foreground">{provider.name}</p>
         </div>
@@ -130,42 +145,60 @@ export function BookingDetail({
         <DetailRow label={vertical.serviceNoun} value={service.name} />
         {resourceName ? <DetailRow label={vertical.resourceNoun} value={resourceName} /> : null}
         <div className="my-1 border-t border-border" />
-        <DetailRow label="When" value={formatBookingWhen(booking.startUtc, booking.endUtc, tz)} />
-        <DetailRow label="Duration" value={formatSpan(slotCount, service.slotDurationMinutes)} />
         <DetailRow
-          label={isShared ? (vertical.partyNoun ?? "Party") : "Party"}
-          value={`${booking.partySize}`}
+          label="When"
+          value={
+            dateUnassigned
+              ? "Date to be confirmed"
+              : formatBookingWhen(booking.startUtc, booking.endUtc, tz)
+          }
         />
+        {/* The duration comes off the placeholder slot while the date is still
+            unassigned, so it is not a length anyone has agreed to either. */}
+        {dateUnassigned ? null : (
+          <DetailRow label="Duration" value={formatSpan(slotCount, service.slotDurationMinutes)} />
+        )}
+        {/* Exclusive-resource bookings are always a party of one — nothing to read. */}
+        {isShared || booking.partySize > 1 ? (
+          <DetailRow
+            label={isShared ? (vertical.partyNoun ?? "Party") : "Party"}
+            value={`${booking.partySize}`}
+          />
+        ) : null}
       </div>
 
-      {/* Price */}
-      <div className="mt-3 rounded-xl border border-border bg-card p-4">
-        {/* `perSlot × slots × party` is only the total under the fixed model. For
+      {/* Price — absent where `payments.flow: "none"` carries no charge at all,
+          for the same reason the payment panel below is: a "Total 0.00" reads as
+          a bug, not as free. */}
+      {service.paymentFlow === "none" ? null : (
+        <div className="mt-3 rounded-xl border border-border bg-card p-4">
+          {/* `perSlot × slots × party` is only the total under the fixed model. For
             tiered / per-hour / per-person etc. it disagrees with the engine's
             real total, so showing it beside the actual total misleads — the same
             reason confirm-screen and selection-bar only render the multiply for
             the fixed model. Non-fixed shows just the Total. */}
-        {service.pricingModel === "fixed" ? (
-          <div className="flex items-baseline justify-between py-1 text-sm text-muted-foreground">
-            <span>
-              {formatMoney(perSlot, booking.currency)} × {slotCount}
-              {isShared ? ` × ${booking.partySize}` : ""}
+          {service.pricingModel === "fixed" ? (
+            <div className="flex items-baseline justify-between py-1 text-sm text-muted-foreground">
+              <span>
+                {formatMoney(perSlot, booking.currency)} × {slotCount}
+                {isShared ? ` × ${booking.partySize}` : ""}
+              </span>
+              <span>{formatMoney(booking.priceMinorUnits, booking.currency)}</span>
+            </div>
+          ) : null}
+          <div
+            className={cn(
+              "flex items-baseline justify-between",
+              service.pricingModel === "fixed" ? "mt-1 border-t border-border pt-2" : "",
+            )}
+          >
+            <span className="text-sm font-semibold">Total</span>
+            <span className="text-base font-semibold">
+              {formatMoney(booking.priceMinorUnits, booking.currency)}
             </span>
-            <span>{formatMoney(booking.priceMinorUnits, booking.currency)}</span>
           </div>
-        ) : null}
-        <div
-          className={cn(
-            "flex items-baseline justify-between",
-            service.pricingModel === "fixed" ? "mt-1 border-t border-border pt-2" : "",
-          )}
-        >
-          <span className="text-sm font-semibold">Total</span>
-          <span className="text-base font-semibold">
-            {formatMoney(booking.priceMinorUnits, booking.currency)}
-          </span>
         </div>
-      </div>
+      )}
 
       {/* What is owed. `payments.flow: none` means the product carries no
           payment at all, so the whole panel is absent rather than showing a
@@ -182,6 +215,14 @@ export function BookingDetail({
               value={formatMoney(booking.payment.paidMinorUnits, booking.payment.currency)}
             />
           ) : null}
+        </div>
+      ) : null}
+
+      {/* `payments.payer: "third_party"` — the person who arranged this is not
+          the person being billed, and the detail screen said nothing about it. */}
+      {booking.payment?.payer === "third_party" ? (
+        <div className="mt-3 rounded-xl border border-border bg-card p-4">
+          <DetailRow label="Billed to" value={payerName ?? "Invoiced to the estate"} />
         </div>
       ) : null}
 
