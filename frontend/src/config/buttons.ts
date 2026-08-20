@@ -63,6 +63,15 @@ export const buttonFx = {
   icon: "origin-center transition-transform duration-200 ease-out hover:scale-110",
 
   /**
+   * A logo/avatar sitting inside a bigger clickable chip or row. Same grow as
+   * `icon`, but fired by the *group's* hover (put `group` on the chip), so the
+   * mark responds from anywhere in the hit area while the chip itself holds
+   * still — which is what a corner-flush element needs, since scaling the whole
+   * chip would nudge it toward the screen edge.
+   */
+  groupIcon: "origin-center transition-transform duration-200 ease-out group-hover:scale-110",
+
+  /**
    * "Turn pink on hover" — the accent tint the platform reaches for constantly:
    * a bare icon, label, or status chip that should read as pink (the primary
    * colour) while the cursor is on it. Pair with a chrome button's own `press`

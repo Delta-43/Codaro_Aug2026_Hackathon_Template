@@ -122,21 +122,27 @@ export function BusinessShell({ children }: { children: ReactNode }) {
         </div>
         <Link
           href="/owner/profile"
-          className={cn(
-            "group flex items-center gap-2 rounded-full py-1 pl-1 pr-3 transition-all hover:bg-primary/10 hover:text-primary",
-            buttonFx.press,
-          )}
+          className="group flex items-center gap-2 rounded-full py-1 pl-3 pr-1 transition-all hover:bg-primary/10 hover:text-primary"
           aria-label="Profile"
         >
-          {/* activeProvider comes from useOwner, so an avatar edit re-renders here. */}
-          <BusinessBadge avatarUrl={activeProvider?.avatarUrl} scene={scene} size="sm" />
+          {/* Name first, mark hard against the right edge — the corner is the
+              identity anchor, the label reads into it. */}
           <span className="max-w-[10rem] truncate text-base font-medium">{businessName}</span>
+          {/* activeProvider comes from useOwner, so an avatar edit re-renders here. */}
+          <BusinessBadge
+            avatarUrl={activeProvider?.avatarUrl}
+            scene={scene}
+            size="sm"
+            className={cn("shrink-0", buttonFx.groupIcon)}
+          />
         </Link>
       </header>
 
-      {/* Mobile compact header — brand (to the landing page) on the left, the
-          current page name on the right. The page's own <h1> is sr-only on
-          mobile, so this is the single visible page title (no duplicate). */}
+      {/* Mobile compact header — brand on the left (tapping it goes to the
+          landing page), the business's own mark on the right. No page name up
+          here: the bottom tab bar already says which tab you are on, and
+          repeating it in a 48px bar crowded out the brand. Each page keeps its
+          own sr-only <h1>, so screen readers still get a title. */}
       <header className="sticky top-0 z-20 flex h-12 items-center justify-between gap-2 border-b border-border bg-background/85 px-4 backdrop-blur pt-[env(safe-area-inset-top)] md:hidden">
         <Link
           href="/"
@@ -149,16 +155,17 @@ export function BusinessShell({ children }: { children: ReactNode }) {
           <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-6 -translate-y-[9%]" />
           Arbor
         </Link>
-        <span className="flex min-w-0 items-baseline justify-end gap-2 text-lg font-semibold">
-          <button
-            type="button"
-            onClick={scrollTop}
-            className={cn(buttonFx.heading, "shrink-0 origin-right text-primary")}
-          >
-            {heading}
-          </button>
-          <span className="min-w-0 shrink truncate font-normal text-muted-foreground">{businessName}</span>
-        </span>
+        {/* The phone's only door to the public profile — the desktop chip is
+            md-only and no bottom tab covers Profile, so on mobile that page had
+            no link at all. Mark alone, no name: the bar has no room for one. */}
+        <Link href="/owner/profile" aria-label="View your public profile" className="shrink-0">
+          <BusinessBadge
+            avatarUrl={activeProvider?.avatarUrl}
+            scene={scene}
+            size="sm"
+            className={buttonFx.icon}
+          />
+        </Link>
       </header>
 
       <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-3 md:px-6 md:pb-10">{children}</main>
