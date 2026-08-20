@@ -234,6 +234,14 @@ class _Table:
     def select(self, *_a, **_k):
         return self
 
+    # `db.fetch_all` orders + ranges before executing; the stub holds one small
+    # fixed page, so both are no-ops (a single short page ends the paging loop).
+    def order(self, *_a, **_k):
+        return self
+
+    def range(self, *_a, **_k):
+        return self
+
     def execute(self):
         return type("R", (), {"data": self._rows})()
 

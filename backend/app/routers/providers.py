@@ -12,6 +12,7 @@ from app.avatars import remove_avatar, store_avatar
 from app.db import (
     RLS_DENIED_CODE,
     UNIQUE_VIOLATION_CODE,
+    fetch_all,
     get_supabase,
     get_user_client,
     maybe_row,
@@ -32,7 +33,7 @@ def _all_serialized(db) -> list[dict]:
     sums, counts = discovery.review_aggregates(db)
     svc = discovery.service_ids_by_provider(db)
     price = discovery.price_from_by_provider(db)
-    rows = db.table("providers").select("*").execute().data or []
+    rows = fetch_all(db.table("providers").select("*"))
     return [
         discovery.build_provider(r, svc_by_prov=svc, sums=sums, counts=counts, price_by_prov=price)
         for r in rows
@@ -105,7 +106,7 @@ def _provider_metadata(payload, base: dict | None = None) -> dict:
 def my_providers(owner: AuthUser = Depends(require_owner)):
     """The signed-in owner's own providers (for the owner dashboard)."""
     db = get_supabase()
-    rows = db.table("providers").select("*").eq("owner_id", owner.id).execute().data or []
+    rows = fetch_all(db.table("providers").select("*").eq("owner_id", owner.id))
     sums, counts = discovery.review_aggregates(db)
     svc = discovery.service_ids_by_provider(db)
     price = discovery.price_from_by_provider(db)
