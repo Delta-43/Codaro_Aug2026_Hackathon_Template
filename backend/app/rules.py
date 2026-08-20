@@ -202,7 +202,8 @@ def closure_reason(slot_starts_at: str | datetime, service: dict | None = None) 
 # point: adding `"someNewKey": _some_validator` here plus the key under `timing`
 # in domain.config.json makes the rule enforce, and deleting the config key
 # disables it again — no router change either way. That is the escape hatch the
-# README promises, and it is why this registry exists rather than a pile of ifs.
+# root `CLAUDE.md` promises, and it is why this registry exists rather than a
+# pile of ifs.
 #
 # `advanceBookingWindowDays` IS dispatched now: `seed_config._grid` seeds
 # exactly the declared window, so the seed horizon and the config finally agree.

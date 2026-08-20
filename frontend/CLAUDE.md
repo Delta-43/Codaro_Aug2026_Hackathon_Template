@@ -86,7 +86,7 @@ reschedule flows special-case the codes for re-pick / disabled-with-reason.
   load follows the OS `prefers-color-scheme` live (system default); flipping a
   toggle pins an explicit choice, which then persists.
 
-## Views (per README)
+## Views (per the root `CLAUDE.md`)
 
 1. **Login / sign-up** — `src/app/login/page.tsx` (Supabase Auth). *Built.*
 2. **Search** (tab 1) — provider discovery: text/category/near, code entry + QR,

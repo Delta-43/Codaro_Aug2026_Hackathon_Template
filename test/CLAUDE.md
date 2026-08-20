@@ -183,7 +183,7 @@ path the UI calls exists on the FastAPI app (method-aware) and that the
   tree (wrap it in `normalize()` when you need the resolved one).
 - This directory must not modify anything outside `test/`.
 
-## Coverage target (from the README's Track B checklist)
+## Coverage target (from the root `CLAUDE.md` Track B checklist)
 
 - Resource and Slot — CRUD via `/resources`, `/slots`
 - Booking and Confirmation — `POST /bookings`

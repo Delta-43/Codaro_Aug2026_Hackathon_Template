@@ -73,7 +73,7 @@ the backend job, and the frontend typecheck uses the same
   client_reviews, profiles, conversations, messages, entitlements,
   waitlist_entries), `slot_occupancy` view (party-size-summing, confirmed
   only), RLS on every table, avatars storage bucket.
-- **README Track B checklist: all 11 items genuinely implemented.**
+- **Track B checklist (root `CLAUDE.md`): all 11 items genuinely implemented.**
 
 ## What this pass fixed (all committed on develop, each verified by tests)
 

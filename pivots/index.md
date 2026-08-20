@@ -4,7 +4,7 @@
 `scripts/check_pivots.py` and `scripts/pivots_extended.py`.
 
 Regenerate with `python3 scripts/generate_pivots.py`. Load one with
-`python3 scripts/use_pivot.py <n>`. See [README.md](README.md).
+`python3 scripts/use_pivot.py <n>`. See [CLAUDE.md](CLAUDE.md).
 
 | # | Business | Tenancy | Bookable unit | Pricing | Currency | Capabilities on | Note |
 |---|----------|---------|---------------|---------|----------|-----------------|------|

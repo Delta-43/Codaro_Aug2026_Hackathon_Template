@@ -162,7 +162,7 @@ def index_md(rows: list[dict]) -> str:
         "`scripts/check_pivots.py` and `scripts/pivots_extended.py`.",
         "",
         "Regenerate with `python3 scripts/generate_pivots.py`. Load one with",
-        "`python3 scripts/use_pivot.py <n>`. See [README.md](README.md).",
+        "`python3 scripts/use_pivot.py <n>`. See [CLAUDE.md](CLAUDE.md).",
         "",
         "| # | Business | Tenancy | Bookable unit | Pricing | Currency | Capabilities on | Note |",
         "|---|----------|---------|---------------|---------|----------|-----------------|------|",
@@ -182,7 +182,7 @@ def index_md(rows: list[dict]) -> str:
     return "\n".join(out)
 
 
-README = """# Pivot library
+GUIDE = """# Pivot library
 
 100 complete, validated `domain.config.json` files — one per business the engine
 was designed to become. See [index.md](index.md) for the full table.
@@ -291,7 +291,7 @@ def main() -> int:
 
     extras = {
         "index.md": index_md(rows),
-        "README.md": README,
+        "CLAUDE.md": GUIDE,
         "manifest.json": json.dumps(rows, indent=2, ensure_ascii=False) + "\n",
     }
     for name, body in extras.items():
@@ -318,7 +318,7 @@ def main() -> int:
     for p in orphans:
         p.unlink()
     print(f"wrote {len(written)} configs to {OUT_DIR.relative_to(REPO_ROOT)}/ "
-          f"(+ index.md, README.md, manifest.json)"
+          f"(+ index.md, CLAUDE.md, manifest.json)"
           + (f"; removed {len(orphans)} stale file(s)" if orphans else ""))
     return 0
 
