@@ -340,7 +340,10 @@ def loan_state(md: dict, end_utc, service: dict | None = None, now=None) -> dict
     hours = inventory.get("loanPeriodHours")
     due = end + timedelta(hours=int(hours)) if hours else end
     returned_at = md.get("returned_at_utc")
-    now = now or datetime.now(timezone.utc)
+    # Single clock source (app.clock via `_now`), so a frozen test clock and the
+    # booking-status derivation in the same serialize call agree — not a second,
+    # unfreezable `datetime.now()` that drifts from the rest of this module.
+    now = _now(now)
     reference = _parse(returned_at) if returned_at else now
     # Whole days late, floored: a business that charges "per day overdue" does
     # not bill a day that has not elapsed.
