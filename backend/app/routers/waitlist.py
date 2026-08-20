@@ -201,16 +201,32 @@ def promote_from_waitlist(db, slot_ids: list[str], service: dict | None) -> list
             # never satisfy. The head keeps its place until enough seats free.
             if available < int(entry.get("party_size") or 1):
                 continue
+            # Claim the entry BEFORE booking, so two concurrent releases on the
+            # same slot cannot both promote it into two pending bookings. The
+            # status flip is a compare-and-set on 'waiting'; only the winner (a
+            # non-empty result) goes on to book. Losers see an empty write and
+            # move on — the same CAS discipline the booking transitions use.
+            claimed = (
+                db.table("waitlist_entries")
+                .update({"status": "promoted"})
+                .eq("id", entry["id"]).eq("status", "waiting")
+                .execute().data
+            )
+            if not claimed:
+                continue  # another release already claimed this entry
             booking = _book_for_entry(db, entry, slot_id)
             if booking is None:
                 # A skipped promotion (started slot, unmet booking schema,
-                # unresolvable email) leaves the entry at the head of the
-                # queue for the next attempt — as the docstring promises.
+                # unresolvable email) releases the claim back to 'waiting' so the
+                # entry stays at the head of the queue for the next attempt — as
+                # the docstring promises.
+                db.table("waitlist_entries").update(
+                    {"status": "waiting"}
+                ).eq("id", entry["id"]).execute()
                 continue
-            db.table("waitlist_entries").update({
-                "status": "promoted",
-                "booking_id": booking["id"],
-            }).eq("id", entry["id"]).execute()
+            db.table("waitlist_entries").update(
+                {"booking_id": booking["id"]}
+            ).eq("id", entry["id"]).execute()
             promoted.append(entry)
         except Exception:
             logger.exception("Waitlist promotion failed for slot %s", slot_id)
