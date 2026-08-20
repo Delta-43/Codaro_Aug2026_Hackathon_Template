@@ -275,7 +275,12 @@ def provider_reviews(provider_id: str, limit: int = 8):
     section. Author is the reviewer's self-chosen public display name (never their
     private email); it falls back to "Guest" when unknown. Newest first."""
     db = get_supabase()
-    rows = db.table("reviews").select("*").eq("provider_id", provider_id).execute().data or []
+    # Paged: a well-reviewed provider can exceed PostgREST's 1000-row cap, and a
+    # truncated page would sort+slice the WRONG "newest" reviews (the first
+    # arbitrary 1000, not the latest). fetch_all then the sort/slice below keep
+    # the genuinely newest. (Server-side order+limit would be cheaper but leans on
+    # the offline fake's .limit(); the correctness fix does not.)
+    rows = fetch_all(db.table("reviews").select("*").eq("provider_id", provider_id))
     # Newest first, then keep only the page we return — so the per-reviewer admin
     # lookups below are bounded by `limit`, not by the provider's whole review
     # history (a well-reviewed provider would otherwise fan out hundreds of
