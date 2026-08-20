@@ -32,7 +32,7 @@ export function Hero() {
               One booking engine. Built for every business.
             </h1>
             <p className="mx-auto mt-4 max-w-md text-foreground/80">
-              One engine, infinite businesses — booking, scheduling, and availability, reshaped
+              One engine, infinite businesses. Booking, scheduling, and availability, reshaped
               instantly for the business you&apos;re building.
             </p>
             <div className="mt-8 flex justify-center">

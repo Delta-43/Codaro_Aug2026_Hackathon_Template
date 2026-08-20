@@ -13,7 +13,7 @@ const STEPS = [
   {
     icon: Settings2,
     title: "Configure",
-    body: "Set your vocabulary, rules, and look in one config file — no code, no rewrite.",
+    body: "Set your vocabulary, rules, and look in one config file. No code, no rewrite.",
   },
   {
     icon: Sparkles,
@@ -23,7 +23,7 @@ const STEPS = [
   {
     icon: Rocket,
     title: "Go live",
-    body: "Share your link. Customers browse, pick a slot, and book — instantly.",
+    body: "Share your link. Customers browse, pick a slot, and book instantly.",
   },
 ];
 

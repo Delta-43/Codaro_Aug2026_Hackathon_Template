@@ -8,7 +8,7 @@ is **`frontend/src/`**. See root [CLAUDE.md](../CLAUDE.md) for the architecture 
 
 The public marketing landing page **lives here now**: `src/app/page.tsx` is the
 landing page, served at the app root `/`, built from `src/components/landing/*`
-(hero, nav-bar, how-it-works, calendar-demo, testimonials, docs-cta,
+(hero, nav-bar, how-it-works, calendar-showcase, testimonials, docs-cta,
 business-cta, footer, plus the shared scene/scroll primitives). It sits outside
 the gated `(app)` group and uses no auth/context — its CTAs are plain same-origin
 `next/link`s to `/login`, `/docs`, and `/privacy`. (It was briefly split out into
