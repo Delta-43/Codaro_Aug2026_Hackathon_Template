@@ -18,10 +18,9 @@ import { GlassPanel } from "@/components/landing/scroll-reveal";
 import { ScrollTopLink } from "@/components/landing/scroll-top-link";
 
 const EXPLORE = [
-  { href: "#how", label: "How it works", anchor: true },
+  { href: "#services", label: "What we offer", anchor: true },
   { href: "#calendar", label: "Calendar", anchor: true },
-  { href: "#reviews", label: "Reviews", anchor: true },
-  { href: "/docs", label: "Docs" },
+  { href: "#reviews", label: "Families", anchor: true },
 ];
 
 const LINK_CLASS = "text-sm text-muted-foreground transition-colors hover:text-foreground";
@@ -43,8 +42,8 @@ export function Footer() {
                 Arbor
               </ScrollTopLink>
               <p className="mt-3 text-sm leading-relaxed text-foreground/70">
-                One booking engine, reshaped for any business. Booking, scheduling, and
-                availability, without a rewrite.
+                The farewell, arranged with care. You don&apos;t lift a finger, or choose the
+                date, we take it from here.
               </p>
             </div>
 

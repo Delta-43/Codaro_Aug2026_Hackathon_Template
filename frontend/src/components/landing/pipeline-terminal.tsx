@@ -1,15 +1,15 @@
 /**
- * A stylized terminal showing Codaro's actual pivot pipeline (config load →
- * seed → deploy), not a generic dev-tool prop — inspired by dannypostma.com's
- * landing page. Frosted-glass surface. Entrance is staggered via
- * tw-animate-css's `animate-in` utilities (Tailwind v4 auto-generates them
+ * A stylized terminal showing the funeral arrangement pipeline (request → assign
+ * a chapel → set the date), not a generic dev-tool prop — inspired by
+ * dannypostma.com's landing page. Frosted-glass surface. Entrance is staggered
+ * via tw-animate-css's `animate-in` utilities (Tailwind v4 auto-generates them
  * from the `--animate-*` theme keys in globals.css), no custom keyframes or
  * client JS needed.
  */
 const STEPS = [
-  { cmd: "load pivot config", result: "vocabulary, rules & theme loaded" },
-  { cmd: "seed --vertical=<your-business>", result: "providers, services & slots ready" },
-  { cmd: "deploy", result: "live in production" },
+  { cmd: "submit arrangement", result: "received, with our condolences" },
+  { cmd: "assign director & chapel", result: "Chapel of Rest A reserved" },
+  { cmd: "set the date", result: "a director will call within 7 days" },
 ];
 
 export function PipelineTerminal() {

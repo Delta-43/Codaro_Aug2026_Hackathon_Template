@@ -3,22 +3,20 @@
 /**
  * Public marketing landing page, served at the app root (`/`). It's outside the
  * gated `(app)` group and uses no AppProvider/useAuth/useVertical: it always
- * renders the logged-out-shaped CTAs and links (via next/link) to
- * /login, /docs, and /privacy. Pitches the engine/product itself, deliberately
- * vertical-agnostic (see hero.tsx) — the live-demo vertical only comes back
- * into play in the later "featured providers" section.
+ * renders the logged-out-shaped CTAs and links (via next/link) to /login and
+ * /privacy.
  *
- * Built section by section (see docs/issues/26-loading-page.md). Full page:
- * Hero → How it works → Testimonials → Business CTA → Footer.
+ * The deployment this markets is the funeral-home pivot (issue 109): Arbor keeps
+ * its name and leaf mark, but every plate now speaks the funeral business —
+ * arrangements, chapels, and the farewell products families actually buy. Full
+ * page: Hero → Calendar showcase → Popular products → Reviews → Footer.
  */
 import { SceneBackground } from "@/components/landing/scene-background";
 import { NavBar } from "@/components/landing/nav-bar";
 import { Hero } from "@/components/landing/hero";
-import { HowItWorks } from "@/components/landing/how-it-works";
 import { CalendarShowcase } from "@/components/landing/calendar-showcase";
+import { Products } from "@/components/landing/products";
 import { Testimonials } from "@/components/landing/testimonials";
-import { DocsCta } from "@/components/landing/docs-cta";
-import { BusinessCta } from "@/components/landing/business-cta";
 import { Footer } from "@/components/landing/footer";
 
 export default function RootPage() {
@@ -27,11 +25,9 @@ export default function RootPage() {
       <SceneBackground />
       <NavBar />
       <Hero />
-      <HowItWorks />
       <CalendarShowcase />
+      <Products />
       <Testimonials />
-      <DocsCta />
-      <BusinessCta />
       <Footer />
     </main>
   );
