@@ -86,6 +86,14 @@ def _load_service(db, service_id: str) -> dict:
     return row
 
 
+def _is_capacity_violation(exc: Exception) -> bool:
+    """True when a write was rejected by the slot-capacity trigger (schema.sql).
+    The trigger raises SQLSTATE 23514 with a `slot_capacity_exceeded` marker; the
+    marker is matched as well so a client version that surfaces the message but
+    not the code is still recognised."""
+    return getattr(exc, "code", None) == "23514" or "slot_capacity_exceeded" in str(exc)
+
+
 def _occ_by_id(db, slot_ids: list[str]) -> dict[str, dict]:
     if not slot_ids:
         return {}
@@ -712,11 +720,26 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
     uc = get_user_client(user.token)
     inserted = uc.table("bookings").insert(row).execute().data
     inserted = enforce_rls_write(inserted, entity="booking")
-    _consume_credit(db, entitlement, inserted[0]["id"] if inserted else "?")
     booking = inserted[0]
-    uc.table("booking_slots").insert(
-        [{"booking_id": booking["id"], "slot_id": sid} for sid in ordered]
-    ).execute()
+    # The booking row exists but holds no capacity until its booking_slots links
+    # do (occupancy joins through them). The DB capacity trigger (schema.sql)
+    # fires on this insert and rejects a link that would overbook — closing the
+    # TOCTOU where two last-seat bookings both pass `_resolve_selection`'s
+    # pre-insert check. On rejection, roll back the now-orphan booking and raise
+    # the same code the check would. Credit is consumed only AFTER the links
+    # commit, so a rolled-back booking never spends one.
+    try:
+        uc.table("booking_slots").insert(
+            [{"booking_id": booking["id"], "slot_id": sid} for sid in ordered]
+        ).execute()
+    except Exception as exc:  # noqa: BLE001 - re-raised unless it's the capacity trigger
+        if _is_capacity_violation(exc):
+            uc.table("bookings").delete().eq("id", booking["id"]).execute()
+            raise api_error(
+                SLOT_UNAVAILABLE, "That time was just taken. We've refreshed availability."
+            )
+        raise
+    _consume_credit(db, entitlement, booking["id"])
     out = serialize_booking(
         booking, slot_ids=ordered, start_utc=start, end_utc=end, review=None,
         service=service, **_names_for(db, metadata)
@@ -1341,15 +1364,22 @@ def approve_booking(booking_id: str, owner: AuthUser = Depends(require_owner)):
     history = booking["history"] + [{"status": "confirmed", "at": iso_utc(now_utc()), "actor": "owner"}]
     # CAS on pending: approving a request the client cancelled mid-flight must
     # not resurrect it as confirmed (the cancel already refunded any credit and
-    # promoted the waitlist).
-    updated = (
-        uc.table("bookings")
-        .update({"status": "confirmed", "history": history})
-        .eq("id", booking_id)
-        .eq("status", "pending")
-        .execute()
-        .data
-    )
+    # promoted the waitlist). The pre-check above re-read occupancy, but the DB
+    # capacity trigger is the backstop for the race between that read and this
+    # write — a confirm that would overbook is rejected here too.
+    try:
+        updated = (
+            uc.table("bookings")
+            .update({"status": "confirmed", "history": history})
+            .eq("id", booking_id)
+            .eq("status", "pending")
+            .execute()
+            .data
+        )
+    except Exception as exc:  # noqa: BLE001 - re-raised unless it's the capacity trigger
+        if _is_capacity_violation(exc):
+            raise api_error(SLOT_UNAVAILABLE, "That time filled up before this could be approved.")
+        raise
     if not updated:
         current = _load_own(uc, booking_id)
         if current["status"] != "pending":
