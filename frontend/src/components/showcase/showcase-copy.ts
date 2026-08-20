@@ -13,8 +13,6 @@
 
 export const BRAND_NAME = "morbid.com";
 
-export const BRAND_TAGLINE = "Booking software for your final booking.";
-
 export const HERO_TITLE = "Everything ends. Reserve your slot.";
 
 export const HERO_SUBTITLE =

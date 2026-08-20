@@ -11,7 +11,7 @@ import { NocturnalAftercareAnimation } from "./nocturnal-aftercare-programme";
 import { AdjacentPlotReservationAnimation } from "./adjacent-plot-reservation";
 import { DirectCommittalAnimation } from "./direct-committal";
 
-export type { ServiceAnimationProps, ServiceAnimationComponent } from "./service-animation-contract";
+export type { ServiceAnimationComponent } from "./service-animation-contract";
 
 /**
  * Exact-name lookup, keyed to the real seeded catalogue (`GET /services`).
