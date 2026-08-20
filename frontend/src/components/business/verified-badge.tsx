@@ -21,8 +21,10 @@ function VerifiedAvatar({
   size?: "sm" | "md" | "lg";
   className?: string;
 }) {
-  const dims = size === "lg" ? "size-20" : size === "sm" ? "size-10" : "size-14";
-  const tick = size === "lg" ? "size-7" : size === "sm" ? "size-4" : "size-5";
+  // `sm` is the top-bar chip: it has to breathe inside a 56px bar and match the
+  // customer shell's avatar, so it is deliberately smaller than a "small card".
+  const dims = size === "lg" ? "size-20" : size === "sm" ? "size-8" : "size-14";
+  const tick = size === "lg" ? "size-7" : size === "sm" ? "size-3.5" : "size-5";
   return (
     <div className={cn("relative shrink-0", className)}>
       <div className="rounded-full bg-gradient-to-br from-amber-300 to-amber-500 p-[3px] shadow-sm">
@@ -72,8 +74,10 @@ export function VerifiedScene({
   size?: "sm" | "md" | "lg";
   className?: string;
 }) {
-  const dims = size === "lg" ? "size-20" : size === "sm" ? "size-10" : "size-14";
-  const tick = size === "lg" ? "size-7" : size === "sm" ? "size-4" : "size-5";
+  // `sm` is the top-bar chip: it has to breathe inside a 56px bar and match the
+  // customer shell's avatar, so it is deliberately smaller than a "small card".
+  const dims = size === "lg" ? "size-20" : size === "sm" ? "size-8" : "size-14";
+  const tick = size === "lg" ? "size-7" : size === "sm" ? "size-3.5" : "size-5";
   return (
     <div className={cn("relative shrink-0", className)}>
       <div className="rounded-full bg-gradient-to-br from-amber-300 to-amber-500 p-[3px] shadow-sm">

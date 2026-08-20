@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { SceneBackground } from "@/components/landing/scene-background";
 import { GlassPanel } from "@/components/landing/scroll-reveal";
 import { useAuth } from "@/lib/auth";
+import { InlineMessage } from "@/components/ui/inline-message";
 
 /**
  * Customer sign-in — the default front door. Business owners tap "I'm a
@@ -27,7 +28,7 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
-  const { session, loading, role, configured, signIn, signUp } = useAuth();
+  const { session, loading, role, roleReady, configured, signIn, signUp } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
 
@@ -53,6 +54,8 @@ function LoginForm() {
   const safeNext =
     rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : null;
   const next = safeNext || (singleBusiness ? "/provider" : "/search");
+  // Either door takes either account: one account holds both personas, so a
+  // business signing in here is sent to its own home rather than turned away.
   const destination = role === "owner" ? "/owner" : next;
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -61,27 +64,22 @@ function LoginForm() {
   const [busy, setBusy] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
+  // `roleReady` as well as `tenancyReady`: `destination` branches on the role,
+  // and the trusted role lands a beat after the session. Redirecting early would
+  // send a business owner into the customer app and then bounce them.
   useEffect(() => {
-    if (!loading && session && tenancyReady) router.replace(destination);
-  }, [loading, session, tenancyReady, destination, router]);
+    if (!loading && session && tenancyReady && roleReady) router.replace(destination);
+  }, [loading, session, tenancyReady, roleReady, role, destination, router]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    setNotice(null);
     setBusy(true);
     try {
-      if (mode === "signin") {
-        await signIn(email, password);
-      } else {
-        const { needsConfirmation } = await signUp(email, password, "client", agreed);
-        if (needsConfirmation) {
-          setNotice("Check your inbox to confirm your email, then sign in.");
-          setMode("signin");
-        }
-      }
+      // The redirect effect above routes on the resolved role once it lands.
+      if (mode === "signin") await signIn(email, password);
+      else await signUp(email, password, "client", agreed);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -113,9 +111,9 @@ function LoginForm() {
         </div>
 
         {!configured && (
-          <p className="mb-4 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <InlineMessage live="polite" className="mb-4 rounded-2xl">
             Auth is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.
-          </p>
+          </InlineMessage>
         )}
 
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
@@ -166,9 +164,8 @@ function LoginForm() {
           )}
 
           {error && (
-            <p className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+            <InlineMessage className="rounded-2xl">{error}</InlineMessage>
           )}
-          {notice && <p className="rounded-xl bg-primary/10 px-3 py-2 text-sm text-primary">{notice}</p>}
 
           <Button
             type="submit"
@@ -203,7 +200,6 @@ function LoginForm() {
                 onClick={() => {
                   setMode("signup");
                   setError(null);
-                  setNotice(null);
                 }}
               >
                 Create an account
@@ -218,7 +214,6 @@ function LoginForm() {
                 onClick={() => {
                   setMode("signin");
                   setError(null);
-                  setNotice(null);
                 }}
               >
                 Sign in

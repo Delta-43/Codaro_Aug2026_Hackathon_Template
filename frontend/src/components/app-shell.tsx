@@ -165,26 +165,27 @@ export function AppShell({ children }: { children: ReactNode }) {
         <CartButton onOpen={() => setCartOpen(true)} />
         <Link
           href="/account"
-          className={cn(
-            "group flex items-center gap-2 rounded-full py-1 pl-1 pr-3 transition-all hover:bg-primary/10 hover:text-primary",
-            buttonFx.press,
-          )}
+          className="group flex items-center gap-2 rounded-full py-1 pl-3 pr-1 transition-all hover:bg-primary/10 hover:text-primary"
           aria-label="Profile"
         >
+          {/* Name first, avatar hard against the right edge — same order as the
+              business shell's chip. */}
+          <span className="max-w-[10rem] truncate text-base font-medium">{user?.displayName ?? "Account"}</span>
           <AvatarImg
             src={user?.avatarUrl}
             name={user?.displayName}
             alt=""
-            className="size-8"
+            className={cn("size-8 shrink-0", buttonFx.groupIcon)}
           />
-          <span className="max-w-[10rem] truncate text-base font-medium">{user?.displayName ?? "Account"}</span>
         </Link>
         </div>
       </header>
 
-      {/* Mobile compact header — brand (to the landing page) on the left, the
-          current page name on the right. The page's own <h1> is sr-only on
-          mobile, so this is the single visible page title (no duplicate). */}
+      {/* Mobile compact header — the brand only (tapping it goes to the landing
+          page), plus the cart, which is a control rather than a title and has
+          nowhere else to live on mobile. No page name up here: the bottom tab
+          bar already says which tab you are on. Each page keeps its own sr-only
+          <h1>, so screen readers still get a title. */}
       <header className="sticky top-0 z-20 flex h-12 items-center justify-between gap-2 border-b border-border bg-background/85 px-4 backdrop-blur pt-[env(safe-area-inset-top)] md:hidden">
         <Link
           href="/"
@@ -197,21 +198,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-6 -translate-y-[9%]" />
           Arbor
         </Link>
-        <span className="flex min-w-0 items-baseline justify-end gap-2 text-lg font-semibold">
-          <button
-            type="button"
-            onClick={scrollTop}
-            className={cn(buttonFx.heading, "shrink-0 origin-right text-primary")}
-          >
-            {heading}
-          </button>
-          {showProviderContext && activeProvider ? (
-            <span className="min-w-0 shrink truncate font-normal text-muted-foreground">{activeProvider.name}</span>
-          ) : null}
-        </span>
-        <div className="ml-auto">
-          <CartButton onOpen={() => setCartOpen(true)} />
-        </div>
+        <CartButton onOpen={() => setCartOpen(true)} />
       </header>
 
       {/* `capabilities.cart` — one basket for the whole app, so it survives

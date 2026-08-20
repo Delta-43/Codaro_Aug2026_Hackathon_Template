@@ -11,6 +11,7 @@ import { cancelBooking, isApiError } from "@/api";
 import { Modal } from "@/components/modal";
 import { Button } from "@/components/ui/button";
 import { useVertical } from "@/context/app-context";
+import { InlineMessage } from "@/components/ui/inline-message";
 
 export function CancelDialog({
   booking,
@@ -49,12 +50,7 @@ export function CancelDialog({
       </p>
 
       {error ? (
-        <div
-          role="alert"
-          className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          {error}
-        </div>
+        <InlineMessage className="mt-3">{error}</InlineMessage>
       ) : null}
 
       <div className="mt-5 flex gap-2">

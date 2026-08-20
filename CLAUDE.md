@@ -117,9 +117,10 @@ Implemented on this branch (`16-auth-system`); it reverses the engine's
 original "no auth" stance. Identity moved from *"trust the `client_email` in
 the request body"* to **Supabase Auth**: Supabase handles email/password
 sign-up + login and issues a JWT. The frontend attaches that JWT as
-`Authorization: Bearer <token>`; the backend verifies it (both **ES256 via
-JWKS** — this project's scheme — and legacy **HS256**) and reads the user
-(`sub`, `email`) from the token instead of trusting the body.
+`Authorization: Bearer <token>`; the backend verifies it against the project's
+**JWKS** (**ES256/RS256**, keyed by `kid`) and reads the user (`sub`, `email`)
+from the token instead of trusting the body. Symmetric **HS256** is not
+accepted — supporting it let the token header pick the weaker scheme.
 
 - **Roles stay config-driven.** The owner/client split keeps using
   `terms.admin` / `terms.client`; the `actor` concept became a *verified* role,
@@ -187,7 +188,7 @@ service declares its own `env_file` in `docker-compose.yml`, so `make start`
 fails on a fresh clone without them.
 
 ```bash
-cp backend/.env.example backend/.env            # SUPABASE_URL + SERVICE_KEY + ANON_KEY + JWT_SECRET (+ DB_URL)
+cp backend/.env.example backend/.env            # SUPABASE_URL + SERVICE_KEY + ANON_KEY (+ DB_URL)
 cp frontend/.env.local.example frontend/.env.local  # NEXT_PUBLIC_API_BASE + Supabase anon key
 make start                                      # frontend :3000, backend :8000
 ```
@@ -317,7 +318,7 @@ hosting.
 ## Commands
 
 ```bash
-cp backend/.env.example backend/.env   # SUPABASE_URL + SERVICE_KEY + ANON_KEY + JWT_SECRET (+ DB_URL)
+cp backend/.env.example backend/.env   # SUPABASE_URL + SERVICE_KEY + ANON_KEY (+ DB_URL)
 make start                             # frontend :3000, backend :8000
 make reload                            # re-read domain.config.json after an edit
 make reseed                            # wipe + rebuild demo data from the current config

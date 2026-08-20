@@ -668,6 +668,28 @@ export function getCurrentUser(): Promise<User> {
   return request("/me");
 }
 
+/** How long to wait for the role lookup before giving up. This call gates the
+ *  whole app — nothing can decide which shell to render until it settles — so a
+ *  backend that accepts the connection and then never answers must not leave the
+ *  UI wedged on a promise that neither resolves nor rejects. The timeout turns
+ *  that into an ordinary rejection the caller already handles. */
+const ROLE_TIMEOUT_MS = 8000;
+
+/** The signed-in user's **trusted** engine role, resolved by the backend from
+ *  `profiles` — never from the JWT, whose `user_metadata.role` the user can
+ *  write themselves.
+ *
+ *  The token is passed explicitly rather than picked up from the current session
+ *  the way every other call does: the auth provider resolves the role *for a
+ *  particular session*, and must not silently answer for whichever session
+ *  happens to be current by the time the request goes out. */
+export function getMyRole(token: string): Promise<{ role: string }> {
+  return request("/me/role", {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(ROLE_TIMEOUT_MS),
+  });
+}
+
 export function updateUser(patch: Partial<User>): Promise<User> {
   return request("/me", { method: "PATCH", body: JSON.stringify(patch) });
 }
@@ -772,6 +794,18 @@ export function uploadProviderAvatar(id: ID, file: File): Promise<Provider> {
 
 export function deleteProviderAvatar(id: ID): Promise<Provider> {
   return del(`/providers/${id}/avatar`) as Promise<Provider>;
+}
+
+/** Upload/replace a business's banner (the wide cover image behind its profile
+ *  header); returns the updated Provider. */
+export function uploadProviderCover(id: ID, file: File): Promise<Provider> {
+  const form = new FormData();
+  form.append("file", file);
+  return requestForm<Provider>(`/providers/${id}/cover`, "POST", form);
+}
+
+export function deleteProviderCover(id: ID): Promise<Provider> {
+  return del(`/providers/${id}/cover`) as Promise<Provider>;
 }
 
 /** Create the business itself (owner). Until this existed the console could

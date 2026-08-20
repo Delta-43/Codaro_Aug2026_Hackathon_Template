@@ -175,8 +175,10 @@ def update_provider(
     )
 
 
-def _provider_avatar_key(provider_id: str) -> str:
-    return f"provider/{provider_id}/avatar"
+def _provider_image_key(provider_id: str, kind: str) -> str:
+    """Storage key for one of a provider's images. `kind` is set by the route,
+    never by client input, so it can't be steered at another object."""
+    return f"provider/{provider_id}/{kind}"
 
 
 def _owned_provider(db, provider_id: str, owner: AuthUser) -> dict:
@@ -189,12 +191,13 @@ def _owned_provider(db, provider_id: str, owner: AuthUser) -> dict:
     return existing
 
 
-def _write_provider_avatar(db, owner: AuthUser, existing: dict, avatar_url: str) -> dict:
-    """Persist `avatar_url` into the provider's metadata (RLS-scoped write) and
-    return the freshly built provider (rating/reviewCount blended, as PATCH does).
-    Aggregates are scoped to this one provider — an avatar change doesn't need a
-    repo-wide reviews/services scan."""
-    md = {**(existing.get("metadata") or {}), "avatar_url": avatar_url}
+def _write_provider_image(db, owner: AuthUser, existing: dict, field: str, url: str) -> dict:
+    """Persist an image URL into the provider's metadata under `field`
+    (`avatar_url` or `cover_url`) via an RLS-scoped write, and return the freshly
+    built provider (rating/reviewCount blended, as PATCH does). Aggregates are
+    scoped to this one provider — an image change doesn't need a repo-wide
+    reviews/services scan."""
+    md = {**(existing.get("metadata") or {}), field: url}
     updated = (
         get_user_client(owner.token)
         .table("providers")
@@ -215,19 +218,17 @@ def _write_provider_avatar(db, owner: AuthUser, existing: dict, avatar_url: str)
     )
 
 
-@router.post("/{provider_id}/avatar")
-async def upload_provider_avatar(
-    provider_id: str, file: UploadFile = File(...), owner: AuthUser = Depends(require_owner)
-):
-    """Upload/replace a business's avatar (owner-gated, own-provider only). Stored
-    in the avatars bucket keyed by provider id; the public URL lands in
-    providers.metadata.avatar_url, so it shows on the business's cards/profile."""
+async def _upload_provider_image(
+    provider_id: str, file: UploadFile, owner: AuthUser, *, kind: str, field: str
+) -> dict:
+    """Shared upload path for a provider's avatar and cover — owner-gated,
+    own-provider only, stored in the avatars bucket keyed by provider id + kind."""
     db = get_supabase()
     existing = _owned_provider(db, provider_id, owner)
-    key = _provider_avatar_key(provider_id)
-    avatar_url = await store_avatar(file, key)
+    key = _provider_image_key(provider_id, kind)
+    url = await store_avatar(file, key)
     try:
-        return _write_provider_avatar(db, owner, existing, avatar_url)
+        return _write_provider_image(db, owner, existing, field, url)
     except Exception:
         # The bytes are already in storage but metadata didn't get the new URL;
         # drop the just-uploaded object so it isn't orphaned.
@@ -235,14 +236,48 @@ async def upload_provider_avatar(
         raise
 
 
+def _delete_provider_image(provider_id: str, owner: AuthUser, *, kind: str, field: str) -> dict:
+    db = get_supabase()
+    existing = _owned_provider(db, provider_id, owner)
+    remove_avatar(_provider_image_key(provider_id, kind))
+    return _write_provider_image(db, owner, existing, field, "")
+
+
+@router.post("/{provider_id}/avatar")
+async def upload_provider_avatar(
+    provider_id: str, file: UploadFile = File(...), owner: AuthUser = Depends(require_owner)
+):
+    """Upload/replace a business's avatar (owner-gated, own-provider only). Stored
+    in the avatars bucket keyed by provider id; the public URL lands in
+    providers.metadata.avatar_url, so it shows on the business's cards/profile."""
+    return await _upload_provider_image(
+        provider_id, file, owner, kind="avatar", field="avatar_url"
+    )
+
+
 @router.delete("/{provider_id}/avatar")
 def delete_provider_avatar(provider_id: str, owner: AuthUser = Depends(require_owner)):
     """Remove a business's avatar — deletes the object and clears
     metadata.avatar_url (falls back to initials on the cards/profile)."""
-    db = get_supabase()
-    existing = _owned_provider(db, provider_id, owner)
-    remove_avatar(_provider_avatar_key(provider_id))
-    return _write_provider_avatar(db, owner, existing, "")
+    return _delete_provider_image(provider_id, owner, kind="avatar", field="avatar_url")
+
+
+@router.post("/{provider_id}/cover")
+async def upload_provider_cover(
+    provider_id: str, file: UploadFile = File(...), owner: AuthUser = Depends(require_owner)
+):
+    """Upload/replace a business's banner (the wide cover behind its profile
+    header). Same bucket and validation as the avatar, a separate object key; the
+    public URL lands in providers.metadata.cover_url, which `coverUrl` serves to
+    both the owner's Profile tab and the customer-facing provider profile."""
+    return await _upload_provider_image(provider_id, file, owner, kind="cover", field="cover_url")
+
+
+@router.delete("/{provider_id}/cover")
+def delete_provider_cover(provider_id: str, owner: AuthUser = Depends(require_owner)):
+    """Remove a business's banner — deletes the object and clears
+    metadata.cover_url (the generated on-brand scene shows again)."""
+    return _delete_provider_image(provider_id, owner, kind="cover", field="cover_url")
 
 
 @router.delete("/{provider_id}", status_code=204)

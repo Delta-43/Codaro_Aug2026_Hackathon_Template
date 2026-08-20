@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { SceneBackground } from "@/components/landing/scene-background";
 import { GlassPanel } from "@/components/landing/scroll-reveal";
 import { useAuth } from "@/lib/auth";
+import { InlineMessage } from "@/components/ui/inline-message";
 
 /**
  * Business sign-in — a dedicated page reached from "I'm a business!" on the main
@@ -28,7 +29,7 @@ export default function BusinessLoginPage() {
 }
 
 function BusinessLoginForm() {
-  const { session, loading, role, configured, signIn, signUp } = useAuth();
+  const { session, loading, role, roleReady, configured, signIn, signUp } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
   // Same-origin PATH only: `next` comes from the query string and feeds
@@ -37,8 +38,15 @@ function BusinessLoginForm() {
   const rawNext = params.get("next");
   const safeNext =
     rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : null;
-  const next = safeNext || "/owner";
-  const destination = role === "owner" ? "/owner" : next;
+  // Branded entrance, not a separate account system: a customer signing in here
+  // is sent to the customer app rather than refused. Only the *console* is
+  // role-gated (`owner/layout.tsx`), which is the boundary that matters.
+  //
+  // `safeNext` wins for either account type — AuthGate sends people here with
+  // the page they were reaching for (`?next=/bookings/x`), and dropping it for
+  // customers would silently strand them somewhere they didn't ask for. The
+  // role only picks the *fallback* home.
+  const destination = safeNext || (role === "owner" ? "/owner" : "/search");
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState("");
@@ -46,27 +54,19 @@ function BusinessLoginForm() {
   const [busy, setBusy] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!loading && session) router.replace(destination);
-  }, [loading, session, destination, router]);
+    if (!loading && session && roleReady) router.replace(destination);
+  }, [loading, session, roleReady, role, destination, router]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
-    setNotice(null);
     setBusy(true);
     try {
-      if (mode === "signin") {
-        await signIn(email, password);
-      } else {
-        const { needsConfirmation } = await signUp(email, password, "owner", agreed);
-        if (needsConfirmation) {
-          setNotice("Check your inbox to confirm your email, then sign in as a business.");
-          setMode("signin");
-        }
-      }
+      // The redirect effect above routes on the resolved role once it lands.
+      if (mode === "signin") await signIn(email, password);
+      else await signUp(email, password, "owner", agreed);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
@@ -101,9 +101,9 @@ function BusinessLoginForm() {
         </div>
 
         {!configured && (
-          <p className="mb-4 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <InlineMessage live="polite" className="mb-4 rounded-2xl">
             Auth is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.
-          </p>
+          </InlineMessage>
         )}
 
         <form onSubmit={onSubmit} className="flex flex-col gap-4">
@@ -151,9 +151,8 @@ function BusinessLoginForm() {
           )}
 
           {error && (
-            <p className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+            <InlineMessage className="rounded-2xl">{error}</InlineMessage>
           )}
-          {notice && <p className="rounded-xl bg-primary/10 px-3 py-2 text-sm text-primary">{notice}</p>}
 
           <Button
             type="submit"
@@ -185,7 +184,6 @@ function BusinessLoginForm() {
                 onClick={() => {
                   setMode("signup");
                   setError(null);
-                  setNotice(null);
                 }}
               >
                 Create a business account
@@ -200,7 +198,6 @@ function BusinessLoginForm() {
                 onClick={() => {
                   setMode("signin");
                   setError(null);
-                  setNotice(null);
                 }}
               >
                 Sign in

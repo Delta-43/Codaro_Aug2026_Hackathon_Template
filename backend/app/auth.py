@@ -2,9 +2,16 @@
 verified user to routers.
 
 Identity now comes from the token, not the request body (see backend/CLAUDE.md
-"Auth"). Supabase signs the access token with the project's JWT secret
-(HS256); we verify it locally with that secret -- no network round-trip per
-request, and no parallel users table.
+"Auth"). Supabase signs the access token with a rotating **asymmetric** key and
+publishes the matching public keys at the project's JWKS endpoint; we verify the
+signature against those, keyed by the token header's `kid`. The key set is
+cached, so the steady state is no network round-trip per request, and there is
+no parallel users table.
+
+Symmetric HS256 (the legacy shared `SUPABASE_JWT_SECRET`) is **not** accepted.
+Supporting both meant the token header chose the scheme, so a forger could name
+the weaker one and reduce the problem to guessing a static secret. Only the
+algorithms in `_ALLOWED_ALGS` verify.
 
 Two dependencies gate protected routes:
   * ``require_user``  -- any authenticated user (client endpoints).
@@ -160,59 +167,69 @@ def _engine_role(claims: dict) -> str:
     return OWNER_ROLE if raw == OWNER_ROLE else CLIENT_ROLE
 
 
-def _jwt_secret() -> str:
-    secret = os.environ.get("SUPABASE_JWT_SECRET")
-    if not secret:
-        # Misconfiguration, not a client error: fail loud rather than letting
-        # every request through unverified.
-        raise HTTPException(500, "Auth is not configured: SUPABASE_JWT_SECRET is unset.")
-    return secret
+# The only signatures we accept. Supabase signs with ECC P-256 (ES256) or RSA
+# (RS256) depending on how the project's signing key was created; both arrive
+# via JWKS with a `kid`. Pinning the list here is what makes the algorithm a
+# server decision instead of an attacker-supplied token header.
+_ALLOWED_ALGS = ("ES256", "RS256")
 
 
 @lru_cache
 def _jwks_client() -> PyJWKClient:
     """Cached client for the project's JSON Web Key Set — the public keys that
-    verify asymmetric (ES256/RS256) access tokens. Supabase's newer projects
-    sign with rotating asymmetric keys (a `kid` in the header) rather than the
-    legacy HS256 shared secret; this fetches the matching public key by `kid`.
+    verify the access tokens Supabase issues. The project signs with a rotating
+    asymmetric key and names it in the token header's `kid`; this fetches the
+    matching public key by that `kid`.
 
     `lifespan` bounds how long a fetched JWK set is trusted before a refetch, so
     a rotated key is eventually picked up on its own; `_decode_asymmetric` also
     forces a refresh on a verification failure for immediate recovery."""
-    base = os.environ["SUPABASE_URL"].rstrip("/")
-    return PyJWKClient(f"{base}/auth/v1/.well-known/jwks.json", lifespan=300)
+    base = os.environ.get("SUPABASE_URL")
+    if not base:
+        # Misconfiguration, not a client error: fail loud rather than letting
+        # every request through unverified.
+        raise HTTPException(500, "Auth is not configured: SUPABASE_URL is unset.")
+    return PyJWKClient(
+        f"{base.rstrip('/')}/auth/v1/.well-known/jwks.json", lifespan=300
+    )
 
 
-def _decode_asymmetric(token: str, alg: str, *, refresh: bool = True) -> dict:
-    """Verify an ES256/RS256 token against the project's JWKS. On a key/signature
-    failure, drop the cached JWK set and retry once — this recovers from a stale
-    cache after Supabase rotates its signing keys, which would otherwise 401
-    perfectly valid tokens until the process restarts. A genuinely bad token
-    fails the retry too and still raises."""
+def _decode_asymmetric(token: str, *, refresh: bool = True) -> dict:
+    """Verify a token against the project's JWKS. On a key/signature failure,
+    drop the cached JWK set and retry once — this recovers from a stale cache
+    after Supabase rotates its signing keys, which would otherwise 401 perfectly
+    valid tokens until the process restarts. A genuinely bad token fails the
+    retry too and still raises.
+
+    `algorithms` is the pinned allow-list, never the token's own header, so
+    PyJWT enforces it a second time at the point of verification."""
     try:
         signing_key = _jwks_client().get_signing_key_from_jwt(token)
         return jwt.decode(
-            token, signing_key.key, algorithms=[alg],
+            token, signing_key.key, algorithms=list(_ALLOWED_ALGS),
             audience=_AUDIENCE, leeway=_LEEWAY_SECONDS,
         )
     except (jwt.PyJWKClientError, jwt.InvalidSignatureError):
         if refresh:
             _jwks_client.cache_clear()  # next call rebuilds the client + refetches the JWK set
-            return _decode_asymmetric(token, alg, refresh=False)
+            return _decode_asymmetric(token, refresh=False)
         raise
 
 
 def _decode_token(token: str) -> dict:
-    """Verify a Supabase access token, supporting both signing schemes:
-    asymmetric (ES256/RS256 via JWKS, keyed by `kid`) and the legacy symmetric
-    HS256 (SUPABASE_JWT_SECRET). The token header's `alg` selects the path."""
-    alg = jwt.get_unverified_header(token).get("alg", "HS256")
-    if alg == "HS256":
-        return jwt.decode(
-            token, _jwt_secret(), algorithms=["HS256"],
-            audience=_AUDIENCE, leeway=_LEEWAY_SECONDS,
+    """Verify a Supabase access token against the project's JWKS.
+
+    The header's `alg` is checked against `_ALLOWED_ALGS` first so an
+    unsupported one — `none`, or the retired HS256 — is refused outright,
+    without spending a JWKS lookup on it. There is no second scheme to fall
+    back to: an algorithm we do not sign with is simply not a token we issued."""
+    alg = jwt.get_unverified_header(token).get("alg")
+    if alg not in _ALLOWED_ALGS:
+        raise jwt.InvalidAlgorithmError(
+            f"Unsupported token algorithm {alg!r}; "
+            f"expected one of {', '.join(_ALLOWED_ALGS)}."
         )
-    return _decode_asymmetric(token, alg)
+    return _decode_asymmetric(token)
 
 
 def require_user(
@@ -253,7 +270,14 @@ def optional_user(
         return None
     try:
         return require_user(creds)
-    except HTTPException:
+    except HTTPException as exc:
+        if exc.status_code != 401:
+            # Only "this token isn't good" degrades to anonymous. A 500 means
+            # auth is misconfigured (no SUPABASE_URL, so no JWKS to verify
+            # against) — swallowing that would serve every public read as
+            # anonymous and let a broken deployment look healthy, which is the
+            # opposite of the fail-loud the 500 exists for.
+            raise
         return None
 
 

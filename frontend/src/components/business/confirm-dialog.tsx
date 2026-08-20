@@ -10,6 +10,7 @@
  */
 import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import { InlineMessage } from "@/components/ui/inline-message";
 
 export function ConfirmDialog({
   open,
@@ -83,7 +84,7 @@ export function ConfirmDialog({
         ) : null}
 
         {error ? (
-          <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+          <InlineMessage className="mt-3">{error}</InlineMessage>
         ) : null}
 
         <div className="mt-5 flex justify-end gap-2">

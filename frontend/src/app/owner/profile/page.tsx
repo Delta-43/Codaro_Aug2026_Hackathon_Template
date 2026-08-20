@@ -9,12 +9,11 @@
  */
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ExternalLink, Globe, MapPin, Settings, Star } from "lucide-react";
+import { ExternalLink, Globe, Settings, Star } from "lucide-react";
 import { useOwner } from "@/context/owner-context";
 import { Skeleton } from "@/components/skeleton";
 import { AvatarImg } from "@/components/avatar-img";
-import { BusinessArt } from "@/components/business/business-art";
-import { BusinessBadge } from "@/components/business/verified-badge";
+import { BusinessHero } from "@/components/business/business-hero";
 import { getProviderReviews } from "@/api";
 import type { ProviderReview } from "@/types/domain";
 import { avatarDataUri } from "@/lib/business-view";
@@ -49,39 +48,21 @@ export default function ProfilePage() {
 
   return (
     <section className="space-y-6 py-2">
-      {/* Hero */}
-      <div className="overflow-hidden rounded-3xl border border-border bg-card">
-        <div className="relative h-36 w-full sm:h-44">
-          <BusinessArt scene={scene} />
+      {/* Hero — the same header Settings edits in place. */}
+      <BusinessHero
+        provider={p}
+        scene={scene}
+        vocabLabel={vocab.label}
+        action={
           <Link
             href="/owner/settings"
             aria-label="Settings"
-            className="absolute right-3 top-3 grid size-9 place-items-center rounded-full bg-black/35 text-white backdrop-blur-sm transition-colors hover:bg-black/50"
+            className="grid size-9 place-items-center rounded-full bg-black/35 text-white backdrop-blur-sm transition-colors hover:bg-black/50"
           >
             <Settings className="size-5" aria-hidden />
           </Link>
-          <div className="absolute -bottom-8 left-4">
-            <BusinessBadge avatarUrl={p.avatarUrl} scene={scene} size="lg" />
-          </div>
-        </div>
-        <div className="px-4 pb-4 pt-10">
-          <h1 className="truncate text-xl font-semibold tracking-tight">{p.name}</h1>
-          {p.tagline ? <p className="text-sm text-muted-foreground">{p.tagline}</p> : null}
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1">
-              <Star className="size-3.5 fill-amber-400 text-amber-400" aria-hidden />
-              <span className="font-medium text-foreground">{p.rating.toFixed(1)}</span>
-              ({p.reviewCount})
-            </span>
-            {p.location.city ? (
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="size-3.5" aria-hidden /> {p.location.city}
-              </span>
-            ) : null}
-            <span className="rounded bg-muted px-1.5 py-0.5">{vocab.label}</span>
-          </div>
-        </div>
-      </div>
+        }
+      />
 
       {/* About */}
       {p.bio ? (

@@ -23,6 +23,7 @@ import { SelectionBar } from "@/components/booking/selection-bar";
 import { Button } from "@/components/ui/button";
 import { formatBookingWhen, formatSpan, ms } from "@/lib/format";
 import { validateSpan } from "@/lib/slot-span";
+import { InlineMessage } from "@/components/ui/inline-message";
 
 export function RescheduleFlow({
   booking,
@@ -178,12 +179,7 @@ export function RescheduleFlow({
         </div>
 
         {confirmError ? (
-          <div
-            role="alert"
-            className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-          >
-            {confirmError}
-          </div>
+          <InlineMessage className="mt-3">{confirmError}</InlineMessage>
         ) : null}
 
         <div className="mt-5 flex gap-2">

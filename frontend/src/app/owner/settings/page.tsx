@@ -9,21 +9,44 @@
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { useOwner } from "@/context/owner-context";
-import { uploadProviderAvatar, deleteProviderAvatar, deleteAccount } from "@/api";
+import {
+  uploadProviderAvatar,
+  deleteProviderAvatar,
+  uploadProviderCover,
+  deleteProviderCover,
+  deleteAccount,
+} from "@/api";
 import { AvatarUpload } from "@/components/account/avatar-upload";
 import { SettingsPanel } from "@/components/settings/settings-panel";
+import { EditableBusinessHero } from "@/components/business/business-hero";
 import { VerifiedScene } from "@/components/business/verified-badge";
 
 export default function BusinessSettingsPage() {
   const router = useRouter();
   const { user, signOut } = useAuth();
-  const { activeProvider, scene, replaceProvider } = useOwner();
+  const { activeProvider, scene, vocab, replaceProvider } = useOwner();
 
-  // The business avatar is the active provider's picture (what shows on its
-  // cards/profile), so it's only uploadable once a provider is loaded; until
-  // then, fall back to the on-brand illustrated scene. The upload/remove calls
-  // return the updated provider, so patch it in place rather than refetching
-  // the whole list (a transient GET failure there would blank the owner UI).
+  // The Profile section shows the *same* header the Profile tab does — banner,
+  // verified logo, name, tagline and meta row — with the banner and logo
+  // swappable in place, so the owner edits what a customer actually sees rather
+  // than a shrunken stand-in. Both belong to the active provider, so the header
+  // only appears once one is loaded; until then the panel falls back to its
+  // plain photo row with the on-brand illustrated scene. The upload/remove
+  // calls return the updated provider, so patch it in place rather than
+  // refetching the whole list (a transient GET failure there would blank the
+  // owner UI).
+  const hero = activeProvider ? (
+    <EditableBusinessHero
+      provider={activeProvider}
+      scene={scene}
+      vocabLabel={vocab.label}
+      onUploadCover={async (file) => replaceProvider(await uploadProviderCover(activeProvider.id, file))}
+      onRemoveCover={async () => replaceProvider(await deleteProviderCover(activeProvider.id))}
+      onUploadAvatar={async (file) => replaceProvider(await uploadProviderAvatar(activeProvider.id, file))}
+      onRemoveAvatar={async () => replaceProvider(await deleteProviderAvatar(activeProvider.id))}
+    />
+  ) : undefined;
+
   const photo = activeProvider ? (
     <AvatarUpload
       avatarUrl={activeProvider.avatarUrl}
@@ -40,6 +63,7 @@ export default function BusinessSettingsPage() {
     <SettingsPanel
       variant="business"
       photo={photo}
+      hero={hero}
       displayName={activeProvider?.name ?? "Your business"}
       displayNameLabel="Business name"
       email={user?.email ?? "—"}
