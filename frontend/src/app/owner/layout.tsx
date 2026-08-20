@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { OwnerProvider } from "@/context/owner-context";
@@ -11,27 +11,39 @@ import { BusinessShell } from "@/components/business/business-shell";
  * customer app, so it lives outside the (app) group and gets its own five-tab
  * shell). Anonymous → /login; a signed-in non-owner → /search.
  *
- * `confirmedOwner` latches once we've seen an owner session, so a transient
- * `isOwner=false` during a token refresh / auth-state settle never bounces an
- * established owner out to the customer app.
+ * The role is the **trusted** one the backend resolves from `profiles`, not a
+ * JWT claim — so what this gate shows and what the API allows can no longer
+ * disagree. It arrives a beat after the session, hence `roleReady`: treating
+ * "not resolved yet" as "not an owner" would bounce a business out of business
+ * mode on every page load.
+ *
+ * This used to keep a `confirmedOwner` ref, latched once an owner session had
+ * been seen, so that a transient `isOwner=false` mid-token-refresh didn't eject
+ * an established owner. That latch is no longer needed: the resolved role is
+ * held in `AuthProvider` state that survives a token refresh (and a failed
+ * re-check keeps the previous value), so `isOwner` has no flicker left to
+ * absorb — and unlike the ref, that protection now survives navigation instead
+ * of resetting with the component.
  */
 export default function OwnerLayout({ children }: { children: ReactNode }) {
-  const { session, loading, isOwner } = useAuth();
+  const { session, loading, isOwner, roleReady } = useAuth();
   const router = useRouter();
-  const confirmedOwner = useRef(false);
-  if (isOwner) confirmedOwner.current = true;
 
   useEffect(() => {
     if (loading) return;
     if (!session) router.replace("/login?next=/owner");
-    else if (!isOwner && !confirmedOwner.current) router.replace("/search");
-  }, [loading, session, isOwner, router]);
+    else if (roleReady && !isOwner) router.replace("/search");
+  }, [loading, session, isOwner, roleReady, router]);
 
-  const allowed = isOwner || confirmedOwner.current;
-  if (loading || !session || !allowed) {
+  const settling = loading || (!!session && !roleReady);
+  if (settling || !session || !isOwner) {
     return (
       <div className="flex min-h-dvh items-center justify-center text-sm text-muted-foreground">
-        {loading ? "Loading…" : "Business access required — redirecting…"}
+        {settling
+          ? "Loading…"
+          : !session
+            ? "Sign in to continue — redirecting…"
+            : "Business access required — redirecting…"}
       </div>
     );
   }

@@ -28,15 +28,17 @@ calendar / bookings / account**.
 | `src/api/index.ts` | **The API seam** — real HTTP to the backend for every domain call; attaches the Bearer token, returns the `domain.ts` shapes, throws `ApiError` |
 | `src/api/errors.ts` | `ApiError` + the `ApiErrorCode` union (mirrors `backend/app/errors.py`) |
 | `src/lib/supabase.ts` | Browser Supabase client (`getSupabase()`, null when env unset) |
-| `src/lib/auth.tsx` | `<AuthProvider>` / `useAuth()` — session + `role`/`isOwner`, `signIn`/`signUp`/`signOut`; `getAccessToken()` for the seam's Bearer header |
+| `src/lib/auth.tsx` | `<AuthProvider>` / `useAuth()` — session + `role`/`isOwner`/`roleReady` (resolved via the seam's `getMyRole`), `signIn`/`signUp`/`signOut`; `getAccessToken()` for the seam's Bearer header |
 | `src/components/auth-gate.tsx` | Redirects anonymous visitors to `/login`; holds the app until a session exists |
-| `src/app/login/page.tsx` | Email/password sign-in + sign-up (Supabase Auth) |
+| `src/app/login/page.tsx` | **Customer** portal — email/password sign-in + sign-up (Supabase Auth) |
+| `src/app/login/business/page.tsx` | **Business** portal — same form, business branding; accepts any account |
 | `src/app/docs/page.tsx` | Public **`domain.config.json` setup guide** (`/docs`), linked from the landing page's nav pill. Block-by-block: defaults, allowed values, per-service overrides. Defaults are quoted from `backend/app/config_schema.py` `DEFAULTS` (not from the prose docs) — re-check them when the schema changes |
 | `src/components/docs/` | `DocShell` (sticky header + scroll-spy TOC) and the long-form prose primitives the page renders with |
 | `src/app/layout.tsx` | Root layout — wraps the tree in `<AuthProvider>` |
 | `src/app/(app)/layout.tsx` | `<AuthGate>` → `<AppProvider>` → `<AppShell>` (stays mounted across tabs) |
 | `src/context/app-context.tsx` | Current user (`/me`), active vertical, locked-in provider/service/resource |
 | `src/config/verticals.ts` | **Pure UI vocabulary** per vertical (nouns/verbs/categories/copy). No data/seed — that lives in the backend now |
+| `src/components/ui/inline-message.tsx` | `<InlineMessage>` — every inline error/notice: entrance animation, remount-on-change, `role="alert"`/`"status"` |
 | `src/lib/format.ts` | UTC → viewer-timezone formatting |
 | `src/lib/geo.ts` | Haversine distance + formatting; origin and unit come from the pivot file via `setGeoSettings()` |
 
@@ -62,6 +64,17 @@ Backend rejections come back as `ApiError` with a `code`
 verbatim (the copy pivots with the domain server-side); only the booking/
 reschedule flows special-case the codes for re-pick / disabled-with-reason.
 
+**Render them through `<InlineMessage>`**, never a hand-rolled `<p
+className="bg-destructive/10 …">`. The class string was copy-pasted at seven
+call sites and had already drifted (three were missing `role="alert"`, rounding
+and borders disagreed). The component also owns two behaviours that are easy to
+miss and jarring when absent: a short fade+slide so the message doesn't snap in
+and shove the layout down unannounced, and a remount keyed on the message text —
+without it React reuses the node, so a *second, different* rejection swaps
+silently under a motionless element and the user sees nothing happen. Pass
+`tone="notice"` for "it worked, but not the way you meant"; spacing and rounding
+stay overridable via `className`.
+
 ## Conventions
 
 - **Every label goes through the vertical config / domain copy**, never a
@@ -76,6 +89,26 @@ reschedule flows special-case the codes for re-pick / disabled-with-reason.
 - **Auth is Supabase Auth.** Use `useAuth()` / the Supabase client for
   email/password; never hand-roll a password flow. The `(app)` group is gated on
   a session; `getCurrentUser`/`updateUser` map to `/me`.
+- **Either login portal accepts either account.** `/login` and
+  `/login/business` are two doors to one system, not two account systems:
+  whichever you use, you land at your role's home — `/owner` for a business, the
+  customer app otherwise. `/login/business` is a branded entrance. Don't add a
+  per-portal refusal: it stopped valid credentials at one URL while the same
+  person reached the same app by typing another, which is friction without a
+  boundary. The real boundary is `owner/layout.tsx` + `require_owner` on the
+  API — the *console* is role-gated, while the `(app)` group gates on a session
+  only and the backend lets an owner hold bookings (`POST /bookings` is
+  `require_user`). So a business account can use the customer app by URL; there
+  is deliberately no UI affordance pointing there.
+- **Never read the role off the JWT.** `useAuth().role` / `.isOwner` come from
+  `GET /me/role`, which the backend resolves from `profiles` — the same value
+  the API gates on. `user_metadata.role` is writable by the user
+  (`supabase.auth.updateUser`), so deriving the role from the token let a
+  customer open the whole business UI while every request inside it 403'd, and
+  hid business mode from anyone an admin promoted the documented way. Anything
+  that *routes* on the role must also wait for **`roleReady`** — the role lands a
+  beat after the session, and reading the interim value as "not an owner" bounces
+  a business out of business mode on every page load.
 - Env: `NEXT_PUBLIC_API_BASE`, `NEXT_PUBLIC_SUPABASE_URL`,
   `NEXT_PUBLIC_SUPABASE_ANON_KEY` (see `.env.local.example`).
 - **Interactivity is config-driven** — the hover/press "feel" of every button,

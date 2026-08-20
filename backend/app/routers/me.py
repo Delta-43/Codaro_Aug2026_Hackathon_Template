@@ -30,6 +30,27 @@ def get_me(user: AuthUser = Depends(require_user)):
     return load_user(user)
 
 
+@router.get("/me/role")
+def get_my_role(user: AuthUser = Depends(require_user)):
+    """The caller's **trusted** engine role, resolved from `profiles` — the same
+    value `require_owner` gates on.
+
+    The frontend used to derive this from the JWT's `user_metadata.role`, which
+    the user can write themselves (`supabase.auth.updateUser`). That made the two
+    sides disagree in both directions: a customer who set the claim saw the whole
+    business UI while every call inside it 403'd, and an admin promoting someone
+    the documented way (UPDATE `profiles.role`) got backend access the UI kept
+    hiding. Serving the resolved role from here makes `profiles` the single
+    source of truth for both.
+
+    Deliberately lean and separate from `GET /me`: this runs on every page load
+    to decide which app to render, and the User shape stays a profile shape, not
+    an authorization one. `require_user` has already resolved the role (cached
+    for a few seconds per user), so this costs no extra query.
+    """
+    return {"role": user.role}
+
+
 @router.delete("/me", status_code=204)
 def delete_me(user: AuthUser = Depends(require_user)):
     """GDPR right to erasure — permanently remove every record tied to the

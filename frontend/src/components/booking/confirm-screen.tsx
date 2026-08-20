@@ -30,6 +30,7 @@ import {
 } from "@/lib/format";
 import { slotRemaining } from "@/components/calendar/slot-pill";
 import { DetailRow } from "@/components/booking/detail-row";
+import { InlineMessage } from "@/components/ui/inline-message";
 
 
 /** `location.modes` in words. The keys are the engine's; the sentence is ours. */
@@ -466,12 +467,7 @@ export function ConfirmScreen({
       </p>
 
       {error ? (
-        <div
-          role="alert"
-          className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          {error}
-        </div>
+        <InlineMessage className="mt-3">{error}</InlineMessage>
       ) : null}
 
       <div className="mt-5 flex gap-2">

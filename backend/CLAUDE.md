@@ -19,7 +19,7 @@ the frontend's exact contract (`frontend/src/types/domain.ts`). See root
 | `app/pricing.py` | `quote(pricing, ctx)` — config-driven totals (rate/tiers/fees/caps/deposit) |
 | `app/db.py` | `get_supabase()` (service key, bypasses RLS) + `get_user_client(token)` (JWT-scoped, RLS applies); `maybe_row()` (normalises PGRST116 **and** malformed-uuid `22P02` → None) |
 | `app/schema_setup.py` | Idempotently applies `supabase/schema.sql` on startup (guarded) |
-| `app/auth.py` | Verifies the Supabase JWT (ES256 via JWKS **and** legacy HS256); `require_user` / `require_owner` / `optional_user`; role from `profiles` |
+| `app/auth.py` | Verifies the Supabase JWT against the project's JWKS (ES256/RS256 only — no HS256); `require_user` / `require_owner` / `optional_user`; role from `profiles` |
 | `app/serialize.py` | Row → **camelCase** domain shapes; server-side slot-status + completed-in-past derivation; `iso_utc` (UTC `Z`) |
 | `app/rules.py` | Per-service rule resolver (`effective_service_rules`, `within_cutoff`) + the legacy event-keyed registry (still used by `slots.py`) |
 | `app/errors.py` | `api_error(code, message, details)` → HTTPException carrying the frontend's `ApiError` envelope |
@@ -233,7 +233,13 @@ yet — it needs a sold-count query, which is a database question.
   screening card: member-since, history, cancels); `GET /owner/calendar?from&to`
   (confirmed/completed bookings in a window, default current month). Reads use
   the service key (system aggregation); shapes are additive owner-only envelopes.
-- **Account:** `GET /me`, `PATCH /me` (writes editable fields to
+- **Account:** `GET /me/role` — the caller's **trusted** engine role from
+  `profiles`, the same value `require_owner` gates on. The frontend reads this
+  to decide whether to render business mode; it must never derive the role from
+  the JWT, because `user_metadata.role` is writable by the user themselves and
+  the two then disagree in both directions. Deliberately separate from `GET /me`
+  (a *profile* shape, not an authorization one) and free — `require_user` has
+  already resolved the role. `GET /me`, `PATCH /me` (writes editable fields to
   `user_metadata`); `DELETE /me` (GDPR erasure — `app.gdpr.erase_user` removes
   the user's bookings/follows/`client_reviews`, their avatar, and — for owners —
   their owned providers + every booking under them, then deletes the auth
@@ -256,10 +262,18 @@ provider/service **create** endpoints are not added (seeds populate catalog).
 
 `app/auth.py` verifies the `Authorization: Bearer <jwt>` **locally**:
 
-- **Both signing schemes.** The token header's `alg` selects the path —
-  **ES256/RS256 via the project's JWKS** (this Supabase project's scheme, keyed
-  by `kid`, cached `PyJWKClient`) or legacy **HS256** with `SUPABASE_JWT_SECRET`.
-  `aud="authenticated"`. 401 on missing/invalid/expired.
+- **One source of truth for the role.** `profiles.role` decides, for the API
+  *and* the UI (via `GET /me/role`). The token's `user_metadata.role` only
+  **seeds** a new user's profile at sign-up; nothing reads it as authority.
+- **Asymmetric only.** Signatures verify against the project's **JWKS**
+  (`ES256`/`RS256`, keyed by `kid`, cached `PyJWKClient` with a 300s lifespan;
+  a rotated key triggers one refetch-and-retry). `aud="authenticated"`, 60s
+  leeway for clock skew. 401 on missing/invalid/expired.
+- **The algorithm is a server decision.** `_ALLOWED_ALGS` is checked against the
+  token header *before* the JWKS lookup, and passed to `jwt.decode` as the
+  allow-list. Legacy symmetric **HS256** was removed: while both schemes were
+  live the token header chose which one verified it, so a forger could always
+  name the weaker one and reduce the attack to guessing a static secret.
 - **`require_user` / `require_owner` / `optional_user`** gate routes; public
   reads stay open. Role is **trusted from `profiles`** (`_resolve_role`, seeded
   from the sign-up role on first sight), not the self-asserted token.
@@ -267,8 +281,10 @@ provider/service **create** endpoints are not added (seeds populate catalog).
   `get_user_client(token)`; `enforce_rls_write()` turns an RLS-denied empty write
   into a clear 403. The service key (bypasses RLS) is kept for system work.
 
-Requires `SUPABASE_JWT_SECRET`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`,
-`SUPABASE_URL` (+ `SUPABASE_DB_URL` for schema/seed) and `pyjwt[crypto]`.
+Requires `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY` and `SUPABASE_URL`
+(+ `SUPABASE_DB_URL` for schema/seed) and `pyjwt[crypto]`. `SUPABASE_URL` is
+auth-critical — it locates the JWKS; unset, protected routes 500 rather than
+letting anything through. There is no JWT secret to configure.
 
 ## Seeding (`seed.py` + `seed_data.py`)
 
@@ -302,8 +318,9 @@ service's booking model.
 
 - Touch `supabase/schema.sql`'s base tables (frozen) or add columns to them —
   new fields go in `metadata`, new entities are new tables.
-- Hand-roll auth — verify the Supabase JWT (ES256/JWKS or HS256); read roles from
-  `profiles`. No parallel users/passwords table.
+- Hand-roll auth — verify the Supabase JWT against the JWKS (ES256/RS256); read
+  roles from `profiles`. No parallel users/passwords table. Don't re-add a
+  symmetric/HS256 path.
 - Break the frontend contract in `frontend/src/api/index.ts` — keep paths/params
   and the camelCase shapes; only add.
 - Ship a config-driven *default* `"pending"` booking status. `pending` is a

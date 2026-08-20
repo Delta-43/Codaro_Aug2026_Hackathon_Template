@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/format";
 import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
+import { InlineMessage } from "@/components/ui/inline-message";
 
 export function ReviewForm({
   booking,
@@ -117,12 +118,7 @@ export function ReviewForm({
       />
 
       {error ? (
-        <div
-          role="alert"
-          className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          {error}
-        </div>
+        <InlineMessage className="mt-3">{error}</InlineMessage>
       ) : null}
 
       <Button className="mt-3" isDisabled={busy || rating < 1} onPress={submit}>
