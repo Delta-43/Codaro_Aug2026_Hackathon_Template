@@ -14,11 +14,12 @@ import { GlassPanel } from "@/components/landing/scroll-reveal";
 import { useAuth } from "@/lib/auth";
 import { InlineMessage } from "@/components/ui/inline-message";
 import { DemoLogins } from "@/components/demo-logins";
+import { BusinessTag } from "@/components/business/business-tag";
 
 /**
  * Business sign-in — a dedicated page reached from "I'm a business!" on the main
  * sign-in. Shares the exact glass-plate layout of the customer login page; the
- * only distinction is a gold "Business" tagline next to the Arbor mark and the
+ * only distinction is the gold "Business" chip next to the Arbor wordmark and the
  * owner-role auth behaviour.
  */
 export default function BusinessLoginPage() {
@@ -83,7 +84,7 @@ function BusinessLoginForm() {
       <div className="w-full max-w-sm">
       <GlassPanel className="p-6">
         <div className="mb-6 text-center">
-          <h1 className="flex items-center justify-center gap-2 text-2xl font-semibold tracking-tight">
+          <h1 className="flex items-center justify-center text-2xl font-semibold tracking-tight">
             <Link
               href="/"
               className="inline-flex items-center gap-1.5 origin-center text-primary transition-transform duration-200 ease-out hover:scale-110"
@@ -92,12 +93,9 @@ function BusinessLoginForm() {
               <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-7 -translate-y-[9%]" />
               Arbor
             </Link>
-            {/* No vertical nudge: the flex row's centering already puts the pill
-                on the optical middle of "Arbor" (pill 293–311 vs the word's ink
-                294–311). Any translate here reads as the chip riding high. */}
-            <span className="rounded-full bg-amber-400/15 px-2 py-1 text-[0.625rem] font-semibold uppercase leading-none tracking-[0.08em] text-amber-600 dark:text-amber-400">
-              Business
-            </span>
+            {/* The chip carries its own em-based drop onto the optical middle
+                of "Arbor" — nothing to nudge from out here. */}
+            <BusinessTag />
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             {mode === "signin" ? "Sign in to continue" : "Create your business account"}

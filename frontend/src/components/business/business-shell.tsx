@@ -26,6 +26,7 @@ import { useAuth } from "@/lib/auth";
 import { useOwner } from "@/context/owner-context";
 import { useUnreadCount } from "@/hooks/use-unread-count";
 import { BusinessBadge } from "@/components/business/verified-badge";
+import { BusinessTag } from "@/components/business/business-tag";
 import { TabBadge } from "@/components/app-shell";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 
@@ -51,16 +52,16 @@ function isActive(pathname: string, href: string): boolean {
 }
 
 function Wordmark() {
+  // No row `gap`: the mark spaces itself off the word and the chip owns the gap
+  // on its own side, so tightening the lockup is one number in one file.
   return (
-    <span className="inline-flex items-center gap-1.5 text-lg font-semibold tracking-tight">
+    <span className="inline-flex items-center text-lg font-semibold tracking-tight">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-6 -translate-y-[9%]" />
+      <img src="/arbor-mark-7d.png" alt="" aria-hidden className="mr-1.5 size-6 -translate-y-[9%]" />
       <span className="text-primary">Arbor</span>
-      {/* Same as the business sign-in lockup: plain flex centering lands the
-          pill on the optical middle of "Arbor" — no vertical nudge. */}
-      <span className="ml-2 rounded-full bg-amber-400/15 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
-        Business
-      </span>
+      {/* Same lockup as the business sign-in plate; the chip owns its own
+          downward nudge onto the optical middle of "Arbor". */}
+      <BusinessTag />
     </span>
   );
 }
