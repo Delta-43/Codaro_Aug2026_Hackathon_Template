@@ -12,6 +12,8 @@
  */
 import { useMemo, useState } from "react";
 import { ChevronLeft } from "lucide-react";
+import { buttonFx } from "@/config/buttons";
+import { cn } from "@/lib/utils";
 import { useVertical } from "@/context/app-context";
 import type { Booking, Service, Slot } from "@/types/domain";
 import { getAvailability, getResources, isApiError, rescheduleBooking } from "@/api";
@@ -137,7 +139,10 @@ export function RescheduleFlow({
             setPhase("pick");
             if (!isRange) resetSelection();
           }}
-          className="-ml-1 mb-3 inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+          className={cn(
+            "-ml-1 mb-3 inline-flex origin-left items-center gap-1 text-sm font-medium text-muted-foreground transition-all hover:text-foreground",
+            buttonFx.press,
+          )}
         >
           <ChevronLeft className="size-4" aria-hidden /> Back
         </button>

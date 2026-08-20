@@ -31,6 +31,7 @@ import { Skeleton } from "@/components/skeleton";
 import { MessageBubble } from "@/components/messaging/message-bubble";
 import { TypingIndicator } from "@/components/messaging/typing-indicator";
 import { useConversationRealtime } from "@/hooks/use-conversation-realtime";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
 /** Insert-or-replace a message arriving from Realtime, reconciling a viewer's
@@ -185,7 +186,10 @@ export function MessageThread({ backHref }: { backHref: string }) {
         <Link
           href={backHref}
           aria-label="Back"
-          className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className={cn(
+            "flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-all hover:bg-muted hover:text-foreground",
+            buttonFx.press,
+          )}
         >
           <ArrowLeft className="size-5" aria-hidden />
         </Link>
@@ -247,7 +251,10 @@ export function MessageThread({ backHref }: { backHref: string }) {
               type="button"
               aria-label="Cancel reply"
               onClick={() => setReplyTo(null)}
-              className="flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+              className={cn(
+                "flex size-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-all hover:bg-muted hover:text-foreground",
+                buttonFx.press,
+              )}
             >
               <X className="size-3.5" aria-hidden />
             </button>

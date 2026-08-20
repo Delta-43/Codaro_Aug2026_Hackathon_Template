@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { Moon, Sun } from "lucide-react";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
 export function ThemeToggle({ className }: { className?: string }) {
@@ -23,7 +24,8 @@ export function ThemeToggle({ className }: { className?: string }) {
       title={isDark ? "Day" : "Night"}
       onClick={() => setTheme(isDark ? "light" : "dark")}
       className={cn(
-        "grid size-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+        "grid size-8 place-items-center rounded-full text-muted-foreground transition-all hover:bg-muted hover:text-foreground",
+        buttonFx.icon,
         className,
       )}
     >

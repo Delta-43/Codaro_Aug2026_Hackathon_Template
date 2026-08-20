@@ -22,6 +22,7 @@ import {
   type CalDay,
 } from "@/lib/calendar";
 import { formatTime } from "@/lib/format";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
 type View = "month" | "week" | "day";
@@ -92,18 +93,18 @@ export function BookingCalendar({
 
   return (
     <div className="rounded-2xl border border-border bg-card">
-      <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2.5">
         <div className="flex items-center gap-1">
           <button
             onClick={() => shift(-1)}
             aria-label="Previous"
-            className="grid size-7 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+            className={cn("grid size-7 place-items-center rounded-lg text-muted-foreground transition-all hover:bg-muted hover:text-foreground", buttonFx.press)}
           >
             <ChevronLeft className="size-4" aria-hidden />
           </button>
           <button
             onClick={() => setAnchor(todayStr(timezone))}
-            className="min-w-0 truncate px-1 text-sm font-semibold"
+            className={cn(buttonFx.heading, "min-w-0 truncate px-1 text-sm font-semibold")}
             title="Jump to today"
           >
             {title}
@@ -111,7 +112,7 @@ export function BookingCalendar({
           <button
             onClick={() => shift(1)}
             aria-label="Next"
-            className="grid size-7 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+            className={cn("grid size-7 place-items-center rounded-lg text-muted-foreground transition-all hover:bg-muted hover:text-foreground", buttonFx.press)}
           >
             <ChevronRight className="size-4" aria-hidden />
           </button>
@@ -144,15 +145,16 @@ export function BookingCalendar({
 function Segmented({ view, onChange }: { view: View; onChange: (v: View) => void }) {
   const opts: View[] = ["month", "week", "day"];
   return (
-    <div className="flex items-center gap-0.5 rounded-lg bg-muted p-0.5 text-xs font-medium">
+    <div className="flex shrink-0 items-center gap-0.5 rounded-lg bg-muted p-0.5 text-xs font-medium">
       {opts.map((o) => (
         <button
           key={o}
           onClick={() => onChange(o)}
           aria-pressed={view === o}
           className={cn(
-            "rounded-md px-2 py-1 capitalize transition-colors",
-            view === o ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+            "shrink-0 rounded-md px-2 py-1 capitalize transition-all",
+            buttonFx.press,
+            view === o ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-primary",
           )}
         >
           {o}
@@ -194,7 +196,8 @@ function MonthView({
               key={c.dateStr}
               onClick={() => onPickDay(c.dateStr)}
               className={cn(
-                "flex min-h-[52px] flex-col items-stretch gap-0.5 rounded-lg border border-transparent p-1 text-left transition-colors hover:border-border hover:bg-muted/50",
+                "flex min-h-[52px] flex-col items-stretch gap-0.5 rounded-lg border border-transparent p-1 text-left transition-colors hover:border-border",
+                buttonFx.tile,
                 !inMonth && "opacity-40",
               )}
             >
@@ -277,7 +280,8 @@ function WeekView({
                       key={b.id}
                       onClick={() => onOpen?.(b)}
                       className={cn(
-                        "rounded-md border px-1.5 py-1 text-left text-[10px] leading-tight transition-transform hover:scale-[1.02]",
+                        "rounded-md border px-1.5 py-1 text-left text-[10px] leading-tight transition-all",
+                        buttonFx.press,
                         STATUS_PILL[b.status],
                       )}
                     >

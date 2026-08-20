@@ -36,7 +36,7 @@ export function ConversationList({
             <Link
               href={`${basePath}/${c.id}`}
               className={cn(
-                "flex items-center gap-3 rounded-xl border p-3 transition-colors",
+                "group flex items-center gap-3 rounded-xl border p-3 transition-colors",
                 unread
                   ? "border-primary/30 bg-accent/40 hover:border-primary/60 hover:bg-accent/70"
                   : cn("border-border bg-card", buttonFx.surface),
@@ -66,7 +66,7 @@ export function ConversationList({
                   ) : null}
                 </div>
               </div>
-              <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+              <ChevronRight className={cn("size-5 shrink-0 text-muted-foreground", buttonFx.chevron)} aria-hidden />
             </Link>
           </li>
         );

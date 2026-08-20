@@ -13,6 +13,8 @@ import type { Provider } from "@/types/domain";
 import { getProviderByCode } from "@/api";
 import { Modal } from "@/components/modal";
 import { CodeEntry } from "@/components/search/code-entry";
+import { buttonFx } from "@/config/buttons";
+import { cn } from "@/lib/utils";
 
 export function CodeModal({
   open,
@@ -69,7 +71,10 @@ export function CodeModal({
             type="button"
             onClick={() => scan(t.publicCode)}
             disabled={scanning !== null}
-            className="flex w-full items-center justify-between rounded-lg border border-dashed border-border px-3 py-2 text-left text-sm transition-colors hover:bg-muted disabled:opacity-60"
+            className={cn(
+              "flex w-full items-center justify-between rounded-lg border border-dashed border-border px-3 py-2 text-left text-sm disabled:opacity-60",
+              buttonFx.surface,
+            )}
           >
             <span className="min-w-0 truncate">{t.name}</span>
             <span className="shrink-0 font-mono text-xs text-muted-foreground">

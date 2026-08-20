@@ -1,6 +1,7 @@
 "use client";
 
 import type { Slot } from "@/types/domain";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
 export function slotRemaining(slot: Slot): number {
@@ -65,7 +66,11 @@ export function SlotPill({
 
   if (interactive) {
     return (
-      <button type="button" onClick={() => onSelect!(slot)} className={className}>
+      <button
+        type="button"
+        onClick={() => onSelect!(slot)}
+        className={cn(className, "transition-all", buttonFx.press)}
+      >
         {content}
       </button>
     );

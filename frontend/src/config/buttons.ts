@@ -46,4 +46,35 @@ export const buttonFx = {
    * Rating stars — a lively grow on hover, matching the landing testimonials.
    */
   star: "origin-center transition-transform duration-200 ease-out hover:scale-150",
+
+  /**
+   * Interactive headings — page titles and plate/section headers that do
+   * something on click (scroll to top, expand). A gentle grow anchored left so
+   * the title doesn't drift. Override the origin at the call site for centred or
+   * right-aligned headings, e.g. `cn(buttonFx.heading, "origin-center")`.
+   */
+  heading: "inline-block origin-left transition-transform duration-200 ease-out hover:scale-105",
+
+  /**
+   * Clickable icons — a settings cog, a theme switch, an avatar, an action icon.
+   * A clean grow so a bare icon reads as pressable without needing a chrome
+   * button around it.
+   */
+  icon: "origin-center transition-transform duration-200 ease-out hover:scale-110",
+
+  /**
+   * "Turn pink on hover" — the accent tint the platform reaches for constantly:
+   * a bare icon, label, or status chip that should read as pink (the primary
+   * colour) while the cursor is on it. Pair with a chrome button's own `press`
+   * where both are wanted.
+   */
+  pink: "transition-colors hover:text-primary",
+
+  /**
+   * The "chevron" affordance — the `>` / `⌄` glyphs that sit at the end of a
+   * clickable row or card. They are decorative (aria-hidden), so they animate
+   * off the *row's* hover, not their own: put `group` on the row and this token
+   * on the chevron, and it nudges toward its direction as you hover the row.
+   */
+  chevron: "transition-transform duration-200 ease-out group-hover:translate-x-0.5",
 } as const;

@@ -8,6 +8,8 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { TriangleAlert, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { buttonFx } from "@/config/buttons";
+import { cn } from "@/lib/utils";
 
 export function ConfirmDialog({
   open,
@@ -18,6 +20,8 @@ export function ConfirmDialog({
   onConfirm,
   onClose,
   children,
+  tone = "destructive",
+  icon,
 }: {
   open: boolean;
   title?: string;
@@ -29,7 +33,13 @@ export function ConfirmDialog({
   onClose: () => void;
   /** Optional summary of what's changing, shown above the buttons. */
   children?: ReactNode;
+  /** Visual weight: "destructive" (red, the default) for irreversible actions,
+   *  or "primary" (pink) for a calmer confirm like signing out. */
+  tone?: "destructive" | "primary";
+  /** Override the badge icon (default: a warning triangle). */
+  icon?: ReactNode;
 }) {
+  const isPrimary = tone === "primary";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,13 +82,21 @@ export function ConfirmDialog({
         <button
           onClick={() => !busy && onClose()}
           aria-label="Close"
-          className="absolute right-4 top-4 flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+          className={cn(
+            "absolute right-4 top-4 flex size-8 items-center justify-center rounded-full text-muted-foreground transition-all hover:bg-muted hover:text-foreground",
+            buttonFx.press,
+          )}
         >
           <X className="size-4" aria-hidden />
         </button>
 
-        <div className="mx-auto mb-4 grid size-14 place-items-center rounded-full bg-destructive/10 text-destructive">
-          <TriangleAlert className="size-7" aria-hidden />
+        <div
+          className={cn(
+            "mx-auto mb-4 grid size-14 place-items-center rounded-full",
+            isPrimary ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive",
+          )}
+        >
+          {icon ?? <TriangleAlert className="size-7" aria-hidden />}
         </div>
         <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
         <p className="mx-auto mt-2 max-w-xs text-sm text-muted-foreground">{body}</p>
@@ -93,11 +111,14 @@ export function ConfirmDialog({
 
         <div className="mt-6 flex flex-col gap-2">
           <Button
-            variant="destructive"
+            variant={isPrimary ? "default" : "destructive"}
             size="lg"
             isDisabled={busy}
             onPress={confirm}
-            className="w-full bg-destructive text-base font-semibold text-white hover:bg-destructive/90 dark:text-white"
+            className={cn(
+              "w-full text-base font-semibold",
+              isPrimary ? undefined : "bg-destructive text-white hover:bg-destructive/90 dark:text-white",
+            )}
           >
             {busy ? busyLabel : confirmLabel}
           </Button>

@@ -7,6 +7,7 @@ import { AvatarImg } from "@/components/avatar-img";
 import { distanceFromHome } from "@/lib/geo";
 import { formatMoney } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { buttonFx } from "@/config/buttons";
 
 /** A search result. Followed providers get a distinct highlighted treatment. */
 export function ProviderCard({
@@ -34,8 +35,8 @@ export function ProviderCard({
       className={cn(
         "flex w-full items-start gap-3 rounded-xl border p-3 text-left transition-colors",
         isFollowed
-          ? "border-primary/40 bg-accent/40 ring-1 ring-primary/25 hover:bg-accent/60"
-          : "border-border bg-card hover:bg-muted/50",
+          ? "border-primary/40 bg-accent/30 hover:border-primary hover:bg-accent/60 hover:ring-1 hover:ring-primary/30"
+          : cn("border-border bg-card", buttonFx.surface),
       )}
     >
       <AvatarImg src={provider.avatarUrl} name={provider.name} alt="" className="size-12 shrink-0" />

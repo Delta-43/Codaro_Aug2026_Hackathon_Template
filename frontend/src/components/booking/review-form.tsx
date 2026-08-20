@@ -12,6 +12,7 @@ import type { Booking } from "@/types/domain";
 import { isApiError, leaveReview } from "@/api";
 import { Button } from "@/components/ui/button";
 import { formatDate } from "@/lib/format";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
 export function ReviewForm({
@@ -89,7 +90,10 @@ export function ReviewForm({
               onMouseEnter={() => setHover(value)}
               onMouseLeave={() => setHover(0)}
               onClick={() => setRating(value)}
-              className="rounded-md p-1 outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+              className={cn(
+                "rounded-md p-1 outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+                buttonFx.star,
+              )}
             >
               <Star
                 className={cn(

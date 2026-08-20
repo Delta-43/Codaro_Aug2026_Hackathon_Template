@@ -30,6 +30,7 @@ import {
 } from "@/api";
 import type { OwnerRequest, OwnerServiceSummary } from "@/types/domain";
 import { formatBookingWhen, formatMoney } from "@/lib/format";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
 type Decision = "approved" | "rejected";
@@ -164,7 +165,7 @@ function AutoApproveSwitch({
       aria-checked={on}
       disabled={disabled}
       onClick={() => onChange(!on)}
-      className="flex shrink-0 flex-col items-end gap-1 disabled:opacity-50"
+      className={cn("flex shrink-0 flex-col items-end gap-1 transition-all disabled:opacity-50", buttonFx.press)}
     >
       <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Auto-approve</span>
       <span className={cn("flex h-6 w-11 items-center rounded-full p-0.5 transition-colors", on ? "bg-primary" : "bg-muted")}>

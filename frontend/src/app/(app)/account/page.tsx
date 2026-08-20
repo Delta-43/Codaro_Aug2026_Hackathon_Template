@@ -103,7 +103,7 @@ export default function ProfilePage() {
         <div className="min-w-0 flex-1">
           <h1 className="flex items-center gap-1.5 truncate text-xl font-semibold tracking-tight">
             {user.displayName}
-            {user.verified ? <BadgeCheck className="size-5 fill-primary text-card" aria-label="Verified" /> : null}
+            {user.verified ? <BadgeCheck className={cn("size-5 fill-primary text-card", buttonFx.icon)} aria-label="Verified" /> : null}
           </h1>
           <p className="truncate text-sm text-muted-foreground">{user.email}</p>
           <p className="mt-1 flex items-center gap-1 text-sm">
@@ -116,7 +116,7 @@ export default function ProfilePage() {
           href="/account/settings"
           aria-label="Settings"
           className={cn(
-            "grid size-9 shrink-0 place-items-center rounded-full text-primary transition-all hover:bg-primary/10",
+            "grid size-9 shrink-0 place-items-center rounded-full text-primary/75 transition-all hover:bg-primary/10 hover:text-primary",
             buttonFx.press,
           )}
         >

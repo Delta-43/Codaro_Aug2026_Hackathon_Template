@@ -1,4 +1,5 @@
 import type { BookingStatus } from "@/types/domain";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
 /**
@@ -40,7 +41,8 @@ export function StatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium",
+        "inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-medium transition-transform",
+        buttonFx.press,
         s.className,
         className,
       )}

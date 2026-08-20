@@ -68,7 +68,7 @@ export default function BookingsPage() {
 
   return (
     <section className="space-y-4 py-4">
-      <h1 className="text-xl font-semibold tracking-tight md:sr-only">{vertical.bookingNounPlural}</h1>
+      <h1 className="sr-only">{vertical.bookingNounPlural}</h1>
 
       {/* Calendar of my bookings — marketplace only; single-business has its own
           Calendar tab, so this would be a redundant second calendar. */}

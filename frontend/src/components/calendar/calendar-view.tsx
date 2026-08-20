@@ -29,6 +29,7 @@ import {
   weekRange,
 } from "@/lib/calendar";
 import { zoneAbbrev } from "@/lib/format";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
 type Zoom = "month" | "week" | "day";
@@ -127,8 +128,9 @@ export function CalendarView({
 
   return (
     <div>
-      {/* Zoom control */}
-      <div className="mb-3 inline-flex rounded-lg border border-border bg-card p-0.5">
+      {/* Zoom control — scrolls horizontally rather than overflowing when the
+          viewport is too narrow for month/week/day side by side. */}
+      <div className="no-scrollbar mb-3 flex w-fit max-w-full overflow-x-auto rounded-lg border border-border bg-card p-0.5">
         {(["month", "week", "day"] as Zoom[]).map((z) => (
           <button
             key={z}
@@ -136,10 +138,11 @@ export function CalendarView({
             onClick={() => setZoom(z)}
             aria-pressed={zoom === z}
             className={cn(
-              "rounded-md px-3 py-1 text-sm font-medium capitalize transition-colors",
+              "shrink-0 rounded-md px-3 py-1 text-sm font-medium capitalize transition-all",
+              buttonFx.press,
               zoom === z
                 ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground",
+                : "text-muted-foreground hover:text-primary",
             )}
           >
             {z}

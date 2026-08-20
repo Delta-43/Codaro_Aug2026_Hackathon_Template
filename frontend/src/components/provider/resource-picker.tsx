@@ -10,6 +10,8 @@ import type { Resource, Service } from "@/types/domain";
 import { getResources } from "@/api";
 import { useAsync } from "@/hooks/use-async";
 import { useVertical } from "@/context/app-context";
+import { buttonFx } from "@/config/buttons";
+import { cn } from "@/lib/utils";
 import { Modal } from "@/components/modal";
 import { Skeleton } from "@/components/skeleton";
 
@@ -37,7 +39,10 @@ export function ResourcePicker({
       <button
         type="button"
         onClick={() => onPick(null)}
-        className="mb-2 flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted"
+        className={cn(
+          "mb-2 flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left",
+          buttonFx.surface,
+        )}
       >
         <span className="grid size-12 shrink-0 place-items-center rounded-md bg-muted">
           <Layers className="size-5 text-muted-foreground" aria-hidden />
@@ -62,7 +67,10 @@ export function ResourcePicker({
               key={r.id}
               type="button"
               onClick={() => onPick(r)}
-              className="flex w-full items-start gap-3 rounded-lg border border-border p-3 text-left transition-colors hover:bg-muted"
+              className={cn(
+                "flex w-full items-start gap-3 rounded-lg border border-border p-3 text-left",
+                buttonFx.surface,
+              )}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img

@@ -160,7 +160,10 @@ function LoginForm() {
                 type="checkbox"
                 checked={agreed}
                 onChange={(e) => setAgreed(e.target.checked)}
-                className="mt-0.5 size-4 shrink-0 rounded border-border accent-primary"
+                className={cn(
+                  "mt-0.5 size-4 shrink-0 cursor-pointer rounded border-border accent-primary transition-transform",
+                  buttonFx.press,
+                )}
               />
               <span>
                 I agree to the{" "}
@@ -193,10 +196,10 @@ function LoginForm() {
         {!singleBusiness ? (
           <Link
             href="/login/business"
-            className="mt-4 flex w-full items-center justify-center gap-1 text-base font-bold tracking-tight text-foreground transition-colors hover:text-primary"
+            className="group mt-4 flex w-full items-center justify-center gap-1 text-base font-bold tracking-tight text-foreground transition-colors hover:text-primary"
           >
             I&apos;m a business!
-            <ChevronRight className="size-4" aria-hidden />
+            <ChevronRight className={cn("size-4", buttonFx.chevron)} aria-hidden />
           </Link>
         ) : null}
 
@@ -246,7 +249,7 @@ function LoginForm() {
             size="lg"
             onPress={() => enterDemoMode(DEMO_USER)}
             isDisabled={busy || !configured}
-            className="w-full"
+            className="w-full hover:border-primary hover:bg-primary/10 hover:text-primary"
           >
             {busy ? "Please wait…" : "Demo Mode for Users"}
           </Button>
@@ -256,7 +259,7 @@ function LoginForm() {
             size="lg"
             onPress={() => enterDemoMode(DEMO_BUSINESS)}
             isDisabled={busy || !configured}
-            className="w-full"
+            className="w-full hover:border-primary hover:bg-primary/10 hover:text-primary"
           >
             {busy ? "Please wait…" : "Demo Mode for Businesses"}
           </Button>

@@ -8,6 +8,7 @@
  */
 import { useEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
 export function Modal({
@@ -67,7 +68,10 @@ export function Modal({
             <button
               onClick={onClose}
               aria-label="Close"
-              className="flex size-8 items-center justify-center rounded-full text-muted-foreground hover:bg-muted hover:text-foreground"
+              className={cn(
+                "flex size-8 items-center justify-center rounded-full text-muted-foreground transition-all hover:bg-muted hover:text-foreground",
+                buttonFx.press,
+              )}
             >
               <X className="size-4" aria-hidden />
             </button>

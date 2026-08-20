@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { buttonFx } from "@/config/buttons";
 import { useApp } from "@/context/app-context";
 import { useCart } from "@/context/cart-context";
 import { CartSheet } from "@/components/booking/cart-sheet";
@@ -31,6 +32,7 @@ import { AvatarImg } from "@/components/avatar-img";
 import { useAuth } from "@/lib/auth";
 import { useUnreadCount } from "@/hooks/use-unread-count";
 import { Button } from "@/components/ui/button";
+import { SignOutButton } from "@/components/sign-out-button";
 
 interface Tab {
   href: string;
@@ -114,7 +116,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh md:pl-60">
       {/* Desktop left drawer */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-card px-3 py-4 md:flex">
-        <Link href="/" className="mb-4 px-3 text-lg font-semibold tracking-tight">
+        <Link href="/" className={cn(buttonFx.heading, "mb-4 px-3 text-lg font-semibold tracking-tight")}>
           <span className="text-primary">Arbor</span>
         </Link>
         <nav className="flex flex-col gap-1">
@@ -128,14 +130,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="mt-auto px-1">
-          <Button
-            variant="outline"
-            size="sm"
+          <SignOutButton
             className="w-full"
-            onPress={() => signOut().then(() => router.replace("/login"))}
-          >
-            Sign out
-          </Button>
+            onSignOut={() => signOut().then(() => router.replace("/login"))}
+          />
         </div>
       </aside>
 
@@ -146,7 +144,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <button
               type="button"
               onClick={scrollTop}
-              className="block max-w-full origin-left truncate text-sm font-semibold transition-transform duration-200 ease-out hover:scale-105"
+              className={cn(buttonFx.heading, "block max-w-full truncate text-lg font-semibold text-primary")}
             >
               {heading}
             </button>
@@ -159,7 +157,10 @@ export function AppShell({ children }: { children: ReactNode }) {
         <CartButton onOpen={() => setCartOpen(true)} />
         <Link
           href="/account/settings"
-          className="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 hover:bg-muted"
+          className={cn(
+            "group flex items-center gap-2 rounded-full py-1 pl-1 pr-3 transition-all hover:bg-primary/10 hover:text-primary",
+            buttonFx.press,
+          )}
           aria-label="Settings"
         >
           <AvatarImg
@@ -168,7 +169,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             alt=""
             className="size-8"
           />
-          <span className="max-w-[10rem] truncate text-sm">{user?.displayName ?? "Account"}</span>
+          <span className="max-w-[10rem] truncate text-base font-medium">{user?.displayName ?? "Account"}</span>
         </Link>
         </div>
       </header>
@@ -179,15 +180,15 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-20 flex h-12 items-center justify-between gap-2 border-b border-border bg-background/85 px-4 backdrop-blur pt-[env(safe-area-inset-top)] md:hidden">
         <Link
           href="/"
-          className="shrink-0 origin-left text-base font-bold tracking-tight text-primary transition-transform duration-200 ease-out hover:scale-105"
+          className={cn(buttonFx.heading, "shrink-0 text-base font-bold tracking-tight text-primary")}
         >
           Arbor
         </Link>
-        <span className="flex min-w-0 items-baseline justify-end gap-2 text-sm font-semibold">
+        <span className="flex min-w-0 items-baseline justify-end gap-2 text-lg font-semibold">
           <button
             type="button"
             onClick={scrollTop}
-            className="shrink-0 origin-right transition-transform duration-200 ease-out hover:scale-105"
+            className={cn(buttonFx.heading, "shrink-0 origin-right text-primary")}
           >
             {heading}
           </button>
@@ -234,7 +235,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               aria-current={activeTab ? "page" : undefined}
               className={cn(
                 "group flex min-h-[52px] flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors",
-                activeTab ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                activeTab ? "text-primary" : "text-muted-foreground hover:text-primary",
               )}
             >
               <span className="relative origin-center transition-transform duration-200 ease-out group-hover:scale-110">
@@ -257,13 +258,13 @@ function NavItem({ tab, active, badge = 0 }: { tab: Tab; active: boolean; badge?
       href={tab.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
+        "group flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
         active
           ? "bg-accent text-accent-foreground"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          : "text-muted-foreground hover:bg-primary/10 hover:text-primary",
       )}
     >
-      <span className="relative">
+      <span className="relative origin-center transition-transform duration-200 ease-out group-hover:scale-110">
         <Icon className="size-4" aria-hidden />
         <TabBadge count={badge} />
       </span>
@@ -283,7 +284,7 @@ function CartButton({ onOpen }: { onOpen: () => void }) {
       type="button"
       onClick={onOpen}
       aria-label={`Basket (${items.length})`}
-      className="relative grid size-9 place-items-center rounded-full hover:bg-muted"
+      className={cn("relative grid size-9 place-items-center rounded-full transition-all hover:bg-primary/10 hover:text-primary", buttonFx.press)}
     >
       <ShoppingBag className="size-5" aria-hidden />
       {items.length ? (
