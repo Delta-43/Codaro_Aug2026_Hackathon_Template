@@ -214,6 +214,9 @@ def seed_lock(*, wait: bool = True):
         yield True
         return
     conn = psycopg.connect(url)
+    # Bound before the try so the finally's `if held` can't NameError (masking
+    # the real error) when lock acquisition itself raises before `held` is set.
+    held = False
     try:
         with conn.cursor() as cur:
             if wait:
