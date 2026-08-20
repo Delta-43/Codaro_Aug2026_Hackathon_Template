@@ -531,7 +531,7 @@ export function unfollowProvider(id: ID): Promise<User> {
 
 // --- services & resources --------------------------------------------------
 
-export function getServices(providerId: ID): Promise<Service[]> {
+export function getServices(providerId?: ID): Promise<Service[]> {
   return request(`/services${qs({ provider_id: providerId })}`);
 }
 
