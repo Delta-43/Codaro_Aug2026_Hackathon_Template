@@ -211,7 +211,7 @@ export default function SearchPage() {
           type="button"
           onClick={() => setFiltersOpen(true)}
           aria-label="Filters"
-          className="inline-flex shrink-0 items-center gap-2 rounded-full border border-neutral-300 bg-white px-4 py-1.5 text-sm font-semibold text-neutral-900 shadow-sm transition-colors hover:bg-neutral-100"
+          className="inline-flex shrink-0 items-center gap-2 rounded-full border border-border bg-card px-4 py-1.5 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-muted"
         >
           <SlidersHorizontal className="size-4" aria-hidden />
           Filter
