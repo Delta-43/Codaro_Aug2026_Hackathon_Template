@@ -15,7 +15,7 @@ import { SceneBackground } from "@/components/landing/scene-background";
 import { NavBar } from "@/components/landing/nav-bar";
 import { Hero } from "@/components/landing/hero";
 import { HowItWorks } from "@/components/landing/how-it-works";
-import { CalendarDemo } from "@/components/landing/calendar-demo";
+import { CalendarShowcase } from "@/components/landing/calendar-showcase";
 import { Testimonials } from "@/components/landing/testimonials";
 import { DocsCta } from "@/components/landing/docs-cta";
 import { BusinessCta } from "@/components/landing/business-cta";
@@ -28,7 +28,7 @@ export default function RootPage() {
       <NavBar />
       <Hero />
       <HowItWorks />
-      <CalendarDemo />
+      <CalendarShowcase />
       <Testimonials />
       <DocsCta />
       <BusinessCta />

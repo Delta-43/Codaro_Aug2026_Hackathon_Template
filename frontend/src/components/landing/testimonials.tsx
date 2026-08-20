@@ -65,7 +65,7 @@ const REVIEWS: Review[] = [
     initials: "PP",
     rating: 5,
     message:
-      "Arbor changed everything about my life — it optimized our booking rates to 300% 📈. Now I don't need to sleep 😴 because I have to serve my customers 😤",
+      "Arbor changed everything about my life. It optimized our booking rates to 300% 📈. Now I don't need to sleep 😴 because I have to serve my customers 😤",
   },
 ];
 
@@ -105,7 +105,7 @@ export function Testimonials() {
             </span>
           </div>
           <h2 className="text-center text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-            Built for every business — and it shows.
+            Built for every business, and it shows.
           </h2>
           <p className="mx-auto mt-3 max-w-md text-center text-foreground/80">
             The team that built Arbor, in their own words.

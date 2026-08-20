@@ -27,7 +27,7 @@ export function DocsCta() {
             </h2>
             <p className="mx-auto mt-3 max-w-lg text-foreground/80">
               One config file sets your vocabulary, rules, pricing, and look; seed data fills the
-              catalog. When your business changes, the same engine repivots — no rewrite. The docs
+              catalog. When your business changes, the same engine repivots with no rewrite. The docs
               walk through the config, the API, and the whole booking pipeline end to end.
             </p>
           </div>

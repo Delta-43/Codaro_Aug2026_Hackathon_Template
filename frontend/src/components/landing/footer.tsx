@@ -43,7 +43,7 @@ export function Footer() {
                 Arbor
               </ScrollTopLink>
               <p className="mt-3 text-sm leading-relaxed text-foreground/70">
-                One booking engine, reshaped for any business — booking, scheduling, and
+                One booking engine, reshaped for any business. Booking, scheduling, and
                 availability, without a rewrite.
               </p>
             </div>
@@ -85,23 +85,36 @@ export function Footer() {
         </GlassPanel>
       </div>
 
-      {/* Giant fading wordmark — full-bleed, dissolving upward from the bottom.
-          The particle field finds this element by `data-wordmark` and steers its
-          dots clear of it, but only while it's actually on screen (scrolled to
-          the footer) — so nothing crawls over the closing wordmark, and the
-          field is unaffected anywhere else on the page. */}
-      <div aria-hidden className="mt-10 overflow-hidden">
-        <span
+      {/* Giant fading wordmark — dissolving upward from the bottom, locked to the
+          exact same width as the glass plates above (same `max-w-4xl` + `px-4`
+          container). Drawn as SVG text whose viewBox matches the word's *natural*
+          proportions in the site font (≈ 842 × 180 for "ARBOR" at weight 800), so
+          `w-full` scales it up to the plate width uniformly — big, responsive, and
+          without the horizontal stretch a fixed `textLength` would force. The
+          particle field finds this element by `data-wordmark` and steers its dots
+          clear of it while it's on screen. */}
+      <div aria-hidden className="mx-auto mt-10 w-full max-w-4xl px-4">
+        <svg
           data-wordmark
-          className="block origin-bottom cursor-default select-none text-center font-extrabold leading-[0.78] tracking-tighter text-black transition-transform duration-300 ease-out hover:-translate-y-1 hover:scale-[1.03] dark:text-white"
+          viewBox="0 0 842 180"
+          preserveAspectRatio="xMidYMax meet"
+          className="block w-full origin-bottom cursor-default select-none fill-black transition-transform duration-300 ease-out hover:-translate-y-1 hover:scale-[1.02] dark:fill-white"
           style={{
-            fontSize: "clamp(3.5rem, 24vw, 18rem)",
             WebkitMaskImage: "linear-gradient(to bottom, transparent 8%, rgba(0,0,0,0.16) 46%, #000 97%)",
             maskImage: "linear-gradient(to bottom, transparent 8%, rgba(0,0,0,0.16) 46%, #000 97%)",
           }}
         >
-          ARBOR
-        </span>
+          <text
+            x="421"
+            y="173"
+            textAnchor="middle"
+            fontSize="240"
+            fontWeight="800"
+            style={{ fontFamily: "inherit" }}
+          >
+            ARBOR
+          </text>
+        </svg>
       </div>
     </footer>
   );

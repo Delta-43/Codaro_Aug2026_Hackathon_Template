@@ -86,4 +86,11 @@ export const buttonFx = {
    * on the chevron, and it nudges toward its direction as you hover the row.
    */
   chevron: "transition-transform duration-200 ease-out group-hover:translate-x-0.5",
+
+  /**
+   * Interactive info plates — the landing "three steps" cards and similar
+   * explanatory tiles that should invite a touch: a gentle centre grow plus a
+   * soft primary tint (fill + border) on hover.
+   */
+  plate: "origin-center transition-all duration-200 ease-out hover:scale-[1.03] hover:border-primary/40 hover:bg-primary/10",
 } as const;

@@ -10,10 +10,11 @@
  * the section links live in a scrollable middle strip. When the window is wide enough for every link, the
  * strip centres them as a group (`safe center`, so nothing overflows out of
  * reach) and no chevrons show. When the width shrinks and the links no longer
- * fit, the strip scrolls horizontally and small `‹ ›` chevrons appear beside it
- * (in-flow, so they never sit on top of a link) to nudge the strip left/right —
- * dimmed at whichever end you've reached. (The day/night toggle lives in the
- * footer now, not here.)
+ * fit, the strip scrolls horizontally and small `‹ ›` chevrons fade in over its
+ * edges (absolute overlays with a gradient, so they take no layout width) to
+ * nudge it left/right, dimmed at whichever end you've reached. Because they don't
+ * occupy the row, they never appear when the links fit, and the brand/Login never
+ * shift when they toggle. (The day/night toggle lives in the footer now.)
  */
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import Link from "next/link";
@@ -81,8 +82,12 @@ export function NavBar() {
     if (el) el.scrollBy({ left: dir * el.clientWidth * 0.7, behavior: "smooth" });
   };
 
-  const chevClass =
-    "grid size-7 shrink-0 place-items-center rounded-full text-muted-foreground transition-all hover:bg-muted hover:text-foreground disabled:pointer-events-none disabled:opacity-25";
+  // Edge nudge chevrons — overlaid at the strip's ends (absolute), so they take
+  // no layout width. Reserving width for them (the previous approach) shrank the
+  // strip enough to make it "overflow" and show the chevrons even on wide/tablet
+  // screens where the links comfortably fit.
+  const edgeChev =
+    "absolute inset-y-0 z-10 grid w-10 place-items-center text-muted-foreground transition-colors hover:text-foreground disabled:pointer-events-none disabled:opacity-30";
 
   return (
     <nav className="fixed inset-x-0 top-4 z-50 flex justify-center px-4">
@@ -95,54 +100,57 @@ export function NavBar() {
           Arbor
         </ScrollTopLink>
 
-        {/* Left chevron — only while the strip can scroll */}
-        {overflow && (
-          <button
-            type="button"
-            aria-label="Scroll links left"
-            className={chevClass}
-            disabled={atStart}
-            onClick={() => nudge(-1)}
+        {/* Middle — links, centred when they fit, horizontally scrollable when
+            not. The nudge chevrons are overlaid at the strip's edges (absolute),
+            so they never consume layout width and only render when the strip can
+            actually scroll — nothing shows on wide/tablet screens where the links
+            fit, and the brand/Login never shift when the chevrons toggle. */}
+        <div className="relative flex min-w-0 flex-1 items-center">
+          <div
+            ref={scrollRef}
+            className="no-scrollbar flex w-full min-w-0 items-center gap-2 overflow-x-auto [justify-content:safe_center]"
           >
-            <ChevronLeft className={cn("size-4", !atStart && "landing-nudge-left")} aria-hidden />
-          </button>
-        )}
+            {LINKS.map((l) =>
+              l.route ? (
+                <Link key={l.href} href={l.href} className={LINK_CLASS}>
+                  {l.label}
+                </Link>
+              ) : (
+                <a
+                  key={l.href}
+                  href={l.href}
+                  onClick={(e) => smoothScroll(e, l.href)}
+                  className={LINK_CLASS}
+                >
+                  {l.label}
+                </a>
+              ),
+            )}
+          </div>
 
-        {/* Middle — links. Centred as a group when they fit; scrolls when not. */}
-        <div
-          ref={scrollRef}
-          className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto [justify-content:safe_center] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {LINKS.map((l) =>
-            l.route ? (
-              <Link key={l.href} href={l.href} className={LINK_CLASS}>
-                {l.label}
-              </Link>
-            ) : (
-              <a
-                key={l.href}
-                href={l.href}
-                onClick={(e) => smoothScroll(e, l.href)}
-                className={LINK_CLASS}
+          {overflow && (
+            <>
+              <button
+                type="button"
+                aria-label="Scroll links left"
+                className={cn(edgeChev, "left-0 justify-items-start bg-gradient-to-r from-background via-background/90 to-transparent")}
+                disabled={atStart}
+                onClick={() => nudge(-1)}
               >
-                {l.label}
-              </a>
-            ),
+                <ChevronLeft className={cn("size-4", !atStart && "landing-nudge-left")} aria-hidden />
+              </button>
+              <button
+                type="button"
+                aria-label="Scroll links right"
+                className={cn(edgeChev, "right-0 justify-items-end bg-gradient-to-l from-background via-background/90 to-transparent")}
+                disabled={atEnd}
+                onClick={() => nudge(1)}
+              >
+                <ChevronRight className={cn("size-4", !atEnd && "landing-nudge")} aria-hidden />
+              </button>
+            </>
           )}
         </div>
-
-        {/* Right chevron — only while the strip can scroll */}
-        {overflow && (
-          <button
-            type="button"
-            aria-label="Scroll links right"
-            className={chevClass}
-            disabled={atEnd}
-            onClick={() => nudge(1)}
-          >
-            <ChevronRight className={cn("size-4", !atEnd && "landing-nudge")} aria-hidden />
-          </button>
-        )}
 
         {/* Far right — primary button (pinned): Dashboard when signed in, else Login */}
         <Link
