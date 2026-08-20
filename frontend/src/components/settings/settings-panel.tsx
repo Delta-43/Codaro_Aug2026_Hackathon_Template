@@ -3,27 +3,25 @@
 /**
  * The shared Settings template, recycled by both the User and Business settings
  * panels. It renders the ~80% of settings every app has — profile photo, name,
- * email, change password, notifications, appearance — plus the demo use-case
- * switcher, and a sign-out. Callers pass a small config and (optionally) extra
- * profile fields specific to their persona.
+ * email, change password, notifications, appearance, and a sign-out. Callers
+ * pass a small config and (optionally) extra profile fields specific to their
+ * persona.
  *
  * Real where it's cheap and safe (name save, photo upload, notifications,
- * appearance, demo switch, sign out); honest stubs where it needs backend
+ * appearance, sign out); honest stubs where it needs backend
  * plumbing that isn't here yet (email change, password change, account
  * deletion). The `photo` slot carries its own upload affordance: the user
  * avatar and the business's active-provider avatar are both uploadable (the
  * caller wires that in), so this template just renders whatever it's handed.
  */
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Bell, ShieldAlert, Sparkles } from "lucide-react";
+import { Bell, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SignOutButton } from "@/components/sign-out-button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AppearancePicker } from "@/components/account/appearance-picker";
 import { ConfirmDialog } from "@/components/business/confirm-dialog";
-import { useDemoUseCase } from "@/lib/demo-use-case";
-import { USE_CASE_IDS, USE_CASES } from "@/config/useCases";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
@@ -61,7 +59,7 @@ export function SettingsPanel(cfg: SettingsConfig) {
             breakpoint — keep it here for screen readers only, no on-screen copy. */}
         <h1 className="sr-only">Settings</h1>
         <p className="text-sm text-muted-foreground">
-          Manage your {cfg.variant === "business" ? "business" : "account"}, preferences and demo.
+          Manage your {cfg.variant === "business" ? "business" : "account"} and preferences.
         </p>
       </div>
 
@@ -106,14 +104,10 @@ export function SettingsPanel(cfg: SettingsConfig) {
         <AppearancePicker />
       </div>
 
-      <Section title="Demo" description="Switch the demo use case across the whole app.">
-        <DemoUseCaseSwitcher />
-      </Section>
-
       <Section title="Account">
         {/* Two equal-width buttons, side by side, so the plate reads symmetrical. */}
         <div className="grid grid-cols-2 gap-2">
-          <SignOutButton className="w-full" onSignOut={cfg.onSignOut} />
+          <SignOutButton withIcon className="w-full" onSignOut={cfg.onSignOut} />
           <DeleteAccount onDeleteAccount={cfg.onDeleteAccount} />
         </div>
       </Section>
@@ -182,7 +176,7 @@ function NameField({ label, value, onSave }: { label: string; value: string; onS
       <div className="flex flex-col gap-1">
         <Label className={LABEL_FX}>{label}</Label>
         <Input value={value} readOnly className="opacity-70" />
-        <p className="text-[11px] text-muted-foreground">Managed by the active demo use case.</p>
+        <p className="text-[11px] text-muted-foreground">This field is read-only.</p>
       </div>
     );
   }
@@ -326,38 +320,3 @@ function Switch({ on, onChange, label }: { on: boolean; onChange: () => void; la
   );
 }
 
-function DemoUseCaseSwitcher() {
-  const [useCase, setUseCaseId] = useDemoUseCase();
-  return (
-    <div>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-        {USE_CASE_IDS.map((id) => {
-          const uc = USE_CASES[id];
-          const active = useCase.id === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setUseCaseId(id)}
-              aria-pressed={active}
-              className={cn(
-                "flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-sm transition-all",
-                buttonFx.press,
-                active
-                  ? "border-primary/40 bg-primary/5 text-foreground"
-                  : "border-border bg-card text-muted-foreground hover:bg-muted",
-              )}
-            >
-              {active ? <Sparkles className="size-4 shrink-0 text-primary" aria-hidden /> : <span className="size-4 shrink-0" />}
-              <span className="truncate font-medium">{uc.label}</span>
-            </button>
-          );
-        })}
-      </div>
-      <p className="mt-2 text-[11px] text-muted-foreground">
-        Currently showing <span className="font-medium text-foreground">{useCase.label}</span>. Switching updates the
-        demo content across business mode and profiles.
-      </p>
-    </div>
-  );
-}

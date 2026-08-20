@@ -16,7 +16,7 @@ import { StatTile } from "@/components/business/stat-tile";
 import { BookingCalendar } from "@/components/business/booking-calendar";
 import { getOwnerDashboard } from "@/api";
 import type { OwnerDashboard, OwnerRequest } from "@/types/domain";
-import type { Metric } from "@/lib/business-demo";
+import type { Metric } from "@/lib/business-view";
 import { ownerBookingToCal } from "@/lib/owner-view";
 import { CreateBusiness } from "@/components/business/create-business";
 import type { VerticalConfig } from "@/config/verticals";

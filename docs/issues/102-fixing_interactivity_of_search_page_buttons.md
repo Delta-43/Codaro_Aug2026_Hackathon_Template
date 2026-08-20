@@ -92,8 +92,9 @@ A second, detailed pass from user feedback. New shared token: **`pink`**
 **Login**
 - Removed the front-door appearance control (kept `defaultTheme="system"`, so it
   still follows the OS); the explicit toggle now lives only in Settings.
-- "Demo Mode" buttons turn pink on hover; the sign-up agree **checkbox** grows
-  on hover (cursor-pointer + `press`).
+- The sign-up agree **checkbox** grows on hover (cursor-pointer + `press`).
+  (The "Demo Mode" buttons this pass also tinted are gone — `develop` removed
+  demo mode entirely; see the merge note at the end.)
 
 **Nav / shells (both customer + business)**
 - Top page-title and account/business label made larger (`text-base`) and
@@ -101,8 +102,9 @@ A second, detailed pass from user feedback. New shared token: **`pink`**
 - Desktop side-rail nav icons now scale on hover and the row turns pink;
   bottom-tab hover is pink too. Cart icon turns pink + presses.
 - **Sign out** is a shared `SignOutButton` (side rails + Settings) with a
-  confirmation dialog ("Sign out of Arbor?") and a pink hover. `ConfirmDialog`
-  gained a calm `tone="primary"` + custom `icon` (it was destructive-only).
+  confirmation gate. `develop` landed the same component independently at
+  `components/auth/sign-out-button.tsx`; that copy is the one kept (see the
+  merge note at the end).
 
 **Search**
 - Followed provider card no longer wears a permanent pink glow — the ring/border
@@ -175,3 +177,31 @@ system." Easy to switch if the 2-state look is what's wanted.
 
 **Verification (round 3):** `tsc` + `knip` clean; live checks above at 280px and
 1024px; no console errors.
+
+## Merge with `develop`
+
+`develop` moved a long way while this branch was open, and three of its changes
+overlapped this pass. Where both sides had touched the same line, the merge kept
+develop's *decision* and this branch's *feel*:
+
+- **Semantic colour tokens win.** develop's dark-mode fix for the search Filter
+  button (`border-border` / `bg-card` / `text-foreground` / `hover:bg-muted`)
+  is kept, with `buttonFx.press` and `transition-all` layered on top.
+- **develop's routing and chrome win.** The Arbor logo mark in both shells, the
+  avatar shortcut pointing at `/account` and `/owner/profile`, and the
+  `/owner/settings` nav tab are develop's; the `heading` / `press` tokens are
+  merged into them (`cn()` resolves the `inline-block` → `flex` clash).
+- **Demo mode is gone.** develop deleted the demo endpoints and the login
+  shortcuts, so this pass's styling of those two buttons went with them.
+- **`ConfirmDialog` is develop's minimalist rewrite**, not the heavy
+  base-branch card this pass had extended. Its `tone="primary"` + `icon` props
+  no longer exist; the interactive feel comes free because `<Button>` bakes in
+  `buttonFx.press`. The duplicate `components/sign-out-button.tsx` this branch
+  added was dropped in favour of develop's `components/auth/sign-out-button.tsx`
+  (superset API: `variant` / `withIcon` / `children`).
+- **Settings account plate** keeps this branch's symmetric `grid-cols-2` layout
+  (its `DeleteAccount` button is `w-full`, which develop's inline flex row would
+  have broken) with develop's `withIcon` sign-out.
+
+Verified after the merge: `tsc --noEmit` clean, `eslint` 0 errors,
+`next build` green.

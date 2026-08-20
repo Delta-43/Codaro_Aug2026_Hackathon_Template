@@ -7,7 +7,7 @@
  */
 import { useState } from "react";
 import { Info, TrendingDown, TrendingUp } from "lucide-react";
-import type { Metric } from "@/lib/business-demo";
+import type { Metric } from "@/lib/business-view";
 import { cn } from "@/lib/utils";
 
 export function StatTile({ metric }: { metric: Metric }) {

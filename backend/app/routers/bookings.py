@@ -22,6 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException
 import logging
 
 from app.auth import AuthUser, enforce_rls_write, require_owner, require_user
+from app.db import chunked as _chunked
 from app.db import fetch_all, get_supabase, get_user_client, maybe_row
 from app.errors import (
     CAPACITY_EXCEEDED,
@@ -43,6 +44,7 @@ from app.rules import (
     effective_service_pricing,
     effective_service_rules,
     blocking_prerequisites,
+    entitlement_plan,
     payment_state,
     resolve_entitlement,
     resolve_options,
@@ -84,6 +86,14 @@ def _load_service(db, service_id: str) -> dict:
     return row
 
 
+def _is_capacity_violation(exc: Exception) -> bool:
+    """True when a write was rejected by the slot-capacity trigger (schema.sql).
+    The trigger raises SQLSTATE 23514 with a `slot_capacity_exceeded` marker; the
+    marker is matched as well so a client version that surfaces the message but
+    not the code is still recognised."""
+    return getattr(exc, "code", None) == "23514" or "slot_capacity_exceeded" in str(exc)
+
+
 def _occ_by_id(db, slot_ids: list[str]) -> dict[str, dict]:
     if not slot_ids:
         return {}
@@ -94,30 +104,36 @@ def _occ_by_id(db, slot_ids: list[str]) -> dict[str, dict]:
 def _slot_ids_map(uc, booking_ids: list[str]) -> dict[str, list[str]]:
     if not booking_ids:
         return {}
-    rows = (
-        uc.table("booking_slots").select("booking_id,slot_id").in_("booking_id", booking_ids).execute().data
-        or []
-    )
     out: dict[str, list[str]] = {}
-    for r in rows:
-        out.setdefault(r["booking_id"], []).append(r["slot_id"])
+    # Chunked `in_` + paged fetch: past ~1000 join rows the raw select silently
+    # truncated, so later bookings fell back to single-slot spans.
+    for chunk in _chunked(booking_ids):
+        rows = fetch_all(
+            uc.table("booking_slots").select("booking_id,slot_id").in_("booking_id", chunk),
+            order=("booking_id", "slot_id"),
+        )
+        for r in rows:
+            out.setdefault(r["booking_id"], []).append(r["slot_id"])
     return out
 
 
 def _slot_time_map(db, slot_ids: list[str]) -> dict[str, tuple]:
     if not slot_ids:
         return {}
-    rows = db.table("slots").select("id,starts_at,ends_at").in_("id", slot_ids).execute().data or []
-    return {r["id"]: (r["starts_at"], r["ends_at"]) for r in rows}
+    out: dict[str, tuple] = {}
+    for chunk in _chunked(slot_ids):
+        rows = fetch_all(db.table("slots").select("id,starts_at,ends_at").in_("id", chunk))
+        out.update({r["id"]: (r["starts_at"], r["ends_at"]) for r in rows})
+    return out
 
 
 def _reviews_map(db, booking_ids: list[str]) -> dict[str, dict]:
     if not booking_ids:
         return {}
-    rows = db.table("reviews").select("*").in_("booking_id", booking_ids).execute().data or []
     out: dict[str, dict] = {}
-    for r in rows:  # one review per booking; keep the last seen
-        out[r["booking_id"]] = r
+    for chunk in _chunked(booking_ids):
+        for r in fetch_all(db.table("reviews").select("*").in_("booking_id", chunk)):
+            out[r["booking_id"]] = r  # one review per booking; keep the last seen
     return out
 
 
@@ -127,8 +143,11 @@ def _name_map(db, table: str, ids: set[str]) -> dict[str, str]:
     ids = {i for i in ids if i}
     if not ids:
         return {}
-    rows = db.table(table).select("id,name").in_("id", list(ids)).execute().data or []
-    return {r["id"]: r.get("name") or "" for r in rows}
+    out: dict[str, str] = {}
+    for chunk in _chunked(list(ids)):
+        for r in fetch_all(db.table(table).select("id,name").in_("id", chunk)):
+            out[r["id"]] = r.get("name") or ""
+    return out
 
 
 def _names_for(db, md: dict) -> dict:
@@ -221,7 +240,11 @@ def _enrich(db, uc, bookings: list[dict], *, include_client: bool = False) -> li
     reviews = _reviews_map(db, ids)
     metas = [b.get("metadata") or {} for b in bookings]
     prov_names = _name_map(db, "providers", {m.get("provider_id") for m in metas})
-    svc_names = _name_map(db, "services", {m.get("service_id") for m in metas})
+    # Full service rows, not just names: serialize_booking derives `loan` and
+    # `payment` from the GLOBAL config when `service` is omitted, so a service
+    # whose metadata overrides `payments`/`inventory` would serialize a state
+    # the /pay and /return endpoints don't enforce.
+    svc_map = _service_map(db, {m.get("service_id") for m in metas})
     now = now_utc()
 
     out = []
@@ -238,10 +261,22 @@ def _enrich(db, uc, bookings: list[dict], *, include_client: bool = False) -> li
                 review=reviews.get(b["id"]),
                 now=now,
                 include_client=include_client,
+                service=svc_map.get(md.get("service_id")),
                 provider_name=prov_names.get(md.get("provider_id"), ""),
-                service_name=svc_names.get(md.get("service_id"), ""),
+                service_name=(svc_map.get(md.get("service_id")) or {}).get("name", ""),
             )
         )
+    return out
+
+
+def _service_map(db, ids: set) -> dict[str, dict]:
+    """Batch id→row lookup for services (full rows — serializers need the
+    metadata override blocks, not just the name)."""
+    wanted = [i for i in ids if i]
+    out: dict[str, dict] = {}
+    for chunk in _chunked(wanted):
+        for r in fetch_all(db.table("services").select("*").in_("id", chunk)):
+            out[r["id"]] = r
     return out
 
 
@@ -254,13 +289,18 @@ def _load_own(uc, booking_id: str) -> dict:
     return row
 
 
+def _owns_booking_provider(db, booking: dict, owner: AuthUser) -> bool:
+    """True when the caller owns the provider this booking belongs to."""
+    provider_id = (booking.get("metadata") or {}).get("provider_id")
+    provider = maybe_row(db.table("providers").select("owner_id").eq("id", provider_id))
+    return bool(provider) and provider.get("owner_id") == owner.id
+
+
 def _assert_owns_booking(db, booking: dict, owner: AuthUser) -> None:
     """Defense-in-depth: verify the owner owns the provider this booking belongs
     to before they act on it. RLS's is_owner() lets any owner update any booking,
     so this narrows owner actions to their own providers (403 otherwise)."""
-    provider_id = (booking.get("metadata") or {}).get("provider_id")
-    provider = maybe_row(db.table("providers").select("owner_id").eq("id", provider_id))
-    if not provider or provider.get("owner_id") != owner.id:
+    if not _owns_booking_provider(db, booking, owner):
         raise HTTPException(403, "You can only manage bookings for your own business.")
 
 
@@ -279,7 +319,19 @@ def _span_of(db, booking: dict, uc) -> tuple[list[str], str | None, str | None]:
 def list_bookings(scope: str = "all", user: AuthUser = Depends(require_user)):
     db = get_supabase()
     uc = get_user_client(user.token)
-    rows = uc.table("bookings").select("*").execute().data or []
+    # This is the customer tab's "my bookings": scope to the caller as CLIENT
+    # server-side. An owner's RLS view is every booking on the platform, so an
+    # unfiltered fetch_all paged the whole marketplace per request. Legacy rows
+    # keyed only by metadata (null client_id) stay listable via the same
+    # fallback identity the mutation handlers honour.
+    rows = fetch_all(uc.table("bookings").select("*").eq("client_id", user.id))
+    legacy = fetch_all(
+        uc.table("bookings").select("*")
+        .is_("client_id", "null")
+        .eq("metadata->>user_id", user.id)
+    )
+    seen_ids = {r["id"] for r in rows}
+    rows += [r for r in legacy if r["id"] not in seen_ids]
     bookings = _enrich(db, uc, rows)
 
     now_iso = iso_utc(now_utc())
@@ -429,6 +481,35 @@ def _consume_credit(db, entitlement: dict | None, booking_id: str) -> None:
             "Could not spend a credit on entitlement %s for booking %s",
             row.get("id"), booking_id,
         )
+
+
+def _refund_credit(db, md: dict) -> bool:
+    """Give back the credit a booking consumed, when it is cancelled/rejected.
+
+    Consumption happens at create/promotion even for `pending` requests, so a
+    rejection (or a cancel) without this quietly burned a pass credit for a
+    booking that never happened. Idempotent via the `credit_refunded` stamp the
+    caller persists into metadata when this returns True; best-effort like
+    `_consume_credit` (a counter must not 500 the cancel). Known limit: there
+    is no per-booking consume receipt, so a booking whose best-effort consume
+    failed can still refund (the entitlement drifts one credit rich) — a real
+    ledger row per spend, keyed by booking_id, is the fix (TODO.md).
+    """
+    ent_id = (md or {}).get("entitlement_id")
+    if not ent_id or md.get("credit_refunded"):
+        return False
+    try:
+        row = maybe_row(db.table("entitlements").select("*").eq("id", ent_id))
+        if not row or row.get("credits_total") is None:
+            return False
+        used = int(row.get("credits_used") or 0)
+        if used <= 0:
+            return False
+        db.table("entitlements").update({"credits_used": used - 1}).eq("id", ent_id).execute()
+        return True
+    except Exception:
+        logger.exception("Could not refund a credit on entitlement %s", ent_id)
+        return False
 
 
 def _price(service: dict | None, rows: list, party: int,
@@ -639,11 +720,26 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
     uc = get_user_client(user.token)
     inserted = uc.table("bookings").insert(row).execute().data
     inserted = enforce_rls_write(inserted, entity="booking")
-    _consume_credit(db, entitlement, inserted[0]["id"] if inserted else "?")
     booking = inserted[0]
-    uc.table("booking_slots").insert(
-        [{"booking_id": booking["id"], "slot_id": sid} for sid in ordered]
-    ).execute()
+    # The booking row exists but holds no capacity until its booking_slots links
+    # do (occupancy joins through them). The DB capacity trigger (schema.sql)
+    # fires on this insert and rejects a link that would overbook — closing the
+    # TOCTOU where two last-seat bookings both pass `_resolve_selection`'s
+    # pre-insert check. On rejection, roll back the now-orphan booking and raise
+    # the same code the check would. Credit is consumed only AFTER the links
+    # commit, so a rolled-back booking never spends one.
+    try:
+        uc.table("booking_slots").insert(
+            [{"booking_id": booking["id"], "slot_id": sid} for sid in ordered]
+        ).execute()
+    except Exception as exc:  # noqa: BLE001 - re-raised unless it's the capacity trigger
+        if _is_capacity_violation(exc):
+            uc.table("bookings").delete().eq("id", booking["id"]).execute()
+            raise api_error(
+                SLOT_UNAVAILABLE, "That time was just taken. We've refreshed availability."
+            )
+        raise
+    _consume_credit(db, entitlement, booking["id"])
     out = serialize_booking(
         booking, slot_ids=ordered, start_utc=start, end_utc=end, review=None,
         service=service, **_names_for(db, metadata)
@@ -816,11 +912,21 @@ def reschedule_booking(
     service = _load_service(db, md.get("service_id"))
     rules = effective_service_rules(service)
 
+    # Owner powers apply on the owner's OWN provider — including a booking the
+    # owner recorded under their own account (walk-in/phone entry). An owner
+    # touching a booking they made as a customer of ANOTHER business acts as a
+    # client (cutoff applies); anyone who is neither the client nor the owning
+    # provider is refused, since RLS's is_owner() alone shows them the row.
+    is_client = (booking.get("client_id") or md.get("user_id")) == user.id
+    acting_as_owner = user.is_owner and _owns_booking_provider(db, booking, user)
+    if not is_client and not acting_as_owner:
+        raise HTTPException(403, "You can only manage bookings for your own business.")
+
     cur_ids, cur_start, cur_end = _span_of(db, booking, uc)
     if effective_booking_status(booking["status"], cur_end) != "confirmed":
         raise api_error(CUTOFF_PASSED, "Only upcoming bookings can be moved.")
     cutoff = rules["cancellationCutoffHours"]
-    if not user.is_owner and cur_start and within_cutoff(cur_start, cutoff):
+    if not acting_as_owner and cur_start and within_cutoff(cur_start, cutoff):
         raise api_error(CUTOFF_PASSED, f"Changes closed — within {cutoff}h of the start.")
 
     party = int(md.get("party_size", 1))
@@ -832,6 +938,24 @@ def reschedule_booking(
     ordered = [r["slot_id"] for r in rows]
     new_start, new_end = rows[0]["starts_at"], rows[-1]["ends_at"]
 
+    # The calendar gates create dispatches (advance window, blackouts, seasons)
+    # apply to the NEW date too — otherwise book-then-reschedule was a two-step
+    # bypass into any closed day. `leadTimeMinutes` is deliberately zeroed:
+    # changing an existing booking is governed by the cancellation window, and
+    # moving onto a soon slot is pinned as allowed (see
+    # test_lead_time_does_not_gate_a_reschedule_onto_a_soon_slot). Owners are
+    # exempt, mirroring the cutoff waiver above — accommodating a regular
+    # beyond the window or onto a closed day is the owner's call to make.
+    if not acting_as_owner:
+        try:
+            apply_rules(
+                "booking.create",
+                {"slot_starts_at": rows[0]["starts_at"], "timezone": str(_business_tz(service))},
+                {**effective_service_config(service)["timing"], "leadTimeMinutes": 0},
+            )
+        except RuleViolation as e:
+            raise api_error(INVALID_RANGE, str(e))
+
     # Atomic slot swap: replace the join rows, then update the booking.
     uc.table("booking_slots").delete().eq("booking_id", booking_id).execute()
     uc.table("booking_slots").insert(
@@ -839,7 +963,45 @@ def reschedule_booking(
     ).execute()
 
     md["slot_ids"] = ordered
-    repriced = _price(service, rows, party, _entitlement(db, user.id, service))
+    # Reprice with the SAME shape that priced the original: the stored
+    # `options` are already resolved priced lines, `subject` is the validated
+    # dict, and person-units re-derive from the stored band counts. Without
+    # these a pure time move silently dropped add-ons and child weighting.
+    try:
+        person_units, _ = resolve_party_bands(md.get("party_bands"), party, service)
+    except RuleViolation:
+        person_units = None  # config changed under an old booking; raw party pricing
+    # The entitlement that priced this booking keeps pricing it, and the
+    # consume receipt (entitlement_id) is IMMUTABLE — the refund path depends
+    # on it. Re-resolving here nulled the receipt whenever the pass was
+    # exhausted (by this very booking's spend) and repriced a covered booking
+    # at list price; only a booking that never held one resolves fresh, for
+    # the CLIENT (an owner moving it must keep the customer's pricing).
+    stored_ent_id = md.get("entitlement_id")
+    if stored_ent_id:
+        ent = None
+        held = maybe_row(db.table("entitlements").select("*").eq("id", stored_ent_id))
+        plan = entitlement_plan((held or {}).get("plan_key"), service)
+        if held is not None and plan is not None:
+            total = held.get("credits_total")
+            ent = {
+                "key": plan.get("key"),
+                "label": plan.get("label") or plan.get("key"),
+                "discountBps": int(plan.get("discountBps") or 0),
+                "creditsRemaining": None if total is None
+                else int(total) - int(held.get("credits_used") or 0),
+                "row": held,
+                "plan": plan,
+            }
+    else:
+        subject_id = booking.get("client_id") or md.get("user_id") or user.id
+        ent = _entitlement(db, subject_id, service)
+        md["entitlement_key"] = (ent or {}).get("key")
+        md["entitlement_id"] = ((ent or {}).get("row") or {}).get("id")
+    repriced = _price(
+        service, rows, party, ent,
+        person_units=person_units, addons=md.get("options") or [], subject=md.get("subject"),
+    )
     md["price_minor_units"] = repriced["amountMinorUnits"]
     md["currency"] = repriced["currency"]
     md["price_breakdown"] = repriced["breakdown"]
@@ -852,18 +1014,27 @@ def reschedule_booking(
         }
     )
     history = booking["history"] + [{"status": "rescheduled", "at": iso_utc(now_utc())}]
+    # CAS on confirmed: a cancel committing during this handler's long window
+    # must not be silently resurrected (it already refunded the credit and
+    # promoted the waitlist). The swapped join rows stay on the lost row —
+    # they hold no capacity, since occupancy counts confirmed only.
     updated = (
         uc.table("bookings")
         .update({"slot_id": ordered[0], "status": "confirmed", "history": history, "metadata": md})
         .eq("id", booking_id)
+        .eq("status", "confirmed")
         .execute()
         .data
     )
-    updated = enforce_rls_write(updated, entity="booking")
+    if not updated:
+        current = _load_own(uc, booking_id)
+        if current["status"] != "confirmed":
+            raise api_error(CUTOFF_PASSED, "Only upcoming bookings can be moved.")
+        updated = enforce_rls_write(updated, entity="booking")
     review = _reviews_map(db, [booking_id]).get(booking_id)
     return serialize_booking(
         updated[0], slot_ids=ordered, start_utc=new_start, end_utc=new_end, review=review,
-        **_names_for(db, md),
+        service=service, **_names_for(db, md),
     )
 
 
@@ -874,43 +1045,80 @@ def cancel_booking(booking_id: str, user: AuthUser = Depends(require_user)):
     booking = _load_own(uc, booking_id)
     cur_ids, cur_start, cur_end = _span_of(db, booking, uc)
 
+    # Same ownership narrowing as reschedule: owner powers on the owner's OWN
+    # provider (their own walk-in bookings included); the booking's client acts
+    # as a client; anyone else is refused despite RLS's is_owner() visibility.
+    _cancel_md = booking.get("metadata") or {}
+    is_client = (booking.get("client_id") or _cancel_md.get("user_id")) == user.id
+    acting_as_owner = user.is_owner and _owns_booking_provider(db, booking, user)
+    if not is_client and not acting_as_owner:
+        raise HTTPException(403, "You can only manage bookings for your own business.")
+
+    # ONE tolerant fetch for the whole handler: a cancel must succeed even when
+    # the service was deleted out from under the booking (`_load_service` would
+    # 404 an operation that must commit; the rules resolver treats None as the
+    # config defaults). The cutoff, idempotent and response paths all reuse it.
+    service = maybe_row(db.table("services").select("*").eq("id", _cancel_md.get("service_id")))
+
     if booking["status"] == "cancelled":  # idempotent
         review = _reviews_map(db, [booking_id]).get(booking_id)
         return serialize_booking(
             booking, slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end, review=review,
-            **_names_for(db, booking.get("metadata") or {}),
+            service=service, **_names_for(db, _cancel_md),
         )
 
+    if booking["status"] == "rejected":
+        # The owner already declined it (and any credit was refunded then);
+        # flipping it to cancelled would overwrite that decision.
+        raise api_error(INVALID_RANGE, "This request was declined — there is nothing to cancel.")
     if effective_booking_status(booking["status"], cur_end) == "completed":
         raise api_error(CUTOFF_PASSED, "Completed bookings can't be cancelled.")
-    if not user.is_owner:
-        md = booking.get("metadata") or {}
-        rules = effective_service_rules(_load_service(db, md.get("service_id")))
-        cutoff = rules["cancellationCutoffHours"]
+    if not acting_as_owner:
+        cutoff = effective_service_rules(service)["cancellationCutoffHours"]
         if cur_start and within_cutoff(cur_start, cutoff):
             raise api_error(CUTOFF_PASSED, f"Changes closed — within {cutoff}h of the start.")
 
     md = dict(booking.get("metadata") or {})
     md["cancelled_at_utc"] = iso_utc(now_utc())
     history = booking["history"] + [
-        {"status": "cancelled", "at": iso_utc(now_utc()), **({"actor": "owner"} if user.is_owner else {})}
+        {"status": "cancelled", "at": iso_utc(now_utc()), **({"actor": "owner"} if acting_as_owner else {})}
     ]
+    # Compare-and-set on the live statuses: two racing transitions (double
+    # cancel, or a cancel racing the owner's reject) must not both commit —
+    # whichever loses gets an empty write instead of a second refund.
     updated = (
         uc.table("bookings")
         .update({"status": "cancelled", "history": history, "metadata": md})
         .eq("id", booking_id)
+        .in_("status", ["confirmed", "pending"])
         .execute()
         .data
     )
-    updated = enforce_rls_write(updated, entity="booking")
+    if not updated:
+        # An empty CAS write usually means a concurrent transition won, not an
+        # RLS denial — answer for the CURRENT state instead of a security 403.
+        current = _load_own(uc, booking_id)
+        if current["status"] == "cancelled":
+            # Lost a cancel/cancel race: the outcome the caller wanted.
+            return serialize_booking(
+                current, slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end,
+                review=_reviews_map(db, [booking_id]).get(booking_id),
+                service=service, **_names_for(db, _cancel_md),
+            )
+        if current["status"] == "rejected":
+            raise api_error(INVALID_RANGE, "This request was declined — there is nothing to cancel.")
+        updated = enforce_rls_write(updated, entity="booking")
+    # Refund only AFTER the transition committed: decrementing first meant a
+    # failed write refunded with no stamp, so a retried cancel refunded twice.
+    # The stamp is written on top of the row as just persisted. A crash between
+    # the decrement and the stamp remains a narrow window — closing it fully
+    # needs an entitlement ledger row (tracked in TODO.md).
+    if _refund_credit(db, md):
+        md = dict(updated[0].get("metadata") or md)
+        md["credit_refunded"] = True
+        uc.table("bookings").update({"metadata": md}).eq("id", booking_id).execute()
     # A cancellation is the moment a seat frees. Hand it to the head of the
     # queue if the config asks for that (`timing.waitlist.autoPromote`).
-    # `maybe_row`, not `_load_service`: the cancellation has already committed by
-    # this point, and a service deleted out from under an old booking would make
-    # `_load_service` raise 404 for an operation that in fact succeeded — the
-    # client shows a failure and the customer retries a cancel that already
-    # happened.
-    service = maybe_row(db.table("services").select("*").eq("id", md.get("service_id")))
     promote_from_waitlist(db, cur_ids, service)
     return serialize_booking(
         updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end, review=None,
@@ -952,7 +1160,7 @@ def review_booking(booking_id: str, payload: ReviewReq, user: AuthUser = Depends
     review = maybe_row(db.table("reviews").select("*").eq("booking_id", booking_id))
     return serialize_booking(
         booking, slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end, review=review,
-        **_names_for(db, md),
+        service=service, **_names_for(db, md),
     )
 
 
@@ -992,14 +1200,18 @@ def return_booking(booking_id: str, owner: AuthUser = Depends(require_owner)):
 
     cur_ids, cur_start, cur_end = _span_of(db, booking, uc)
     md["returned_at_utc"] = iso_utc(now_utc())
+    # Precondition: only the none→returned transition commits, so a double-tap
+    # can't re-stamp the timestamp (and inflate the overdue fee) or clobber
+    # metadata written since our read.
     updated = uc.table("bookings").update({
         "metadata": md,
         # Append-only, like every other status change on this table.
         "history": list(booking.get("history") or []) + [
             {"status": "returned", "at": md["returned_at_utc"], "actor": "owner"}
         ],
-    }).eq("id", booking_id).execute().data
-    updated = enforce_rls_write(updated, entity="booking")
+    }).eq("id", booking_id).is_("metadata->>returned_at_utc", "null").execute().data
+    if not updated:
+        raise api_error(INVALID_RANGE, "This is already marked returned.")
     return serialize_booking(
         updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end,
         review=_reviews_map(db, [booking_id]).get(booking_id),
@@ -1043,16 +1255,28 @@ def record_payment(booking_id: str, amount: int | None = None,
     if taken > due:
         raise api_error(INVALID_RANGE, f"That is more than the {due} outstanding.")
 
-    md["amount_paid_minor_units"] = int(md.get("amount_paid_minor_units") or 0) + taken
+    prior = md.get("amount_paid_minor_units")
+    md["amount_paid_minor_units"] = int(prior or 0) + taken
     cur_ids, cur_start, cur_end = _span_of(db, booking, uc)
-    updated = uc.table("bookings").update({
+    # Precondition on the PRIOR paid amount: two concurrent payments must not
+    # both read the same base and silently lose one. `->>` yields text and the
+    # native value stringifies identically, so equality holds on both sides.
+    q = uc.table("bookings").update({
         "metadata": md,
         "history": list(booking.get("history") or []) + [
             {"status": "payment_recorded", "amount": taken,
              "at": iso_utc(now_utc()), "actor": "owner"}
         ],
-    }).eq("id", booking_id).execute().data
-    updated = enforce_rls_write(updated, entity="booking")
+    }).eq("id", booking_id)
+    if prior is None:
+        q = q.is_("metadata->>amount_paid_minor_units", "null")
+    else:
+        q = q.eq("metadata->>amount_paid_minor_units", int(prior))
+    updated = q.execute().data
+    if not updated:
+        raise api_error(
+            INVALID_RANGE, "The payment state just changed — refresh and retry.", status=409
+        )
     return serialize_booking(
         updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end,
         review=_reviews_map(db, [booking_id]).get(booking_id),
@@ -1138,18 +1362,33 @@ def approve_booking(booking_id: str, owner: AuthUser = Depends(require_owner)):
             raise api_error(INVALID_RANGE, f"Still outstanding: {labels}.")
 
     history = booking["history"] + [{"status": "confirmed", "at": iso_utc(now_utc()), "actor": "owner"}]
-    updated = (
-        uc.table("bookings")
-        .update({"status": "confirmed", "history": history})
-        .eq("id", booking_id)
-        .execute()
-        .data
-    )
-    updated = enforce_rls_write(updated, entity="booking")
+    # CAS on pending: approving a request the client cancelled mid-flight must
+    # not resurrect it as confirmed (the cancel already refunded any credit and
+    # promoted the waitlist). The pre-check above re-read occupancy, but the DB
+    # capacity trigger is the backstop for the race between that read and this
+    # write — a confirm that would overbook is rejected here too.
+    try:
+        updated = (
+            uc.table("bookings")
+            .update({"status": "confirmed", "history": history})
+            .eq("id", booking_id)
+            .eq("status", "pending")
+            .execute()
+            .data
+        )
+    except Exception as exc:  # noqa: BLE001 - re-raised unless it's the capacity trigger
+        if _is_capacity_violation(exc):
+            raise api_error(SLOT_UNAVAILABLE, "That time filled up before this could be approved.")
+        raise
+    if not updated:
+        current = _load_own(uc, booking_id)
+        if current["status"] != "pending":
+            raise api_error(INVALID_RANGE, "Only pending requests can be approved.")
+        updated = enforce_rls_write(updated, entity="booking")
     review = _reviews_map(db, [booking_id]).get(booking_id)
     return serialize_booking(
         updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end, review=review,
-        **_names_for(db, md),
+        service=service, **_names_for(db, md),
     )
 
 
@@ -1203,25 +1442,47 @@ def reject_booking(booking_id: str, owner: AuthUser = Depends(require_owner)):
     booking = _load_own(uc, booking_id)
     _assert_owns_booking(db, booking, owner)
     cur_ids, cur_start, cur_end = _span_of(db, booking, uc)
+    md = booking.get("metadata") or {}
+    service = maybe_row(db.table("services").select("*").eq("id", md.get("service_id")))
 
     if booking["status"] == "rejected":  # idempotent
         return serialize_booking(
             booking, slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end,
-            **_names_for(db, booking.get("metadata") or {}),
+            service=service, **_names_for(db, md),
         )
     if booking["status"] != "pending":
         raise api_error(INVALID_RANGE, "Only pending requests can be rejected.")
 
     history = booking["history"] + [{"status": "rejected", "at": iso_utc(now_utc()), "actor": "owner"}]
+    # Compare-and-set on pending: a reject racing a cancel (or a double reject)
+    # must not both commit and both refund. Status/history only — writing back
+    # the metadata copy read at the top would clobber concurrent stamps.
     updated = (
         uc.table("bookings")
         .update({"status": "rejected", "history": history})
         .eq("id", booking_id)
+        .eq("status", "pending")
         .execute()
         .data
     )
-    updated = enforce_rls_write(updated, entity="booking")
+    if not updated:
+        # Empty CAS usually means a concurrent transition won — answer for the
+        # current state rather than raising a security-framed 403.
+        current = _load_own(uc, booking_id)
+        if current["status"] == "rejected":
+            return serialize_booking(
+                current, slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end,
+                service=service, **_names_for(db, md),
+            )
+        if current["status"] != "pending":
+            raise api_error(INVALID_RANGE, "Only pending requests can be rejected.")
+        updated = enforce_rls_write(updated, entity="booking")
+    # Refund only AFTER the transition committed (same ordering as cancel).
+    if _refund_credit(db, md):
+        stamped = dict(updated[0].get("metadata") or md)
+        stamped["credit_refunded"] = True
+        uc.table("bookings").update({"metadata": stamped}).eq("id", booking_id).execute()
     return serialize_booking(
         updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end,
-        **_names_for(db, booking.get("metadata") or {}),
+        service=service, **_names_for(db, md),
     )

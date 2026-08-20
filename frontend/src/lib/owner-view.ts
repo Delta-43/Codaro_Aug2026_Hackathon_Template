@@ -3,7 +3,7 @@
  * the existing components consume (so the polished UI is reused verbatim, only
  * the data source changed — now 100% real `/owner/*` data).
  */
-import type { DemoBooking } from "@/lib/business-demo";
+import type { BookingView } from "@/lib/business-view";
 import type { OwnerBooking } from "@/types/domain";
 
 /** The customer's short name from their email local-part (owner-only field). */
@@ -14,7 +14,7 @@ function clientName(email?: string): string {
 
 /** Map an owner booking into the calendar's booking card. Only confirmed and
  *  completed reach the calendar; anything else is shown as confirmed. */
-export function ownerBookingToCal(b: OwnerBooking, serviceName?: string): DemoBooking {
+export function ownerBookingToCal(b: OwnerBooking, serviceName?: string): BookingView {
   const who = clientName(b.clientEmail);
   return {
     id: b.id,

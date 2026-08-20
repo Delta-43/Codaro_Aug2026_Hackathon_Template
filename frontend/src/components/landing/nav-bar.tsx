@@ -2,10 +2,9 @@
 
 /**
  * Floating glass nav pill over the scene. Section links smooth-scroll to the
- * anchors; `route` links (Docs) are real navigations — to the app's origin
- * (`NEXT_PUBLIC_APP_URL`), a separate deployment now, so they're plain <a>
- * tags, not next/link. The primary button always reads "Login": this page
- * has no visibility into a visitor's session on the app's origin.
+ * anchors; `route` links (Docs) are real same-origin navigations via next/link.
+ * The primary button reads "Dashboard" (→ the app) when a session exists, else
+ * "Login".
  *
  * Layout: the Arbor brand is pinned far-left and the Login button far-right;
  * the section links live in a scrollable middle strip. When the window is wide enough for every link, the
@@ -17,13 +16,13 @@
  * footer now, not here.)
  */
 import { useEffect, useRef, useState, type MouseEvent } from "react";
+import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { buttonFx } from "@/config/buttons";
 import { ScrollTopLink } from "@/components/landing/scroll-top-link";
+import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
 const LINKS = [
   { href: "#how", label: "How it works" },
@@ -41,6 +40,16 @@ function smoothScroll(e: MouseEvent<HTMLAnchorElement>, href: string) {
 }
 
 export function NavBar() {
+  // Wrapped in <AuthProvider> at the root layout, so the landing page can tell a
+  // signed-in visitor apart: the primary pill becomes "Dashboard" → the app,
+  // otherwise it stays "Login". `loading` keeps it as Login until the session
+  // resolves, avoiding a Dashboard→Login flicker on first paint.
+  const { session, loading, isOwner } = useAuth();
+  const signedIn = !loading && Boolean(session);
+  // Same split the login redirect uses (login/page.tsx): owners land on their
+  // console, clients on the search app. Sending an owner to /search hangs them.
+  const dashboardHref = isOwner ? "/owner" : "/search";
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const [overflow, setOverflow] = useState(false);
   const [atStart, setAtStart] = useState(true);
@@ -77,10 +86,12 @@ export function NavBar() {
 
   return (
     <nav className="fixed inset-x-0 top-4 z-50 flex justify-center px-4">
-      <div className="flex w-full max-w-3xl items-center gap-2 rounded-3xl border border-border/60 bg-background/70 px-4 py-2 shadow-sm backdrop-blur-xl">
+      <div className="flex w-full max-w-4xl items-center gap-2 rounded-3xl border border-border/60 bg-background/70 px-4 py-2 shadow-sm backdrop-blur-xl">
         {/* Far left — the platform name; clicking it glides back to the top of
             the landing page, like the section links scroll to their anchors. */}
-        <ScrollTopLink className="shrink-0 origin-left text-base font-bold tracking-tight text-primary transition-transform duration-200 ease-out hover:scale-110">
+        <ScrollTopLink className="flex shrink-0 origin-left items-center gap-1.5 text-base font-bold tracking-tight text-primary transition-transform duration-200 ease-out hover:scale-110">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-6 -translate-y-[9%]" />
           Arbor
         </ScrollTopLink>
 
@@ -104,9 +115,9 @@ export function NavBar() {
         >
           {LINKS.map((l) =>
             l.route ? (
-              <a key={l.href} href={`${APP_URL}${l.href}`} className={LINK_CLASS}>
+              <Link key={l.href} href={l.href} className={LINK_CLASS}>
                 {l.label}
-              </a>
+              </Link>
             ) : (
               <a
                 key={l.href}
@@ -133,17 +144,17 @@ export function NavBar() {
           </button>
         )}
 
-        {/* Far right — primary button (pinned), links out to the app's own /login */}
-        <a
-          href={`${APP_URL}/login`}
+        {/* Far right — primary button (pinned): Dashboard when signed in, else Login */}
+        <Link
+          href={signedIn ? dashboardHref : "/login"}
           className={cn(
             buttonVariants({ size: "sm" }),
             buttonFx.pill,
             "shrink-0 px-4",
           )}
         >
-          Login
-        </a>
+          {signedIn ? "Dashboard" : "Login"}
+        </Link>
       </div>
     </nav>
   );

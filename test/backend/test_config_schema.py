@@ -1062,3 +1062,26 @@ def test_an_unenforced_key_carries_a_comment_saying_so(path, key):
     index = next(i for i, line in enumerate(lines) if f'"{key}"' in line)
     context = "\n".join(lines[max(0, index - 5):index]).lower()
     assert "enforc" in context, (path, context)
+
+
+# ======================================================================
+# the three money paths pricing._int would silently coerce (regression)
+# ======================================================================
+
+
+def test_junk_in_the_three_pricing_money_paths_is_listed():
+    """`pricing._int` coerces junk to 0 at quote time, so an unvalidated cap of
+    "free" would zero every price (and a junk deposit/secondary rate would bill
+    0) instead of failing at the edit. All three are reported in one pass."""
+    cfg = normalize({"pricing": {
+        "caps": {"perBookingMinorUnits": "free"},
+        "deposit": {"enabled": True, "kind": "flat", "value": "free"},
+        "secondaryRate": {"per": "week", "amountMinorUnits": "free"},
+    }})
+    problems = validate(cfg)
+    for path in (
+        "pricing.caps.perBookingMinorUnits",
+        "pricing.deposit.value",
+        "pricing.secondaryRate.amountMinorUnits",
+    ):
+        assert any(p.startswith(path) for p in problems), (path, problems)

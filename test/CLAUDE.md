@@ -23,8 +23,12 @@ test/
     domain.config.test.json # neutral pivot file used instead of the repo's real one
   backend/                  # offline tests (pure units + FastAPI TestClient + in-memory Supabase)
     conftest.py             # fakes wiring, config override, startup neutralisation, AUTH override
-    fakes.py                # FakeSupabase: fluent PostgREST chain, all tables + party-size occupancy
-    helpers.py              # row builders (make_provider/service/resource/slot/booking/catalog)
+    fakes.py                # FakeSupabase: fluent PostgREST chain (incl. .is_/multi-key .order),
+                            #   all tables (+ entitlements/waitlist_entries/conversations/messages),
+                            #   party-size occupancy view, the messages insert-trigger, and a
+                            #   seedable auth.admin stub (seed_auth_user)
+    helpers.py              # row builders (make_provider/service/resource/slot/booking/
+                            #   entitlement/catalog)
     # --- pure unit tests (no Supabase, no network — the backbone) ---
     test_serialize.py       # serialize.py: every serializer's key set; slot/booking status; iso_utc
     test_resolve_selection.py  # bookings._resolve_selection: all branches -> ApiError code
@@ -48,7 +52,16 @@ test/
                             #   service's own pricing
     test_availability.py    # /availability + /month-density
     test_me.py              # GET/PATCH /me
+    test_messages.py        # /conversations: start (client+owner directions, 403), inbox with
+                            #   unread counts + trigger-stamped ordering, thread view, send
+                            #   (empty=400), list order + mine flags, mark-read, soft-delete +
+                            #   preview repoint. Non-participant scoping is RLS (live suite only).
+    test_waitlist.py        # /slots/{id}/waitlist join/leave/my-place (capability + enabled
+                            #   gates, bookable/past-slot refusals, idempotent join, queue cap)
+                            #   + promote_from_waitlist through the real cancel (pending head-of-
+                            #   queue booking; autoPromote:false records only)
     test_frontend_contract.py  # frontend/src/api paths + error codes vs the live route table
+                            #   (PATH_LITERAL now also matches /conversations + /owner paths)
   e2e/
     conftest.py             # session-scoped autouse teardown: reseeds the default `fleet` vertical after the e2e session (gated on SUPABASE_URL + SUPABASE_ANON_KEY)
     test_live_api.py        # opt-in smoke tests against a running stack + real Supabase Auth
@@ -86,7 +99,8 @@ python -m pytest test/backend -q          # from the repo root
 
 No Supabase, no network and no `SUPABASE_*` credentials are needed: the
 suite injects an in-memory fake Supabase client and neutralises the
-FastAPI startup hooks (`create_tables_if_configured`, `seed_if_empty`).
+FastAPI startup hook (`create_tables_if_configured`); `seed_if_empty` is no
+longer called on startup but is kept inert on the seed module too.
 `backend/` is put on `sys.path` by `test/conftest.py`, so the backend's
 absolute imports (`from app.db import ...`, `from seed import ...`) resolve
 no matter which directory pytest is invoked from. Running `pytest` from
@@ -169,7 +183,7 @@ path the UI calls exists on the FastAPI app (method-aware) and that the
   tree (wrap it in `normalize()` when you need the resolved one).
 - This directory must not modify anything outside `test/`.
 
-## Coverage target (from the README's Track B checklist)
+## Coverage target (from the root `CLAUDE.md` Track B checklist)
 
 - Resource and Slot — CRUD via `/resources`, `/slots`
 - Booking and Confirmation — `POST /bookings`
@@ -188,10 +202,45 @@ path the UI calls exists on the FastAPI app (method-aware) and that the
 
 ## Current state
 
-`python -m pytest test/backend -q` from the repo root: **1006 passed**
+`python -m pytest test/backend -q` from the repo root: **1099 passed**
 (0 failures, **no xfails left**, and **no known gaps pinned** — the four that
 were are now asserted as fixed behaviour, see below). `python -m pytest test/` adds the 8 live e2e
 tests, which skip without `SUPABASE_URL`/`SUPABASE_ANON_KEY`.
+
+Second review-pass pins (August 2026, +9 tests): `test_waitlist.py` — a skipped
+promotion (`metaFields.bookings` requires a field) leaves the head WAITING with
+no booking minted (was: stamped `promoted` with `booking_id` None); one freed
+seat does not promote a party of 3; a capacity-0 slot refuses the queue
+("blocked"); a party larger than the REMAINING seats may join while a party
+that still fits is told to book it instead. `test_bookings.py` — reschedule
+keeps the `entitlement_id` consume receipt and the plan discount (a pass whose
+LAST credit the booking spent still prices it at 0, and cancel still refunds);
+approve of a cancelled booking is 400 INVALID_RANGE, not 403; two sequential
+`/pay` calls accumulate (precondition matches the prior amount) and a third is
+refused; `/return` twice is 400 "already marked returned" with the stamp and
+history untouched; a legacy row (`client_id` NULL + `metadata.user_id`) still
+lists in GET /bookings, scoped to that user only.
+
+Review-pass regression pins (August 2026), spread across the per-router files:
+`_assert_owns_booking` now runs on cancel/reschedule (unrelated owner → 403).
+Owner powers hinge on owning the booking's PROVIDER, not the role bit: the
+own-provider cutoff waiver covers a walk-in booking the owner recorded under
+their own account on their own business (cancel inside the cutoff → 200), while
+an owner acting on a booking they made as a customer of ANOTHER owner's business
+is a client (cutoff → 409 `CUTOFF_PASSED`) — both pinned in `test_bookings.py`;
+reschedule repricing keeps `booking.options` add-on lines and refuses a new date
+inside `timing.blackouts`; metaFields 422s carry the full ApiError envelope
+(`test_resources.py`); `validate()` rejects junk in the three pricing money
+paths (`caps.perBookingMinorUnits` / `deposit.value` /
+`secondaryRate.amountMinorUnits`); `serialize_service` serves `prerequisites: []`
+when the capability is off; entitlement credits are consumed at create and
+refunded exactly once on reject/cancel (`credit_refunded` stamp); and
+`payment_state` derives a missing currency from the effective pricing chain, not
+a hard-coded EUR (`test_rules.py` + an endpoint pin). The `FakeSupabase` grew the
+four new tables, the `messages` insert trigger, `.is_`/chained-`.order`, and a
+seedable `auth.admin` stub — unknown users still raise, so every degrade path
+other tests pin ("Guest" authors, `memberSinceUtc: None`) behaves exactly as
+before.
 
 The former `strict=True` xfail pair (`config_schema._enum` raising `TypeError`
 on an unhashable value) is **gone**: `_enum` now type-guards

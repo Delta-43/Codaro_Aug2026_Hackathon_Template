@@ -4,18 +4,18 @@
  * The business-mode shell — same responsive pattern and design language as the
  * customer AppShell (bottom tab bar under md, left drawer at md+), but a
  * completely different set of five tabs for the provider persona:
- *   Dashboard · Services · Requests · Calendar · Profile
+ *   Dashboard · Services · Requests · Calendar · Settings
  * The gold "Business" chip and verified-style avatar mark this as the business
  * account. Identity follows the active demo use case. The top-right avatar opens
- * Settings (desktop); a quick sign-out sits bottom-left of the drawer.
+ * the Profile view (desktop); a quick sign-out sits bottom-left of the drawer.
  */
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   CalendarDays,
-  CircleUser,
   Rocket,
   Send,
+  Settings,
   SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
@@ -27,7 +27,7 @@ import { useOwner } from "@/context/owner-context";
 import { useUnreadCount } from "@/hooks/use-unread-count";
 import { BusinessBadge } from "@/components/business/verified-badge";
 import { TabBadge } from "@/components/app-shell";
-import { SignOutButton } from "@/components/sign-out-button";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 
 interface Tab {
   href: string;
@@ -40,9 +40,9 @@ interface Tab {
 const TABS: Tab[] = [
   { href: "/owner", label: "Dashboard", icon: Rocket },
   { href: "/owner/services", label: "Services", icon: SlidersHorizontal },
-  { href: "/owner/messages", label: "Messages", icon: Send },
+  { href: "/owner/messages", label: "Requests", icon: Send },
   { href: "/owner/bookings", label: "Bookings", icon: CalendarDays },
-  { href: "/owner/profile", label: "Profile", icon: CircleUser },
+  { href: "/owner/settings", label: "Settings", icon: Settings },
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -52,7 +52,9 @@ function isActive(pathname: string, href: string): boolean {
 
 function Wordmark() {
   return (
-    <span className="text-lg font-semibold tracking-tight">
+    <span className="inline-flex items-center gap-1.5 text-lg font-semibold tracking-tight">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-6 -translate-y-[9%]" />
       <span className="text-primary">Arbor</span>
       <span className="ml-2 rounded-full bg-amber-400/15 px-2 py-0.5 align-middle text-xs font-medium text-amber-600 dark:text-amber-400">
         Business
@@ -74,7 +76,7 @@ export function BusinessShell({ children }: { children: ReactNode }) {
     t.href === "/owner/bookings" ? { ...t, label: vocab.bookingNounPlural } : t,
   );
   const active = tabs.find((t) => isActive(pathname, t.href)) ?? tabs[0];
-  const heading = pathname.startsWith("/owner/settings") ? "Settings" : active.label;
+  const heading = pathname.startsWith("/owner/profile") ? "Profile" : active.label;
   const badgeFor = (href: string) => (href === "/owner/messages" ? unread : 0);
   // The page name in the top bar glides the content back to the top when tapped.
   const scrollTop = () => window.scrollTo({ top: 0, behavior: "smooth" });
@@ -83,7 +85,7 @@ export function BusinessShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh md:pl-60">
       {/* Desktop left drawer */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-card px-3 py-4 md:flex">
-        <Link href="/" className={cn(buttonFx.heading, "mb-4 px-1")}>
+        <Link href="/" className={cn(buttonFx.heading, "mb-4 flex items-center px-3")}>
           <Wordmark />
         </Link>
         <nav className="flex flex-col gap-1">
@@ -119,12 +121,12 @@ export function BusinessShell({ children }: { children: ReactNode }) {
           <p className="truncate text-xs text-muted-foreground">{businessName}</p>
         </div>
         <Link
-          href="/owner/settings"
+          href="/owner/profile"
           className={cn(
             "group flex items-center gap-2 rounded-full py-1 pl-1 pr-3 transition-all hover:bg-primary/10 hover:text-primary",
             buttonFx.press,
           )}
-          aria-label="Settings"
+          aria-label="Profile"
         >
           {/* activeProvider comes from useOwner, so an avatar edit re-renders here. */}
           <BusinessBadge avatarUrl={activeProvider?.avatarUrl} scene={scene} size="sm" />
@@ -138,8 +140,13 @@ export function BusinessShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-20 flex h-12 items-center justify-between gap-2 border-b border-border bg-background/85 px-4 backdrop-blur pt-[env(safe-area-inset-top)] md:hidden">
         <Link
           href="/"
-          className={cn(buttonFx.heading, "shrink-0 text-base font-bold tracking-tight text-primary")}
+          className={cn(
+            buttonFx.heading,
+            "flex shrink-0 items-center gap-1.5 text-base font-bold tracking-tight text-primary",
+          )}
         >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-6 -translate-y-[9%]" />
           Arbor
         </Link>
         <span className="flex min-w-0 items-baseline justify-end gap-2 text-lg font-semibold">

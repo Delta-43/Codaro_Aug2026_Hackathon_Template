@@ -77,7 +77,7 @@ def config(api) -> dict:
 
 @pytest.fixture(scope="module")
 def vertical(api) -> str:
-    return api.get("/demo/vertical").json().get("verticalId")
+    return api.get("/vertical").json().get("verticalId")
 
 
 # --- discovery -------------------------------------------------------------

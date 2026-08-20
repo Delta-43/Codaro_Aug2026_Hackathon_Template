@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app import discovery
 from app.auth import AuthUser, require_owner
-from app.db import get_supabase
+from app.db import chunked, fetch_all, get_supabase
 from app.routers.bookings import _enrich
 from app.serialize import iso_utc
 from app.clock import now_utc, tz_or_utc
@@ -75,13 +75,23 @@ class _Scope:
         self.provider_ids = [p["id"] for p in self.providers]
 
         self.services = (
-            db.table("services").select("*").in_("provider_id", self.provider_ids).execute().data
+            fetch_all(db.table("services").select("*").in_("provider_id", self.provider_ids))
             if self.provider_ids
             else []
-        ) or []
+        )
         self.service_ids = {s["id"] for s in self.services}
 
-        all_resources = db.table("resources").select("*").execute().data or []
+        # Filter server-side on the jsonb path (PostgREST accepts arrow paths
+        # in filter columns) — fetching the whole table paged every tenant's
+        # rows per owner request. The Python filter stays as belt-and-braces.
+        all_resources = []
+        # Chunked like _screening_data: hundreds of ids in one `.in_` request
+        # line 414 outright, where the pre-filter code merely paged slowly.
+        for chunk in chunked(sorted(self.service_ids)):
+            all_resources += fetch_all(
+                db.table("resources").select("*")
+                .in_("metadata->>service_id", chunk)
+            )
         self.resources = [
             r for r in all_resources
             if (r.get("metadata") or {}).get("service_id") in self.service_ids
@@ -90,8 +100,17 @@ class _Scope:
         # Bookings for the owner's providers — filtered in Python from the small
         # demo tables (booking.provider_id lives in metadata jsonb; no column to
         # PostgREST-filter on). Enriched with span/slot ids + the client email.
+        # Scoped server-side on metadata->>provider_id, then paged: the service
+        # key sees EVERY booking platform-wide, so an unfiltered fetch paged
+        # all tenants' rows per owner request (and the old raw select silently
+        # truncated at 1000).
         prov_set = set(self.provider_ids)
-        raw = db.table("bookings").select("*").execute().data or [] if prov_set else []
+        raw = []
+        for chunk in chunked(self.provider_ids):
+            raw += fetch_all(
+                db.table("bookings").select("*")
+                .in_("metadata->>provider_id", chunk)
+            )
         raw = [b for b in raw if (b.get("metadata") or {}).get("provider_id") in prov_set]
         self.bookings = _enrich(db, db, raw, include_client=True)
 
@@ -137,7 +156,11 @@ def _ratings_by_service(scope: _Scope) -> dict[str, list[int]]:
     no second scan of the bookings table."""
     booking_service = {b["id"]: b["serviceId"] for b in scope.bookings}
     out: dict[str, list[int]] = defaultdict(list)
-    rows = scope.db.table("reviews").select("booking_id,rating").execute().data or []
+    # reviews carries a real, indexed provider_id column — no full-table scan.
+    rows = fetch_all(
+        scope.db.table("reviews").select("id,booking_id,rating")
+        .in_("provider_id", scope.provider_ids)
+    ) if scope.provider_ids else []
     for r in rows:
         sid = booking_service.get(r["booking_id"])
         if sid in scope.service_ids:
@@ -161,21 +184,21 @@ def _screening_data(
     if not ids:
         return bookings_by, ratings_by
 
-    brows = (
-        db.table("bookings").select("client_id,status,metadata").in_("client_id", ids).execute().data
-        or []
-    )
-    for r in brows:
-        bookings_by[r["client_id"]].append(r)
+    # Chunked: pending requests never expire, so the distinct-client list is
+    # unbounded and one giant `.in_` overflows the request line (414).
+    for chunk in chunked(ids):
+        for r in fetch_all(
+            db.table("bookings").select("id,client_id,status,metadata").in_("client_id", chunk)
+        ):
+            bookings_by[r["client_id"]].append(r)
 
     # Degrades to no ratings if the table isn't present (e.g. offline fake).
     try:
-        rrows = (
-            db.table("client_reviews").select("client_id,rating").in_("client_id", ids).execute().data
-            or []
-        )
-        for r in rrows:
-            ratings_by[r["client_id"]].append(int(r["rating"]))
+        for chunk in chunked(ids):
+            for r in fetch_all(
+                db.table("client_reviews").select("id,client_id,rating").in_("client_id", chunk)
+            ):
+                ratings_by[r["client_id"]].append(int(r["rating"]))
     except Exception:
         pass
     return bookings_by, ratings_by

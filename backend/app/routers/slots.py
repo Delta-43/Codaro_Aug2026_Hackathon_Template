@@ -75,9 +75,16 @@ def create_slot(payload: SlotCreate, owner: AuthUser = Depends(require_owner)):
 
     validate_metadata("slots", payload.metadata)
 
-    existing = (
-        db.table("slots").select("*").eq("resource_id", payload.resource_id).execute().data
-    )
+    # The buffer-overlap check is the only slot.create rule that reads existing
+    # slots, and it is a no-op unless bufferMinutes is set — so only pay for the
+    # lookup then, and PAGE it: past 1000 slots on a resource a bare `.execute()`
+    # silently truncates, and the overlap check would miss a clash with any slot
+    # beyond the first page (the same cap list_slots/occupancy already page around).
+    existing = []
+    if timing.get("bufferMinutes"):
+        existing = fetch_all(
+            db.table("slots").select("*").eq("resource_id", payload.resource_id)
+        )
     try:
         apply_rules(
             "slot.create",

@@ -6,7 +6,7 @@
  * Every component/hook/page goes through these functions; none touch transport
  * details. Each returns the exact domain shape from @/types/domain and throws
  * `ApiError` with the backend's code, so the UI's error handling (inline "slot
- * was just taken", disabled-with-reason, retry) is unchanged from the mock era.
+ * was just taken", disabled-with-reason, retry) stays consistent across calls.
  *
  * Auth: the signed-in Supabase session's access token is attached as
  * `Authorization: Bearer <jwt>` on every call; the backend verifies it and
@@ -78,7 +78,16 @@ async function toApiError(res: Response, method: string, path: string): Promise<
   try {
     const body = await res.json();
     const d = (body as { detail?: unknown })?.detail;
-    if (d && typeof d === "object") {
+    if (Array.isArray(d)) {
+      // FastAPI/Pydantic 422: [{loc, msg, type}, ...] — surface the first
+      // problem instead of discarding the whole list as "an object".
+      const first = d[0] as { msg?: string; loc?: unknown[] } | undefined;
+      if (typeof first?.msg === "string") {
+        code = "VALIDATION_ERROR";
+        const field = Array.isArray(first.loc) ? String(first.loc[first.loc.length - 1]) : "";
+        message = field && field !== "body" ? `${field}: ${first.msg}` : first.msg;
+      }
+    } else if (d && typeof d === "object") {
       // Backend's structured envelope: { code, message, details? }.
       const obj = d as { code?: string; message?: string; details?: Record<string, unknown> };
       if (typeof obj.code === "string") code = obj.code as ApiErrorCode;
@@ -379,6 +388,9 @@ export type PivotConfig = {
   metaFields: MetaFields;
   /** `discovery.facets` — which search dimensions this deployment offers. */
   facets: SearchFacets;
+  /** `pricing.currency` — the deployment's default currency, so a first offer
+   *  on an empty catalogue isn't created under a hardcoded fallback. */
+  currency: string;
 };
 
 /** The all-fallbacks value used when `/config` is unreachable. Boot must not hang
@@ -400,6 +412,7 @@ export const FALLBACK_PIVOT_CONFIG: PivotConfig = {
   // pre-pivot behaviour.
   terms: {},
   copy: {},
+  currency: "EUR",
 };
 
 /** The pure half of `getPivotConfig` — a raw `/config` payload in, the parsed
@@ -416,7 +429,13 @@ export function parsePivotConfig(cfg: unknown): PivotConfig {
     copy: stringsOnly<keyof ConfigCopy>((cfg as { copy?: unknown })?.copy),
     metaFields: metaFieldsFromConfig(cfg),
     facets: facetsFromConfig(cfg),
+    currency: currencyFromConfig(cfg),
   };
+}
+
+function currencyFromConfig(cfg: unknown): string {
+  const c = (cfg as { pricing?: { currency?: unknown } })?.pricing?.currency;
+  return typeof c === "string" && c.length === 3 ? c : FALLBACK_PIVOT_CONFIG.currency;
 }
 
 export async function getPivotConfig(): Promise<PivotConfig> {
@@ -468,9 +487,10 @@ export function markReturned(bookingId: ID): Promise<Booking> {
 }
 
 /** Take a place in the queue for a full slot (`timing.waitlist`). Refused by the
- *  server when the slot still has room — booking it is strictly better. */
-export function joinWaitlist(slotId: ID): Promise<WaitlistEntry> {
-  return post(`/slots/${slotId}/waitlist`, undefined) as Promise<WaitlistEntry>;
+ *  server when the slot still has room — booking it is strictly better. The
+ *  party travels with the entry so a promotion books the seats actually needed. */
+export function joinWaitlist(slotId: ID, partySize = 1): Promise<WaitlistEntry> {
+  return post(`/slots/${slotId}/waitlist${qs({ party_size: partySize })}`, undefined) as Promise<WaitlistEntry>;
 }
 
 /** Owner records a blocking prerequisite as satisfied. */
@@ -642,7 +662,7 @@ export function startConversation(providerId: ID, clientId?: ID): Promise<Conver
   return post("/conversations", { providerId, clientId }) as Promise<Conversation>;
 }
 
-// --- account & demo --------------------------------------------------------
+// --- account ---------------------------------------------------------------
 
 export function getCurrentUser(): Promise<User> {
   return request("/me");
@@ -674,17 +694,11 @@ export function getMyReputation(): Promise<ClientReputation> {
   return request("/me/reputation");
 }
 
+/** The currently-seeded vertical, so the app picks the matching base
+ *  vocabulary at boot (the pivot config's `terms`/`copy` overlay on top). */
 export async function getActiveVertical(): Promise<VerticalId> {
-  const { verticalId } = await request<{ verticalId: VerticalId }>("/demo/vertical");
+  const { verticalId } = await request<{ verticalId: VerticalId }>("/vertical");
   return verticalId;
-}
-
-export async function setVertical(id: VerticalId): Promise<void> {
-  await post("/demo/vertical", { id });
-}
-
-export async function resetDemoData(): Promise<void> {
-  await post("/demo/reset");
 }
 
 // --- owner (admin) ---------------------------------------------------------
@@ -910,7 +924,5 @@ if (typeof window !== "undefined") {
     deleteAvatar,
     deleteAccount,
     getActiveVertical,
-    setVertical,
-    resetDemoData,
   };
 }

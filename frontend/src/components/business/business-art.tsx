@@ -8,7 +8,7 @@
  * graduation cap, a yogini at sunset…). This environment has no raster
  * image-generation tool, so instead each offer gets a hand-built, deterministic
  * SVG *scene* — self-contained, theme-agnostic, and CSP-safe (no network). The
- * scene key is chosen by vertical in `business-demo.ts`; swap `<BusinessArt>`
+ * scene key is chosen by vertical in `business-view.ts`; swap `<BusinessArt>`
  * for real photography whenever assets exist.
  */
 import { useId } from "react";

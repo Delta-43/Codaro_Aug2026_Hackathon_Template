@@ -75,6 +75,18 @@ jobs:
           SUPABASE_SERVICE_KEY: ci-dummy-key
         run: python -m pytest test -q
 
+      # The 100-pivot harnesses (validator + pricing, then load→spec→rules→
+      # serialize). They import backend/app, hence they live in this job where
+      # the deps are already installed. Without this, pivot regressions were
+      # only visible via `make checkstates` locally.
+      - name: Pivot coverage checks
+        env:
+          SUPABASE_URL: http://localhost:54321
+          SUPABASE_SERVICE_KEY: ci-dummy-key
+        run: |
+          python scripts/check_pivots.py
+          python scripts/check_pivot_states.py
+
   frontend:
     name: Frontend typecheck + build
     runs-on: ubuntu-latest
@@ -101,38 +113,12 @@ jobs:
         working-directory: frontend
         run: npx knip
 
+      # Uses tsconfig.typecheck.json (excludes .next) — same command as local
+      # `npm run typecheck`, so CI and dev check the identical file set.
       - name: Typecheck
         working-directory: frontend
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
       - name: Build
         working-directory: frontend
-        run: npm run build
-
-  landing:
-    name: Landing typecheck + build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: npm
-          cache-dependency-path: landing/package-lock.json
-
-      - name: Install dependencies
-        working-directory: landing
-        run: npm ci
-
-      - name: Lint (eslint)
-        working-directory: landing
-        run: npm run lint
-
-      - name: Typecheck
-        working-directory: landing
-        run: npx tsc --noEmit
-
-      - name: Build
-        working-directory: landing
         run: npm run build

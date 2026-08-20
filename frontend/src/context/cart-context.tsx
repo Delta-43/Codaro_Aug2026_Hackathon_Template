@@ -24,6 +24,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -71,6 +72,13 @@ const STORAGE_KEY = "codaro.cart.v1";
 export function CartProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
   const [busy, setBusy] = useState(false);
+  // Live view of the basket for the checkout loop: the callback's `items`
+  // closure is a snapshot, so removals made while booking is in flight would
+  // otherwise still be booked. Also the re-entrancy latch — `busy` state
+  // re-renders too late to stop a double press.
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const checkingOut = useRef(false);
 
   // Hydrated after mount, never during render: the server has no localStorage
   // and a first paint that differs from the server's would hydrate-mismatch.
@@ -94,10 +102,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const add = useCallback((item: Omit<CartItem, "key">) => {
     setItems((prev) => {
       // The same slots twice is a mistake, not two bookings: the second would
-      // be refused by the server for capacity it is itself holding.
+      // be refused by the server for capacity it is itself holding. But a
+      // re-add IS a changed intent (new party size / options), so it replaces
+      // the stored item rather than being silently ignored — EXCEPT while a
+      // checkout is running: the stored intent is being booked as-is, and a
+      // same-key replacement would be booked from the stale snapshot and then
+      // silently purged by the reconcile. It no-ops instead.
       const slotKey = item.slotIds.join(",");
-      if (prev.some((i) => i.slotIds.join(",") === slotKey)) return prev;
-      return [...prev, { ...item, key: `${item.serviceId}:${slotKey}` }];
+      const existing = prev.some((i) => i.slotIds.join(",") === slotKey);
+      if (existing && checkingOut.current) return prev;
+      const rest = prev.filter((i) => i.slotIds.join(",") !== slotKey);
+      return [...rest, { ...item, key: `${item.serviceId}:${slotKey}` }];
     });
   }, []);
 
@@ -108,13 +123,20 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const clear = useCallback(() => setItems([]), []);
 
   const checkout = useCallback(async (): Promise<CheckoutResult> => {
+    if (checkingOut.current) return { booked: [], failed: [] };
+    checkingOut.current = true;
     setBusy(true);
     const booked: Booking[] = [];
+    const bookedItems = new Set<CartItem>();
     const failed: CheckoutResult["failed"] = [];
     try {
       // Sequential, not parallel: two items competing for the last place in the
       // same slot must lose one and keep one, and the server decides which.
-      for (const item of items) {
+      for (const item of itemsRef.current) {
+        // Removed (or replaced) while earlier items were booking — honor it.
+        // Identity, not key: a same-key replacement is a different object and
+        // must not cause this stale snapshot's params to be booked.
+        if (!itemsRef.current.includes(item)) continue;
         try {
           booked.push(
             await createBooking({
@@ -128,6 +150,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
               metadata: item.metadata,
             }),
           );
+          bookedItems.add(item);
         } catch (e) {
           failed.push({
             key: item.key,
@@ -136,13 +159,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
           });
         }
       }
-      const failedKeys = new Set(failed.map((f) => f.key));
-      setItems((prev) => prev.filter((i) => failedKeys.has(i.key)));
+      // Drop exactly the OBJECTS that were booked — identity, not key, so a
+      // remove-then-re-add under a booked item's key survives (this run never
+      // attempted it). Failures stay for another try too.
+      setItems((prev) => prev.filter((i) => !bookedItems.has(i)));
     } finally {
+      checkingOut.current = false;
       setBusy(false);
     }
     return { booked, failed };
-  }, [items]);
+  }, []);
 
   const value = useMemo(
     () => ({ items, add, remove, clear, checkout, busy }),

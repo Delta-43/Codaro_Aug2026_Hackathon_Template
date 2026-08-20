@@ -12,9 +12,11 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from helpers import (
+    DEFAULT_OWNER_ID,
     iso_in,
     make_booking,
     make_catalog,
+    make_entitlement,
     make_slot,
 )
 
@@ -1075,3 +1077,369 @@ def test_both_review_directions_work_when_the_capability_is_on(client, db, auth,
     assert (
         client.post(f"/bookings/{owned['id']}/client-review", json={"rating": 4}).status_code == 200
     )
+
+
+# ---------------------------------------------------------------------------
+# ownership narrowing on cancel / reschedule (regression)
+# ---------------------------------------------------------------------------
+#
+# RLS's is_owner() lets ANY owner update any booking on the platform, so the
+# routes narrow owner powers with `_assert_owns_booking`. Cancel and reschedule
+# skipped that check for a while: any signed-in owner could cancel or move any
+# customer's booking anywhere on the marketplace — with the cutoff waived.
+
+
+def test_cancel_by_an_unrelated_owner_is_403(client, db, auth):
+    auth(role="owner", id=OTHER_OWNER_ID)  # owns nothing in this catalog
+    cat = make_catalog(db)  # provider owned by DEFAULT_OWNER_ID
+    slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100)
+    booking = make_booking(db, slots=[slot], service=cat["service"])
+    resp = client.post(f"/bookings/{booking['id']}/cancel")
+    assert resp.status_code == 403
+    assert db.get_row("bookings", booking["id"])["status"] == "confirmed"
+
+
+def test_reschedule_by_an_unrelated_owner_is_403(client, db, auth):
+    auth(role="owner", id=OTHER_OWNER_ID)
+    cat = make_catalog(db)
+    old = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100)
+    new = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=200)
+    booking = make_booking(db, slots=[old], service=cat["service"])
+    resp = client.post(f"/bookings/{booking['id']}/reschedule", json={"newSlotIds": [new["id"]]})
+    assert resp.status_code == 403
+    # nothing moved: the join rows still point at the original slot.
+    held = [r["slot_id"] for r in db.rows("booking_slots") if r["booking_id"] == booking["id"]]
+    assert held == [old["id"]]
+
+
+def test_owner_reschedules_own_providers_booking_inside_the_cutoff(client, db, auth):
+    """The cutoff waiver still applies to an owner acting on THEIR OWN
+    provider's booking (the same override cancel has always had)."""
+    auth(role="owner")  # DEFAULT_OWNER_ID owns the catalog provider
+    cat = make_catalog(db, cancellation_cutoff_hours=24)
+    old = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=2)
+    new = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=200)
+    booking = make_booking(db, slots=[old], service=cat["service"])  # made by a client
+    resp = client.post(f"/bookings/{booking['id']}/reschedule", json={"newSlotIds": [new["id"]]})
+    assert resp.status_code == 200
+    assert resp.json()["slotIds"] == [new["id"]]
+
+
+def test_an_owner_booking_on_anothers_business_acts_as_a_client(client, db, auth):
+    """Owner powers hinge on owning the booking's PROVIDER, not on the role bit.
+    An owner cancelling a booking they made as a customer of somebody else's
+    business hits the cutoff like any client."""
+    auth(role="owner")  # DEFAULT_OWNER_ID, but the catalog below isn't theirs
+    cat = make_catalog(db, cancellation_cutoff_hours=24, owner_id=OTHER_OWNER_ID)
+    slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=2)
+    booking = make_booking(db, slots=[slot], service=cat["service"], user_id=DEFAULT_OWNER_ID)
+    resp = client.post(f"/bookings/{booking['id']}/cancel")
+    assert resp.status_code == 409
+    assert _detail_code(resp) == "CUTOFF_PASSED"
+
+
+def test_owner_cancels_their_own_walk_in_booking_inside_the_cutoff(client, db, auth):
+    """A booking the owner recorded under their OWN account on their OWN
+    provider (walk-in/phone entry) gets the owner cutoff waiver."""
+    auth(role="owner")  # DEFAULT_OWNER_ID owns the catalog provider
+    cat = make_catalog(db, cancellation_cutoff_hours=24)
+    slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=2)
+    booking = make_booking(db, slots=[slot], service=cat["service"], user_id=DEFAULT_OWNER_ID)
+    resp = client.post(f"/bookings/{booking['id']}/cancel")
+    assert resp.status_code == 200
+    assert db.get_row("bookings", booking["id"])["status"] == "cancelled"
+
+
+# ---------------------------------------------------------------------------
+# reschedule repricing keeps the booking's shape (regression)
+# ---------------------------------------------------------------------------
+
+
+def test_reschedule_keeps_the_add_on_lines_in_the_price(client, db, auth, domain_config):
+    """A pure time move must not silently drop paid add-ons: reschedule
+    reprices with the STORED `options` lines, so the total still includes them."""
+    domain_config(
+        booking={"options": [
+            {"key": "kit", "label": "Kit hire", "type": "boolean", "priceMinorUnits": 900},
+        ]},
+    )
+    auth(role="client")
+    cat = make_catalog(db, price_minor_units=1000)
+    created = client.post(
+        "/bookings",
+        json={
+            "serviceId": cat["service"]["id"],
+            "resourceId": cat["resource"]["id"],
+            "slotIds": [cat["slot"]["id"]],
+            "partySize": 1,
+            "options": {"kit": True},
+        },
+    ).json()
+    assert created["priceMinorUnits"] == 1900  # 1000 base + 900 add-on
+
+    new = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=200)
+    moved = client.post(
+        f"/bookings/{created['id']}/reschedule", json={"newSlotIds": [new["id"]]}
+    )
+    assert moved.status_code == 200
+    assert moved.json()["priceMinorUnits"] == 1900
+    md = db.get_row("bookings", created["id"])["metadata"]
+    assert any(line.get("key") == "option:kit" for line in md["price_breakdown"])
+
+
+# ---------------------------------------------------------------------------
+# reschedule honours the calendar closures (regression)
+# ---------------------------------------------------------------------------
+
+
+def test_reschedule_into_a_blackout_is_refused(client, db, auth, domain_config):
+    """Book-then-reschedule must not be a two-step bypass into a closed day:
+    the create-time blackout gate now runs on the NEW date too."""
+    auth(role="client")
+    cat = make_catalog(db, cancellation_cutoff_hours=24)
+    old = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100)
+    new = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=300)
+    booking = make_booking(db, slots=[old], service=cat["service"])
+    closed_day = new["starts_at"][:10]
+    domain_config(timing={"blackouts": [
+        {"key": "closed", "label": "Stocktake", "startDate": closed_day, "endDate": closed_day},
+    ]})
+    resp = client.post(f"/bookings/{booking['id']}/reschedule", json={"newSlotIds": [new["id"]]})
+    assert resp.status_code == 400
+    assert _detail_code(resp) == "INVALID_RANGE"
+    assert "Stocktake" in resp.json()["detail"]["message"]
+    # the booking still holds its original slot.
+    held = [r["slot_id"] for r in db.rows("booking_slots") if r["booking_id"] == booking["id"]]
+    assert held == [old["id"]]
+
+
+# ---------------------------------------------------------------------------
+# entitlement credits: consumed at create, refunded on reject / cancel
+# ---------------------------------------------------------------------------
+#
+# Consumption happens at create even for `pending` requests, so before the fix
+# a rejection (or a cancel) quietly burned a pass credit for a booking that
+# never happened. The refund is stamped `credit_refunded`, so it can only ever
+# happen once per booking.
+
+
+def _credits_config(domain_config):
+    domain_config(
+        capabilities={"entitlements": True},
+        entitlements={
+            "enabled": True,
+            "kind": "credits",
+            "plans": [{"key": "ten-pass", "label": "10-pass", "kind": "credits",
+                       "discountBps": 0}],
+        },
+    )
+
+
+def test_reject_refunds_the_credit_a_pending_request_consumed(client, db, auth, domain_config):
+    _credits_config(domain_config)
+    cat = make_catalog(db, metadata={"auto_approve": False}, price_minor_units=1000)
+    ent = make_entitlement(db, plan_key="ten-pass", credits_total=10)
+
+    auth(role="client")
+    resp = client.post(
+        "/bookings",
+        json={
+            "serviceId": cat["service"]["id"],
+            "resourceId": cat["resource"]["id"],
+            "slotIds": [cat["slot"]["id"]],
+            "partySize": 1,
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "pending"
+    bid = resp.json()["id"]
+    # the pending request already consumed a credit...
+    assert db.get_row("entitlements", ent["id"])["credits_used"] == 1
+    assert db.get_row("bookings", bid)["metadata"]["entitlement_id"] == ent["id"]
+
+    # ...and the owner's rejection gives it back, exactly once.
+    auth(role="owner")
+    assert client.post(f"/bookings/{bid}/reject").status_code == 200
+    assert db.get_row("entitlements", ent["id"])["credits_used"] == 0
+    assert db.get_row("bookings", bid)["metadata"]["credit_refunded"] is True
+
+    assert client.post(f"/bookings/{bid}/reject").status_code == 200  # idempotent
+    assert db.get_row("entitlements", ent["id"])["credits_used"] == 0
+
+
+def test_cancel_refunds_the_credit_exactly_once(client, db, auth, domain_config):
+    _credits_config(domain_config)
+    cat = make_catalog(db, price_minor_units=1000)
+    ent = make_entitlement(db, plan_key="ten-pass", credits_total=10)
+
+    auth(role="client")
+    resp = client.post(
+        "/bookings",
+        json={
+            "serviceId": cat["service"]["id"],
+            "resourceId": cat["resource"]["id"],
+            "slotIds": [cat["slot"]["id"]],
+            "partySize": 1,
+        },
+    )
+    assert resp.status_code == 200
+    bid = resp.json()["id"]
+    assert db.get_row("entitlements", ent["id"])["credits_used"] == 1
+
+    assert client.post(f"/bookings/{bid}/cancel").status_code == 200
+    assert db.get_row("entitlements", ent["id"])["credits_used"] == 0
+    assert db.get_row("bookings", bid)["metadata"]["credit_refunded"] is True
+
+    assert client.post(f"/bookings/{bid}/cancel").status_code == 200  # idempotent
+    assert db.get_row("entitlements", ent["id"])["credits_used"] == 0
+
+
+# ---------------------------------------------------------------------------
+# payment.currency falls back to the service's effective pricing (regression)
+# ---------------------------------------------------------------------------
+
+
+def test_payment_currency_falls_back_to_the_service_pricing(client, db, auth):
+    """A seeded/legacy booking whose metadata never stored a currency must be
+    reported in the service's effective currency, not a hard-coded EUR."""
+    auth(role="client")
+    cat = make_catalog(db, currency="USD", price_minor_units=1000)
+    slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100)
+    booking = make_booking(
+        db, slots=[slot], service=cat["service"], metadata={"currency": None}
+    )
+    out = client.get(f"/bookings/{booking['id']}").json()
+    assert out["payment"]["currency"] == "USD"
+
+
+# ---------------------------------------------------------------------------
+# review-fix regression pins (August 2026)
+# ---------------------------------------------------------------------------
+
+
+def test_reschedule_keeps_the_credit_receipt_and_the_plan_discount(
+    client, db, auth, domain_config
+):
+    """The entitlement that priced a booking keeps pricing it across a move.
+
+    Regression: reschedule re-resolved the customer's entitlements from
+    scratch. A booking that consumed the pass's LAST credit then resolved to
+    nothing — the `entitlement_id` receipt was nulled (so cancel could never
+    refund the credit) and the booking was silently repriced at list price.
+    """
+    domain_config(
+        capabilities={"entitlements": True},
+        entitlements={
+            "enabled": True,
+            "kind": "credits",
+            "plans": [{"key": "ten-pass", "label": "10-pass", "kind": "credits",
+                       "discountBps": 10000}],  # 100% covered by the pass
+        },
+    )
+    cat = make_catalog(db, price_minor_units=1000)
+    ent = make_entitlement(db, plan_key="ten-pass", credits_total=1)  # the LAST credit
+
+    auth(role="client")
+    made = client.post(
+        "/bookings",
+        json={
+            "serviceId": cat["service"]["id"],
+            "resourceId": cat["resource"]["id"],
+            "slotIds": [cat["slot"]["id"]],
+            "partySize": 1,
+        },
+    ).json()
+    assert made["priceMinorUnits"] == 0  # fully discounted
+    assert db.get_row("entitlements", ent["id"])["credits_used"] == 1  # pass exhausted
+    assert db.get_row("bookings", made["id"])["metadata"]["entitlement_id"] == ent["id"]
+
+    new = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=72)
+    resp = client.post(f"/bookings/{made['id']}/reschedule", json={"newSlotIds": [new["id"]]})
+    assert resp.status_code == 200
+    assert resp.json()["priceMinorUnits"] == 0  # still the plan price, not list 1000
+
+    md = db.get_row("bookings", made["id"])["metadata"]
+    assert md["entitlement_id"] == ent["id"]  # the consume receipt is immutable
+    assert md["price_minor_units"] == 0
+
+    # ...so the refund path still works after the move.
+    assert client.post(f"/bookings/{made['id']}/cancel").status_code == 200
+    assert db.get_row("entitlements", ent["id"])["credits_used"] == 0
+    assert db.get_row("bookings", made["id"])["metadata"]["credit_refunded"] is True
+
+
+def test_approve_a_cancelled_booking_is_invalid_range_not_403(client, db, auth):
+    """Approving a booking that is no longer pending answers for the STATE
+    (400 INVALID_RANGE), not a security-framed 403."""
+    cat = make_catalog(db)
+    booking = make_booking(db, slots=[cat["slot"]], service=cat["service"], status="cancelled")
+    auth(role="owner")
+    resp = client.post(f"/bookings/{booking['id']}/approve")
+    assert resp.status_code == 400
+    assert _detail_code(resp) == "INVALID_RANGE"
+    assert resp.json()["detail"]["message"] == "Only pending requests can be approved."
+
+
+def test_partial_payments_accumulate_and_settle(client, db, auth):
+    """`/pay` preconditions on the PRIOR paid amount, so sequential payments
+    each match: a part-payment then a "pay the rest" both commit, and a third
+    attempt is refused because nothing is outstanding."""
+    cat = make_catalog(db, price_minor_units=1000)
+    booking = make_booking(db, slots=[cat["slot"]], service=cat["service"])
+    auth(role="owner")
+
+    first = client.post(f"/bookings/{booking['id']}/pay", params={"amount": 400})
+    assert first.status_code == 200
+    assert first.json()["payment"]["paidMinorUnits"] == 400
+    assert first.json()["payment"]["state"] == "due"
+
+    second = client.post(f"/bookings/{booking['id']}/pay")  # defaults to the rest
+    assert second.status_code == 200
+    assert second.json()["payment"]["paidMinorUnits"] == 1000
+    assert second.json()["payment"]["state"] == "paid"
+
+    row = db.get_row("bookings", booking["id"])
+    assert row["metadata"]["amount_paid_minor_units"] == 1000
+    recorded = [h for h in row["history"] if h.get("status") == "payment_recorded"]
+    assert [h["amount"] for h in recorded] == [400, 600]
+
+    third = client.post(f"/bookings/{booking['id']}/pay")
+    assert third.status_code == 400
+    assert "nothing outstanding" in third.json()["detail"]["message"]
+
+
+def test_return_twice_is_refused_not_restamped(client, db, auth, domain_config):
+    """A second `/return` is a 400, and the original timestamp survives —
+    re-stamping it would shrink a computed overdue fee."""
+    domain_config(capabilities={"inventory": True}, inventory={"returnRequired": True})
+    cat = make_catalog(db)
+    booking = make_booking(db, slots=[cat["slot"]], service=cat["service"])
+    auth(role="owner")
+
+    assert client.post(f"/bookings/{booking['id']}/return").status_code == 200
+    stamp = db.get_row("bookings", booking["id"])["metadata"]["returned_at_utc"]
+    assert stamp
+
+    second = client.post(f"/bookings/{booking['id']}/return")
+    assert second.status_code == 400
+    assert "already marked returned" in second.json()["detail"]["message"]
+
+    row = db.get_row("bookings", booking["id"])
+    assert row["metadata"]["returned_at_utc"] == stamp  # not silently re-stamped
+    assert sum(1 for h in row["history"] if h.get("status") == "returned") == 1
+
+
+def test_list_bookings_includes_a_legacy_metadata_keyed_row(client, db, auth):
+    """A row with `client_id` NULL and only `metadata.user_id` (pre-auth legacy)
+    still shows up in the caller's GET /bookings — and nobody else's."""
+    cat = make_catalog(db)
+    booking = make_booking(db, slots=[cat["slot"]], service=cat["service"])
+    db.table("bookings").update({"client_id": None}).eq("id", booking["id"]).execute()
+    assert db.get_row("bookings", booking["id"])["client_id"] is None
+
+    auth(role="client")  # DEFAULT_USER_ID == the row's metadata.user_id
+    listed = client.get("/bookings").json()
+    assert [b["id"] for b in listed] == [booking["id"]]
+
+    auth(role="client", id="66666666-6666-6666-6666-666666666666", email="x@example.com")
+    assert client.get("/bookings").json() == []

@@ -49,6 +49,22 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _column_value(row: dict, column: str) -> Any:
+    """Resolve a filter column to the row's value.
+
+    Real PostgREST accepts jsonb arrow paths as filter columns (e.g.
+    ``.in_("metadata->>provider_id", ids)``): ``->>`` extracts the value as
+    text. Our stored jsonb values are already strings/uuids, so direct
+    equality against the extracted value matches the live behaviour.
+    """
+    if "->" in column:
+        value: Any = row
+        for key in column.replace("->>", "->").split("->"):
+            value = value.get(key) if isinstance(value, dict) else None
+        return value
+    return row.get(column)
+
+
 # Column defaults per supabase/schema.sql.
 TABLE_DEFAULTS: dict[str, dict[str, Any]] = {
     "resources": {"description": None, "metadata": {}},
@@ -81,6 +97,38 @@ TABLE_DEFAULTS: dict[str, dict[str, Any]] = {
     "client_reviews": {"provider_id": None, "text": ""},
     "follows": {},
     "profiles": {"email": None, "role": "client"},
+    # schema.sql defaults `starts_at` to now(); None behaves identically for
+    # `rules.resolve_entitlement` ("no start" = already started), so tests
+    # needn't fake a clock.
+    "entitlements": {
+        "provider_id": None,
+        "status": "active",
+        "credits_total": None,
+        "credits_used": 0,
+        "starts_at": None,
+        "ends_at": None,
+        "metadata": {},
+    },
+    "waitlist_entries": {
+        "service_id": None,
+        "resource_id": None,
+        "party_size": 1,
+        "status": "waiting",
+        "booking_id": None,
+    },
+    "conversations": {
+        "owner_id": None,
+        "last_message_at": None,
+        "last_message_preview": None,
+        "metadata": {},
+    },
+    "messages": {
+        "reply_to_id": None,
+        "delivered_at": None,
+        "read_at": None,
+        "deleted_at": None,
+        "metadata": {},
+    },
 }
 
 REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
@@ -94,15 +142,22 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
     "client_reviews": ("booking_id", "client_id", "rating"),
     "follows": ("user_id", "provider_id"),
     "profiles": ("id",),
+    "entitlements": ("user_id", "plan_key"),
+    "waitlist_entries": ("slot_id", "user_id", "position"),
+    "conversations": ("provider_id", "client_id"),
+    "messages": ("conversation_id", "sender_id", "body"),
 }
 
 # Tables whose primary key is caller-supplied (composite join tables / profiles):
 # a duplicate insert must raise a unique violation, exactly like Postgres, so the
 # routers' idempotency (`follow` swallows the conflict) is genuinely exercised.
+# `conversations` is here for its UNIQUE (provider_id, client_id) — same insert
+# behaviour as a composite PK, which is what the find-or-create route relies on.
 PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
     "booking_slots": ("booking_id", "slot_id"),
     "follows": ("user_id", "provider_id"),
     "profiles": ("id",),
+    "conversations": ("provider_id", "client_id"),
 }
 
 
@@ -117,7 +172,9 @@ class _Query:
         self._single = False
         self._limit: int | None = None
         self._range: tuple[int, int] | None = None
-        self._order: tuple[str, bool] | None = None
+        # Accumulated like PostgREST's chained .order(): the FIRST call is the
+        # primary sort key (db.fetch_all relies on that for its total order).
+        self._orders: list[tuple[str, bool]] = []
 
     # -- builder -----------------------------------------------------
     def select(self, columns: str = "*") -> "_Query":
@@ -134,6 +191,12 @@ class _Query:
 
     def in_(self, column: str, values: list) -> "_Query":
         self._filters.append(("in", column, list(values)))
+        return self
+
+    def is_(self, column: str, value) -> "_Query":
+        """PostgREST's IS filter — the routers use it for `"null"`/`"not.null"`
+        (soft-delete + read-receipt predicates on `messages`)."""
+        self._filters.append(("is", column, value))
         return self
 
     def gte(self, column: str, value: Any) -> "_Query":
@@ -164,7 +227,7 @@ class _Query:
         return self
 
     def order(self, column: str, desc: bool = False) -> "_Query":
-        self._order = (column, desc)
+        self._orders.append((column, desc))
         return self
 
     def single(self) -> "_Query":
@@ -189,13 +252,22 @@ class _Query:
     # -- internals ---------------------------------------------------
     def _matches(self, row: dict) -> bool:
         for kind, column, value in self._filters:
-            actual = row.get(column)
+            actual = _column_value(row, column)
             if kind == "eq" and actual != value:
                 return False
             if kind == "neq" and actual == value:
                 return False
             if kind == "in" and actual not in value:
                 return False
+            if kind == "is":
+                if value in (None, "null"):
+                    if actual is not None:
+                        return False
+                elif value == "not.null":
+                    if actual is None:
+                        return False
+                elif actual is not value:  # True / False
+                    return False
             if kind in ("gte", "gt", "lte", "lt"):
                 if actual is None:
                     return False
@@ -217,9 +289,13 @@ class _Query:
 
     def _run_select(self):
         rows = [self._project(r) for r in self._db.rows(self._table) if self._matches(r)]
-        if self._order:
-            column, desc = self._order
-            rows.sort(key=lambda r: r.get(column), reverse=desc)
+        # Multi-key sort: apply the keys last-to-first with stable sorts, so the
+        # first .order() call is the primary key. Nulls sort last ascending /
+        # first descending, like Postgres defaults.
+        for column, desc in reversed(self._orders):
+            rows.sort(
+                key=lambda r, c=column: (r.get(c) is None, r.get(c)), reverse=desc
+            )
         if self._range is not None:
             start, end = self._range
             rows = rows[start : end + 1]  # PostgREST's range is inclusive
@@ -270,6 +346,7 @@ class _Query:
                 **copy.deepcopy(payload),
             }
             self._db.tables[self._table].append(row)
+            self._db.after_insert(self._table, row)
             inserted.append(copy.deepcopy(row))
         return inserted
 
@@ -335,12 +412,22 @@ class FakeSupabase:
         "client_reviews",
         "follows",
         "profiles",
+        "entitlements",
+        "waitlist_entries",
+        "conversations",
+        "messages",
     )
 
     def __init__(self, strict_single: bool = False):
         self.tables: dict[str, list[dict]] = {name: [] for name in self.BASE_TABLES}
         self.strict_single = strict_single
         self.calls: list[tuple[str, str]] = []
+        # Minimal Supabase Auth admin surface. Empty by default, so every code
+        # path that degrades when the admin API is unavailable (owner screening,
+        # review author names) keeps degrading exactly as before — only a test
+        # that calls `seed_auth_user()` makes a user resolvable.
+        self.auth_users: dict[str, dict] = {}
+        self.auth = _FakeAuth(self)
 
     # -- client surface ----------------------------------------------
     def table(self, name: str) -> _TableHandle:
@@ -366,22 +453,32 @@ class FakeSupabase:
     # -- referential integrity (mirror `on delete cascade` in schema.sql) --
     # A parent may cascade to several children: (child_table, parent_key, child_key).
     _CASCADES: dict[str, tuple[tuple[str, str, str], ...]] = {
-        "resources": (("slots", "id", "resource_id"),),
+        "resources": (
+            ("slots", "id", "resource_id"),
+            ("waitlist_entries", "id", "resource_id"),
+        ),
         "slots": (
             ("bookings", "id", "slot_id"),
             ("booking_slots", "id", "slot_id"),
+            ("waitlist_entries", "id", "slot_id"),
         ),
         "bookings": (
             ("booking_slots", "id", "booking_id"),
             ("reviews", "id", "booking_id"),
             ("client_reviews", "id", "booking_id"),
+            # waitlist_entries.booking_id is ON DELETE SET NULL, not cascade —
+            # deliberately not modelled here (this map only deletes).
         ),
         "providers": (
             ("services", "id", "provider_id"),
             ("reviews", "id", "provider_id"),
             ("client_reviews", "id", "provider_id"),
             ("follows", "id", "provider_id"),
+            ("entitlements", "id", "provider_id"),
+            ("conversations", "id", "provider_id"),
         ),
+        "services": (("waitlist_entries", "id", "service_id"),),
+        "conversations": (("messages", "id", "conversation_id"),),
     }
 
     def cascade_delete(self, table: str, removed_rows: list[dict]) -> None:
@@ -428,6 +525,18 @@ class FakeSupabase:
 
     VIEWS = {"slot_occupancy": _slot_occupancy}
 
+    # -- triggers (mirror supabase/schema.sql) -------------------------
+    def after_insert(self, table: str, row: dict) -> None:
+        """Mirror the `on_message_insert` trigger: stamp the parent thread's
+        inbox preview/timestamp on every new message, so the inbox can list
+        threads without scanning messages — exactly like the SQL trigger."""
+        if table != "messages":
+            return
+        for conv in self.tables["conversations"]:
+            if conv["id"] == row.get("conversation_id"):
+                conv["last_message_at"] = row.get("created_at")
+                conv["last_message_preview"] = row.get("body")
+
     # -- test helpers -------------------------------------------------
     def insert_row(self, table: str, **row) -> dict:
         """Seed a row directly, bypassing the API (returns the stored row)."""
@@ -441,3 +550,74 @@ class FakeSupabase:
 
     def count(self, table: str) -> int:
         return len(self.rows(table))
+
+    def seed_auth_user(
+        self, user_id: str, *, email: str, user_metadata: dict | None = None
+    ) -> None:
+        """Make `auth.admin.get_user_by_id(user_id)` resolve (email/display
+        name), like a provisioned Supabase Auth user. Unknown ids keep raising,
+        so the degrade paths other tests pin remain untouched."""
+        self.auth_users[user_id] = {
+            "email": email,
+            "user_metadata": dict(user_metadata or {}),
+            "created_at": _now_iso(),
+        }
+
+
+# --- Supabase Auth admin stub ----------------------------------------------
+#
+# Just enough of `client.auth.admin` for the routers that resolve emails /
+# display names cross-user (waitlist promotion, messaging). Unknown users raise
+# (like the real GoTrue admin API), so every best-effort caller still falls into
+# its documented fallback when nothing was seeded.
+
+
+class _FakeAuthAdmin:
+    def __init__(self, db: "FakeSupabase") -> None:
+        self._db = db
+
+    def _get(self, user_id: str) -> dict:
+        info = self._db.auth_users.get(user_id)
+        if info is None:
+            raise FakeAPIError(f"User not found: {user_id}", code="user_not_found")
+        return info
+
+    def get_user_by_id(self, user_id: str):
+        info = self._get(user_id)
+        user = _AuthUserObj(
+            id=user_id,
+            email=info.get("email"),
+            user_metadata=copy.deepcopy(info.get("user_metadata") or {}),
+            created_at=info.get("created_at"),
+        )
+        return _AuthResponse(user=user)
+
+    def update_user_by_id(self, user_id: str, attrs: dict):
+        info = self._get(user_id)
+        if "email" in attrs:
+            info["email"] = attrs["email"]
+        if "user_metadata" in attrs:
+            info["user_metadata"] = {
+                **(info.get("user_metadata") or {}),
+                **(attrs["user_metadata"] or {}),
+            }
+        return self.get_user_by_id(user_id)
+
+    def delete_user(self, user_id: str) -> None:
+        self._get(user_id)
+        del self._db.auth_users[user_id]
+
+
+class _FakeAuth:
+    def __init__(self, db: "FakeSupabase") -> None:
+        self.admin = _FakeAuthAdmin(db)
+
+
+class _AuthUserObj:
+    def __init__(self, **attrs) -> None:
+        self.__dict__.update(attrs)
+
+
+class _AuthResponse:
+    def __init__(self, user) -> None:
+        self.user = user

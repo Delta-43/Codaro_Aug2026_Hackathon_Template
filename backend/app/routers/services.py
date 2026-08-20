@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app import discovery
 from app.auth import AuthUser, enforce_rls_write, require_owner
-from app.db import get_supabase, get_user_client, maybe_row
+from app.db import fetch_all, get_supabase, get_user_client, maybe_row
 from app.config import get_config
 from app.config_schema import validate_overrides
 from app.errors import NOT_FOUND, VALIDATION_ERROR, api_error
@@ -165,7 +165,7 @@ def list_services(provider_id: str | None = None):
     query = db.table("services").select("*")
     if provider_id:
         query = query.eq("provider_id", provider_id)
-    rows = query.execute().data or []
+    rows = fetch_all(query)
     return [discovery.build_service(r, res_by_svc=res_by_svc) for r in rows]
 
 

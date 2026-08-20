@@ -388,3 +388,20 @@ def test_resource_bookings_sorted_by_start_desc(client, db, auth):
     rows = client.get(f"/resources/{resource_id}/bookings").json()
     # startUtc descending: the later slot's booking comes first.
     assert [r["reference"] for r in rows] == ["BK-LATE", "BK-EARLY"]
+
+
+# --- metaFields errors carry the ApiError envelope (regression) -------------
+
+
+def test_bad_metadata_type_carries_the_api_error_envelope(client, db, auth):
+    """The 422's `detail` must be the frontend ApiError envelope — the seam
+    reads `detail.code`, and a bare detail string rendered as a raw NETWORK
+    error instead of the field-level message."""
+    auth(role="owner")
+    # metaFields.resources declares `room` as text; a number is the violation.
+    resp = client.post("/resources", json={"name": "Bad", "metadata": {"room": 5}})
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]
+    assert detail["code"] == "VALIDATION_ERROR"
+    assert "Room" in detail["message"]
+    assert detail["details"] == {"field": "room", "label": "Room", "expected": "text"}

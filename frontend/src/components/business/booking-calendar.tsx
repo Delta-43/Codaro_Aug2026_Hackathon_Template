@@ -9,7 +9,7 @@
  */
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import type { DemoBooking } from "@/lib/business-demo";
+import type { BookingView } from "@/lib/business-view";
 import {
   addDays,
   dayLabel,
@@ -27,12 +27,12 @@ import { cn } from "@/lib/utils";
 
 type View = "month" | "week" | "day";
 
-const STATUS_DOT: Record<DemoBooking["status"], string> = {
+const STATUS_DOT: Record<BookingView["status"], string> = {
   confirmed: "bg-primary",
   completed: "bg-muted-foreground",
   pending: "bg-amber-500",
 };
-const STATUS_PILL: Record<DemoBooking["status"], string> = {
+const STATUS_PILL: Record<BookingView["status"], string> = {
   confirmed: "border-primary/30 bg-primary/10 text-primary",
   completed: "border-border bg-muted text-muted-foreground",
   pending: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
@@ -54,9 +54,9 @@ export function BookingCalendar({
   defaultView = "week",
   compact = false,
 }: {
-  bookings: DemoBooking[];
+  bookings: BookingView[];
   timezone: string;
-  onOpen?: (b: DemoBooking) => void;
+  onOpen?: (b: BookingView) => void;
   defaultView?: View;
   compact?: boolean;
 }) {
@@ -65,7 +65,7 @@ export function BookingCalendar({
 
   // Group bookings by local day, each list sorted by start.
   const byDay = useMemo(() => {
-    const map = new Map<string, DemoBooking[]>();
+    const map = new Map<string, BookingView[]>();
     for (const b of bookings) {
       const key = localDateStr(b.startUtc, timezone);
       (map.get(key) ?? map.set(key, []).get(key)!).push(b);
@@ -173,7 +173,7 @@ function MonthView({
 }: {
   year: number;
   month: number;
-  byDay: Map<string, DemoBooking[]>;
+  byDay: Map<string, BookingView[]>;
   timezone: string;
   onPickDay: (dateStr: string) => void;
 }) {
@@ -235,9 +235,9 @@ function WeekView({
   compact,
 }: {
   days: CalDay[];
-  byDay: Map<string, DemoBooking[]>;
+  byDay: Map<string, BookingView[]>;
   timezone: string;
-  onOpen?: (b: DemoBooking) => void;
+  onOpen?: (b: BookingView) => void;
   compact?: boolean;
 }) {
   return (
@@ -308,9 +308,9 @@ function DayView({
   onOpen,
 }: {
   dateStr: string;
-  items: DemoBooking[];
+  items: BookingView[];
   timezone: string;
-  onOpen?: (b: DemoBooking) => void;
+  onOpen?: (b: BookingView) => void;
 }) {
   if (items.length === 0) {
     return (

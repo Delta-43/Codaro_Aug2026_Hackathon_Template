@@ -5,7 +5,7 @@
 The booking-engine API. Owns: reading the pivot file, per-service rule
 resolution, camelCase serialization, the domain routers
 (`/providers` `/services` `/resources` `/slots` `/availability` `/bookings`
-`/me` `/demo`), Supabase-Auth verification, and three-vertical seeding. It serves
+`/me`), Supabase-Auth verification, and three-vertical seeding. It serves
 the frontend's exact contract (`frontend/src/types/domain.ts`). See root
 [CLAUDE.md](../CLAUDE.md) and [supabase/CLAUDE.md](../supabase/CLAUDE.md).
 
@@ -26,7 +26,7 @@ the frontend's exact contract (`frontend/src/types/domain.ts`). See root
 | `app/models.py` | Pydantic envelopes; the new request models accept camelCase (`CamelModel`) |
 | `app/meta.py` | Config-driven `metaFields` validator |
 | `app/discovery.py`, `app/users.py` | Aggregation helpers (rating/link arrays) and `User` assembly |
-| `app/routers/*.py` | `providers`, `services`, `resources`, `slots`, `availability`, `bookings`, `me`, `owner`, `demo` |
+| `app/routers/*.py` | `providers`, `services`, `resources`, `slots`, `availability`, `bookings`, `me`, `owner` |
 | `app/routers/owner.py` | Business-mode aggregation: `/owner/dashboard` `/owner/services` `/owner/requests` `/owner/calendar` (owner-gated, scoped to the caller's providers) |
 | `seed.py`, `seed_data.py` | Three-vertical demo seeding; `seed_vertical(id)`, `active_vertical()`, `seed_if_empty()` |
 
@@ -46,7 +46,7 @@ the frontend's exact contract (`frontend/src/types/domain.ts`). See root
 - **`bookings.history` is append-only**; multi-slot bookings also write
   `booking_slots` rows and carry `slot_ids`/`change_history` in `metadata`.
 - **Single-row lookups go through `db.maybe_row()`** (reachable 404s).
-- **Startup uses FastAPI lifespan** through module-level `create_tables_if_configured` / `seed_if_empty` (tests monkeypatch them).
+- **Startup uses FastAPI lifespan** through module-level `create_tables_if_configured` (tests monkeypatch it). No demo seeding runs on startup — the app serves only real Supabase data; seed manually with `seed_if_empty()` / `make reseed`.
 
 ## Config v2 (`config_schema.py`)
 
@@ -207,9 +207,13 @@ yet — it needs a sold-count query, which is a database question.
   `GET /month-density?...&month` → `MonthDensityCell[]`. Status/occupancy derived
   server-side; occupancy already sums party size.
 - **Bookings (`require_user`, RLS-scoped user client):** multi-slot + party-size
-  create; `GET /bookings?scope=upcoming|past|all` (RLS scopes to own/owner,
-  completed-in-past derived); `GET /bookings/{id}`; reschedule (`newSlotIds`,
-  atomic slot swap + change history); idempotent cancel; `POST /{id}/review`.
+  create; `GET /bookings?scope=upcoming|past|all` (the caller's own bookings
+  **as client** — explicit `client_id` scope plus a `metadata.user_id` legacy
+  fallback, not the raw RLS view; completed-in-past derived);
+  `GET /bookings/{id}`; reschedule (`newSlotIds`, atomic slot swap + change
+  history, CAS on `confirmed`); cancel (idempotent for already-cancelled,
+  **refuses rejected requests**, CAS against racing transitions, refunds a
+  consumed pass credit); `POST /{id}/review`.
   Create honours the service's `autoApprove`: `true` (default) → `confirmed`
   immediately; `false` → `pending` (a request the owner acts on). Owner-only
   `POST /{id}/approve` (pending→confirmed, capacity re-checked; pending holds
@@ -241,8 +245,9 @@ yet — it needs a sold-count query, which is a database question.
   `GET /me/reputation` and the owner Requests screening card's `rating`.
   `GET /providers/{id}/reviews` (public) lists a provider's recent reviews for
   the Profile tab.
-- **Demo:** `GET /demo/vertical` (public), `POST /demo/vertical` + `POST
-  /demo/reset` (`require_user`, destructive backend reseed).
+- **Vertical:** `GET /vertical` (public) → the currently-seeded vertical,
+  inferred from the catalog, so the frontend picks the matching base vocabulary
+  at boot.
 
 Owner-gated writes (`require_owner`) exist on resource/slot CRUD + analytics;
 provider/service **create** endpoints are not added (seeds populate catalog).
@@ -289,8 +294,9 @@ already holding the lock must use `_seed_from_config_locked` /
 `make reload` refuses while the lock is held (`scripts/seed_in_progress.py`),
 since restarting the container kills a reseed running inside it.
 
-`seed_if_empty()` runs on startup when no providers exist; `active_vertical()`
-infers the current vertical from a service's booking model.
+`seed_if_empty()` seeds when no providers exist, but is no longer wired into
+startup (run it manually); `active_vertical()` infers the current vertical from a
+service's booking model.
 
 ## Don't
 

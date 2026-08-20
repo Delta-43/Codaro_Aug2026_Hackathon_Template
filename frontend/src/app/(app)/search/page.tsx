@@ -213,7 +213,7 @@ export default function SearchPage() {
           onClick={() => setFiltersOpen(true)}
           aria-label="Filters"
           className={cn(
-            "inline-flex shrink-0 items-center gap-2 rounded-full border border-neutral-300 bg-white px-4 py-1.5 text-sm font-semibold text-neutral-900 shadow-sm transition-all hover:bg-neutral-100",
+            "inline-flex shrink-0 items-center gap-2 rounded-full border border-border bg-card px-4 py-1.5 text-sm font-semibold text-foreground shadow-sm transition-all hover:bg-muted",
             buttonFx.press,
           )}
         >

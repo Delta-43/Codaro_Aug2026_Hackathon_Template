@@ -234,6 +234,9 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
         # What must be satisfied before this can be confirmed. Declared in the
         # config since v2 and served nowhere, so a customer met the block only
         # as a rejection after committing.
+        # Gated on the capability like waitlist/recurrence below: enforcement
+        # (bookings.create/approve) ANDs the capability, so serving the list on
+        # a capability-off deployment advertised a step the API never enforced.
         "prerequisites": [
             {
                 "key": p.get("key"),
@@ -247,7 +250,7 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
             # deliberately absent from OVERRIDABLE_BLOCKS (block overrides
             # deep-merge dicts) and `effective_service_config` never carries it.
             for p in (get_config().get("prerequisites") or [])
-        ],
+        ] if capability("prerequisites", row) else [],
         # What repeat patterns this service offers (`recurrence`). Gated on the
         # capability too, so a config that declares patterns but turns the
         # capability off never renders a control the API would refuse.
@@ -337,7 +340,10 @@ def loan_state(md: dict, end_utc, service: dict | None = None, now=None) -> dict
     hours = inventory.get("loanPeriodHours")
     due = end + timedelta(hours=int(hours)) if hours else end
     returned_at = md.get("returned_at_utc")
-    now = now or datetime.now(timezone.utc)
+    # Single clock source (app.clock via `_now`), so a frozen test clock and the
+    # booking-status derivation in the same serialize call agree — not a second,
+    # unfreezable `datetime.now()` that drifts from the rest of this module.
+    now = _now(now)
     reference = _parse(returned_at) if returned_at else now
     # Whole days late, floored: a business that charges "per day overdue" does
     # not bill a day that has not elapsed.
@@ -506,7 +512,11 @@ def serialize_booking(
         "status": effective_booking_status(row["status"], end_utc, now),
         "partySize": int(md.get("party_size", 1)),
         "priceMinorUnits": int(md.get("price_minor_units", 0)),
-        "currency": md.get("currency", "EUR"),
+        # Same fallback chain as payment_state's currency, so one payload never
+        # labels the total EUR beside a USD outstanding amount.
+        "currency": md.get("currency")
+        or effective_service_pricing(service).get("currency")
+        or "EUR",
         "createdAtUtc": iso_utc(row.get("created_at")),
         "cancelledAtUtc": iso_utc(md.get("cancelled_at_utc")) if md.get("cancelled_at_utc") else None,
         "changeHistory": _change_history(md),

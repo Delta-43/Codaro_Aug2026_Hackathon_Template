@@ -341,3 +341,23 @@ def test_owner_calendar_scoped_to_own_providers(client, db, auth):
         params={"from": "2000-01-01T00:00:00.000Z", "to": "2100-01-01T00:00:00.000Z"},
     ).json()
     assert rows == []
+
+
+# --- fake fidelity: jsonb arrow-path filter columns ------------------------
+
+
+def test_fake_in_filter_accepts_jsonb_arrow_path_column(db):
+    """owner.py filters `.in_("metadata->>provider_id", ids)` server-side, as
+    real PostgREST allows; the fake must resolve the arrow path into the
+    jsonb column instead of returning nothing."""
+    db.insert_row("bookings", slot_id="s1", client_email="a@x.io", metadata={"provider_id": "p-1"})
+    db.insert_row("bookings", slot_id="s2", client_email="b@x.io", metadata={"provider_id": "p-2"})
+    db.insert_row("bookings", slot_id="s3", client_email="c@x.io", metadata={})  # no key
+    rows = (
+        db.table("bookings")
+        .select("*")
+        .in_("metadata->>provider_id", ["p-1", "p-3"])
+        .execute()
+        .data
+    )
+    assert [r["slot_id"] for r in rows] == ["s1"]

@@ -6,24 +6,15 @@ Next.js 14 (App Router) + Tailwind v4 + `react-aria-components` UI. The live app
 is **`frontend/src/`**. See root [CLAUDE.md](../CLAUDE.md) for the architecture and
 [backend/CLAUDE.md](../backend/CLAUDE.md) for the API this talks to.
 
-The public marketing landing page is **not** here — it's the standalone
-[landing/](../landing/CLAUDE.md) app, air-gapped from this one (no shared
-imports). `frontend/`'s root `/` just redirects to `/login`; a visitor arrives
-here only via `landing/`'s cross-origin link, exactly like a real embedder's
-site would eventually reach this app.
-
-**One exception, both directions**: `/login` reuses the landing page's
-liquid-glass background (`SceneBackground`/`GlassPanel`), so
-`src/components/landing/{scene-background,scroll-reveal,particles}.tsx` here
-is a frozen copy of `landing/`'s originals (trimmed — `scroll-reveal.tsx`
-here only exports `GlassPanel`, not the landing-only `useScrollMotion` hook).
-Same deal for `src/config/buttons.ts` (`buttonFx`), which `landing/` also
-keeps its own copy of. Neither direction is wired together — a design/behavior
-fix to one copy needs the same fix applied to the other by hand. (This bit a
-merge from `develop` once already: a login-page redesign there added the
-`scene-background`/`scroll-reveal` imports after `landing/` had already moved
-the originals out — see `docs/issues/97-...` — so if either side's copy looks
-stale after a merge, check the other.)
+The public marketing landing page **lives here now**: `src/app/page.tsx` is the
+landing page, served at the app root `/`, built from `src/components/landing/*`
+(hero, nav-bar, how-it-works, calendar-demo, testimonials, docs-cta,
+business-cta, footer, plus the shared scene/scroll primitives). It sits outside
+the gated `(app)` group and uses no auth/context — its CTAs are plain same-origin
+`next/link`s to `/login`, `/docs`, and `/privacy`. (It was briefly split out into
+a standalone `landing/` app; that split has been reverted and the page folded
+back in — `/login` and the landing page share `SceneBackground`/`GlassPanel`
+directly again, no frozen copies.)
 
 ## Domain + files
 
@@ -40,7 +31,7 @@ calendar / bookings / account**.
 | `src/lib/auth.tsx` | `<AuthProvider>` / `useAuth()` — session + `role`/`isOwner`, `signIn`/`signUp`/`signOut`; `getAccessToken()` for the seam's Bearer header |
 | `src/components/auth-gate.tsx` | Redirects anonymous visitors to `/login`; holds the app until a session exists |
 | `src/app/login/page.tsx` | Email/password sign-in + sign-up (Supabase Auth) |
-| `src/app/docs/page.tsx` | Public **`domain.config.json` setup guide** (`/docs`), linked from `landing/`'s nav pill via a cross-origin link. Block-by-block: defaults, allowed values, per-service overrides. Defaults are quoted from `backend/app/config_schema.py` `DEFAULTS` (not from the prose docs) — re-check them when the schema changes |
+| `src/app/docs/page.tsx` | Public **`domain.config.json` setup guide** (`/docs`), linked from the landing page's nav pill. Block-by-block: defaults, allowed values, per-service overrides. Defaults are quoted from `backend/app/config_schema.py` `DEFAULTS` (not from the prose docs) — re-check them when the schema changes |
 | `src/components/docs/` | `DocShell` (sticky header + scroll-spy TOC) and the long-form prose primitives the page renders with |
 | `src/app/layout.tsx` | Root layout — wraps the tree in `<AuthProvider>` |
 | `src/app/(app)/layout.tsx` | `<AuthGate>` → `<AppProvider>` → `<AppShell>` (stays mounted across tabs) |
@@ -98,12 +89,11 @@ reschedule flows special-case the codes for re-pick / disabled-with-reason.
   `enableSystem`) mounted in `src/app/layout.tsx`; dark tokens live under `.dark`
   in `globals.css`. The Account tab's `appearance-picker.tsx` sets Light / Dark /
   Smart (`"system"`), both built on the shared `components/theme-toggle.tsx`
-  (also used by the `/docs` header) — `landing/` keeps its own frozen copy of
-  the latter (see `landing/CLAUDE.md`) since it's a separate app now. First
+  (also used by the `/docs` header and the landing page footer). First
   load follows the OS `prefers-color-scheme` live (system default); flipping a
   toggle pins an explicit choice, which then persists.
 
-## Views (per README)
+## Views (per the root `CLAUDE.md`)
 
 1. **Login / sign-up** — `src/app/login/page.tsx` (Supabase Auth). *Built.*
 2. **Search** (tab 1) — provider discovery: text/category/near, code entry + QR,
@@ -114,7 +104,7 @@ reschedule flows special-case the codes for re-pick / disabled-with-reason.
 5. **Bookings** (tab 4) — upcoming/past, detail, reschedule, cancel, review.
    *Built.*
 6. **Account** (tab 5) — profile edit (`PATCH /me`), sign-out, **Appearance**
-   theme toggle (Light / Dark / Smart), demo vertical-switch/reset. *Built.*
+   theme toggle (Light / Dark / Smart). *Built.*
 7. **Docs** — `/docs`, ungated like `privacy/`: how to set up
    `domain.config.json`, block by block (tenancy → capabilities → booking →
    pricing → payments → timing → location → optional → vocabulary), plus

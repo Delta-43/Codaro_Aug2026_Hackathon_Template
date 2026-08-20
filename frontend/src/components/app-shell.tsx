@@ -32,7 +32,7 @@ import { AvatarImg } from "@/components/avatar-img";
 import { useAuth } from "@/lib/auth";
 import { useUnreadCount } from "@/hooks/use-unread-count";
 import { Button } from "@/components/ui/button";
-import { SignOutButton } from "@/components/sign-out-button";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 
 interface Tab {
   href: string;
@@ -47,7 +47,7 @@ const SERVICES_TAB: Tab = { href: "/provider", label: "Services", icon: Store };
 const CALENDAR_TAB: Tab = { href: "/calendar", label: "Calendar", icon: CalendarClock };
 const MESSAGING_TAB: Tab = { href: "/messages", label: "Messaging", icon: Send };
 const BOOKINGS_TAB: Tab = { href: "/bookings", label: "Bookings", icon: CalendarDays };
-const PROFILE_TAB: Tab = { href: "/account", label: "Profile", icon: CircleUser };
+const PROFILE_TAB: Tab = { href: "/account", label: "Settings", icon: CircleUser };
 
 // Marketplace: discovery leads, and Calendar is folded into Bookings.
 const TABS: Tab[] = [SEARCH_TAB, SERVICES_TAB, MESSAGING_TAB, BOOKINGS_TAB, PROFILE_TAB];
@@ -116,7 +116,15 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh md:pl-60">
       {/* Desktop left drawer */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-card px-3 py-4 md:flex">
-        <Link href="/" className={cn(buttonFx.heading, "mb-4 px-3 text-lg font-semibold tracking-tight")}>
+        <Link
+          href="/"
+          className={cn(
+            buttonFx.heading,
+            "mb-4 flex items-center gap-1.5 px-3 text-lg font-semibold tracking-tight",
+          )}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-6 -translate-y-[9%]" />
           <span className="text-primary">Arbor</span>
         </Link>
         <nav className="flex flex-col gap-1">
@@ -156,12 +164,12 @@ export function AppShell({ children }: { children: ReactNode }) {
         <div className="flex items-center gap-2">
         <CartButton onOpen={() => setCartOpen(true)} />
         <Link
-          href="/account/settings"
+          href="/account"
           className={cn(
             "group flex items-center gap-2 rounded-full py-1 pl-1 pr-3 transition-all hover:bg-primary/10 hover:text-primary",
             buttonFx.press,
           )}
-          aria-label="Settings"
+          aria-label="Profile"
         >
           <AvatarImg
             src={user?.avatarUrl}
@@ -180,8 +188,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-20 flex h-12 items-center justify-between gap-2 border-b border-border bg-background/85 px-4 backdrop-blur pt-[env(safe-area-inset-top)] md:hidden">
         <Link
           href="/"
-          className={cn(buttonFx.heading, "shrink-0 text-base font-bold tracking-tight text-primary")}
+          className={cn(
+            buttonFx.heading,
+            "flex shrink-0 items-center gap-1.5 text-base font-bold tracking-tight text-primary",
+          )}
         >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-6 -translate-y-[9%]" />
           Arbor
         </Link>
         <span className="flex min-w-0 items-baseline justify-end gap-2 text-lg font-semibold">

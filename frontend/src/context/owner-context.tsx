@@ -66,6 +66,8 @@ interface OwnerContextValue {
   /** `metaFields.{entity}` — the domain fields this deployment declares, so the
    *  owner's own create/edit forms can offer what the backend already validates. */
   metaFields: MetaFields;
+  /** `pricing.currency` — the deployment's default currency for a first offer. */
+  currency: string;
   setActiveProviderId: (id: string) => void;
   refreshProviders: () => Promise<void>;
   /** Replace one already-loaded provider in place (e.g. after an avatar edit),
@@ -87,6 +89,7 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
     FALLBACK_PIVOT_CONFIG.tenancyTerms,
   );
   const [metaFields, setMetaFields] = useState<MetaFields>({});
+  const [currency, setCurrency] = useState(FALLBACK_PIVOT_CONFIG.currency);
 
   const refreshProviders = useCallback(async () => {
     try {
@@ -98,24 +101,57 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false;
+    const applyPivot = (p: typeof FALLBACK_PIVOT_CONFIG) => {
+      setCapabilities(p.capabilities);
+      setTerms(p.terms);
+      setCopy(p.copy);
+      setTenancyTerms(p.tenancyTerms);
+      setMetaFields(p.metaFields);
+      setCurrency(p.currency);
+    };
+    const derivePid = (list: Provider[]) => {
+      const stored = typeof window !== "undefined" ? localStorage.getItem(PID_KEY) : null;
+      return list.find((p) => p.id === stored)?.id ?? list[0]?.id ?? null;
+    };
     (async () => {
-      const [list, v, pivot] = await Promise.all([
-        getMyProviders().catch(() => [] as Provider[]),
+      const [listRaw, v, pivot] = await Promise.all([
+        // null = the FETCH failed (retry below); [] = genuinely no business.
+        getMyProviders().catch(() => null),
         getActiveVertical().catch(() => "fleet" as VerticalId),
         // /config unreachable: leave everything ON and keep the static
         // vocabulary — the backend still refuses whatever is actually disabled.
         getPivotConfig().catch(() => FALLBACK_PIVOT_CONFIG),
       ]);
       if (cancelled) return;
+      const list = listRaw ?? [];
       setProviders(list);
       setVertical(v);
-      setCapabilities(pivot.capabilities);
-      setTerms(pivot.terms);
-      setCopy(pivot.copy);
-      setTenancyTerms(pivot.tenancyTerms);
-      setMetaFields(pivot.metaFields);
-      const stored = typeof window !== "undefined" ? localStorage.getItem(PID_KEY) : null;
-      setPid(list.find((p) => p.id === stored)?.id ?? list[0]?.id ?? null);
+      applyPivot(pivot);
+      if (pivot === FALLBACK_PIVOT_CONFIG || listRaw === null) {
+        // A transient boot blip must not pin the fallbacks for the whole
+        // session — a first offer created from the fallback currency would be
+        // persisted wrong, and a real owner would sit in the "no business"
+        // state. One delayed retry; the backend stays the authority.
+        setTimeout(() => {
+          if (pivot === FALLBACK_PIVOT_CONFIG) {
+            getPivotConfig()
+              .then((p) => {
+                if (!cancelled) applyPivot(p);
+              })
+              .catch(() => {});
+          }
+          if (listRaw === null) {
+            getMyProviders()
+              .then((l) => {
+                if (cancelled) return;
+                setProviders(l);
+                setPid((prev) => prev ?? derivePid(l));
+              })
+              .catch(() => {});
+          }
+        }, 5000);
+      }
+      setPid(derivePid(list));
       setReady(true);
     })();
     return () => {
@@ -146,6 +182,7 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
     capability,
     tenancyTerms,
     metaFields,
+    currency,
     providers,
     activeProvider,
     vocab: applyPivotVocabulary(VERTICALS[vertical] ?? VERTICALS.fleet, terms, copy),

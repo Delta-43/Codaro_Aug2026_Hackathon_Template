@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 
-from app.clock import tz_or_utc
+from app.clock import now_utc, tz_or_utc
 from app.auth import AuthUser, optional_user
 from app.db import fetch_all, get_supabase, maybe_row
 from app.rules import closure_reason, effective_service_config
@@ -111,7 +111,7 @@ def availability(
         # The view has no `id`; see the note in routers/slots.py.
         order="slot_id",
     )
-    now = datetime.now(timezone.utc)
+    now = now_utc()
     # A day the business has declared shut (`timing.blackouts` / outside
     # `timing.seasons`) carries no availability. Tested against the BUSINESS's
     # calendar even though the grouping below is the viewer's, because a closure
@@ -170,7 +170,7 @@ def month_density(
             or []
         )
 
-    now = datetime.now(timezone.utc)
+    now = now_utc()
     total_by: dict[str, int] = defaultdict(int)
     remaining_by: dict[str, int] = defaultdict(int)
     for r in rows:

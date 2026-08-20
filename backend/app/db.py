@@ -67,7 +67,7 @@ RLS_DENIED_CODE = "42501"
 _PAGE = 1000
 
 
-def fetch_all(query, page: int = _PAGE, order: str = "id") -> list[dict]:
+def fetch_all(query, page: int = _PAGE, order: str | tuple = "id") -> list[dict]:
     """Every row a query matches, paging past PostgREST's implicit 1000 cap.
 
     Stops on the first short page, so a result that fits in one page costs
@@ -78,17 +78,36 @@ def fetch_all(query, page: int = _PAGE, order: str = "id") -> list[dict]:
     row on two pages and never return another — duplicate slots in the calendar
     and a real one that reads as unavailable. Concurrent inserts (a reseed, an
     owner adding slots) make that near-certain rather than theoretical. `order`
-    is the column to sort by; it must be unique, hence `id` by default.
+    is the column (or tuple of columns, applied in sequence) to sort by; the
+    combination must be unique, hence `id` by default — tables without an `id`
+    pass their composite key, e.g. ``("booking_id", "slot_id")``.
     """
     out: list[dict] = []
     start = 0
-    query = query.order(order)
+    for col in (order,) if isinstance(order, str) else order:
+        query = query.order(col)
+    # postgrest-py builders APPEND query params on every call, so re-calling
+    # `.range()` on one builder stacks duplicate offset/limit pairs that only
+    # work because PostgREST resolves duplicates last-wins. Snapshot the params
+    # after ordering and reset before each page. (The offline fake exposes no
+    # `.params` and its `.range` overwrites, so the getattr guard suffices.)
+    base_params = getattr(query, "params", None)
     while True:
+        if base_params is not None:
+            query.params = base_params
         rows = query.range(start, start + page - 1).execute().data or []
         out.extend(rows)
         if len(rows) < page:
             return out
         start += page
+
+
+def chunked(ids: list, n: int = 200):
+    """Split an id list for `.in_` filters — ~1000 ids in one URL is over
+    PostgREST's request-line limit, and one giant chunk's result set blows the
+    row cap `fetch_all` pages past. Pair each chunk with `fetch_all`."""
+    for i in range(0, len(ids), n):
+        yield ids[i : i + n]
 
 
 def maybe_row(query):

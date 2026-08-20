@@ -7,8 +7,9 @@ test:
 1. `app.db.get_supabase` (and the already-imported copies inside each
    router module — the routers do `from app.db import get_supabase`, so
    patching only `app.db` would be a no-op) -> an in-memory `FakeSupabase`.
-2. The FastAPI startup hooks (`create_tables_if_configured`, `seed_if_empty`)
-   -> no-ops, so `TestClient`'s lifespan never tries to reach Postgres.
+2. The FastAPI startup hook (`create_tables_if_configured`) -> a no-op, so
+   `TestClient`'s lifespan never tries to reach Postgres. (`seed_if_empty` is no
+   longer called on startup, but is still kept inert on the seed module.)
 3. `DOMAIN_CONFIG_PATH` -> a per-test copy of
    `test/fixtures/domain.config.test.json`, so rule values can be varied
    without touching the repo's real pivot file.
@@ -36,11 +37,13 @@ from app.auth import AuthUser, optional_user, require_user
 from app.routers import availability as availability_router
 from app.routers import bookings as bookings_router
 from app.routers import me as me_router
+from app.routers import messages as messages_router
 from app.routers import owner as owner_router
 from app.routers import providers as providers_router
 from app.routers import resources as resources_router
 from app.routers import services as services_router
 from app.routers import slots as slots_router
+from app.routers import waitlist as waitlist_router
 from fakes import FakeSupabase
 
 TEST_DIR = Path(__file__).resolve().parents[1]
@@ -63,6 +66,8 @@ _SUPABASE_MODULES = (
     availability_router,
     me_router,
     owner_router,
+    messages_router,
+    waitlist_router,
 )
 _USER_CLIENT_MODULES = (
     app_db,
@@ -72,6 +77,8 @@ _USER_CLIENT_MODULES = (
     slots_router,
     providers_router,
     services_router,
+    messages_router,
+    waitlist_router,
 )
 
 
@@ -176,10 +183,12 @@ def _patch_supabase(monkeypatch, fake: FakeSupabase) -> None:
 def _no_startup_io(monkeypatch):
     """Startup must never touch Postgres or seed demo data during tests."""
     monkeypatch.setattr(app_schema_setup, "create_tables_if_configured", lambda: None)
+    # startup no longer seeds demo data, but keep the seed module inert in case
+    # a test triggers it directly.
     monkeypatch.setattr(seed_module, "seed_if_empty", lambda: None)
-    # main.py imported both names into its own namespace at import time.
+    # main.py imported create_tables_if_configured into its own namespace at
+    # import time (seed_if_empty is no longer called on startup).
     monkeypatch.setattr(app_main, "create_tables_if_configured", lambda: None)
-    monkeypatch.setattr(app_main, "seed_if_empty", lambda: None)
 
 
 @pytest.fixture

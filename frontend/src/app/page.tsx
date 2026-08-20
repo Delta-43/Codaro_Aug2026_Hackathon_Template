@@ -1,12 +1,38 @@
-import { redirect } from "next/navigation";
+"use client";
 
 /**
- * The marketing landing page now lives in the standalone `landing/` app (see
- * root CLAUDE.md) — it links here via a plain cross-origin <a> to `/login`.
- * A bare visit to the app's own root has nothing to render, so send it
- * straight to `/login`, which already redirects an authenticated visitor
- * onward itself.
+ * Public marketing landing page, served at the app root (`/`). It's outside the
+ * gated `(app)` group and uses no AppProvider/useAuth/useVertical: it always
+ * renders the logged-out-shaped CTAs and links (via next/link) to
+ * /login, /docs, and /privacy. Pitches the engine/product itself, deliberately
+ * vertical-agnostic (see hero.tsx) — the live-demo vertical only comes back
+ * into play in the later "featured providers" section.
+ *
+ * Built section by section (see docs/issues/26-loading-page.md). Full page:
+ * Hero → How it works → Testimonials → Business CTA → Footer.
  */
+import { SceneBackground } from "@/components/landing/scene-background";
+import { NavBar } from "@/components/landing/nav-bar";
+import { Hero } from "@/components/landing/hero";
+import { HowItWorks } from "@/components/landing/how-it-works";
+import { CalendarDemo } from "@/components/landing/calendar-demo";
+import { Testimonials } from "@/components/landing/testimonials";
+import { DocsCta } from "@/components/landing/docs-cta";
+import { BusinessCta } from "@/components/landing/business-cta";
+import { Footer } from "@/components/landing/footer";
+
 export default function RootPage() {
-  redirect("/login");
+  return (
+    <main className="relative h-dvh snap-y snap-mandatory overflow-y-auto scroll-smooth [scrollbar-gutter:stable_both-edges]">
+      <SceneBackground />
+      <NavBar />
+      <Hero />
+      <HowItWorks />
+      <CalendarDemo />
+      <Testimonials />
+      <DocsCta />
+      <BusinessCta />
+      <Footer />
+    </main>
+  );
 }

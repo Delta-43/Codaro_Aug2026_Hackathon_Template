@@ -13,6 +13,7 @@ kept for the test suite, which imports them by name; no router calls them.
 from __future__ import annotations
 
 import copy as _copy
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -201,7 +202,8 @@ def closure_reason(slot_starts_at: str | datetime, service: dict | None = None) 
 # point: adding `"someNewKey": _some_validator` here plus the key under `timing`
 # in domain.config.json makes the rule enforce, and deleting the config key
 # disables it again — no router change either way. That is the escape hatch the
-# README promises, and it is why this registry exists rather than a pile of ifs.
+# root `CLAUDE.md` promises, and it is why this registry exists rather than a
+# pile of ifs.
 #
 # `advanceBookingWindowDays` IS dispatched now: `seed_config._grid` seeds
 # exactly the declared window, so the seed horizon and the config finally agree.
@@ -408,6 +410,25 @@ def _problems_by_block(declared: dict) -> dict[str, list[str]]:
     return {b: errs for b, errs in problems.items() if errs}
 
 
+# Memoize the expensive half of override resolution. `_problems_by_block` runs
+# `validate()` twice per declared block, and the per-service resolvers
+# (`effective_service_config`/`_rules`/`_pricing`) each call `surviving_overrides`
+# for the SAME service while serializing a list or pricing a booking — so a row
+# with overrides paid that validation several times over.
+#
+# Keyed on the declared blocks; the cached value holds the `get_config()` object
+# it was computed against and is only reused while that object is still current
+# (`is` identity). Holding the reference means the config can't be freed — and
+# its id reused — while a cache entry lives, so this stays correct however the
+# config is reset (`clear_config_cache` OR a bare `get_config.cache_clear()`): a
+# reload yields a new config object, the identity check fails, and the entry is
+# recomputed. The result is only ever READ downstream (every merge deep-copies
+# its own base), so sharing one instance is safe; the deep-copy in
+# `effective_service_config` stays per call.
+_SURVIVING_CACHE: dict = {}
+_SURVIVING_CACHE_MAX = 512
+
+
 def surviving_overrides(service: dict | None) -> dict:
     """A service's override blocks with any INVALID block removed.
 
@@ -418,17 +439,27 @@ def surviving_overrides(service: dict | None) -> dict:
     declared = service_overrides(service)
     if not declared:
         return {}
+    cfg = get_config()
+    dkey = json.dumps(declared, sort_keys=True, default=str)
+    entry = _SURVIVING_CACHE.get(dkey)
+    if entry is not None and entry[0] is cfg:
+        return entry[1]
     bad = _problems_by_block(declared)
     if not bad:
-        return declared
-    log.warning(
-        "service %s has invalid config override(s) in %s; falling back to the "
-        "global block(s). Problems: %s",
-        (service or {}).get("id", "?"),
-        sorted(bad),
-        "; ".join(p for errs in bad.values() for p in errs),
-    )
-    return {k: v for k, v in declared.items() if k not in bad}
+        result = declared
+    else:
+        log.warning(
+            "service %s has invalid config override(s) in %s; falling back to the "
+            "global block(s). Problems: %s",
+            (service or {}).get("id", "?"),
+            sorted(bad),
+            "; ".join(p for errs in bad.values() for p in errs),
+        )
+        result = {k: v for k, v in declared.items() if k not in bad}
+    if len(_SURVIVING_CACHE) >= _SURVIVING_CACHE_MAX:
+        _SURVIVING_CACHE.clear()
+    _SURVIVING_CACHE[dkey] = (cfg, result)
+    return result
 
 
 def effective_service_config(service: dict | None) -> dict:
@@ -570,7 +601,12 @@ def payment_state(metadata: dict | None, service: dict | None = None,
         "depositMinorUnits": deposit,
         "paidMinorUnits": paid,
         "outstandingMinorUnits": max(0, total - paid) if state not in ("none", "not_required") else 0,
-        "currency": md.get("currency") or "EUR",
+        # The label must come from the same chain as the amounts: a seeded row
+        # with no stored currency was reported as EUR while quote/create billed
+        # the service's effective currency.
+        "currency": md.get("currency")
+        or effective_service_pricing(service).get("currency")
+        or "EUR",
     }
 
 

@@ -156,6 +156,81 @@ left join booking_slots bs on bs.slot_id = s.id
 left join bookings b on b.id = bs.booking_id
 group by s.id, s.resource_id, s.starts_at, s.ends_at, s.capacity;
 
+-- Capacity is DB-enforced, not just re-checked in the app. `_resolve_selection`
+-- reads `slot_occupancy` then inserts, so two concurrent confirmed bookings for
+-- the last seat could both pass the check and both commit (a classic TOCTOU
+-- overbook). This trigger closes it: on every path that can add confirmed load
+-- to a slot — a new `booking_slots` link, and a booking flipping to
+-- `confirmed` — it locks the slot row (`for update`, serialising racers) and
+-- rejects the write if confirmed party-size would exceed capacity. The sum
+-- mirrors `slot_occupancy` exactly (party-weighted, confirmed only), so
+-- pending/cancelled/rejected still hold nothing and an exactly-full slot (what
+-- the seed creates) is allowed. The app maps the raised `check_violation` back
+-- to a SLOT_UNAVAILABLE for the loser. A trigger, not a table change — the base
+-- tables stay frozen.
+create or replace function public.enforce_slot_capacity(check_slot uuid)
+returns void
+language plpgsql
+as $$
+declare
+  cap int;
+  booked int;
+begin
+  select capacity into cap from public.slots where id = check_slot for update;
+  if cap is null then
+    return;  -- slot vanished (FK should prevent it); don't block on a missing row
+  end if;
+  select coalesce(sum(coalesce((b.metadata->>'party_size')::int, 1)), 0)
+    into booked
+    from public.booking_slots bs
+    join public.bookings b on b.id = bs.booking_id
+   where bs.slot_id = check_slot
+     and b.status = 'confirmed';
+  if booked > cap then
+    raise exception 'slot_capacity_exceeded: slot % would hold % of %',
+      check_slot, booked, cap using errcode = 'check_violation';
+  end if;
+end;
+$$;
+
+create or replace function public.booking_slots_capacity_check()
+returns trigger
+language plpgsql
+as $$
+begin
+  perform public.enforce_slot_capacity(NEW.slot_id);
+  return NEW;
+end;
+$$;
+
+drop trigger if exists enforce_capacity_on_link on booking_slots;
+create trigger enforce_capacity_on_link
+  after insert on booking_slots
+  for each row execute function public.booking_slots_capacity_check();
+
+create or replace function public.booking_confirm_capacity_check()
+returns trigger
+language plpgsql
+as $$
+declare
+  s uuid;
+begin
+  -- Only a transition INTO confirmed adds load; re-confirming or other updates
+  -- (metadata, history) skip the check.
+  if NEW.status = 'confirmed' and OLD.status is distinct from 'confirmed' then
+    for s in select slot_id from public.booking_slots where booking_id = NEW.id loop
+      perform public.enforce_slot_capacity(s);
+    end loop;
+  end if;
+  return NEW;
+end;
+$$;
+
+drop trigger if exists enforce_capacity_on_confirm on bookings;
+create trigger enforce_capacity_on_confirm
+  after update on bookings
+  for each row execute function public.booking_confirm_capacity_check();
+
 -- ===========================================================================
 -- Auth: profiles + Row Level Security (branch 16-auth-system)
 -- ===========================================================================

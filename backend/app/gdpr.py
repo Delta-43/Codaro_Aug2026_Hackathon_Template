@@ -99,6 +99,14 @@ def erase_user(db, user: AuthUser) -> None:
         "own-bookings",
         lambda: db.table("bookings").delete().eq("client_id", uid).execute(),
     )
+    # Legacy bookings keyed only by metadata.user_id (null client_id) — the same
+    # fallback identity list_bookings honours. Without this, a user's pre-auth
+    # bookings survived erasure, leaving the GDPR delete incomplete.
+    _safe(
+        "own-bookings-legacy",
+        lambda: db.table("bookings").delete()
+        .is_("client_id", "null").eq("metadata->>user_id", uid).execute(),
+    )
     _safe(
         "client-reviews",
         lambda: db.table("client_reviews").delete().eq("client_id", uid).execute(),

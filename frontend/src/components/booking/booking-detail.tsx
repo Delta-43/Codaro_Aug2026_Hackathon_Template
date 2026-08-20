@@ -140,14 +140,26 @@ export function BookingDetail({
 
       {/* Price */}
       <div className="mt-3 rounded-xl border border-border bg-card p-4">
-        <div className="flex items-baseline justify-between py-1 text-sm text-muted-foreground">
-          <span>
-            {formatMoney(perSlot, booking.currency)} × {slotCount}
-            {isShared ? ` × ${booking.partySize}` : ""}
-          </span>
-          <span>{formatMoney(booking.priceMinorUnits, booking.currency)}</span>
-        </div>
-        <div className="mt-1 flex items-baseline justify-between border-t border-border pt-2">
+        {/* `perSlot × slots × party` is only the total under the fixed model. For
+            tiered / per-hour / per-person etc. it disagrees with the engine's
+            real total, so showing it beside the actual total misleads — the same
+            reason confirm-screen and selection-bar only render the multiply for
+            the fixed model. Non-fixed shows just the Total. */}
+        {service.pricingModel === "fixed" ? (
+          <div className="flex items-baseline justify-between py-1 text-sm text-muted-foreground">
+            <span>
+              {formatMoney(perSlot, booking.currency)} × {slotCount}
+              {isShared ? ` × ${booking.partySize}` : ""}
+            </span>
+            <span>{formatMoney(booking.priceMinorUnits, booking.currency)}</span>
+          </div>
+        ) : null}
+        <div
+          className={cn(
+            "flex items-baseline justify-between",
+            service.pricingModel === "fixed" ? "mt-1 border-t border-border pt-2" : "",
+          )}
+        >
           <span className="text-sm font-semibold">Total</span>
           <span className="text-base font-semibold">
             {formatMoney(booking.priceMinorUnits, booking.currency)}

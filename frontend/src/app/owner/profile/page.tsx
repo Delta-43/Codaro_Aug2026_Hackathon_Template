@@ -17,7 +17,7 @@ import { BusinessArt } from "@/components/business/business-art";
 import { BusinessBadge } from "@/components/business/verified-badge";
 import { getProviderReviews } from "@/api";
 import type { ProviderReview } from "@/types/domain";
-import { avatarDataUri } from "@/lib/business-demo";
+import { avatarDataUri } from "@/lib/business-view";
 import { whenLabel } from "@/lib/format";
 
 export default function ProfilePage() {

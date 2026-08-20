@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { buttonFx } from "@/config/buttons";
@@ -7,8 +8,6 @@ import { cn } from "@/lib/utils";
 import { PipelineTerminal } from "@/components/landing/pipeline-terminal";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";
 import { ScrollCue } from "@/components/landing/scroll-cue";
-
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
 /**
  * Above-the-fold pitch for the product — deliberately vertical-agnostic (no
@@ -23,7 +22,9 @@ export function Hero() {
         <GlassPanel className="flex flex-col items-center gap-10 px-6 py-12 text-center sm:px-10 sm:py-14">
           <div>
             <p className="text-xl font-bold tracking-tight text-primary">
-              <span className="inline-block origin-center cursor-pointer transition-transform duration-200 ease-out hover:scale-125">
+              <span className="inline-flex items-center gap-1.5 origin-center cursor-pointer transition-transform duration-200 ease-out hover:scale-125">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-5 -translate-y-[9%]" />
                 Arbor
               </span>
             </p>
@@ -35,8 +36,8 @@ export function Hero() {
               instantly for the business you&apos;re building.
             </p>
             <div className="mt-8 flex justify-center">
-              <a
-                href={`${APP_URL}/login`}
+              <Link
+                href="/login"
                 className={cn(
                   buttonVariants({ size: "lg" }),
                   buttonFx.pill,
@@ -45,7 +46,7 @@ export function Hero() {
               >
                 Get Started
                 <ArrowRight className="size-4" aria-hidden />
-              </a>
+              </Link>
             </div>
           </div>
           <PipelineTerminal />

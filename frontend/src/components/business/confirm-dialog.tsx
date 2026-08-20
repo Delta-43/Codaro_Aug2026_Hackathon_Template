@@ -1,15 +1,15 @@
 "use client";
 
 /**
- * Full-screen "are you sure?" gate for changes that may not be reversible
- * (editing a live offer, etc.). A big destructive confirm, a calm cancel, and a
- * top-right X — deliberately heavy so a change is always intentional.
+ * Minimalist "are you sure?" gate. A compact centred card: title, supporting
+ * copy, an optional summary of what's changing, and an inline Cancel / confirm
+ * pair. `tone` only colours the confirm button — "destructive" (default) makes
+ * it red for irreversible actions (delete, editing a live offer), "default"
+ * keeps it neutral for reversible ones (sign out). The chrome stays light either
+ * way — no warning banner, no full-bleed buttons.
  */
 import { useEffect, useState, type ReactNode } from "react";
-import { TriangleAlert, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { buttonFx } from "@/config/buttons";
-import { cn } from "@/lib/utils";
 
 export function ConfirmDialog({
   open,
@@ -17,11 +17,10 @@ export function ConfirmDialog({
   body = "Changes to a live offer may not be reversible and can affect existing bookings.",
   confirmLabel = "Yes, save changes",
   busyLabel = "Saving…",
+  tone = "destructive",
   onConfirm,
   onClose,
   children,
-  tone = "destructive",
-  icon,
 }: {
   open: boolean;
   title?: string;
@@ -29,17 +28,14 @@ export function ConfirmDialog({
   confirmLabel?: string;
   /** In-progress label on the confirm button (default "Saving…"). */
   busyLabel?: string;
+  /** Colours the confirm button: "destructive" (default) red for irreversible
+   *  actions, "default" neutral for reversible ones. Layout is minimal either way. */
+  tone?: "default" | "destructive";
   onConfirm: () => Promise<void> | void;
   onClose: () => void;
   /** Optional summary of what's changing, shown above the buttons. */
   children?: ReactNode;
-  /** Visual weight: "destructive" (red, the default) for irreversible actions,
-   *  or "primary" (pink) for a calmer confirm like signing out. */
-  tone?: "destructive" | "primary";
-  /** Override the badge icon (default: a warning triangle). */
-  icon?: ReactNode;
 }) {
-  const isPrimary = tone === "primary";
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -72,58 +68,30 @@ export function ConfirmDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" aria-hidden onClick={() => !busy && onClose()} />
+      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" aria-hidden onClick={() => !busy && onClose()} />
       <div
         role="alertdialog"
         aria-modal="true"
         aria-label={title}
-        className="relative z-10 w-full max-w-md rounded-3xl border border-border bg-card p-6 text-center shadow-2xl"
+        className="relative z-10 w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-xl"
       >
-        <button
-          onClick={() => !busy && onClose()}
-          aria-label="Close"
-          className={cn(
-            "absolute right-4 top-4 flex size-8 items-center justify-center rounded-full text-muted-foreground transition-all hover:bg-muted hover:text-foreground",
-            buttonFx.press,
-          )}
-        >
-          <X className="size-4" aria-hidden />
-        </button>
-
-        <div
-          className={cn(
-            "mx-auto mb-4 grid size-14 place-items-center rounded-full",
-            isPrimary ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive",
-          )}
-        >
-          {icon ?? <TriangleAlert className="size-7" aria-hidden />}
-        </div>
-        <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
-        <p className="mx-auto mt-2 max-w-xs text-sm text-muted-foreground">{body}</p>
+        <h2 className="text-base font-semibold tracking-tight">{title}</h2>
+        <p className="mt-1.5 text-sm text-muted-foreground">{body}</p>
 
         {children ? (
-          <div className="mt-4 rounded-2xl border border-border bg-muted/40 p-3 text-left text-sm">{children}</div>
+          <div className="mt-3 rounded-xl border border-border bg-muted/40 p-3 text-sm">{children}</div>
         ) : null}
 
         {error ? (
-          <p className="mt-4 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
+          <p className="mt-3 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>
         ) : null}
 
-        <div className="mt-6 flex flex-col gap-2">
-          <Button
-            variant={isPrimary ? "default" : "destructive"}
-            size="lg"
-            isDisabled={busy}
-            onPress={confirm}
-            className={cn(
-              "w-full text-base font-semibold",
-              isPrimary ? undefined : "bg-destructive text-white hover:bg-destructive/90 dark:text-white",
-            )}
-          >
-            {busy ? busyLabel : confirmLabel}
-          </Button>
-          <Button variant="ghost" size="lg" isDisabled={busy} onPress={onClose} className="w-full">
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="ghost" size="sm" isDisabled={busy} onPress={onClose}>
             Cancel
+          </Button>
+          <Button variant={tone === "destructive" ? "destructive" : "default"} size="sm" isDisabled={busy} onPress={confirm}>
+            {busy ? busyLabel : confirmLabel}
           </Button>
         </div>
       </div>

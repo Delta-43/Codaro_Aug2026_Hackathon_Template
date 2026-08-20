@@ -182,7 +182,7 @@ export function BookingFlow({
    *  flow gains no new UI state for a rare action. */
   async function joinQueue(slot: Slot) {
     try {
-      const entry = await joinWaitlist(slot.id);
+      const entry = await joinWaitlist(slot.id, partySize);
       setBanner(
         entry.peopleAhead
           ? `You're on the waitlist — ${entry.peopleAhead} ahead of you.`

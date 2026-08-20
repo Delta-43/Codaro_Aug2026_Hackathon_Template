@@ -14,12 +14,6 @@ import { SceneBackground } from "@/components/landing/scene-background";
 import { GlassPanel } from "@/components/landing/scroll-reveal";
 import { useAuth } from "@/lib/auth";
 
-// Temporary Demo Mode (issue #23) — the seeded demo accounts. One-click entry
-// into a working space, no credentials to type. These live on the main
-// (customer) sign-in only; the business sign-in page has no demo shortcuts.
-const DEMO_USER = { email: "demo@codaro.app", password: "Codaro-Demo-2026" };
-const DEMO_BUSINESS = { email: "owner@codaro.app", password: "Codaro-Owner-2026" };
-
 /**
  * Customer sign-in — the default front door. Business owners tap "I'm a
  * business!" to go to the dedicated business sign-in page (`/login/business`).
@@ -51,7 +45,14 @@ function LoginForm() {
       .finally(() => setTenancyReady(true));
   }, []);
 
-  const next = params.get("next") || (singleBusiness ? "/provider" : "/search");
+  // `next` is attacker-controllable via the query string, and it feeds
+  // router.replace below — so only honour a same-origin absolute PATH. A crafted
+  // `?next=https://evil.com` (or the protocol-relative `//evil.com`) would
+  // otherwise turn the post-login redirect into an open redirect / phishing hop.
+  const rawNext = params.get("next");
+  const safeNext =
+    rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : null;
+  const next = safeNext || (singleBusiness ? "/provider" : "/search");
   const destination = role === "owner" ? "/owner" : next;
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -65,19 +66,6 @@ function LoginForm() {
   useEffect(() => {
     if (!loading && session && tenancyReady) router.replace(destination);
   }, [loading, session, tenancyReady, destination, router]);
-
-  async function enterDemoMode(account: { email: string; password: string }) {
-    setError(null);
-    setNotice(null);
-    setBusy(true);
-    try {
-      await signIn(account.email, account.password);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Demo sign-in failed.");
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -112,8 +100,10 @@ function LoginForm() {
           <h1 className="text-2xl font-semibold tracking-tight">
             <Link
               href="/"
-              className="inline-block origin-center text-primary transition-transform duration-200 ease-out hover:scale-110"
+              className="inline-flex items-center gap-1.5 origin-center text-primary transition-transform duration-200 ease-out hover:scale-110"
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-7 -translate-y-[9%]" />
               Arbor
             </Link>
           </h1>
@@ -235,34 +225,6 @@ function LoginForm() {
               </button>
             </>
           )}
-        </div>
-
-        {/* Demo shortcuts — main page only (issue #23). Both shortcuts stay
-            available even in single-business mode: the business one logs into the
-            seeded owner account to show the operator console (public business
-            *signup* is what's hidden, not the demo login). */}
-        <div className="mt-6 space-y-2 border-t border-border pt-5 text-center">
-          <p className="text-xs text-muted-foreground">For developers, check out our website</p>
-          <Button
-            type="button"
-            variant="secondary"
-            size="lg"
-            onPress={() => enterDemoMode(DEMO_USER)}
-            isDisabled={busy || !configured}
-            className="w-full hover:border-primary hover:bg-primary/10 hover:text-primary"
-          >
-            {busy ? "Please wait…" : "Demo Mode for Users"}
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            onPress={() => enterDemoMode(DEMO_BUSINESS)}
-            isDisabled={busy || !configured}
-            className="w-full hover:border-primary hover:bg-primary/10 hover:text-primary"
-          >
-            {busy ? "Please wait…" : "Demo Mode for Businesses"}
-          </Button>
         </div>
       </GlassPanel>
       </div>

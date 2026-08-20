@@ -10,7 +10,7 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { Conversation } from "@/types/domain";
 import { AvatarImg } from "@/components/avatar-img";
-import { avatarDataUri } from "@/lib/business-demo";
+import { avatarDataUri } from "@/lib/business-view";
 import { timeAgo } from "@/lib/format";
 import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";

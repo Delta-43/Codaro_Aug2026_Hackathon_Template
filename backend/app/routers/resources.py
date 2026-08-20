@@ -3,7 +3,7 @@ from collections import Counter
 from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app.auth import AuthUser, enforce_rls_write, require_owner
-from app.db import get_supabase, get_user_client, maybe_row
+from app.db import chunked, fetch_all, get_supabase, get_user_client, maybe_row
 from app.meta import validate_metadata
 from app.models import ResourceCreate, ResourceUpdate
 from app.routers.bookings import _enrich
@@ -123,8 +123,13 @@ def resource_analytics(resource_id: str, owner: AuthUser = Depends(require_owner
     db = get_supabase()
     _owned_resource(db, resource_id, owner)
 
-    occupancy = (
-        db.table("slot_occupancy").select("*").eq("resource_id", resource_id).execute().data
+    # Paged (+ chunked `in_`): a long-horizon fine-grained resource can hold more
+    # than PostgREST's 1000-row cap in slots, and a truncated occupancy scan would
+    # under-count capacity/bookings silently. `slot_occupancy` is a view with no
+    # `id`, so it pages by `slot_id`.
+    occupancy = fetch_all(
+        db.table("slot_occupancy").select("*").eq("resource_id", resource_id),
+        order="slot_id",
     )
     total_slots = len(occupancy)
     total_capacity = sum(row["capacity"] for row in occupancy)
@@ -132,11 +137,9 @@ def resource_analytics(resource_id: str, owner: AuthUser = Depends(require_owner
     available_count = sum(row["available_count"] for row in occupancy)
 
     slot_ids = [row["slot_id"] for row in occupancy]
-    bookings = (
-        db.table("bookings").select("status").in_("slot_id", slot_ids).execute().data
-        if slot_ids
-        else []
-    )
+    bookings: list[dict] = []
+    for chunk in chunked(slot_ids):
+        bookings += fetch_all(db.table("bookings").select("status").in_("slot_id", chunk))
     bookings_by_status = Counter(row["status"] for row in bookings)
 
     return {
@@ -157,16 +160,24 @@ def resource_bookings(resource_id: str, owner: AuthUser = Depends(require_owner)
     db = get_supabase()
     _owned_resource(db, resource_id, owner)
 
-    slot_ids = [
-        s["id"] for s in db.table("slots").select("id").eq("resource_id", resource_id).execute().data or []
-    ]
+    # Paged + chunked throughout: a busy resource can exceed the 1000-row cap at
+    # every hop (slots, then their booking_slots, then the bookings), and a
+    # truncated join silently drops rows from the owner's activity view.
+    slot_ids = [s["id"] for s in fetch_all(db.table("slots").select("id").eq("resource_id", resource_id))]
     if not slot_ids:
         return []
-    links = db.table("booking_slots").select("booking_id").in_("slot_id", slot_ids).execute().data or []
+    links: list[dict] = []
+    for chunk in chunked(slot_ids):
+        links += fetch_all(
+            db.table("booking_slots").select("booking_id").in_("slot_id", chunk),
+            order=("booking_id", "slot_id"),
+        )
     booking_ids = list({row["booking_id"] for row in links})
     if not booking_ids:
         return []
-    rows = db.table("bookings").select("*").in_("id", booking_ids).execute().data or []
+    rows: list[dict] = []
+    for chunk in chunked(booking_ids):
+        rows += fetch_all(db.table("bookings").select("*").in_("id", chunk))
     result = _enrich(db, db, rows, include_client=True)
     result.sort(key=lambda b: b["startUtc"] or "", reverse=True)
     return result

@@ -8,6 +8,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 from app.config import get_config
+from app.db import fetch_all
 from app.rules import effective_service_pricing
 from app.serialize import serialize_provider, serialize_service
 
@@ -15,7 +16,7 @@ from app.serialize import serialize_provider, serialize_service
 def review_aggregates(db) -> tuple[dict[str, float], dict[str, int]]:
     """Return (rating_sum_by_provider, count_by_provider) over real reviews.
     serialize_provider pools these with the seeded baseline in metadata."""
-    rows = db.table("reviews").select("provider_id,rating").execute().data or []
+    rows = fetch_all(db.table("reviews").select("provider_id,rating"))
     sums: dict[str, float] = defaultdict(float)
     counts: dict[str, int] = defaultdict(int)
     for r in rows:
@@ -25,7 +26,7 @@ def review_aggregates(db) -> tuple[dict[str, float], dict[str, int]]:
 
 
 def service_ids_by_provider(db) -> dict[str, list[str]]:
-    rows = db.table("services").select("id,provider_id").execute().data or []
+    rows = fetch_all(db.table("services").select("id,provider_id"))
     by: dict[str, list[str]] = defaultdict(list)
     for r in rows:
         by[r["provider_id"]].append(r["id"])
@@ -80,7 +81,7 @@ def price_from_by_provider(db) -> dict[str, tuple[int, str]]:
     """(min_price_minor_units, currency) per provider — the cheapest of its
     services, so discovery can expose a provider-level `priceFromMinorUnits`
     for price ordering. Providers with no services are simply absent."""
-    rows = db.table("services").select(_PRICING_COLUMNS).execute().data or []
+    rows = fetch_all(db.table("services").select(_PRICING_COLUMNS))
     fallback = _global_price_fallback()
     by: dict[str, tuple[int, str]] = {}
     for r in rows:
@@ -92,7 +93,7 @@ def price_from_by_provider(db) -> dict[str, tuple[int, str]]:
 
 
 def resource_ids_by_service(db) -> dict[str, list[str]]:
-    rows = db.table("resources").select("id,metadata").execute().data or []
+    rows = fetch_all(db.table("resources").select("id,metadata"))
     by: dict[str, list[str]] = defaultdict(list)
     for r in rows:
         md = r.get("metadata") or {}
@@ -108,12 +109,12 @@ def search_facets(db) -> dict[str, bool]:
     flags. A free niche seeds no priced services → `price` off; a remote niche
     seeds no real coordinates → `distance` off; those sliders/sort keys then
     never render. `rating` is always offered (every provider carries one)."""
-    services = db.table("services").select(_PRICING_COLUMNS).execute().data or []
+    services = fetch_all(db.table("services").select(_PRICING_COLUMNS))
     fallback = _global_price_fallback()
     # `any` over a generator stops at the first priced service.
     has_price = any(_resolved_price(s, fallback)[0] > 0 for s in services)
 
-    providers = db.table("providers").select("metadata").execute().data or []
+    providers = fetch_all(db.table("providers").select("metadata"))
 
     def has_coords(row: dict) -> bool:
         loc = (row.get("metadata") or {}).get("location") or {}

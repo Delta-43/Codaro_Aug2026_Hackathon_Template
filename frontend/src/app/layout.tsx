@@ -11,6 +11,7 @@ const outfit = Outfit({subsets:['latin'],variable:'--font-outfit'});
 export const metadata: Metadata = {
   title: "Arbor",
   description: "Booking and resource scheduling — demo build.",
+  icons: { icon: "/favicon.ico?v=2" },
 };
 
 // Enables env(safe-area-inset-*) and prevents zoom-on-input jank on mobile.

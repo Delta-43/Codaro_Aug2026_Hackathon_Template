@@ -17,7 +17,7 @@ import { AvatarImg } from "@/components/avatar-img";
 import { Skeleton } from "@/components/skeleton";
 import { getMyEntitlements, getMyReputation } from "@/api";
 import type { ClientReputation } from "@/types/domain";
-import { avatarDataUri } from "@/lib/business-demo";
+import { avatarDataUri } from "@/lib/business-view";
 import { formatMoney, whenLabel } from "@/lib/format";
 
 const EMPTY_REP: ClientReputation = { score: 0, count: 0, reviews: [] };

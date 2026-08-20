@@ -12,13 +12,14 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.auth import AuthUser, enforce_rls_write, require_user
 from app.clock import now_utc
 from app.db import get_supabase, get_user_client, maybe_row
 from app.errors import INVALID_RANGE, NOT_FOUND, api_error
-from app.rules import capability, effective_service_config
+from app.meta import validate_metadata
+from app.rules import capability, effective_service_config, parse_ts
 from app.serialize import iso_utc
 
 logger = logging.getLogger(__name__)
@@ -57,7 +58,7 @@ def serialize_entry(row: dict, *, ahead: int | None = None) -> dict:
 
 
 @router.post("/{slot_id}/waitlist")
-def join_waitlist(slot_id: str, user: AuthUser = Depends(require_user)):
+def join_waitlist(slot_id: str, party_size: int = 1, user: AuthUser = Depends(require_user)):
     """Take a place in the queue for a full slot.
 
     Refuses when the slot still has room — a waitlist for something bookable is
@@ -75,9 +76,31 @@ def join_waitlist(slot_id: str, user: AuthUser = Depends(require_user)):
     if not cfg.get("enabled"):
         raise api_error(INVALID_RANGE, "This service does not offer a waitlist.")
 
+    # Direct bookings refuse past slots in `_resolve_selection`; the queue must
+    # too, or a cancellation on an elapsed slot mints a pending booking for a
+    # time that already happened (which approve then permanently refuses).
+    starts_at = parse_ts(slot.get("starts_at"))
+    if starts_at and starts_at <= now_utc():
+        raise api_error(INVALID_RANGE, "That time has already started.")
+
+    # The queue holds the party the customer actually has: promotion prices
+    # and capacity-checks with this number, so a family of 4 must not be
+    # booked (and charged) as a party of 1.
+    if party_size < 1:
+        raise api_error(INVALID_RANGE, "Party size must be at least 1.")
+    # Capacity 0 is a BLOCKED slot, not a capacity of one: nothing ever frees
+    # on it, so a queue there can never promote and must not form.
+    capacity = int(slot.get("capacity") or 0)
+    if capacity <= 0:
+        raise api_error(INVALID_RANGE, "That time is blocked.")
+    if party_size > capacity:
+        raise api_error(INVALID_RANGE, "Party size exceeds the capacity for that time.")
+
     occ = maybe_row(db.table("slot_occupancy").select("*").eq("slot_id", slot_id))
     remaining = int((occ or {}).get("available_count") or 0)
-    if remaining > 0:
+    # Bookable means bookable FOR THIS PARTY: with 2 seats left a party of 4
+    # can't book, so they may queue — refusing both paths stranded them.
+    if remaining >= party_size:
         raise api_error(INVALID_RANGE, "That time is still available — book it instead.")
 
     existing = (
@@ -101,7 +124,7 @@ def join_waitlist(slot_id: str, user: AuthUser = Depends(require_user)):
         "user_id": user.id,
         "service_id": service_id,
         "resource_id": slot.get("resource_id"),
-        "party_size": 1,
+        "party_size": party_size,
         "position": position,
     }).execute().data
     inserted = enforce_rls_write(inserted, entity="waitlist entry")
@@ -161,7 +184,8 @@ def promote_from_waitlist(db, slot_ids: list[str], service: dict | None) -> list
     for slot_id in slot_ids:
         try:
             occ = maybe_row(db.table("slot_occupancy").select("*").eq("slot_id", slot_id))
-            if int((occ or {}).get("available_count") or 0) <= 0:
+            available = int((occ or {}).get("available_count") or 0)
+            if available <= 0:
                 continue  # nothing actually freed on this slot
             waiting = (
                 db.table("waitlist_entries").select("*")
@@ -172,11 +196,37 @@ def promote_from_waitlist(db, slot_ids: list[str], service: dict | None) -> list
             if not waiting:
                 continue
             entry = waiting[0]
+            # The freed seats must fit the head's PARTY: one seat freeing must
+            # not promote a family of four into a pending booking approve can
+            # never satisfy. The head keeps its place until enough seats free.
+            if available < int(entry.get("party_size") or 1):
+                continue
+            # Claim the entry BEFORE booking, so two concurrent releases on the
+            # same slot cannot both promote it into two pending bookings. The
+            # status flip is a compare-and-set on 'waiting'; only the winner (a
+            # non-empty result) goes on to book. Losers see an empty write and
+            # move on — the same CAS discipline the booking transitions use.
+            claimed = (
+                db.table("waitlist_entries")
+                .update({"status": "promoted"})
+                .eq("id", entry["id"]).eq("status", "waiting")
+                .execute().data
+            )
+            if not claimed:
+                continue  # another release already claimed this entry
             booking = _book_for_entry(db, entry, slot_id)
-            db.table("waitlist_entries").update({
-                "status": "promoted",
-                "booking_id": booking["id"] if booking else None,
-            }).eq("id", entry["id"]).execute()
+            if booking is None:
+                # A skipped promotion (started slot, unmet booking schema,
+                # unresolvable email) releases the claim back to 'waiting' so the
+                # entry stays at the head of the queue for the next attempt — as
+                # the docstring promises.
+                db.table("waitlist_entries").update(
+                    {"status": "waiting"}
+                ).eq("id", entry["id"]).execute()
+                continue
+            db.table("waitlist_entries").update(
+                {"booking_id": booking["id"]}
+            ).eq("id", entry["id"]).execute()
             promoted.append(entry)
         except Exception:
             logger.exception("Waitlist promotion failed for slot %s", slot_id)
@@ -201,6 +251,20 @@ def _book_for_entry(db, entry: dict, slot_id: str) -> dict | None:
     service = _load_service(db, entry["service_id"]) if entry.get("service_id") else None
     slot = maybe_row(db.table("slots").select("*").eq("id", slot_id))
     if service is None or slot is None:
+        return None
+    # Mirror the join guard: a mid-slot cancel (started but not ended) must not
+    # mint a pending booking for a start time already past — approve's
+    # _resolve_selection would permanently refuse it once the slot ends.
+    starts_at = parse_ts(slot.get("starts_at"))
+    if starts_at and starts_at <= now_utc():
+        return None
+    # A promotion carries no customer-supplied metadata; on a deployment whose
+    # `metaFields.bookings` REQUIRES a field, the minted booking would violate
+    # the schema the direct-create path 422s on — skip promotion instead.
+    try:
+        validate_metadata("bookings", {})
+    except HTTPException:
+        logger.info("Waitlist promotion skipped: deployment requires booking metadata fields")
         return None
     # `bookings.client_email` is NOT NULL and the waitlist row cannot carry it:
     # the table is new but already created, and the schema is append-only

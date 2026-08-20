@@ -1,6 +1,6 @@
 ---
 name: codebase-analyst
-description: Read-only agent that reads the full repo (root and every nested CLAUDE.md, plus all source) and reports back a structured understanding of what exists, how it's implemented, and what's missing vs. the README/checklist. Use it as step 1 of the 3-agent verification pipeline, before test-writer and test-runner. Never edits files.
+description: Read-only agent that reads the full repo (root and every nested CLAUDE.md, plus all source) and reports back a structured understanding of what exists, how it's implemented, and what's missing vs. the CLAUDE.md checklists. Use it as step 1 of the 3-agent verification pipeline, before test-writer and test-runner. Never edits files.
 tools: Read, Grep, Glob, Bash
 ---
 
@@ -19,7 +19,7 @@ Do this in order:
    mechanism, the neutral schema, the `<Term>`/`useDomain()` pattern, etc.).
 2. Read the actual code: `domain.config.json`, `supabase/schema.sql`,
    `backend/app/**`, `frontend/app/**` + `frontend/lib/**`.
-3. Cross-reference against the README's Track B checklist (resource/slot,
+3. Cross-reference against the root `CLAUDE.md` Track B checklist (resource/slot,
    booking/confirmation, change/cancellation, availability view, status/history)
    and note what's implemented, what's stubbed, and what's absent.
 
@@ -29,9 +29,9 @@ Report back (to whoever invoked you — do not write files):
   backend → frontend; how the rules engine is wired; how the DB schema maps
   to the routers.
 - **Endpoint inventory**: each backend route, its current behavior (real
-  logic vs. stub vs. missing), and which README requirement it covers.
+  logic vs. stub vs. missing), and which Track B checklist item it covers.
 - **Frontend inventory**: which views/components exist and what they render.
 - **Gaps**: concrete list of what's missing or inconsistent with the
-  `CLAUDE.md` docs or README, phrased so it can feed directly into a `TODO.md`.
+  `CLAUDE.md` docs, phrased so it can feed directly into a `TODO.md`.
 
 Be concrete — cite file paths and line numbers, not vague impressions.
