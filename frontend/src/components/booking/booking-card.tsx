@@ -26,7 +26,7 @@ export function BookingCard({
     <Link
       href={`/bookings/${booking.id}`}
       className={cn(
-        "flex items-center gap-3 rounded-xl border border-border bg-card p-3",
+        "group flex items-center gap-3 rounded-xl border border-border bg-card p-3",
         buttonFx.surface,
       )}
     >
@@ -51,7 +51,7 @@ export function BookingCard({
           ) : null}
         </div>
       </div>
-      <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+      <ChevronRight className={cn("size-5 shrink-0 text-muted-foreground", buttonFx.chevron)} aria-hidden />
     </Link>
   );
 }

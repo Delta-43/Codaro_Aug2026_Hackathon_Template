@@ -23,6 +23,7 @@ import { FilterSheet } from "@/components/search/filter-sheet";
 import { distanceKm, geoOrigin } from "@/lib/geo";
 import { ORDER_KEYS, ORDER_META, type OrderKey, type SortDir } from "@/lib/order-by";
 import { cn } from "@/lib/utils";
+import { buttonFx } from "@/config/buttons";
 import { SEARCH_INPUT } from "@/components/search/field-class";
 
 export default function SearchPage() {
@@ -211,7 +212,10 @@ export default function SearchPage() {
           type="button"
           onClick={() => setFiltersOpen(true)}
           aria-label="Filters"
-          className="inline-flex shrink-0 items-center gap-2 rounded-full border border-border bg-card px-4 py-1.5 text-sm font-semibold text-foreground shadow-sm transition-colors hover:bg-muted"
+          className={cn(
+            "inline-flex shrink-0 items-center gap-2 rounded-full border border-border bg-card px-4 py-1.5 text-sm font-semibold text-foreground shadow-sm transition-all hover:bg-muted",
+            buttonFx.press,
+          )}
         >
           <SlidersHorizontal className="size-4" aria-hidden />
           Filter
@@ -247,7 +251,7 @@ export default function SearchPage() {
             <button
               type="button"
               onClick={clearFilters}
-              className="font-medium text-primary hover:underline"
+              className={cn("font-medium text-primary hover:underline", buttonFx.link)}
             >
               Clear
             </button>
@@ -355,7 +359,8 @@ function Chip({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors",
+        "shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium transition-all",
+        buttonFx.press,
         active
           ? "border-primary bg-primary text-primary-foreground"
           : "border-border bg-card text-muted-foreground hover:bg-muted hover:text-foreground",

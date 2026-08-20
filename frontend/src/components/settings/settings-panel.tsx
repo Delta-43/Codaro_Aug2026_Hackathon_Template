@@ -15,7 +15,7 @@
  * caller wires that in), so this template just renders whatever it's handed.
  */
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
-import { Bell, Palette, ShieldAlert } from "lucide-react";
+import { Bell, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +29,11 @@ import { cn } from "@/lib/utils";
  *  so the title doesn't drift. Same feel the rest of the platform uses. */
 const HEADING_FX =
   "inline-block origin-left transition-transform duration-200 ease-out hover:scale-105";
+
+/** Interactive form labels — grow and turn pink on hover like the login field
+ *  labels, anchored left and only as wide as the text so the row doesn't shift. */
+const LABEL_FX =
+  "inline-block w-fit origin-left transition-all duration-200 ease-out hover:scale-110 hover:text-primary";
 
 export interface SettingsConfig {
   variant: "user" | "business";
@@ -50,9 +55,9 @@ export function SettingsPanel(cfg: SettingsConfig) {
   return (
     <section className="space-y-6 py-2">
       <div>
-        <h1 className="text-lg font-semibold tracking-tight">
-          <span className={HEADING_FX}>Settings</span>
-        </h1>
+        {/* The shell's top bar already shows the "Settings" title on every
+            breakpoint — keep it here for screen readers only, no on-screen copy. */}
+        <h1 className="sr-only">Settings</h1>
         <p className="text-sm text-muted-foreground">
           Manage your {cfg.variant === "business" ? "business" : "account"} and preferences.
         </p>
@@ -62,7 +67,7 @@ export function SettingsPanel(cfg: SettingsConfig) {
         <div className="flex items-center gap-4">
           {cfg.photo}
           <div className="min-w-0 flex-1">
-            <p className="truncate font-medium">{cfg.displayName}</p>
+            <p className={cn(buttonFx.heading, "max-w-full truncate font-medium")}>{cfg.displayName}</p>
             <p className="truncate text-sm text-muted-foreground">{cfg.email}</p>
           </div>
         </div>
@@ -84,18 +89,25 @@ export function SettingsPanel(cfg: SettingsConfig) {
         <Notifications />
       </Section>
 
-      <Section title="Appearance" description="Light, dark, or follow your device.">
-        <div className="flex items-center justify-between">
-          <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-            <Palette className="size-4" aria-hidden /> Theme
-          </span>
-          <AppearancePicker />
+      {/* Appearance: the control sits on the right of the label + description,
+          vertically centred, so the plate reads balanced (no lonely full-width
+          row of buttons). */}
+      <div className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-4">
+        <div className="min-w-0">
+          <h2 className="text-sm font-semibold">
+            <span className={HEADING_FX}>Appearance</span>
+          </h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Light, dark, or follow your device.
+          </p>
         </div>
-      </Section>
+        <AppearancePicker />
+      </div>
 
       <Section title="Account">
-        <div className="flex flex-wrap items-center gap-2">
-          <SignOutButton withIcon onSignOut={cfg.onSignOut} />
+        {/* Two equal-width buttons, side by side, so the plate reads symmetrical. */}
+        <div className="grid grid-cols-2 gap-2">
+          <SignOutButton withIcon className="w-full" onSignOut={cfg.onSignOut} />
           <DeleteAccount onDeleteAccount={cfg.onDeleteAccount} />
         </div>
       </Section>
@@ -115,6 +127,7 @@ function DeleteAccount({ onDeleteAccount }: { onDeleteAccount?: () => Promise<vo
       <Button
         variant="destructive"
         size="sm"
+        className="w-full"
         onPress={() => alert("Account deletion lands with backend support.")}
       >
         <ShieldAlert aria-hidden /> Delete account
@@ -124,7 +137,7 @@ function DeleteAccount({ onDeleteAccount }: { onDeleteAccount?: () => Promise<vo
 
   return (
     <>
-      <Button variant="destructive" size="sm" onPress={() => setOpen(true)}>
+      <Button variant="destructive" size="sm" className="w-full" onPress={() => setOpen(true)}>
         <ShieldAlert aria-hidden /> Delete account
       </Button>
       <ConfirmDialog
@@ -161,7 +174,7 @@ function NameField({ label, value, onSave }: { label: string; value: string; onS
   if (!onSave) {
     return (
       <div className="flex flex-col gap-1">
-        <Label>{label}</Label>
+        <Label className={LABEL_FX}>{label}</Label>
         <Input value={value} readOnly className="opacity-70" />
         <p className="text-[11px] text-muted-foreground">This field is read-only.</p>
       </div>
@@ -184,7 +197,7 @@ function NameField({ label, value, onSave }: { label: string; value: string; onS
 
   return (
     <form onSubmit={save} className="flex flex-col gap-1">
-      <Label>{label}</Label>
+      <Label className={LABEL_FX}>{label}</Label>
       <div className="flex items-center gap-2">
         <Input value={name} onChange={(e) => setName(e.target.value)} />
         <Button type="submit" size="sm" isDisabled={busy || name === value}>
@@ -199,7 +212,7 @@ function NameField({ label, value, onSave }: { label: string; value: string; onS
 function EmailField({ email }: { email: string }) {
   return (
     <div className="flex flex-col gap-1">
-      <Label>Email</Label>
+      <Label className={LABEL_FX}>Email</Label>
       <Input value={email} readOnly className="opacity-70" />
       <p className="text-[11px] text-muted-foreground">Changing your email is handled via a verification link.</p>
     </div>
@@ -217,15 +230,20 @@ function PasswordForm() {
       className="grid gap-3 sm:grid-cols-2"
     >
       <div className="flex flex-col gap-1">
-        <Label>Current password</Label>
+        <Label className={LABEL_FX}>Current password</Label>
         <Input type="password" placeholder="••••••••" autoComplete="current-password" />
       </div>
       <div className="flex flex-col gap-1">
-        <Label>New password</Label>
+        <Label className={LABEL_FX}>New password</Label>
         <Input type="password" placeholder="••••••••" autoComplete="new-password" />
       </div>
       <div className="sm:col-span-2">
-        <Button type="submit" size="sm" variant="outline">
+        <Button
+          type="submit"
+          size="sm"
+          variant="outline"
+          className="hover:border-primary hover:bg-primary/10 hover:text-primary"
+        >
           Change password
         </Button>
         {notice ? <p className="mt-2 text-[11px] text-muted-foreground">{notice}</p> : null}
@@ -268,9 +286,9 @@ function Notifications() {
   return (
     <ul className="space-y-2">
       {NOTIF_ITEMS.map((n) => (
-        <li key={n.id} className="flex items-center justify-between gap-3">
+        <li key={n.id} className="group flex items-center justify-between gap-3">
           <span className="inline-flex items-start gap-2">
-            <Bell className="mt-0.5 size-4 text-muted-foreground" aria-hidden />
+            <Bell className="mt-0.5 size-4 text-muted-foreground transition-all group-hover:scale-110 group-hover:text-primary" aria-hidden />
             <span>
               <span className="block text-sm font-medium">{n.label}</span>
               <span className="block text-xs text-muted-foreground">{n.desc}</span>

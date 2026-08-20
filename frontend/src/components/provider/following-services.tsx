@@ -20,6 +20,7 @@ import { AvatarImg } from "@/components/avatar-img";
 import { Skeleton } from "@/components/skeleton";
 import { ProviderCard } from "@/components/search/provider-card";
 import { ProviderProfile } from "@/components/provider/provider-profile";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
 type View = { kind: "home" } | { kind: "fullbio"; id: string } | { kind: "all" };
@@ -125,7 +126,10 @@ export function FollowingServices({ followedIds }: { followedIds: string[] }) {
           <button
             type="button"
             onClick={() => push({ kind: "all" })}
-            className="w-full rounded-xl border border-dashed border-border py-2 text-sm font-medium text-primary hover:bg-muted/50"
+            className={cn(
+              "w-full rounded-xl border border-dashed border-border py-2 text-sm font-medium text-primary",
+              buttonFx.surface,
+            )}
           >
             Show all businesses I&apos;m following ({followed.length})
           </button>
@@ -150,7 +154,10 @@ function BackHeader({ onBack, label }: { onBack: () => void; label: string }) {
     <button
       type="button"
       onClick={onBack}
-      className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
+      className={cn(
+        "inline-flex origin-left items-center gap-1 text-sm font-medium text-muted-foreground transition-all hover:text-foreground",
+        buttonFx.press,
+      )}
     >
       <ArrowLeft className="size-4" aria-hidden /> {label}
     </button>
@@ -178,7 +185,7 @@ function Slice({
         "flex w-full items-center gap-3 rounded-2xl border bg-card p-3 text-left transition-all",
         highlighted
           ? "border-pink-400/70 shadow-lg shadow-pink-500/20 ring-2 ring-pink-400/60"
-          : "border-border hover:bg-muted/50",
+          : cn("border-border", buttonFx.surface),
       )}
     >
       <AvatarImg src={p.avatarUrl} name={p.name} alt="" className="size-14 shrink-0" />

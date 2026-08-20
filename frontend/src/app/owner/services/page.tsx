@@ -24,6 +24,7 @@ import {
 } from "@/api";
 import type { BookingModel, OwnerServiceSummary } from "@/types/domain";
 import { formatDuration, formatMoney, toMajorUnits, toMinorUnits } from "@/lib/format";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 import { ServiceResources } from "@/components/business/service-resources";
 import { FieldForm, pruneValues, type FieldValues } from "@/components/booking/field-form";
@@ -219,7 +220,8 @@ function ServiceCard({
           aria-label="Toggle auto-approve"
           onClick={onToggleAutoApprove}
           className={cn(
-            "flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-colors",
+            "flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition-all",
+            buttonFx.press,
             s.autoApprove ? "bg-primary" : "bg-muted",
           )}
         >

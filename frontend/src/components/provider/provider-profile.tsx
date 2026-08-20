@@ -102,9 +102,9 @@ export function ProviderProfile({
         aria-hidden
       />
       <div className="-mt-8 flex items-end gap-3 px-1">
-        <AvatarImg src={p.avatarUrl} name={p.name} alt="" className="size-20 border-4 border-background" />
+        <AvatarImg src={p.avatarUrl} name={p.name} alt="" className={cn("size-20 border-4 border-background", buttonFx.link)} />
         <div className="min-w-0 flex-1 pb-1">
-          <h1 className="truncate text-xl font-semibold tracking-tight">{p.name}</h1>
+          <h1 className={cn(buttonFx.heading, "max-w-full truncate text-xl font-semibold tracking-tight")}>{p.name}</h1>
           <p className="truncate text-sm text-muted-foreground">{p.tagline}</p>
         </div>
       </div>
@@ -112,7 +112,7 @@ export function ProviderProfile({
       {/* Meta row */}
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">
         <span className="inline-flex items-center gap-1">
-          <Star className="size-4 fill-amber-400 text-amber-400" aria-hidden />
+          <Star className={cn("size-4 fill-amber-400 text-amber-400", buttonFx.star)} aria-hidden />
           {p.rating.toFixed(1)} ({p.reviewCount})
         </span>
         <span aria-hidden>·</span>
@@ -163,7 +163,10 @@ export function ProviderProfile({
               href={l.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-lg bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground"
+              className={cn(
+                "inline-flex items-center gap-1 rounded-lg bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground transition-all hover:bg-primary/10 hover:text-primary",
+                buttonFx.press,
+              )}
             >
               {l.label}
               <ExternalLink className="size-3" aria-hidden />
@@ -197,7 +200,7 @@ export function ProviderProfile({
               type="button"
               onClick={() => handleSelect(service)}
               className={cn(
-                "flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3 text-left",
+                "group flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3 text-left",
                 buttonFx.surface,
               )}
             >
@@ -245,7 +248,7 @@ export function ProviderProfile({
                   ) : null}
                 </div>
               </div>
-              <ChevronRight className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+              <ChevronRight className={cn("size-5 shrink-0 text-muted-foreground", buttonFx.chevron)} aria-hidden />
             </button>
           ))
         )}

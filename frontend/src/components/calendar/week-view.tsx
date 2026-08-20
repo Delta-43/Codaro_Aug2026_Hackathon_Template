@@ -23,8 +23,12 @@ export function WeekView({
   selectedIds: Set<string>;
   onSelect?: (slot: Slot) => void;
 }) {
+  // On a phone, seven columns squeeze below a usable width, so the week
+  // horizontally scrolls (with a legible per-column minimum) instead of the pills
+  // getting clipped. The negative margin lets it bleed to the section edges.
   return (
-    <div className="grid grid-cols-7 gap-1">
+    <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
+    <div className="grid min-w-[34rem] grid-cols-7 gap-1 md:min-w-0">
       {days.map((day) => {
         const past = isPastDay(day.dateStr, tz);
         const today = isToday(day.dateStr, tz);
@@ -62,6 +66,7 @@ export function WeekView({
           </div>
         );
       })}
+    </div>
     </div>
   );
 }

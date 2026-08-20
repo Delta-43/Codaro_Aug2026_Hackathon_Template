@@ -15,6 +15,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
 export type TocEntry = { id: string; label: string };
@@ -44,7 +45,10 @@ export function DocShell({
         <div className="mx-auto flex max-w-6xl items-center gap-3 px-5 py-3">
           <Link
             href="/"
-            className="inline-flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            className={cn(
+              "inline-flex shrink-0 origin-left items-center gap-1.5 text-sm text-muted-foreground transition-all hover:text-foreground",
+              buttonFx.press,
+            )}
           >
             <ArrowLeft className="size-4" aria-hidden /> Home
           </Link>

@@ -3,6 +3,7 @@
 import type { DayAvailability, Service, Slot } from "@/types/domain";
 import { formatMoney, formatTimeRange, zoneAbbrev } from "@/lib/format";
 import { slotRemaining, slotSelectable } from "@/components/calendar/slot-pill";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
 function statusLine(slot: Slot, remaining: number): string {
@@ -84,7 +85,7 @@ export function DayView({
             key={slot.id}
             type="button"
             onClick={() => onSelect!(slot)}
-            className={cn(className, "w-full text-left")}
+            className={cn(className, "w-full text-left", buttonFx.surface)}
           >
             {body}
           </button>
@@ -94,7 +95,10 @@ export function DayView({
             <button
               type="button"
               onClick={() => onWaitlist!(slot)}
-              className="shrink-0 rounded-lg border border-border px-2.5 py-1 text-xs font-medium hover:bg-muted"
+              className={cn(
+                "shrink-0 rounded-lg border border-border px-2.5 py-1 text-xs font-medium transition-all hover:bg-muted",
+                buttonFx.press,
+              )}
             >
               Join waitlist
             </button>

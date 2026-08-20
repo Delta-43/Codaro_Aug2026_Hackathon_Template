@@ -15,6 +15,7 @@
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { Monitor, Moon, Sun, type LucideIcon } from "lucide-react";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
 type Option = { value: string; label: string; icon: LucideIcon };
@@ -34,15 +35,11 @@ export function AppearancePicker() {
   useEffect(() => setMounted(true), []);
 
   return (
-    <div className="flex shrink-0 flex-col items-center gap-1">
-      <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        Appearance
-      </span>
-      <div
-        role="radiogroup"
-        aria-label="Theme"
-        className="flex items-center gap-0.5 rounded-lg bg-muted p-0.5"
-      >
+    <div
+      role="radiogroup"
+      aria-label="Theme"
+      className="flex shrink-0 items-center gap-0.5 rounded-lg bg-muted p-0.5"
+    >
         {OPTIONS.map((opt) => {
           const Icon = opt.icon;
           const selected = mounted && theme === opt.value;
@@ -56,17 +53,17 @@ export function AppearancePicker() {
               title={opt.label}
               onClick={() => setTheme(opt.value)}
               className={cn(
-                "grid size-7 place-items-center rounded-md transition-colors",
+                "grid size-7 place-items-center rounded-md transition-all",
+                buttonFx.press,
                 selected
                   ? "bg-card text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground",
+                  : "text-muted-foreground hover:text-primary",
               )}
             >
               <Icon className="size-3.5" aria-hidden />
             </button>
           );
         })}
-      </div>
     </div>
   );
 }

@@ -12,6 +12,7 @@ import Link from "next/link";
 import { ArrowLeft, CalendarClock, X } from "lucide-react";
 import type { Booking, Provider, Service } from "@/types/domain";
 import { useApp } from "@/context/app-context";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { StatusBadge } from "@/components/booking/status-badge";
@@ -116,7 +117,7 @@ export function BookingDetail({
             type="button"
             onClick={() => setNotice(null)}
             aria-label="Dismiss"
-            className="text-muted-foreground hover:text-foreground"
+            className={cn("text-muted-foreground transition-all hover:text-foreground", buttonFx.press)}
           >
             <X className="size-4" aria-hidden />
           </button>

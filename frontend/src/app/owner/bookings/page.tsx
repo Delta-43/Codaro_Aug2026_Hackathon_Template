@@ -31,6 +31,7 @@ import type { OwnerBooking, OwnerServiceSummary } from "@/types/domain";
 import type { BookingView } from "@/lib/business-view";
 import { ownerBookingToCal } from "@/lib/owner-view";
 import { formatBookingWhen, formatMoney } from "@/lib/format";
+import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
 type Scope = "upcoming" | "past";
@@ -225,7 +226,8 @@ export default function BookingsPage() {
                 onClick={() => setScope(s)}
                 aria-pressed={scope === s}
                 className={cn(
-                  "rounded-md px-4 py-1 text-sm font-medium capitalize transition-colors",
+                  "rounded-md px-4 py-1 text-sm font-medium capitalize transition-all",
+                  buttonFx.press,
                   scope === s
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground hover:text-foreground",
@@ -247,7 +249,10 @@ export default function BookingsPage() {
                   <button
                     type="button"
                     onClick={() => setSelected(b)}
-                    className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3 text-left transition-colors hover:bg-muted/50"
+                    className={cn(
+                      "flex w-full items-center gap-3 rounded-xl border border-border bg-card p-3 text-left",
+                      buttonFx.surface,
+                    )}
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2">
@@ -406,7 +411,7 @@ function RateClient({ bookingId, clientName }: { bookingId: string; clientName: 
             aria-label={`${v} star${v > 1 ? "s" : ""}`}
             onMouseEnter={() => setHover(v)}
             onClick={() => submit(v)}
-            className="p-0.5 disabled:opacity-50"
+            className={cn("p-0.5 disabled:opacity-50", buttonFx.star)}
           >
             <Star
               className={cn(

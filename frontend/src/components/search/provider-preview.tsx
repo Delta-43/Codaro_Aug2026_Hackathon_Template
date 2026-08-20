@@ -16,6 +16,8 @@ import { AvatarImg } from "@/components/avatar-img";
 import { Skeleton } from "@/components/skeleton";
 import { Button } from "@/components/ui/button";
 import { formatDuration, formatMoney } from "@/lib/format";
+import { buttonFx } from "@/config/buttons";
+import { cn } from "@/lib/utils";
 
 export function ProviderPreview({
   provider,
@@ -48,12 +50,13 @@ export function ProviderPreview({
   return (
     <Modal open={open} onClose={onClose} title={vertical.providerNoun}>
       <div className="flex items-start gap-3">
-        <AvatarImg src={provider.avatarUrl} name={provider.name} alt="" className="size-14 shrink-0" />
+        <AvatarImg src={provider.avatarUrl} name={provider.name} alt="" className={cn("size-14 shrink-0", buttonFx.link)} />
         <div className="min-w-0">
-          <h3 className="truncate text-base font-semibold">{provider.name}</h3>
+          <h3 className={cn(buttonFx.heading, "max-w-full truncate text-base font-semibold")}>{provider.name}</h3>
           <p className="truncate text-sm text-muted-foreground">{provider.tagline}</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            ★ {provider.rating.toFixed(1)} ({provider.reviewCount}) ·{" "}
+            <span className={cn("inline-block text-amber-400", buttonFx.star)}>★</span>{" "}
+            {provider.rating.toFixed(1)} ({provider.reviewCount}) ·{" "}
             {provider.location.city}
           </p>
         </div>

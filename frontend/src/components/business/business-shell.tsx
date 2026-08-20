@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import { buttonFx } from "@/config/buttons";
 import { useAuth } from "@/lib/auth";
 import { useOwner } from "@/context/owner-context";
 import { useUnreadCount } from "@/hooks/use-unread-count";
@@ -84,7 +85,7 @@ export function BusinessShell({ children }: { children: ReactNode }) {
     <div className="min-h-dvh md:pl-60">
       {/* Desktop left drawer */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-border bg-card px-3 py-4 md:flex">
-        <Link href="/" className="mb-4 flex items-center px-3">
+        <Link href="/" className={cn(buttonFx.heading, "mb-4 flex items-center px-3")}>
           <Wordmark />
         </Link>
         <nav className="flex flex-col gap-1">
@@ -112,7 +113,7 @@ export function BusinessShell({ children }: { children: ReactNode }) {
             <button
               type="button"
               onClick={scrollTop}
-              className="block max-w-full origin-left truncate text-sm font-semibold transition-transform duration-200 ease-out hover:scale-105"
+              className={cn(buttonFx.heading, "block max-w-full truncate text-lg font-semibold text-primary")}
             >
               {heading}
             </button>
@@ -121,12 +122,15 @@ export function BusinessShell({ children }: { children: ReactNode }) {
         </div>
         <Link
           href="/owner/profile"
-          className="flex items-center gap-2 rounded-full py-1 pl-1 pr-3 hover:bg-muted"
+          className={cn(
+            "group flex items-center gap-2 rounded-full py-1 pl-1 pr-3 transition-all hover:bg-primary/10 hover:text-primary",
+            buttonFx.press,
+          )}
           aria-label="Profile"
         >
           {/* activeProvider comes from useOwner, so an avatar edit re-renders here. */}
           <BusinessBadge avatarUrl={activeProvider?.avatarUrl} scene={scene} size="sm" />
-          <span className="max-w-[10rem] truncate text-sm">{businessName}</span>
+          <span className="max-w-[10rem] truncate text-base font-medium">{businessName}</span>
         </Link>
       </header>
 
@@ -136,17 +140,20 @@ export function BusinessShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-20 flex h-12 items-center justify-between gap-2 border-b border-border bg-background/85 px-4 backdrop-blur pt-[env(safe-area-inset-top)] md:hidden">
         <Link
           href="/"
-          className="flex shrink-0 origin-left items-center gap-1.5 text-base font-bold tracking-tight text-primary transition-transform duration-200 ease-out hover:scale-105"
+          className={cn(
+            buttonFx.heading,
+            "flex shrink-0 items-center gap-1.5 text-base font-bold tracking-tight text-primary",
+          )}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-6 -translate-y-[9%]" />
           Arbor
         </Link>
-        <span className="flex min-w-0 items-baseline justify-end gap-2 text-sm font-semibold">
+        <span className="flex min-w-0 items-baseline justify-end gap-2 text-lg font-semibold">
           <button
             type="button"
             onClick={scrollTop}
-            className="shrink-0 origin-right transition-transform duration-200 ease-out hover:scale-105"
+            className={cn(buttonFx.heading, "shrink-0 origin-right text-primary")}
           >
             {heading}
           </button>
@@ -169,7 +176,7 @@ export function BusinessShell({ children }: { children: ReactNode }) {
               aria-current={activeTab ? "page" : undefined}
               className={cn(
                 "group flex min-h-[52px] flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition-colors",
-                activeTab ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                activeTab ? "text-primary" : "text-muted-foreground hover:text-primary",
               )}
             >
               <span className="relative origin-center transition-transform duration-200 ease-out group-hover:scale-110">
@@ -192,13 +199,13 @@ function NavItem({ tab, active, badge = 0 }: { tab: Tab; active: boolean; badge?
       href={tab.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
+        "group flex min-h-[44px] items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
         active
           ? "bg-accent text-accent-foreground"
-          : "text-muted-foreground hover:bg-muted hover:text-foreground",
+          : "text-muted-foreground hover:bg-primary/10 hover:text-primary",
       )}
     >
-      <span className="relative">
+      <span className="relative origin-center transition-transform duration-200 ease-out group-hover:scale-110">
         <Icon className="size-4" aria-hidden />
         <TabBadge count={badge} />
       </span>

@@ -78,6 +78,13 @@ reschedule flows special-case the codes for re-pick / disabled-with-reason.
   a session; `getCurrentUser`/`updateUser` map to `/me`.
 - Env: `NEXT_PUBLIC_API_BASE`, `NEXT_PUBLIC_SUPABASE_URL`,
   `NEXT_PUBLIC_SUPABASE_ANON_KEY` (see `.env.local.example`).
+- **Interactivity is config-driven** — the hover/press "feel" of every button,
+  card, row, chevron, star, heading and clickable icon comes from
+  `src/config/buttons.ts` (`buttonFx`), not from inline `hover:scale…` strings.
+  Any new/changed interactive element must pull a `buttonFx` token (add a new
+  role there if none fits); never re-invent the feel at the call site. Full rule
+  + the token table: [docs/interactivity.md](../docs/interactivity.md). (`<Button>`
+  already bakes in `buttonFx.press`.)
 - **Theming** is `next-themes` (`attribute="class"`, `defaultTheme="system"`,
   `enableSystem`) mounted in `src/app/layout.tsx`; dark tokens live under `.dark`
   in `globals.css`. The Account tab's `appearance-picker.tsx` sets Light / Dark /

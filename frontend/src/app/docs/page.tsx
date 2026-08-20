@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { DocShell, type TocEntry } from "@/components/docs/doc-shell";
 import { C, Code, H3, Item, List, Note, Section, Table } from "@/components/docs/prose";
+import { buttonFx } from "@/config/buttons";
+import { cn } from "@/lib/utils";
 
 /**
  * Public setup guide for `domain.config.json` — the pivot file. Ungated (sits
@@ -52,7 +54,10 @@ export default function ConfigDocsPage() {
             <li key={s.id}>
               <a
                 href={`#${s.id}`}
-                className="inline-block rounded-full border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                className={cn(
+                  "inline-block rounded-full border border-border px-3 py-1 text-xs text-muted-foreground transition-all hover:bg-muted hover:text-foreground",
+                  buttonFx.press,
+                )}
               >
                 {s.label}
               </a>
