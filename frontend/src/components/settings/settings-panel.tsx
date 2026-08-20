@@ -10,9 +10,10 @@
  * Real where it's cheap and safe (name save, photo upload, notifications,
  * appearance, sign out); honest stubs where it needs backend
  * plumbing that isn't here yet (email change, password change, account
- * deletion). The `photo` slot carries its own upload affordance: the user
- * avatar and the business's active-provider avatar are both uploadable (the
- * caller wires that in), so this template just renders whatever it's handed.
+ * deletion). The `photo` and `hero` slots carry their own upload affordances:
+ * the user avatar, the business's active-provider avatar and the business's
+ * banner are all uploadable (the caller wires that in), so this template just
+ * renders whatever it's handed.
  */
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Bell, ShieldAlert } from "lucide-react";
@@ -38,6 +39,10 @@ const LABEL_FX =
 export interface SettingsConfig {
   variant: "user" | "business";
   photo: ReactNode;
+  /** Optional full profile header, rendered *instead of* the photo row: the
+   *  business persona passes the very header its Profile tab shows, so the
+   *  owner edits the real thing rather than a stand-in. */
+  hero?: ReactNode;
   displayName: string;
   displayNameLabel: string;
   /** When set, the name is editable and this persists it. */
@@ -55,8 +60,9 @@ export function SettingsPanel(cfg: SettingsConfig) {
   return (
     <section className="space-y-6 py-2">
       <div>
-        {/* The shell's top bar already shows the "Settings" title on every
-            breakpoint — keep it here for screen readers only, no on-screen copy. */}
+        {/* The shell's desktop top bar shows the "Settings" title, and on mobile
+            the bottom tab bar marks the tab — so this stays screen-reader only,
+            no on-screen copy. */}
         <h1 className="sr-only">Settings</h1>
         <p className="text-sm text-muted-foreground">
           Manage your {cfg.variant === "business" ? "business" : "account"} and preferences.
@@ -64,13 +70,15 @@ export function SettingsPanel(cfg: SettingsConfig) {
       </div>
 
       <Section title="Profile" description="How you appear across the app.">
-        <div className="flex items-center gap-4">
-          {cfg.photo}
-          <div className="min-w-0 flex-1">
-            <p className={cn(buttonFx.heading, "max-w-full truncate font-medium")}>{cfg.displayName}</p>
-            <p className="truncate text-sm text-muted-foreground">{cfg.email}</p>
+        {cfg.hero ?? (
+          <div className="flex items-center gap-4">
+            {cfg.photo}
+            <div className="min-w-0 flex-1">
+              <p className={cn(buttonFx.heading, "max-w-full truncate font-medium")}>{cfg.displayName}</p>
+              <p className="truncate text-sm text-muted-foreground">{cfg.email}</p>
+            </div>
           </div>
-        </div>
+        )}
 
         <NameField
           label={cfg.displayNameLabel}

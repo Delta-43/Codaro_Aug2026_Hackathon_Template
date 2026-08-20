@@ -97,7 +97,7 @@ export function ProviderProfile({
     <section className="pb-2">
       {/* Cover + avatar */}
       <div
-        className="-mx-4 h-32 bg-cover bg-center md:-mx-6 md:rounded-xl"
+        className="-mx-4 h-32 bg-muted bg-cover bg-center md:-mx-6 md:rounded-xl"
         style={{ backgroundImage: `url(${p.coverUrl ?? ""})` }}
         aria-hidden
       />
