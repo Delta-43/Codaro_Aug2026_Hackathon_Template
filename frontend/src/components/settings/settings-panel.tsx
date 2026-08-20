@@ -225,7 +225,7 @@ function PasswordForm() {
     <form
       onSubmit={(e) => {
         e.preventDefault();
-        setNotice("In this demo, password changes go through the email reset flow.");
+        setNotice("Password changes go through the email reset flow.");
       }}
       className="grid gap-3 sm:grid-cols-2"
     >
