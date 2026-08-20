@@ -1,3 +1,5 @@
+import { createElement } from "react";
+
 import type { Provider, Service } from "@/types/domain";
 import { buttonFx } from "@/config/buttons";
 import { formatOffer } from "@/lib/format";
@@ -36,7 +38,6 @@ export function ServicePanel({
    *  odd rows flip it to the right. Defaults to 0 (icon-left) when omitted. */
   index?: number;
 }) {
-  const Animation = getServiceAnimation(service.name);
   const reversed = index % 2 === 1;
   const tagline = getServiceTagline(service.name);
 
@@ -52,7 +53,13 @@ export function ServicePanel({
         )}
       >
         <div className="flex shrink-0 items-center justify-center">
-          <Animation className="size-40 sm:size-48 lg:size-56" />
+          {/* `createElement` rather than `const Animation = …; <Animation />`:
+              the lookup returns a module-level component, but assigning it to a
+              local and rendering it as JSX reads to react-hooks/static-components
+              as a component created during render. */}
+          {createElement(getServiceAnimation(service.name), {
+            className: "size-40 sm:size-48 lg:size-56",
+          })}
         </div>
         <div className="flex max-w-xl flex-1 flex-col items-center gap-4 text-center sm:items-start sm:text-left">
           {tagline ? (

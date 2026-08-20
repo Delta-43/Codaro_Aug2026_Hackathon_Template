@@ -40,13 +40,6 @@ export function ScrollZoomReveal({
     const node = ref.current;
     if (!node) return;
 
-    // Respect prefers-reduced-motion: skip the observer entirely and render
-    // already fully visible/unscaled — no motion, no delay.
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setRevealed(true);
-      return;
-    }
-
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -66,6 +59,10 @@ export function ScrollZoomReveal({
       className={cn(
         "transition-all duration-700 ease-out",
         revealed ? "scale-100 opacity-100" : "scale-90 opacity-0",
+        // Respect prefers-reduced-motion in CSS rather than by branching in
+        // the effect: the panel renders fully visible/unscaled with no
+        // transition, whatever the observer has (or hasn't) seen yet.
+        "motion-reduce:scale-100 motion-reduce:opacity-100 motion-reduce:transition-none",
         className,
       )}
       data-revealed={revealed}
