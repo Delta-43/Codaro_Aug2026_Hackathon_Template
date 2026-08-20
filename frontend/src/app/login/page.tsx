@@ -45,7 +45,14 @@ function LoginForm() {
       .finally(() => setTenancyReady(true));
   }, []);
 
-  const next = params.get("next") || (singleBusiness ? "/provider" : "/search");
+  // `next` is attacker-controllable via the query string, and it feeds
+  // router.replace below — so only honour a same-origin absolute PATH. A crafted
+  // `?next=https://evil.com` (or the protocol-relative `//evil.com`) would
+  // otherwise turn the post-login redirect into an open redirect / phishing hop.
+  const rawNext = params.get("next");
+  const safeNext =
+    rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : null;
+  const next = safeNext || (singleBusiness ? "/provider" : "/search");
   const destination = role === "owner" ? "/owner" : next;
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");

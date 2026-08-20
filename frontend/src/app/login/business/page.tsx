@@ -31,7 +31,13 @@ function BusinessLoginForm() {
   const { session, loading, role, configured, signIn, signUp } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get("next") || "/owner";
+  // Same-origin PATH only: `next` comes from the query string and feeds
+  // router.replace below, so a crafted `?next=https://evil.com` / `//evil.com`
+  // must not become an open redirect after sign-in.
+  const rawNext = params.get("next");
+  const safeNext =
+    rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : null;
+  const next = safeNext || "/owner";
   const destination = role === "owner" ? "/owner" : next;
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
