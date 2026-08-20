@@ -485,6 +485,17 @@ def validate(cfg: dict) -> list[str]:
     if isinstance(booking["party"].get("min"), int) and isinstance(booking["party"].get("max"), int):
         if booking["party"]["min"] > booking["party"]["max"]:
             errors.append("booking.party.min must not exceed booking.party.max")
+    # `party.composition[].priceFactor` reaches `rules.resolve_party_bands` as
+    # `float(factor)`, so a non-numeric one would 500 a booking rather than fail
+    # here at the edit. Absent/None is fine (defaults to 1.0 there).
+    composition = booking["party"].get("composition")
+    if isinstance(composition, list):
+        for i, band in enumerate(composition):
+            if not isinstance(band, dict) or not band.get("key"):
+                errors.append(f"booking.party.composition[{i}] must be an object with a key")
+                continue
+            _int(errors, band.get("priceFactor"),
+                 f"booking.party.composition[{i}].priceFactor", minimum=0, allow_none=True)
 
     pricing = cfg["pricing"]
     _enum(errors, pricing.get("model"), PRICING_MODELS, "pricing.model")
@@ -574,9 +585,19 @@ def validate(cfg: dict) -> list[str]:
 
     for i, pattern in enumerate(cfg["recurrence"].get("patterns") or []):
         _enum(errors, pattern, RECURRENCE_PATTERNS, f"recurrence.patterns[{i}]")
+    # `serialize_service` does `int(recurrence.maxOccurrences or 1)`, so a
+    # non-numeric value 500s /services rather than failing here. 0/None coerce to
+    # 1 downstream, so only reject a genuinely non-numeric value.
+    _int(errors, cfg["recurrence"].get("maxOccurrences"), "recurrence.maxOccurrences",
+         minimum=0, allow_none=True)
     for i, plan in enumerate(cfg["entitlements"].get("plans") or []):
         if not isinstance(plan, dict) or not plan.get("key"):
             errors.append(f"entitlements.plans[{i}] must be an object with a key")
+            continue
+        # `discountBps` reaches `serialize_entitlement`/`resolve_entitlement` as
+        # `int(discountBps or 0)`; a non-numeric one 500s those reads.
+        _int(errors, plan.get("discountBps"), f"entitlements.plans[{i}].discountBps",
+             minimum=0, allow_none=True)
 
     _enum(errors, cfg["inventory"].get("mode"), INVENTORY_MODES, "inventory.mode")
     _int(errors, cfg["inventory"].get("reservationWindowMinutes"),
