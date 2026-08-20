@@ -1,373 +1,132 @@
 {
   "configVersion": 2,
-  "domain": "everything-on",
+  "domain": "b2b-training-vat-exclusive",
   "tenancy": {
     "mode": "multi",
     "providerCode": null,
     "selfOnboarding": true,
     "tenantVerification": {
-      "required": true,
-      "credentials": [
-        "insurance",
-        "trade_licence",
-        "id_check"
-      ]
+      "required": false,
+      "credentials": []
     },
     "commission": {
       "enabled": true,
-      "rateBps": 1200,
+      "rateBps": 1000,
       "chargedOn": "completion"
     }
   },
   "capabilities": {
     "payments": true,
-    "inventory": true,
-    "waitlist": true,
-    "quotes": true,
-    "recurrence": true,
+    "inventory": false,
+    "waitlist": false,
+    "quotes": false,
+    "recurrence": false,
     "prerequisites": true,
-    "entitlements": true,
-    "cart": true,
+    "entitlements": false,
+    "cart": false,
     "reviews": true,
     "follows": true
   },
   "booking": {
-    "unitKind": "class_capacity",
+    "unitKind": "time_slot",
     "granularity": "minute",
     "duration": {
-      "mode": "customer_chosen",
-      "minUnits": 2,
-      "maxUnits": 12,
+      "mode": "fixed",
+      "minUnits": 1,
+      "maxUnits": 1,
       "incrementUnits": 1
     },
     "party": {
       "mode": "group",
-      "min": 1,
-      "max": 8,
-      "composition": [
-        {
-          "key": "adult",
-          "label": "Adult",
-          "priceFactor": 1.0
-        },
-        {
-          "key": "child",
-          "label": "Child (under 16)",
-          "priceFactor": 0.5
-        },
-        {
-          "key": "senior",
-          "label": "Senior",
-          "priceFactor": 0.75
-        }
-      ],
-      "matchResourceCapacity": true
+      "min": 4,
+      "max": 30,
+      "composition": null,
+      "matchResourceCapacity": false
     },
     "sequence": {
-      "enabled": true,
-      "steps": 4,
-      "minGapHours": 24,
-      "maxGapHours": 336
+      "enabled": false,
+      "steps": 1,
+      "minGapHours": 0,
+      "maxGapHours": null
     },
     "subject": {
-      "enabled": true,
-      "noun": "Participant",
-      "fields": [
-        {
-          "key": "fullName",
-          "label": "Full name",
-          "type": "text",
-          "required": true
-        },
-        {
-          "key": "dateOfBirth",
-          "label": "Date of birth",
-          "type": "date",
-          "required": true
-        },
-        {
-          "key": "experience",
-          "label": "Experience",
-          "type": "select",
-          "required": false,
-          "options": [
-            "first time",
-            "improver",
-            "advanced"
-          ]
-        },
-        {
-          "key": "accessNeeds",
-          "label": "Access needs",
-          "type": "text",
-          "required": false
-        }
-      ]
+      "enabled": false,
+      "noun": "Subject",
+      "fields": []
     },
-    "options": [
-      {
-        "key": "kitHire",
-        "label": "Hire kit",
-        "type": "boolean",
-        "priceMinorUnits": 900
-      },
-      {
-        "key": "mealPlan",
-        "label": "Meal plan",
-        "type": "select",
-        "choices": [
-          {
-            "key": "none",
-            "label": "None",
-            "priceMinorUnits": 0
-          },
-          {
-            "key": "lunch",
-            "label": "Lunch",
-            "priceMinorUnits": 1400
-          },
-          {
-            "key": "full",
-            "label": "Full board",
-            "priceMinorUnits": 2600
-          }
-        ]
-      },
-      {
-        "key": "photos",
-        "label": "Photo package",
-        "type": "boolean",
-        "priceMinorUnits": 1500
-      }
-    ]
+    "options": []
   },
   "pricing": {
-    "model": "tiered",
+    "model": "fixed",
     "currency": "EUR",
     "currencyExponent": 2,
     "rate": {
-      "per": "hour",
-      "amountMinorUnits": 4000
+      "per": "booking",
+      "amountMinorUnits": 80000
     },
-    "secondaryRate": {
-      "per": "person",
-      "amountMinorUnits": 400
-    },
-    "tiers": [
-      {
-        "key": "offpeak",
-        "label": "Off-peak",
-        "amountMinorUnits": 2200,
-        "appliesWhen": {
-          "timeOfDay": {
-            "from": "18:00",
-            "to": "06:00"
-          }
-        }
-      },
-      {
-        "key": "peak",
-        "label": "Peak",
-        "amountMinorUnits": 6000,
-        "appliesWhen": {
-          "timeOfDay": {
-            "from": "06:00",
-            "to": "18:00"
-          }
-        }
-      },
-      {
-        "key": "weekend",
-        "label": "Weekend",
-        "amountMinorUnits": 7000,
-        "appliesWhen": {
-          "daysOfWeek": [
-            6,
-            7
-          ]
-        }
-      }
-    ],
+    "secondaryRate": null,
+    "tiers": [],
     "chargePerPerson": false,
     "caps": {
-      "perBookingMinorUnits": 50000,
-      "perDayMinorUnits": 90000,
-      "perPersonMinorUnits": 12000
+      "perBookingMinorUnits": null,
+      "perDayMinorUnits": null
     },
-    "fees": [
-      {
-        "key": "booking_fee",
-        "label": "Booking fee",
-        "kind": "flat",
-        "amountMinorUnits": 150
-      },
-      {
-        "key": "cleaning",
-        "label": "Deep clean",
-        "kind": "percent",
-        "rateBps": 500
-      },
-      {
-        "key": "travel",
-        "label": "Travel",
-        "kind": "distanceBand",
-        "bands": [
-          {
-            "maxKm": 5,
-            "feeMinorUnits": 0
-          },
-          {
-            "maxKm": 15,
-            "feeMinorUnits": 600
-          },
-          {
-            "maxKm": null,
-            "feeMinorUnits": 1800
-          }
-        ]
-      }
-    ],
+    "fees": [],
     "deposit": {
-      "enabled": true,
+      "enabled": false,
       "kind": "percent",
-      "value": 25,
+      "value": 0,
       "refundable": true
     }
   },
   "payments": {
-    "flow": "split",
+    "flow": "invoice_after",
     "payer": "customer",
-    "schedule": [
-      {
-        "key": "deposit",
-        "label": "Deposit on booking",
-        "kind": "percent",
-        "value": 25,
-        "dueOffsetHours": 0
-      },
-      {
-        "key": "balance",
-        "label": "Balance before arrival",
-        "kind": "percent",
-        "value": 75,
-        "dueOffsetHours": -48
-      }
-    ],
-    "billingCycle": "monthly",
+    "schedule": [],
+    "billingCycle": "none",
     "noShowFee": {
-      "enabled": true,
-      "amountMinorUnits": 2000
+      "enabled": false,
+      "amountMinorUnits": 0
     },
-    "usageMetered": true,
+    "usageMetered": false,
     "adapter": "manual"
   },
   "inventory": {
-    "mode": "rentable",
+    "mode": "none",
     "reservationWindowMinutes": 15,
-    "loanPeriodHours": 72,
-    "returnRequired": true,
-    "overdueFeePerDayMinorUnits": 250,
-    "restockCycle": "weekly",
-    "ratioConstraint": {
-      "perStaff": 6
-    }
+    "loanPeriodHours": null,
+    "returnRequired": false,
+    "overdueFeePerDayMinorUnits": 0,
+    "restockCycle": "none",
+    "ratioConstraint": null
   },
   "location": {
     "modes": [
-      "on_site",
-      "at_customer",
-      "remote",
-      "delivery",
-      "pickup"
+      "at_customer"
     ],
-    "default": "on_site",
-    "timezone": "Europe/Warsaw",
+    "default": "at_customer",
+    "timezone": "UTC",
     "distanceUnit": "km",
-    "origin": {
-      "city": "Krakow",
-      "lat": 50.0614,
-      "lng": 19.9366
-    },
+    "origin": null,
     "serviceArea": {
-      "radiusKm": 25,
-      "travelBufferMinutes": 20,
-      "feeBands": [
-        {
-          "maxKm": 5,
-          "feeMinorUnits": 0
-        },
-        {
-          "maxKm": 15,
-          "feeMinorUnits": 600
-        },
-        {
-          "maxKm": 25,
-          "feeMinorUnits": 1800
-        }
-      ]
+      "radiusKm": null,
+      "travelBufferMinutes": 0,
+      "feeBands": []
     },
     "remote": {
-      "meetingLinkMode": "manual"
+      "meetingLinkMode": "none"
     },
     "fulfilment": {
       "windowMinutes": 60,
-      "cutoffHoursBefore": 12
+      "cutoffHoursBefore": 0
     }
   },
   "prerequisites": [
     {
-      "key": "id",
-      "kind": "id_check",
-      "label": "Photo ID",
-      "appliesTo": "customer",
-      "required": true,
-      "blocksConfirmation": true
-    },
-    {
-      "key": "licence",
-      "kind": "licence",
-      "label": "Driving licence",
-      "appliesTo": "customer",
-      "required": false,
-      "blocksConfirmation": false
-    },
-    {
-      "key": "intake",
-      "kind": "intake_form",
-      "label": "Health questionnaire",
-      "appliesTo": "subject",
-      "required": true,
-      "blocksConfirmation": true
-    },
-    {
-      "key": "waiver",
-      "kind": "waiver",
-      "label": "Safety waiver",
-      "appliesTo": "subject",
-      "required": true,
-      "blocksConfirmation": false
-    },
-    {
-      "key": "member",
-      "kind": "membership",
-      "label": "Membership",
-      "appliesTo": "customer",
-      "required": false,
-      "blocksConfirmation": false
-    },
-    {
-      "key": "approval",
+      "key": "po",
       "kind": "approval",
-      "label": "Owner approval",
+      "label": "Purchase order",
       "appliesTo": "customer",
-      "required": true,
-      "blocksConfirmation": true
-    },
-    {
-      "key": "hygiene",
-      "kind": "credential",
-      "label": "Food hygiene certificate",
-      "appliesTo": "tenant",
       "required": true,
       "blocksConfirmation": true
     }
@@ -375,93 +134,33 @@
   "timing": {
     "confirmation": "request_approve",
     "approvalWindowHours": 48,
-    "leadTimeMinutes": 60,
+    "leadTimeMinutes": 0,
     "waitlist": {
-      "enabled": true,
+      "enabled": false,
       "autoPromote": true,
-      "maxPerSlot": 25
+      "maxPerSlot": 0
     },
-    "seasons": [
-      {
-        "key": "summer",
-        "label": "Summer season",
-        "startDate": "2026-06-01",
-        "endDate": "2026-09-15",
-        "priceFactor": 1.25
-      },
-      {
-        "key": "winter",
-        "label": "Winter season",
-        "startDate": "2026-12-01",
-        "endDate": "2027-03-01",
-        "priceFactor": 1.4
-      }
-    ],
-    "blackouts": [
-      {
-        "key": "christmas",
-        "label": "Christmas closure",
-        "startDate": "2026-12-24",
-        "endDate": "2026-12-26"
-      },
-      {
-        "key": "maintenance",
-        "label": "Annual maintenance",
-        "startDate": "2026-11-02",
-        "endDate": "2026-11-06"
-      }
-    ],
+    "seasons": [],
+    "blackouts": [],
     "slotDurationMinutes": 30,
-    "maxBookingsPerSlot": 4,
+    "maxBookingsPerSlot": 1,
     "cancellationWindowHours": 24,
-    "advanceBookingWindowDays": 120,
-    "bufferMinutes": 10
+    "advanceBookingWindowDays": 30,
+    "bufferMinutes": 0
   },
   "recurrence": {
-    "enabled": true,
-    "patterns": [
-      "weekly",
-      "biweekly",
-      "monthly"
-    ],
+    "enabled": false,
+    "patterns": [],
     "maxOccurrences": 12,
     "term": {
-      "mode": "rolling",
-      "noticePeriodDays": 30
+      "mode": "fixed",
+      "noticePeriodDays": 0
     }
   },
   "entitlements": {
-    "enabled": true,
-    "kind": "membership",
-    "plans": [
-      {
-        "key": "resident",
-        "label": "Resident",
-        "priceMinorUnits": 15000,
-        "cycle": "monthly",
-        "credits": null,
-        "appliesToServices": [],
-        "discountBps": 1500
-      },
-      {
-        "key": "tenpass",
-        "label": "Ten-session pass",
-        "priceMinorUnits": 18000,
-        "cycle": "none",
-        "credits": 10,
-        "appliesToServices": [],
-        "discountBps": 500
-      },
-      {
-        "key": "annual",
-        "label": "Annual membership",
-        "priceMinorUnits": 120000,
-        "cycle": "annual",
-        "credits": null,
-        "appliesToServices": [],
-        "discountBps": 2500
-      }
-    ]
+    "enabled": false,
+    "kind": "none",
+    "plans": []
   },
   "discovery": {
     "mode": "browse",
@@ -470,149 +169,58 @@
       "distance": true,
       "rating": true,
       "availability": true,
-      "unitKind": true
+      "unitKind": false
     },
     "matching": {
-      "enabled": true,
+      "enabled": false,
       "source": "intake_form"
     }
   },
   "terms": {
-    "provider": "Venue",
-    "providers": "Venues",
-    "service": "Programme",
-    "services": "Programmes",
-    "staff": "Instructor",
-    "subject": "Participant",
+    "provider": "Business",
+    "providers": "Businesses",
+    "service": "Service",
+    "services": "Services",
+    "staff": "Staff",
+    "subject": "Subject",
     "party": "Group",
-    "resource": "Space",
-    "resources": "Spaces",
-    "slot": "Session",
-    "slots": "Sessions",
-    "booking": "Reservation",
-    "bookings": "Reservations",
-    "client": "Member",
-    "clients": "Members",
-    "admin": "Venue",
-    "admins": "Venues"
+    "resource": "Resource",
+    "resources": "Resources",
+    "slot": "Slot",
+    "slots": "Slots",
+    "booking": "Booking",
+    "bookings": "Bookings",
+    "client": "Customer",
+    "clients": "Customers",
+    "admin": "Business",
+    "admins": "Businesses"
   },
   "copy": {
-    "landingTitle": "Everything, bookable",
-    "landingSubtitle": "Members, groups, courses, kit hire and quotes — one engine, every feature switched on.",
-    "confirmTitle": "Reservation confirmed",
-    "emptyStateSlots": "No sessions open in this window yet.",
-    "emptyStateBookings": "You have no reservations yet.",
-    "requestPending": "Your request is with the venue for approval.",
-    "waitlistJoined": "You're on the waitlist — we'll promote you automatically.",
+    "landingTitle": "B2B Training (VAT exclusive)",
+    "landingSubtitle": "Corporate training day — net 80000 + 20% vat = 96000.",
+    "confirmTitle": "Booking confirmed",
+    "emptyStateSlots": "No slots available yet.",
+    "emptyStateBookings": "You have no bookings yet.",
+    "requestPending": "Your request has been sent.",
+    "waitlistJoined": "You're on the waitlist.",
     "quoteRequested": "Your quote request has been sent.",
-    "depositDue": "A 25% deposit is due to hold this reservation.",
-    "prerequisiteBlocked": "ID, waiver and health form are needed before this is confirmed."
+    "depositDue": "A deposit is due to confirm this booking.",
+    "prerequisiteBlocked": "Some details are needed before this can be confirmed."
   },
   "metaFields": {
-    "providers": [
-      {
-        "key": "accreditation",
-        "label": "Accreditation",
-        "type": "text"
-      },
-      {
-        "key": "yearFounded",
-        "label": "Year founded",
-        "type": "number"
-      },
-      {
-        "key": "insuranceDoc",
-        "label": "Insurance certificate",
-        "type": "file"
-      }
-    ],
-    "services": [
-      {
-        "key": "level",
-        "label": "Level",
-        "type": "select",
-        "options": [
-          "intro",
-          "improver",
-          "advanced"
-        ]
-      },
-      {
-        "key": "equipmentIncluded",
-        "label": "Equipment included",
-        "type": "boolean"
-      }
-    ],
-    "resources": [
-      {
-        "key": "accessible",
-        "label": "Step-free access",
-        "type": "boolean"
-      },
-      {
-        "key": "capacityNote",
-        "label": "Capacity note",
-        "type": "text"
-      }
-    ],
-    "slots": [
-      {
-        "key": "instructor",
-        "label": "Instructor",
-        "type": "text"
-      },
-      {
-        "key": "language",
-        "label": "Language",
-        "type": "select",
-        "options": [
-          "EN",
-          "PL",
-          "DE"
-        ]
-      }
-    ],
-    "bookings": [
-      {
-        "key": "purchaseOrder",
-        "label": "Purchase order",
-        "type": "text"
-      },
-      {
-        "key": "arrivalTime",
-        "label": "Arrival time",
-        "type": "date"
-      },
-      {
-        "key": "notes",
-        "label": "Notes",
-        "type": "text"
-      }
-    ],
-    "subjects": [
-      {
-        "key": "dateOfBirth",
-        "label": "Date of birth",
-        "type": "date"
-      },
-      {
-        "key": "medicalNotes",
-        "label": "Medical notes",
-        "type": "text"
-      },
-      {
-        "key": "consentForm",
-        "label": "Consent form",
-        "type": "file"
-      }
-    ]
+    "providers": [],
+    "services": [],
+    "resources": [],
+    "slots": [],
+    "bookings": [],
+    "subjects": []
   },
   "rules": {
     "slotDurationMinutes": 30,
-    "maxBookingsPerSlot": 4,
+    "maxBookingsPerSlot": 1,
     "cancellationWindowHours": 24,
-    "advanceBookingWindowDays": 120,
-    "bufferMinutes": 10
+    "advanceBookingWindowDays": 30,
+    "bufferMinutes": 0
   },
   "search": {
     "facets": {

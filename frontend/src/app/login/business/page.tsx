@@ -91,7 +91,10 @@ function BusinessLoginForm() {
               <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-7 -translate-y-[9%]" />
               Arbor
             </Link>
-            <span className="-translate-y-px rounded-full bg-amber-400/15 px-2 py-1 text-[0.625rem] font-semibold uppercase leading-none tracking-[0.08em] text-amber-600 dark:text-amber-400">
+            {/* No vertical nudge: the flex row's centering already puts the pill
+                on the optical middle of "Arbor" (pill 293–311 vs the word's ink
+                294–311). Any translate here reads as the chip riding high. */}
+            <span className="rounded-full bg-amber-400/15 px-2 py-1 text-[0.625rem] font-semibold uppercase leading-none tracking-[0.08em] text-amber-600 dark:text-amber-400">
               Business
             </span>
           </h1>

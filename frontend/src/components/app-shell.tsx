@@ -10,7 +10,7 @@
  * Touch targets ≥44px; safe-area insets respected on mobile.
  */
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   CalendarClock,
   CalendarDays,
@@ -68,7 +68,6 @@ function isActive(pathname: string, href: string): boolean {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { user, ready, reload, activeProvider, singleBusiness, vertical } = useApp();
   const [retrying, setRetrying] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
@@ -138,10 +137,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="mt-auto px-1">
-          <SignOutButton
-            className="w-full"
-            onSignOut={() => signOut().then(() => router.replace("/login"))}
-          />
+          <SignOutButton className="w-full" onSignOut={signOut} />
         </div>
       </aside>
 

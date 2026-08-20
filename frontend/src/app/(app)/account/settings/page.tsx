@@ -5,7 +5,6 @@
  * persona. Reached from the top-right avatar (desktop) or the Profile tab's cog
  * (mobile). Display name is editable and persists via PATCH /me.
  */
-import { useRouter } from "next/navigation";
 import { useApp } from "@/context/app-context";
 import { useAuth } from "@/lib/auth";
 import { updateUser, uploadAvatar, deleteAvatar, deleteAccount } from "@/api";
@@ -14,7 +13,6 @@ import { Skeleton } from "@/components/skeleton";
 import { SettingsPanel } from "@/components/settings/settings-panel";
 
 export default function UserSettingsPage() {
-  const router = useRouter();
   const { ready, user, setUser } = useApp();
   const { signOut } = useAuth();
 
@@ -39,11 +37,11 @@ export default function UserSettingsPage() {
         setUser(updated);
       }}
       email={user.email}
-      onSignOut={() => signOut().then(() => router.replace("/login"))}
+      onSignOut={signOut}
       onDeleteAccount={async () => {
         await deleteAccount();
+        // signOut() lands on the landing page.
         await signOut();
-        router.replace("/login");
       }}
     />
   );

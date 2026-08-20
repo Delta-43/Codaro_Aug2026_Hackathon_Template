@@ -56,10 +56,26 @@ type AuthContextValue = {
     role?: EngineRole,
     consent?: boolean,
   ) => Promise<void>;
+  /** Clears the session and lands the browser on the public landing page. */
   signOut: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+/** One account per email address. Supabase's `auth.users` enforces that for
+ *  real, so a duplicate can never actually be created — but it reports the
+ *  refusal in two different shapes depending on the project's "Confirm email"
+ *  setting, and only one of them is an error. `signUp` handles both and ends on
+ *  this single message, so the two sign-up forms read the same either way. */
+const ACCOUNT_EXISTS_MESSAGE =
+  "An account with this email already exists. Sign in instead.";
+
+/** The taken-address rejection, across GoTrue versions: newer builds carry a
+ *  machine-readable `code`, older ones only the message. */
+function isDuplicateAccount(error: { code?: string; message?: string }): boolean {
+  if (error.code === "user_already_exists" || error.code === "email_exists") return true;
+  return /already\s+(registered|exists)/i.test(error.message ?? "");
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -173,7 +189,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           password,
           options: { data },
         });
-        if (error) throw new Error(error.message);
+        // Confirmations OFF (this project's setting): GoTrue rejects a taken
+        // address outright, with `user_already_exists` / "User already
+        // registered". Say it in the app's own words instead of passing the
+        // provider's wording through to the form.
+        if (error) {
+          throw new Error(isDuplicateAccount(error) ? ACCOUNT_EXISTS_MESSAGE : error.message);
+        }
+        // Confirmations ON: GoTrue does NOT error on a taken address — to stop
+        // strangers enumerating who has an account, it answers with a decoy user
+        // (blank email, `identities: []`) and no session. That shape is
+        // indistinguishable from success, so it has to be caught here: without
+        // this the fallback below would sign in with whatever password was
+        // typed, meaning a correct guess silently drops the visitor into
+        // somebody else's existing account while the UI claims it just created a
+        // new one, and a wrong one reports "Invalid login credentials" on a
+        // *sign-up* form. `?? 1` keeps a missing/absent `identities` out of the
+        // check — only an explicitly empty list is the duplicate signal.
+        if (!result.session && (result.user?.identities?.length ?? 1) === 0) {
+          throw new Error(ACCOUNT_EXISTS_MESSAGE);
+        }
         // No inbox step: the Supabase project has "Confirm email" turned off, so
         // sign-up returns a live session and the account works immediately.
         //
@@ -190,10 +225,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (signInError) throw new Error(signInError.message);
         }
       },
+      // Signing out always ends on the public landing page, and it gets there
+      // with a full document navigation rather than a router.replace: clearing
+      // the session also makes AuthGate / OwnerLayout redirect to /login, so a
+      // client-side hop would be racing those gates for the final URL. The
+      // reload also drops every in-memory context (app, owner, cart) along with
+      // the session, so nothing of the signed-out user survives into the next
+      // visit.
       async signOut() {
         const supabase = getSupabase();
         if (supabase) await supabase.auth.signOut();
         setSession(null);
+        // The full reload is the point here, so the Next rule that pushes
+        // internal navigation through the router doesn't apply.
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+        window.location.assign("/");
       },
     };
   }, [session, loading, role]);

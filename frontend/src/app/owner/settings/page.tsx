@@ -6,7 +6,6 @@
  * tab's cog (mobile). Identity follows the active demo use case, so the business
  * name is shown read-only here; the niche itself is switched in the Demo section.
  */
-import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { useOwner } from "@/context/owner-context";
 import {
@@ -22,7 +21,6 @@ import { EditableBusinessHero } from "@/components/business/business-hero";
 import { VerifiedScene } from "@/components/business/verified-badge";
 
 export default function BusinessSettingsPage() {
-  const router = useRouter();
   const { user, signOut } = useAuth();
   const { activeProvider, scene, vocab, replaceProvider } = useOwner();
 
@@ -67,11 +65,11 @@ export default function BusinessSettingsPage() {
       displayName={activeProvider?.name ?? "Your business"}
       displayNameLabel="Business name"
       email={user?.email ?? "—"}
-      onSignOut={() => signOut().then(() => router.replace("/login"))}
+      onSignOut={signOut}
       onDeleteAccount={async () => {
         await deleteAccount();
+        // signOut() lands on the landing page.
         await signOut();
-        router.replace("/login");
       }}
     />
   );

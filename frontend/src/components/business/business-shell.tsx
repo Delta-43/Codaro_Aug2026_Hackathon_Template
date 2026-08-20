@@ -10,7 +10,7 @@
  * the Profile view (desktop); a quick sign-out sits bottom-left of the drawer.
  */
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import {
   CalendarDays,
   Rocket,
@@ -56,7 +56,9 @@ function Wordmark() {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-6 -translate-y-[9%]" />
       <span className="text-primary">Arbor</span>
-      <span className="ml-2 rounded-full bg-amber-400/15 px-2 py-0.5 align-middle text-xs font-medium text-amber-600 dark:text-amber-400">
+      {/* Same as the business sign-in lockup: plain flex centering lands the
+          pill on the optical middle of "Arbor" — no vertical nudge. */}
+      <span className="ml-2 rounded-full bg-amber-400/15 px-2 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400">
         Business
       </span>
     </span>
@@ -65,7 +67,6 @@ function Wordmark() {
 
 export function BusinessShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const { signOut } = useAuth();
   const { activeProvider, scene, vocab } = useOwner();
   const unread = useUnreadCount();
@@ -99,10 +100,7 @@ export function BusinessShell({ children }: { children: ReactNode }) {
           ))}
         </nav>
         <div className="mt-auto px-1">
-          <SignOutButton
-            className="w-full"
-            onSignOut={() => signOut().then(() => router.replace("/login"))}
-          />
+          <SignOutButton className="w-full" onSignOut={signOut} />
         </div>
       </aside>
 
