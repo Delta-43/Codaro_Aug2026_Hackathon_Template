@@ -299,8 +299,9 @@ make start
 ```
 
 Frontend on **:3000**, backend on **:8000**. On first boot the backend applies
-[`supabase/schema.sql`](supabase/schema.sql) over `SUPABASE_DB_URL` and seeds demo
-data if the database is empty. Both steps are idempotent, so restarts are safe.
+[`supabase/schema.sql`](supabase/schema.sql) over `SUPABASE_DB_URL`. It is
+idempotent, so restarts are safe. Seeding is a separate, explicit step: run
+`make reseed` once to fill an empty database with demo data.
 
 ### 2. Self-host everything, including Supabase
 
@@ -349,9 +350,9 @@ redirects resolve.
 > let Vercel do it. The backend image already defaults to its production command
 > (`uvicorn` binding `$PORT`, no `--reload`).
 
-> **Keep `WEB_CONCURRENCY=1`.** Schema setup and seeding run in the FastAPI
-> lifespan, that is, once per worker, so more than one worker can double-seed on
-> a cold start. To scale out, move schema and seed into a pre-deploy step first.
+> **Keep `WEB_CONCURRENCY=1`.** Schema setup runs in the FastAPI lifespan, that
+> is, once per worker, so more than one worker applies the DDL concurrently on a
+> cold start. To scale out, move schema setup into a pre-deploy step first.
 
 ### Data safety
 
@@ -370,7 +371,7 @@ backend/                    # FastAPI generic engine
   app/config_schema.py      #   normalize() + validate() for the whole v2 tree
   app/rules.py              #   per-service resolver + rules engine
   app/routers/              #   /providers /services /resources /slots /bookings
-  seed.py                   #   demo data (auto-seeds on first start)
+  seed.py                   #   demo data (run `make reseed`)
 frontend/                   # Next.js 14 + Tailwind
   src/api/index.ts          #   typed backend client (the HTTP seam)
   src/app/page.tsx          #   public landing page
