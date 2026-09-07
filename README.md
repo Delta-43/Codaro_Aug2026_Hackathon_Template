@@ -6,13 +6,17 @@
 
 `provider -> service -> resource -> slot -> booking -> user`
 
+🏆 **First place, Track B (Booking and Resource Scheduling), at the Codaro x Google for Startups hackathon.**
+
+[![1st place](https://img.shields.io/badge/%F0%9F%8F%86_1st_place-Codaro_x_Google_for_Startups-FFD700)](#team)
+[![CI](https://github.com/kaveOO/Arbor/actions/workflows/ci.yml/badge.svg)](https://github.com/kaveOO/Arbor/actions/workflows/ci.yml)
 [![Next.js 14](https://img.shields.io/badge/frontend-Next.js%2014-000000)](frontend/)
 [![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688)](backend/)
 [![Supabase](https://img.shields.io/badge/data-Supabase%20Postgres-3ECF8E)](supabase/)
 [![Docker](https://img.shields.io/badge/self--host-Docker%20Compose-2496ED)](docker-compose.yml)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 
-[Quick start](#quick-start-local) | [Self-hosting](#self-hosting) | [Where the stack runs](#where-the-stack-runs) | [The pivot system](#the-pivot-system) | [Docs](#documentation)
+[Quick start](#quick-start-local) | [The pivot system](#the-pivot-system) | [Architecture](#architecture) | [Self-hosting](#self-hosting) | [Team](#team) | [Docs](#documentation)
 
 </div>
 
@@ -34,6 +38,73 @@ The product has three faces:
 Everything the user reads (every noun, CTA, empty state) and every number the
 engine enforces comes from [`domain.config.json`](domain.config.json). Nothing in
 code hard-codes a term or a magic number.
+
+## Quick start (local)
+
+Both env files must exist before `make start`. Each service declares its own
+`env_file`, so a fresh clone fails without them.
+
+```bash
+cp backend/.env.example backend/.env
+cp frontend/.env.local.example frontend/.env.local
+make start
+```
+
+Prefer no Docker? Run the two halves natively:
+
+```bash
+cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && uvicorn app.main:app --reload
+```
+
+```bash
+cd frontend && npm install && npm run dev
+```
+
+Config, `supabase/`, and both app trees are bind-mounted, so edits are live with
+no rebuild. Rebuild only when dependencies change.
+
+## The pivot system
+
+`domain.config.json` (**v2**) holds the engine's vocabulary and the shape of the
+offering. Editing it plus `make reload` re-skins and re-rules the entire app.
+
+```mermaid
+flowchart LR
+    E["Edit<br/>domain.config.json"] --> N["normalize()"] --> V{"validate()"}
+    V -->|"invalid"| F["Fails at the edit.<br/>Every problem listed at once<br/>(422 from /config/reload)"]
+    V -->|"valid"| C["Cached config"]
+    C --> API["Backend enforces<br/>rules + pricing"]
+    C --> UI["Frontend renders<br/>every label + number"]
+
+    classDef ok fill:#e7f8ee,stroke:#2b9e5f,color:#0e2b1a
+    classDef bad fill:#fdecec,stroke:#cf4040,color:#3d0f0f
+    classDef neu fill:#fdf3e0,stroke:#c48a1c,color:#3a2a06
+    class E,N,V neu
+    class C,API,UI ok
+    class F bad
+```
+
+| Block | Controls |
+|---|---|
+| `terms`, `copy` | Vocabulary, CTAs, empty states |
+| `capabilities` | On/off spine: payments, inventory, waitlist, quotes, reviews |
+| `booking` | Unit kind, granularity, duration mode, party rules, add-ons |
+| `pricing` | Rate, tiers, fees, caps, deposit (per-hour, per-night, per-person) |
+| `payments` | Flow, payer, schedule, billing cycle, no-show fee |
+| `inventory` | none, finite, rentable, consumable, serialised |
+| `location` | On-site, at-customer, remote, delivery, pickup, timezone, service area |
+| `prerequisites` | ID checks, intake forms, waivers, memberships, approvals |
+| `timing` | Instant vs request-approve, waitlist, seasons, blackouts, lead time |
+| `metaFields` | Custom fields per entity, with **no migration** |
+
+Config is the default; the service row is the override. A service's own columns
+win over the config globals, and `services.metadata.<block>` lifts that precedence
+to whole blocks, which is how one deployment hosts businesses that price and gate
+completely differently.
+
+Proof it pivots: 100 deliberately different businesses live in [`pivots/`](pivots/)
+as complete, drop-in config files, each run through the real validator and pricing
+engine (`python3 scripts/check_pivots.py`).
 
 ## Architecture
 
@@ -270,73 +341,6 @@ the local `node_modules` and `.next` volumes; it never touches your data. The on
 destructive command is `make reseed`, which truncates the base tables and rebuilds
 demo data from the current config.
 
-## Quick start (local)
-
-Both env files must exist before `make start`. Each service declares its own
-`env_file`, so a fresh clone fails without them.
-
-```bash
-cp backend/.env.example backend/.env
-cp frontend/.env.local.example frontend/.env.local
-make start
-```
-
-Prefer no Docker? Run the two halves natively:
-
-```bash
-cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && uvicorn app.main:app --reload
-```
-
-```bash
-cd frontend && npm install && npm run dev
-```
-
-Config, `supabase/`, and both app trees are bind-mounted, so edits are live with
-no rebuild. Rebuild only when dependencies change.
-
-## The pivot system
-
-`domain.config.json` (**v2**) holds the engine's vocabulary and the shape of the
-offering. Editing it plus `make reload` re-skins and re-rules the entire app.
-
-```mermaid
-flowchart LR
-    E["Edit<br/>domain.config.json"] --> N["normalize()"] --> V{"validate()"}
-    V -->|"invalid"| F["Fails at the edit.<br/>Every problem listed at once<br/>(422 from /config/reload)"]
-    V -->|"valid"| C["Cached config"]
-    C --> API["Backend enforces<br/>rules + pricing"]
-    C --> UI["Frontend renders<br/>every label + number"]
-
-    classDef ok fill:#e7f8ee,stroke:#2b9e5f,color:#0e2b1a
-    classDef bad fill:#fdecec,stroke:#cf4040,color:#3d0f0f
-    classDef neu fill:#fdf3e0,stroke:#c48a1c,color:#3a2a06
-    class E,N,V neu
-    class C,API,UI ok
-    class F bad
-```
-
-| Block | Controls |
-|---|---|
-| `terms`, `copy` | Vocabulary, CTAs, empty states |
-| `capabilities` | On/off spine: payments, inventory, waitlist, quotes, reviews |
-| `booking` | Unit kind, granularity, duration mode, party rules, add-ons |
-| `pricing` | Rate, tiers, fees, caps, deposit (per-hour, per-night, per-person) |
-| `payments` | Flow, payer, schedule, billing cycle, no-show fee |
-| `inventory` | none, finite, rentable, consumable, serialised |
-| `location` | On-site, at-customer, remote, delivery, pickup, timezone, service area |
-| `prerequisites` | ID checks, intake forms, waivers, memberships, approvals |
-| `timing` | Instant vs request-approve, waitlist, seasons, blackouts, lead time |
-| `metaFields` | Custom fields per entity, with **no migration** |
-
-Config is the default; the service row is the override. A service's own columns
-win over the config globals, and `services.metadata.<block>` lifts that precedence
-to whole blocks, which is how one deployment hosts businesses that price and gate
-completely differently.
-
-Proof it pivots: 100 deliberately different businesses live in [`pivots/`](pivots/)
-as complete, drop-in config files, each run through the real validator and pricing
-engine (`python3 scripts/check_pivots.py`).
-
 ## Repo layout
 
 ```
@@ -382,6 +386,17 @@ Run `make` with no arguments for the full list.
 | [docs/PIVOT-COVERAGE.md](docs/PIVOT-COVERAGE.md) | The 100-pivot evidence run |
 | [backend/CLAUDE.md](backend/CLAUDE.md), [frontend/CLAUDE.md](frontend/CLAUDE.md), [supabase/CLAUDE.md](supabase/CLAUDE.md) | Per-layer conventions |
 | [REPORT.md](REPORT.md), [TODO.md](TODO.md) | Regenerated snapshots of what works and what's left |
+
+## Team
+
+Built at the Codaro x Google for Startups hackathon, where it took first place
+on Track B (Booking and Resource Scheduling).
+
+- [@kaveOO](https://github.com/kaveOO) (Alban Billiette)
+- [@Rysia](https://github.com/Rysia)
+- [@Delta-43](https://github.com/Delta-43)
+- [@piotr-palamiotis](https://github.com/piotr-palamiotis)
+- [@philpiano](https://github.com/philpiano)
 
 ## License
 
