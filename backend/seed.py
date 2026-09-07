@@ -445,9 +445,13 @@ def _seed_vertical_locked(vertical_id: str, spec: dict | None = None) -> dict:
 
     # occupancy edge cases + demo bookings on the primary demo service
     if primary_service:
-        counts["bookings"] += _inject_edge_cases(db, primary_service, tz, holds_uid, demo_provider_id, currency)
+        edge_holds, edge_slots = _inject_edge_cases(
+            db, primary_service, tz, holds_uid, demo_provider_id, currency
+        )
+        counts["bookings"] += edge_holds
         counts["bookings"] += _seed_bookings(
-            db, primary_service, demo_provider_id, demo_uid, DEMO_EMAIL, model, currency, tz
+            db, primary_service, demo_provider_id, demo_uid, DEMO_EMAIL, model, currency, tz,
+            reserved=edge_slots,
         )
         # Pending requests waiting on the owner (Requests tab): one from the
         # established demo user, one from a fresh prospect.
@@ -520,7 +524,10 @@ def _slot_for_booking(db, service_id, resource_id, capacity, start: datetime, du
         .execute().data
         or []
     )
-    free = [r for r in rows if r["id"] not in used]
+    # `capacity: 0` is how `_inject_edge_cases` marks a blocked day, and a slot
+    # already spoken for cannot take another booking. Either one would trip the
+    # DB capacity check the moment the booking is inserted.
+    free = [r for r in rows if r["id"] not in used and (r.get("capacity") or 0) > 0]
     if free:
         slot = min(free, key=lambda r: abs(_parse_utc(r["starts_at"]) - start))
         used.add(slot["id"])
@@ -567,7 +574,11 @@ def _seed_requests(db, primary, provider_id, model, currency, requesters, tz: st
     capacity = primary["resource"]["_capacity"]
     dur = spec["slotDurationMinutes"]
     price = spec["priceMinorUnits"]
-    party = 2 if model == "shared_capacity" else 1
+    # The demo party size is illustrative, but slot capacity is enforced in the
+    # DB (schema.sql, `slot_capacity_exceeded`). A config that seats fewer than
+    # the party we would like to show has to win, or the seed aborts part-way
+    # through and leaves the demo data half-built.
+    party = min(2, capacity) if model == "shared_capacity" else 1
     now = datetime.now(timezone.utc)
     day = timedelta(days=1)
 
@@ -718,7 +729,7 @@ def _seed_messages(db, demo_provider_id, demo_uid, owner_uid, provider_ids) -> i
     return made
 
 
-def _inject_edge_cases(db, primary, tz, holds_uid, provider_id, currency) -> int:
+def _inject_edge_cases(db, primary, tz, holds_uid, provider_id, currency) -> tuple[int, set[str]]:
     """A blocked day (capacity 0), a fully-booked day, and — for shared capacity
     — a one-seat-left slot. Occupancy is made real via holds bookings."""
     service_id = primary["id"]
@@ -739,12 +750,17 @@ def _inject_edge_cases(db, primary, tz, holds_uid, provider_id, currency) -> int
     partial_date = dates[3] if len(dates) > 3 else dates[0]
 
     holds = 0
+    # Slots this function blocks or fills. `_seed_bookings` runs next and reuses
+    # grid slots, so it has to treat these as taken.
+    consumed: set[str] = set()
     for s in slots:
         date = _local_date_str(s["starts_at"], tz)
         if date == blocked_date:
             db.table("slots").update({"capacity": 0}).eq("id", s["id"]).execute()
+            consumed.add(s["id"])
         elif date == full_date:
             _hold(db, s, service_id, provider_id, s["resource_id"], s["capacity"], holds_uid, currency, price)
+            consumed.add(s["id"])
             holds += 1
 
     if partial_date not in (blocked_date, full_date):
@@ -755,11 +771,13 @@ def _inject_edge_cases(db, primary, tz, holds_uid, provider_id, currency) -> int
         if partial:
             _hold(db, partial, service_id, provider_id, partial["resource_id"],
                   partial["capacity"] - 1, holds_uid, currency, price)
+            consumed.add(partial["id"])
             holds += 1
-    return holds
+    return holds, consumed
 
 
-def _seed_bookings(db, primary, provider_id, demo_uid, demo_email, model, currency, tz) -> int:
+def _seed_bookings(db, primary, provider_id, demo_uid, demo_email, model, currency, tz,
+                   reserved: set[str] | None = None) -> int:
     """The 5–6 lifecycle bookings owned by the demo user (mirrors seedBookings)."""
     service_id = primary["id"]
     spec = primary["spec"]
@@ -770,10 +788,14 @@ def _seed_bookings(db, primary, provider_id, demo_uid, demo_email, model, curren
     cutoff_s = spec["cancellationCutoffHours"] * _HOUR
     max_slots = spec["maxSlotsPerBooking"]
     shared = model == "shared_capacity"
+
+    def party_of(n: int) -> int:
+        """A demo party that actually fits. See the note in `_seed_requests`."""
+        return min(n, capacity) if shared else 1
     now = datetime.now(timezone.utc)
     # Slots already claimed by an earlier lifecycle booking, so a day-or-longer
     # unit never hands the same grid slot to two of them.
-    used_slot_ids: set[str] = set()
+    used_slot_ids: set[str] = set(reserved or ())
 
     def commit(start: datetime, party: int, status: str, created: datetime,
                *, review: dict | None = None, cancelled: datetime | None = None,
@@ -832,10 +854,10 @@ def _seed_bookings(db, primary, provider_id, demo_uid, demo_email, model, curren
     # history timestamps and never define a slot.
     step = timedelta(minutes=dur) if dur >= 1440 else day
     # 1) upcoming, outside cutoff (changeable)
-    commit(now + timedelta(seconds=cutoff_s) + 5 * step, 2 if shared else 1, "confirmed", now - 3 * day)
+    commit(now + timedelta(seconds=cutoff_s) + 5 * step, party_of(2), "confirmed", now - 3 * day)
     # 2) upcoming, inside cutoff (locked)
     inside = min(cutoff_s * 0.4, cutoff_s - _HOUR)
-    commit(now + timedelta(seconds=inside) + timedelta(minutes=30), 3 if shared else 1, "confirmed", now - day)
+    commit(now + timedelta(seconds=inside) + timedelta(minutes=30), party_of(3), "confirmed", now - day)
     # 3) completed, no review
     commit(now - 7 * step, 1, "confirmed", now - 13 * day)
     # 4) completed, with review
