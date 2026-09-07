@@ -39,6 +39,25 @@ Everything the user reads (every noun, CTA, empty state) and every number the
 engine enforces comes from [`domain.config.json`](domain.config.json). Nothing in
 code hard-codes a term or a magic number.
 
+## Screenshots
+
+Every noun, label and price below is rendered from `domain.config.json`. This
+deployment is configured as a funeral home, so the engine's neutral
+`provider / service / resource / slot` spine surfaces as Funeral Home,
+Arrangement, Chapel and Date. Point it at a different config and the same
+screens speak a different business.
+
+| Browse a business | Availability |
+|---|---|
+| ![Customer view of a business, its arrangements and reviews](docs/screenshots/02-provider.png) | ![Month density and day availability grid](docs/screenshots/03-calendar.png) |
+| Services, reviews and booking entry points, all labelled from config. | Month density plus per-day slots, the Track B availability view. |
+
+| Owner dashboard | Landing page |
+|---|---|
+| ![Business owner dashboard with bookings and analytics](docs/screenshots/05-owner-dashboard.png) | ![Public marketing landing page](docs/screenshots/01-landing.png) |
+| The business side: requests, calendar, services and per-item analytics. | The public front door at `/`. |
+
+
 ## Quick start (local)
 
 Both env files must exist before `make start`. Each service declares its own
