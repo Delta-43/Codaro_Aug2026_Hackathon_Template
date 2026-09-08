@@ -42,7 +42,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Codaro Booking Engine", lifespan=lifespan)
+app = FastAPI(title="Arbor", lifespan=lifespan)
 
 # CORS origins come from the environment so prod can lock the API to the
 # deployed frontend while local dev stays open. `CORS_ORIGINS` is a

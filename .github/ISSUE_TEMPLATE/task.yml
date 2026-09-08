@@ -1,5 +1,5 @@
-name: Issue
-description: Anything to build, change, or fix. Every branch starts from an issue.
+name: Task
+description: Work to do that is not a bug report or a feature proposal. Every branch starts from an issue.
 body:
   - type: textarea
     id: what

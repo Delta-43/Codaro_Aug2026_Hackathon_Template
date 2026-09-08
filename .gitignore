@@ -9,6 +9,7 @@ __pycache__/
 # Test artifacts
 .pytest_cache/
 .coverage
+coverage.xml
 htmlcov/
 
 # Node / Next.js
@@ -28,6 +29,15 @@ node_modules/
 
 # Local scratch / experiments (never commit)
 sandbox/
+
+# Snapshots from the 3-agent verification pipeline (see CLAUDE.md). Generated
+# on demand and stale within a commit or two, so they are regenerated rather
+# than tracked — real work belongs in GitHub issues.
+REPORT.md
+TODO.md
+
+# Linter cache
+.ruff_cache/
 
 # Design-system tooling working dirs. Untracked today only because their
 # contents happen to sit under node_modules/ or self-ignore; anything else

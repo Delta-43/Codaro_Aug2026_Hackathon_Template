@@ -1,5 +1,5 @@
 {
-  "name": "booking-engine-frontend",
+  "name": "arbor-frontend",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "codegen:config": "npx --yes json-schema-to-typescript@15.0.4 --input ../domain.config.schema.json --output src/api/config.generated.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.109.0",

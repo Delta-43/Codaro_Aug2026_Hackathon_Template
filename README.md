@@ -1,6 +1,6 @@
 <div align="center">
 
-# Codaro Booking Engine
+# Arbor
 
 **A generic, config-driven booking engine. Pivot the whole product by editing one JSON file.**
 
@@ -15,10 +15,25 @@
 [![Supabase](https://img.shields.io/badge/data-Supabase%20Postgres-3ECF8E)](supabase/)
 [![Docker](https://img.shields.io/badge/self--host-Docker%20Compose-2496ED)](docker-compose.yml)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![Status: not actively maintained](https://img.shields.io/badge/status-not_actively_maintained-lightgrey.svg)](#project-status)
 
 [Quick start](#quick-start-local) | [The pivot system](#the-pivot-system) | [Architecture](#architecture) | [Self-hosting](#self-hosting) | [Team](#team) | [Docs](#documentation)
 
 </div>
+
+## Project status
+
+**Finished showcase project. Not actively maintained.**
+
+Arbor was built for a hackathon and is kept public as a working reference, not
+as a maintained product. Issues are closed, pull requests are not reviewed, and
+there is no support channel. Nothing here is being watched for a reply.
+
+The code is yours under the AGPL-3.0: fork it, run it, take it somewhere else.
+[CONTRIBUTING.md](CONTRIBUTING.md) documents the branch flow, the CI gates and
+the two rules the codebase lives by, so a fork has everything it needs. For a
+security problem, read [SECURITY.md](SECURITY.md) first, and assume a fix will
+come from your fork rather than from here.
 
 ## What this is
 
@@ -401,11 +416,17 @@ Run `make` with no arguments for the full list.
 |---|---|
 | [CLAUDE.md](CLAUDE.md) | The architectural guide. Read this first. |
 | [DEPLOY.md](DEPLOY.md) | Vercel, Railway and Supabase, step by step |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Branch naming, PR flow, CI gates |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How the codebase is worked on, for forks |
 | [docs/PIVOT-SYSTEM.md](docs/PIVOT-SYSTEM.md) | Every config block and the precedence model |
 | [docs/PIVOT-COVERAGE.md](docs/PIVOT-COVERAGE.md) | The 100-pivot evidence run |
 | [backend/CLAUDE.md](backend/CLAUDE.md), [frontend/CLAUDE.md](frontend/CLAUDE.md), [supabase/CLAUDE.md](supabase/CLAUDE.md) | Per-layer conventions |
-| [REPORT.md](REPORT.md), [TODO.md](TODO.md) | Regenerated snapshots of what works and what's left |
+| [CHANGELOG.md](CHANGELOG.md) | What changed in each release |
+| [SECURITY.md](SECURITY.md) | How to report a vulnerability (privately) |
+
+**API reference.** The backend generates its own, from the routers — start the
+stack and open <http://localhost:8000/docs> (Swagger UI), <http://localhost:8000/redoc>,
+or fetch the spec at `/openapi.json`. There is no hand-written endpoint list to
+fall out of date.
 
 ## Team
 

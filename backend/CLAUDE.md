@@ -16,6 +16,7 @@ the frontend's exact contract (`frontend/src/types/domain.ts`). See root
 | `app/main.py` | App wiring, lifespan (schema setup + seed), `GET /health`, `GET /config`, `POST /config/reload`, router mounts |
 | `app/config.py` | Loads → normalizes → **validates** → `lru_cache`s `domain.config.json`; `load_config()` (uncached, raises `ConfigError`), `get_raw_config()` |
 | `app/config_schema.py` | Config **v2**: `DEFAULTS`, `normalize()` (defaults + v1 `rules`/`search` aliasing), `validate()`, the enum vocabularies |
+| `app/config_models.py` | Pydantic models describing the whole v2 tree — the source the published JSON Schema and the frontend's TS types are generated from. **Not yet the validator**, see below |
 | `app/pricing.py` | `quote(pricing, ctx)` — config-driven totals (rate/tiers/fees/caps/deposit) |
 | `app/db.py` | `get_supabase()` (service key, bypasses RLS) + `get_user_client(token)` (JWT-scoped, RLS applies); `maybe_row()` (normalises PGRST116 **and** malformed-uuid `22P02` → None) |
 | `app/schema_setup.py` | Idempotently applies `supabase/schema.sql` on startup (guarded) |
@@ -63,6 +64,51 @@ the offering pivot, not just its vocabulary. Three rules hold:
   listing *every* problem. This file gets hand-edited under time pressure; a typo
   must fail at the edit, not on whichever booking reads it first.
 - **Config is defaults; the service row is the override.** See below.
+
+## The config shape has one source (`config_models.py`)
+
+The shape used to be written three times — `DEFAULTS` (a dict literal),
+`validate()` (imperative checks) and hand-written TypeScript in
+`frontend/src/api/index.ts` — with nothing linking them. They had already
+drifted: the backend declares 17 `terms`, the frontend type declared 13, and
+`generate_pivots.py` writes three of the missing four into all 100 pivots.
+
+`config_models.py` is now the source, and everything else is derived:
+
+```
+backend/app/config_models.py          # pydantic models — authored
+  -> domain.config.schema.json        # scripts/gen_config_schema.py
+     -> frontend/src/api/config.generated.ts   # npm run codegen:config
+```
+
+Both generated files are committed and **gated in CI** (`--check` and
+`git diff --exit-code`), so a model change that is not regenerated fails the
+build instead of silently making the schema lie. `ConfigTerms`/`ConfigCopy` in
+`api/index.ts` now derive their key sets from the generated types, which is what
+closes the drift for good.
+
+**The models do not validate anything yet.** `validate()` is still the
+validator. Swapping it is deliberately staged behind an equivalence harness,
+because the error *strings* are a production contract, not just a test one:
+`validate_overrides` set-diffs rendered strings to decide which per-service
+override blocks survive, and a wrongly-dropped block silently reprices a
+service. Until that harness exists, `test_config_models.py` holds the models and
+`DEFAULTS` together with a golden `config_dump() == DEFAULTS` assertion.
+
+Two properties worth knowing:
+
+- **Numbers are `StrictInt | StrictFloat`**, mirroring `_int` (int or float,
+  never `bool`). Lax pydantic would accept `"30"` for an int and `1` for a bool —
+  a silent widening no test would catch.
+- **Blocks publish `additionalProperties: false`** while still only *ignoring*
+  extras at runtime. An unknown key in a block is exactly the typo a pivot author
+  wants flagged in their editor, and without it the generated TypeScript grows an
+  index signature that collapses `keyof Terms` to `string`.
+
+Editors pick the schema up through `.vscode/settings.json`. It is deliberately
+NOT a `$schema` key inside `domain.config.json`: `normalize()` drops undeclared
+keys and `test_health_config.py` pins that the file is a normalize fixpoint, so
+a `$schema` key would be the one line in it that is not true.
 
 ## Rules — per service (`rules.py`)
 

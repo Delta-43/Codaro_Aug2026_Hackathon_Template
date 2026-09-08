@@ -12,7 +12,7 @@
  * vertical-agnostic (see hero.tsx) — the live-demo vertical only comes back
  * into play in the later "featured providers" section.
  *
- * Built section by section (see docs/issues/26-loading-page.md). Full page:
+ * Built section by section. Full page:
  * Hero → How it works → Testimonials → Business CTA → Footer.
  */
 import { SceneBackground } from "@/components/landing/scene-background";

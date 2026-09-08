@@ -6,3 +6,6 @@ pytest>=8.0,<10
 # starlette's TestClient is an httpx.Client under the hood
 httpx>=0.27,<0.29
 anyio>=4.0,<5
+# Coverage reporting. Not gated on a threshold yet — the number is published so
+# it can be watched before it becomes a gate.
+pytest-cov>=5.0,<8

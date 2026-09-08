@@ -18,6 +18,11 @@ export default [
   // gate for code that is not the app. Enumerating dirs to ignore cannot cover
   // the ones nobody has created yet, so ignore everything and re-include src/.
   { ignores: ["**/*", "!src/**"] },
+  // Generated from domain.config.schema.json by `npm run codegen:config`, and
+  // gated in CI so it cannot go stale. Excluded because the generator's banner
+  // is an unconditional `eslint-disable`, which then warns as an unused
+  // directive — there is no version of this file for a human to fix.
+  { ignores: ["src/api/config.generated.ts"] },
   ...nextCoreWebVitals,
   ...nextTypeScript,
   {

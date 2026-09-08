@@ -1,0 +1,2439 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/kaveOO/Arbor/main/domain.config.schema.json",
+  "title": "DomainConfig",
+  "description": "The complete `domain.config.json` tree, after normalization.\n\nEvery block is also overridable per service through\n`services.metadata.<block>` — see `rules.effective_service_config`. The\nservice row wins over these globals.",
+  "$defs": {
+    "Booking": {
+      "additionalProperties": false,
+      "properties": {
+        "unitKind": {
+          "default": "time_slot",
+          "enum": [
+            "time_slot",
+            "staff",
+            "asset",
+            "seat",
+            "room",
+            "class_capacity",
+            "stock_item",
+            "subscription_slot",
+            "project"
+          ],
+          "type": "string"
+        },
+        "granularity": {
+          "default": "minute",
+          "enum": [
+            "minute",
+            "hour",
+            "day",
+            "night",
+            "week",
+            "month",
+            "none"
+          ],
+          "type": "string"
+        },
+        "duration": {
+          "$ref": "#/$defs/Duration"
+        },
+        "party": {
+          "$ref": "#/$defs/Party"
+        },
+        "sequence": {
+          "$ref": "#/$defs/Sequence"
+        },
+        "subject": {
+          "$ref": "#/$defs/Subject"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/BookingOption"
+          },
+          "type": "array"
+        }
+      },
+      "title": "Booking",
+      "type": "object"
+    },
+    "BookingOption": {
+      "additionalProperties": true,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "type": {
+          "default": "boolean",
+          "enum": [
+            "boolean",
+            "select"
+          ],
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "priceMinorUnits": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "choices": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/OptionChoice"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Required when type is 'select'."
+        },
+        "helpText": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "title": "BookingOption",
+      "type": "object"
+    },
+    "Capabilities": {
+      "additionalProperties": false,
+      "description": "The on/off spine. A false capability means the UI hides the surface AND\nthe backend refuses the write — not one without the other.",
+      "properties": {
+        "payments": {
+          "default": true,
+          "type": "boolean"
+        },
+        "inventory": {
+          "default": false,
+          "type": "boolean"
+        },
+        "waitlist": {
+          "default": false,
+          "type": "boolean"
+        },
+        "quotes": {
+          "default": false,
+          "type": "boolean"
+        },
+        "recurrence": {
+          "default": false,
+          "type": "boolean"
+        },
+        "prerequisites": {
+          "default": false,
+          "type": "boolean"
+        },
+        "entitlements": {
+          "default": false,
+          "type": "boolean"
+        },
+        "cart": {
+          "default": false,
+          "type": "boolean"
+        },
+        "reviews": {
+          "default": true,
+          "type": "boolean"
+        },
+        "follows": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "title": "Capabilities",
+      "type": "object"
+    },
+    "Caps": {
+      "additionalProperties": false,
+      "properties": {
+        "perBookingMinorUnits": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "perDayMinorUnits": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Declared but NOT enforced: it needs the customer's other bookings that day, which is a query, not arithmetic."
+        }
+      },
+      "title": "Caps",
+      "type": "object"
+    },
+    "Commission": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "rateBps": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 0
+        },
+        "chargedOn": {
+          "default": "completion",
+          "type": "string"
+        }
+      },
+      "title": "Commission",
+      "type": "object"
+    },
+    "CompositionBand": {
+      "additionalProperties": true,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "priceFactor": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "title": "CompositionBand",
+      "type": "object"
+    },
+    "Copy": {
+      "additionalProperties": false,
+      "properties": {
+        "landingTitle": {
+          "default": "Book a Resource",
+          "type": "string"
+        },
+        "landingSubtitle": {
+          "default": "Pick a resource, find an open slot, book it.",
+          "type": "string"
+        },
+        "confirmTitle": {
+          "default": "Booking confirmed",
+          "type": "string"
+        },
+        "emptyStateSlots": {
+          "default": "No slots available yet.",
+          "type": "string"
+        },
+        "emptyStateBookings": {
+          "default": "You have no bookings yet.",
+          "type": "string"
+        },
+        "requestPending": {
+          "default": "Your request has been sent.",
+          "type": "string"
+        },
+        "waitlistJoined": {
+          "default": "You're on the waitlist.",
+          "type": "string"
+        },
+        "quoteRequested": {
+          "default": "Your quote request has been sent.",
+          "type": "string"
+        },
+        "depositDue": {
+          "default": "A deposit is due to confirm this booking.",
+          "type": "string"
+        },
+        "prerequisiteBlocked": {
+          "default": "Some details are needed before this can be confirmed.",
+          "type": "string"
+        }
+      },
+      "title": "Copy",
+      "type": "object"
+    },
+    "Credential": {
+      "additionalProperties": true,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "expires": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "title": "Credential",
+      "type": "object"
+    },
+    "DateWindow": {
+      "additionalProperties": true,
+      "properties": {
+        "startDate": {
+          "type": "string"
+        },
+        "endDate": {
+          "type": "string"
+        },
+        "key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "startDate",
+        "endDate"
+      ],
+      "title": "DateWindow",
+      "type": "object"
+    },
+    "Deposit": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "kind": {
+          "default": "percent",
+          "enum": [
+            "percent",
+            "flat"
+          ],
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 0
+        },
+        "refundable": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "title": "Deposit",
+      "type": "object"
+    },
+    "Discovery": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "default": "browse",
+          "enum": [
+            "browse",
+            "reverse"
+          ],
+          "type": "string"
+        },
+        "facets": {
+          "$ref": "#/$defs/DiscoveryFacets"
+        },
+        "matching": {
+          "$ref": "#/$defs/Matching"
+        }
+      },
+      "title": "Discovery",
+      "type": "object"
+    },
+    "DiscoveryFacets": {
+      "additionalProperties": false,
+      "properties": {
+        "price": {
+          "default": true,
+          "type": "boolean"
+        },
+        "distance": {
+          "default": true,
+          "type": "boolean"
+        },
+        "rating": {
+          "default": true,
+          "type": "boolean"
+        },
+        "availability": {
+          "default": true,
+          "type": "boolean"
+        },
+        "unitKind": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "title": "DiscoveryFacets",
+      "type": "object"
+    },
+    "DistanceBand": {
+      "additionalProperties": true,
+      "properties": {
+        "maxKm": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "feeMinorUnits": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 0
+        }
+      },
+      "title": "DistanceBand",
+      "type": "object"
+    },
+    "Duration": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "default": "fixed",
+          "enum": [
+            "fixed",
+            "variable",
+            "customer_chosen",
+            "open_ended"
+          ],
+          "type": "string"
+        },
+        "minUnits": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 1
+        },
+        "maxUnits": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 1
+        },
+        "incrementUnits": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 1
+        }
+      },
+      "title": "Duration",
+      "type": "object"
+    },
+    "Entitlements": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "kind": {
+          "default": "none",
+          "enum": [
+            "none",
+            "credits",
+            "membership",
+            "pass"
+          ],
+          "type": "string"
+        },
+        "plans": {
+          "items": {
+            "$ref": "#/$defs/Plan"
+          },
+          "type": "array"
+        }
+      },
+      "title": "Entitlements",
+      "type": "object"
+    },
+    "Fee": {
+      "additionalProperties": true,
+      "properties": {
+        "key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "kind": {
+          "default": "flat",
+          "enum": [
+            "flat",
+            "percent",
+            "distanceBand"
+          ],
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "amountMinorUnits": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "For kind 'flat'."
+        },
+        "rateBps": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "For kind 'percent'."
+        },
+        "bands": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/DistanceBand"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Required, and non-empty, for kind 'distanceBand'."
+        },
+        "appliesWhen": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Fee",
+      "type": "object"
+    },
+    "Fulfilment": {
+      "additionalProperties": false,
+      "properties": {
+        "windowMinutes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 60
+        },
+        "cutoffHoursBefore": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 0
+        }
+      },
+      "title": "Fulfilment",
+      "type": "object"
+    },
+    "Inventory": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "default": "none",
+          "enum": [
+            "none",
+            "finite",
+            "rentable",
+            "consumable",
+            "serialised"
+          ],
+          "type": "string"
+        },
+        "reservationWindowMinutes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 15
+        },
+        "loanPeriodHours": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "returnRequired": {
+          "default": false,
+          "type": "boolean"
+        },
+        "overdueFeePerDayMinorUnits": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 0
+        },
+        "restockCycle": {
+          "default": "none",
+          "type": "string"
+        },
+        "ratioConstraint": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Inventory",
+      "type": "object"
+    },
+    "LegacyRules": {
+      "additionalProperties": false,
+      "description": "DEPRECATED. `timing` owns these five keys; `normalize()` mirrors them back\nhere so a v1 reader and a v1 config file both keep working.",
+      "properties": {
+        "slotDurationMinutes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 30
+        },
+        "maxBookingsPerSlot": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 1
+        },
+        "cancellationWindowHours": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 24
+        },
+        "advanceBookingWindowDays": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 30
+        },
+        "bufferMinutes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 0
+        }
+      },
+      "title": "LegacyRules",
+      "type": "object"
+    },
+    "LegacySearch": {
+      "additionalProperties": false,
+      "description": "DEPRECATED. `discovery` owns this; `normalize()` keeps the two in sync.",
+      "properties": {
+        "facets": {
+          "$ref": "#/$defs/LegacySearchFacets"
+        }
+      },
+      "title": "LegacySearch",
+      "type": "object"
+    },
+    "LegacySearchFacets": {
+      "additionalProperties": false,
+      "properties": {
+        "price": {
+          "default": true,
+          "type": "boolean"
+        },
+        "distance": {
+          "default": true,
+          "type": "boolean"
+        },
+        "rating": {
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "title": "LegacySearchFacets",
+      "type": "object"
+    },
+    "Location": {
+      "additionalProperties": false,
+      "properties": {
+        "modes": {
+          "items": {
+            "enum": [
+              "on_site",
+              "at_customer",
+              "remote",
+              "delivery",
+              "pickup"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "default": {
+          "enum": [
+            "on_site",
+            "at_customer",
+            "remote",
+            "delivery",
+            "pickup"
+          ],
+          "type": "string",
+          "default": "on_site"
+        },
+        "timezone": {
+          "default": "UTC",
+          "description": "The business's own IANA timezone. Absent in v1, which is why an anonymous visitor always saw availability grouped in UTC.",
+          "type": "string"
+        },
+        "distanceUnit": {
+          "default": "km",
+          "type": "string"
+        },
+        "origin": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Origin"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The distance-from point."
+        },
+        "serviceArea": {
+          "$ref": "#/$defs/ServiceArea"
+        },
+        "remote": {
+          "$ref": "#/$defs/Remote"
+        },
+        "fulfilment": {
+          "$ref": "#/$defs/Fulfilment"
+        }
+      },
+      "title": "Location",
+      "type": "object"
+    },
+    "Matching": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "source": {
+          "default": "intake_form",
+          "type": "string"
+        }
+      },
+      "title": "Matching",
+      "type": "object"
+    },
+    "MetaField": {
+      "additionalProperties": true,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "enum": [
+                "text",
+                "number",
+                "boolean",
+                "date",
+                "select",
+                "file"
+              ],
+              "type": "string"
+            },
+            {
+              "const": "string",
+              "type": "string"
+            }
+          ],
+          "description": "'string' is accepted as an alias for 'text' — it shipped in domain.config.medical.example.json and matched nothing in the v1 validator."
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "required": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "options": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "key",
+        "type"
+      ],
+      "title": "MetaField",
+      "type": "object"
+    },
+    "MetaFields": {
+      "additionalProperties": false,
+      "description": "Custom fields per entity. Adding one needs no migration — the values land\nin that table's `metadata` jsonb column.",
+      "properties": {
+        "providers": {
+          "items": {
+            "$ref": "#/$defs/MetaField"
+          },
+          "type": "array"
+        },
+        "services": {
+          "items": {
+            "$ref": "#/$defs/MetaField"
+          },
+          "type": "array"
+        },
+        "resources": {
+          "items": {
+            "$ref": "#/$defs/MetaField"
+          },
+          "type": "array"
+        },
+        "slots": {
+          "items": {
+            "$ref": "#/$defs/MetaField"
+          },
+          "type": "array"
+        },
+        "bookings": {
+          "items": {
+            "$ref": "#/$defs/MetaField"
+          },
+          "type": "array"
+        },
+        "subjects": {
+          "items": {
+            "$ref": "#/$defs/MetaField"
+          },
+          "type": "array"
+        }
+      },
+      "title": "MetaFields",
+      "type": "object"
+    },
+    "NoShowFee": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "amountMinorUnits": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 0
+        }
+      },
+      "title": "NoShowFee",
+      "type": "object"
+    },
+    "OptionChoice": {
+      "additionalProperties": true,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "priceMinorUnits": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "requires": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "title": "OptionChoice",
+      "type": "object"
+    },
+    "Origin": {
+      "additionalProperties": true,
+      "properties": {
+        "city": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "lat": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "lng": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Origin",
+      "type": "object"
+    },
+    "Party": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "default": "individual",
+          "enum": [
+            "individual",
+            "group",
+            "buyout"
+          ],
+          "type": "string"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 1
+        },
+        "max": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "null means the resource's own capacity is the ceiling."
+        },
+        "composition": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/CompositionBand"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Age bands and similar — each with its own priceFactor."
+        },
+        "matchResourceCapacity": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "title": "Party",
+      "type": "object"
+    },
+    "Payments": {
+      "additionalProperties": false,
+      "properties": {
+        "flow": {
+          "default": "prepay",
+          "enum": [
+            "prepay",
+            "pay_on_site",
+            "invoice_after",
+            "split",
+            "none"
+          ],
+          "type": "string"
+        },
+        "payer": {
+          "default": "customer",
+          "enum": [
+            "customer",
+            "third_party"
+          ],
+          "type": "string"
+        },
+        "schedule": {
+          "items": {
+            "$ref": "#/$defs/ScheduleStep"
+          },
+          "type": "array"
+        },
+        "billingCycle": {
+          "default": "none",
+          "enum": [
+            "none",
+            "weekly",
+            "monthly",
+            "annual"
+          ],
+          "type": "string"
+        },
+        "noShowFee": {
+          "$ref": "#/$defs/NoShowFee",
+          "description": "NOT YET ENFORCED — needs the payments layer (no payments table exists)."
+        },
+        "usageMetered": {
+          "default": false,
+          "type": "boolean"
+        },
+        "adapter": {
+          "default": "manual",
+          "description": "No PSP exists in this repo. 'manual' = the owner marks a booking paid.",
+          "type": "string"
+        }
+      },
+      "title": "Payments",
+      "type": "object"
+    },
+    "Plan": {
+      "additionalProperties": true,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "credits": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cycle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "discountBps": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "priceMinorUnits": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "appliesToServices": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "title": "Plan",
+      "type": "object"
+    },
+    "PrereqField": {
+      "additionalProperties": true,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "anyOf": [
+            {
+              "enum": [
+                "text",
+                "number",
+                "boolean",
+                "date",
+                "select",
+                "file"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "required": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "title": "PrereqField",
+      "type": "object"
+    },
+    "Prerequisite": {
+      "additionalProperties": true,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "id_check",
+            "licence",
+            "intake_form",
+            "waiver",
+            "membership",
+            "approval",
+            "credential"
+          ],
+          "type": "string"
+        },
+        "appliesTo": {
+          "default": "customer",
+          "enum": [
+            "customer",
+            "tenant",
+            "subject"
+          ],
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "required": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "blocksConfirmation": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "validityDays": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "verifier": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fields": {
+          "anyOf": [
+            {
+              "items": {
+                "$ref": "#/$defs/PrereqField"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "key",
+        "kind"
+      ],
+      "title": "Prerequisite",
+      "type": "object"
+    },
+    "Pricing": {
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "default": "fixed",
+          "enum": [
+            "fixed",
+            "per_hour",
+            "per_person",
+            "per_unit",
+            "tiered",
+            "quote",
+            "deposit_balance",
+            "subscription",
+            "free"
+          ],
+          "type": "string"
+        },
+        "currency": {
+          "default": "EUR",
+          "description": "A 3-letter ISO 4217 code.",
+          "type": "string"
+        },
+        "currencyExponent": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 2
+        },
+        "rate": {
+          "$ref": "#/$defs/Rate"
+        },
+        "secondaryRate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Rate"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tiers": {
+          "items": {
+            "$ref": "#/$defs/Tier"
+          },
+          "type": "array"
+        },
+        "chargePerPerson": {
+          "default": true,
+          "description": "True reproduces the v1 formula (price x slots x party). False where the party shares one unit — a tennis court costs the same for 2 or 4.",
+          "type": "boolean"
+        },
+        "caps": {
+          "$ref": "#/$defs/Caps"
+        },
+        "fees": {
+          "items": {
+            "$ref": "#/$defs/Fee"
+          },
+          "type": "array"
+        },
+        "deposit": {
+          "$ref": "#/$defs/Deposit"
+        }
+      },
+      "title": "Pricing",
+      "type": "object"
+    },
+    "Rate": {
+      "additionalProperties": false,
+      "properties": {
+        "per": {
+          "default": "slot",
+          "enum": [
+            "booking",
+            "slot",
+            "hour",
+            "day",
+            "night",
+            "week",
+            "month",
+            "person",
+            "unit"
+          ],
+          "type": "string"
+        },
+        "amountMinorUnits": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 0
+        }
+      },
+      "title": "Rate",
+      "type": "object"
+    },
+    "Recurrence": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "patterns": {
+          "items": {
+            "enum": [
+              "weekly",
+              "biweekly",
+              "monthly"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "maxOccurrences": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": 12
+        },
+        "term": {
+          "$ref": "#/$defs/Term"
+        }
+      },
+      "title": "Recurrence",
+      "type": "object"
+    },
+    "Remote": {
+      "additionalProperties": false,
+      "properties": {
+        "meetingLinkMode": {
+          "default": "none",
+          "type": "string"
+        }
+      },
+      "title": "Remote",
+      "type": "object"
+    },
+    "ScheduleStep": {
+      "additionalProperties": true,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "kind": {
+          "default": "percent",
+          "enum": [
+            "percent",
+            "flat"
+          ],
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 0
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "relativeTo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "dueOffsetDays": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "dueOffsetHours": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "title": "ScheduleStep",
+      "type": "object"
+    },
+    "Sequence": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "steps": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 1
+        },
+        "minGapHours": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 0
+        },
+        "maxGapHours": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Sequence",
+      "type": "object"
+    },
+    "ServiceArea": {
+      "additionalProperties": false,
+      "properties": {
+        "radiusKm": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "travelBufferMinutes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 0
+        },
+        "feeBands": {
+          "items": {
+            "$ref": "#/$defs/DistanceBand"
+          },
+          "type": "array"
+        }
+      },
+      "title": "ServiceArea",
+      "type": "object"
+    },
+    "Subject": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "noun": {
+          "default": "Subject",
+          "type": "string"
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/$defs/SubjectField"
+          },
+          "type": "array"
+        }
+      },
+      "title": "Subject",
+      "type": "object"
+    },
+    "SubjectField": {
+      "additionalProperties": true,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "type": {
+          "anyOf": [
+            {
+              "enum": [
+                "text",
+                "number",
+                "boolean",
+                "date",
+                "select",
+                "file"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "required": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "options": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "helpText": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "title": "SubjectField",
+      "type": "object"
+    },
+    "Tenancy": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "default": "multi",
+          "enum": [
+            "single",
+            "multi"
+          ],
+          "type": "string"
+        },
+        "providerCode": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Required when mode is 'single' — how the app resolves its one business."
+        },
+        "selfOnboarding": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Defaults to (mode == 'multi') at load: a marketplace onboards businesses, a single-business site does not."
+        },
+        "tenantVerification": {
+          "$ref": "#/$defs/TenantVerification"
+        },
+        "commission": {
+          "$ref": "#/$defs/Commission"
+        }
+      },
+      "title": "Tenancy",
+      "type": "object"
+    },
+    "TenantVerification": {
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "default": false,
+          "type": "boolean"
+        },
+        "credentials": {
+          "items": {
+            "$ref": "#/$defs/Credential"
+          },
+          "type": "array"
+        }
+      },
+      "title": "TenantVerification",
+      "type": "object"
+    },
+    "Term": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "default": "fixed",
+          "type": "string"
+        },
+        "noticePeriodDays": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 0
+        }
+      },
+      "title": "Term",
+      "type": "object"
+    },
+    "Terms": {
+      "additionalProperties": false,
+      "description": "Every noun the UI renders. All 17 keys are required to be non-empty\nstrings — the frontend's `<Term>` has nothing to fall back to.",
+      "properties": {
+        "provider": {
+          "default": "Business",
+          "type": "string"
+        },
+        "providers": {
+          "default": "Businesses",
+          "type": "string"
+        },
+        "service": {
+          "default": "Service",
+          "type": "string"
+        },
+        "services": {
+          "default": "Services",
+          "type": "string"
+        },
+        "staff": {
+          "default": "Staff",
+          "type": "string"
+        },
+        "subject": {
+          "default": "Subject",
+          "type": "string"
+        },
+        "party": {
+          "default": "Guests",
+          "type": "string"
+        },
+        "resource": {
+          "default": "Resource",
+          "type": "string"
+        },
+        "resources": {
+          "default": "Resources",
+          "type": "string"
+        },
+        "slot": {
+          "default": "Slot",
+          "type": "string"
+        },
+        "slots": {
+          "default": "Slots",
+          "type": "string"
+        },
+        "booking": {
+          "default": "Booking",
+          "type": "string"
+        },
+        "bookings": {
+          "default": "Bookings",
+          "type": "string"
+        },
+        "client": {
+          "default": "Customer",
+          "type": "string"
+        },
+        "clients": {
+          "default": "Customers",
+          "type": "string"
+        },
+        "admin": {
+          "default": "Business",
+          "type": "string"
+        },
+        "admins": {
+          "default": "Businesses",
+          "type": "string"
+        }
+      },
+      "title": "Terms",
+      "type": "object"
+    },
+    "Tier": {
+      "additionalProperties": true,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "amountMinorUnits": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ]
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "quantityCap": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "appliesWhen": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "validFrom": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "validUntil": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "key",
+        "amountMinorUnits"
+      ],
+      "title": "Tier",
+      "type": "object"
+    },
+    "Timing": {
+      "additionalProperties": false,
+      "properties": {
+        "confirmation": {
+          "default": "instant",
+          "enum": [
+            "instant",
+            "request_approve"
+          ],
+          "type": "string"
+        },
+        "approvalWindowHours": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 48,
+          "description": "NOT YET ENFORCED — auto-expiring a stale request needs a scheduled job."
+        },
+        "leadTimeMinutes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 0
+        },
+        "waitlist": {
+          "$ref": "#/$defs/Waitlist"
+        },
+        "seasons": {
+          "items": {
+            "$ref": "#/$defs/DateWindow"
+          },
+          "type": "array"
+        },
+        "blackouts": {
+          "items": {
+            "$ref": "#/$defs/DateWindow"
+          },
+          "type": "array"
+        },
+        "slotDurationMinutes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 30
+        },
+        "maxBookingsPerSlot": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 1
+        },
+        "cancellationWindowHours": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 24
+        },
+        "advanceBookingWindowDays": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 30
+        },
+        "bufferMinutes": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 0
+        }
+      },
+      "title": "Timing",
+      "type": "object"
+    },
+    "Waitlist": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "type": "boolean"
+        },
+        "autoPromote": {
+          "default": true,
+          "type": "boolean"
+        },
+        "maxPerSlot": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "default": 0
+        }
+      },
+      "title": "Waitlist",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "configVersion": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "default": 2
+    },
+    "domain": {
+      "default": "generic",
+      "type": "string"
+    },
+    "tenancy": {
+      "$ref": "#/$defs/Tenancy"
+    },
+    "capabilities": {
+      "$ref": "#/$defs/Capabilities"
+    },
+    "booking": {
+      "$ref": "#/$defs/Booking"
+    },
+    "pricing": {
+      "$ref": "#/$defs/Pricing"
+    },
+    "payments": {
+      "$ref": "#/$defs/Payments"
+    },
+    "inventory": {
+      "$ref": "#/$defs/Inventory"
+    },
+    "location": {
+      "$ref": "#/$defs/Location"
+    },
+    "prerequisites": {
+      "items": {
+        "$ref": "#/$defs/Prerequisite"
+      },
+      "type": "array"
+    },
+    "timing": {
+      "$ref": "#/$defs/Timing"
+    },
+    "recurrence": {
+      "$ref": "#/$defs/Recurrence"
+    },
+    "entitlements": {
+      "$ref": "#/$defs/Entitlements"
+    },
+    "discovery": {
+      "$ref": "#/$defs/Discovery"
+    },
+    "terms": {
+      "$ref": "#/$defs/Terms"
+    },
+    "copy": {
+      "$ref": "#/$defs/Copy"
+    },
+    "metaFields": {
+      "$ref": "#/$defs/MetaFields"
+    },
+    "rules": {
+      "$ref": "#/$defs/LegacyRules",
+      "deprecated": true
+    },
+    "search": {
+      "$ref": "#/$defs/LegacySearch",
+      "deprecated": true
+    }
+  },
+  "type": "object"
+}
