@@ -14,16 +14,26 @@
  * signals — membership length, past bookings with you, cancellations. Requests +
  * actions are the real /owner + /bookings API.
  *
- * (Pass 2 will turn an approved request into a live thread and add an Archived
- * view of rejected/completed relationships.)
+ * On a service whose `booking.granularity` is "none" the customer picks no date
+ * at all — they describe what they need and the BUSINESS assigns the day. That
+ * makes this screen, not the calendar, the place a date is chosen: each card
+ * carries an <AssignDatePanel> that clears the blocking prerequisites, picks an
+ * open date on the request's own resource, and announces it down the thread the
+ * inbox below already renders. Approve/Reject stay for services that arrive with
+ * a date and only need a yes or no.
+ *
+ * (Pass 2 will add an Archived view of rejected/completed relationships.)
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, Clock, ShieldCheck, Star, TriangleAlert, Users, X } from "lucide-react";
+import { CalendarDays, Check, Clock, ShieldCheck, Star, TriangleAlert, Users, X } from "lucide-react";
 import { useOwner } from "@/context/owner-context";
 import { Skeleton } from "@/components/skeleton";
 import { AvatarImg } from "@/components/avatar-img";
 import { MessagingSection } from "@/components/messaging/messaging-section";
 import { Button } from "@/components/ui/button";
+import { InlineMessage } from "@/components/ui/inline-message";
+import { ArrangementSummary } from "@/components/owner/arrangement-summary";
+import { AssignDatePanel } from "@/components/owner/assign-date-panel";
 import {
   approveBooking,
   getOwnerRequests,
@@ -54,6 +64,13 @@ export default function MessagesPage() {
   const [busy, setBusy] = useState(false);
   const [decided, setDecided] = useState<Record<string, Decision>>({});
   const [error, setError] = useState<string | null>(null);
+  // Which card has its assign-date panel open. One at a time: two open panels
+  // both holding a date for the same chapel is a race the owner can't see.
+  const [assigning, setAssigning] = useState<string | null>(null);
+  // Assigned dates, kept at page level on purpose: an assigned request is
+  // `confirmed`, so `load()` drops it from the pending list and the card that
+  // reported the success disappears with it.
+  const [assignedNotes, setAssignedNotes] = useState<string[]>([]);
 
   // Scoped to the active provider like the Services tab — the owner endpoints
   // return every business the owner has, and the auto-approve master switch
@@ -79,6 +96,19 @@ export default function MessagesPage() {
 
   const autoApprove = services.length > 0 && services.every((s) => s.autoApprove);
   const pending = useMemo(() => requests.filter((r) => !decided[r.id]), [requests, decided]);
+  // The request's own service supplies the subject-field labels and the
+  // prerequisite descriptors — both are per-service, so they're looked up by
+  // id rather than read off the global config.
+  const serviceById = useMemo(
+    () => new Map(services.map((s) => [s.id, s] as const)),
+    [services],
+  );
+
+  async function onAssigned(summary: string) {
+    setAssignedNotes((prev) => [summary, ...prev]);
+    setAssigning(null);
+    await load();
+  }
 
   async function toggleAutoApprove(next: boolean) {
     setBusy(true);
@@ -129,11 +159,13 @@ export default function MessagesPage() {
         <AutoApproveSwitch on={autoApprove} disabled={busy || services.length === 0} onChange={toggleAutoApprove} />
       </div>
 
-      {error ? (
-        <p className="rounded-2xl border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-sm text-destructive">
-          {error}
-        </p>
-      ) : null}
+      {error ? <InlineMessage className="rounded-2xl px-4 py-2.5">{error}</InlineMessage> : null}
+
+      {assignedNotes.map((note, i) => (
+        <InlineMessage key={`${note}-${i}`} tone="notice" className="rounded-2xl px-4 py-2.5">
+          Date assigned — {note}
+        </InlineMessage>
+      ))}
 
       {autoApprove ? (
         <div className="flex items-center gap-2 rounded-2xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-primary">
@@ -152,10 +184,14 @@ export default function MessagesPage() {
             <RequestCard
               key={r.id}
               request={r}
+              service={serviceById.get(r.serviceId)}
               partyNoun={vocab.partyNoun}
               decision={decided[r.id]}
               busy={busy}
               onDecide={(d) => decide(r, d)}
+              assignOpen={assigning === r.id}
+              onToggleAssign={() => setAssigning((cur) => (cur === r.id ? null : r.id))}
+              onAssigned={onAssigned}
             />
           ))}
         </ul>
@@ -197,20 +233,32 @@ function AutoApproveSwitch({
 
 function RequestCard({
   request: r,
+  service,
   partyNoun,
   decision,
   busy,
   onDecide,
+  assignOpen,
+  onToggleAssign,
+  onAssigned,
 }: {
   request: OwnerRequest;
+  service?: OwnerServiceSummary;
   partyNoun: string | null;
   decision?: Decision;
   busy: boolean;
   onDecide: (d: Decision) => void;
+  assignOpen: boolean;
+  onToggleAssign: () => void;
+  onAssigned: (summary: string) => void | Promise<void>;
 }) {
   const browserTz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
   const flagged = r.client.cancelledWithProvider > 0;
   const settled = decision;
+  // The customer never picked this date on a "none"-granularity service — it is
+  // the placeholder the request was parked on. Saying "wants 14:00 on Tuesday"
+  // about a date nobody chose is a lie the owner would act on.
+  const dateIsPlaceholder = service?.granularity === "none";
 
   return (
     <li
@@ -226,7 +274,7 @@ function RequestCard({
       )}
     >
       <div className="flex items-start gap-3">
-        <AvatarImg src={r.client.avatarUrl} alt="" className="size-11 shrink-0" />
+        <AvatarImg src={r.client.avatarUrl} name={r.client.displayName} alt="" className="size-11 shrink-0" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="font-semibold">{r.client.displayName}</span>
@@ -259,7 +307,10 @@ function RequestCard({
           </p>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1">
-              <Clock className="size-3.5" aria-hidden /> {formatBookingWhen(r.startUtc, r.endUtc, browserTz)}
+              <Clock className="size-3.5" aria-hidden />{" "}
+              {dateIsPlaceholder
+                ? "No date yet — awaiting assignment"
+                : formatBookingWhen(r.startUtc, r.endUtc, browserTz)}
             </span>
             {partyNoun && r.partySize > 1 ? (
               <span className="inline-flex items-center gap-1">
@@ -267,6 +318,13 @@ function RequestCard({
               </span>
             ) : null}
           </div>
+
+          {/* Who it's for, what they chose, and who settles it. */}
+          <ArrangementSummary
+            booking={r}
+            fields={service?.subject?.fields ?? []}
+            subjectNoun={service?.subject?.noun}
+          />
         </div>
       </div>
 
@@ -283,7 +341,23 @@ function RequestCard({
           </span>
         ) : (
           <>
-            <Button size="sm" isDisabled={busy} onPress={() => onDecide("approved")}>
+            {/* The primary move on a date-assigning service; still offered
+                elsewhere, where it just moves an already-chosen date. */}
+            <Button
+              size="sm"
+              variant={dateIsPlaceholder ? "default" : "outline"}
+              isDisabled={busy}
+              onPress={onToggleAssign}
+              aria-expanded={assignOpen}
+            >
+              <CalendarDays aria-hidden /> {assignOpen ? "Hide dates" : "Assign date"}
+            </Button>
+            <Button
+              size="sm"
+              variant={dateIsPlaceholder ? "outline" : "default"}
+              isDisabled={busy}
+              onPress={() => onDecide("approved")}
+            >
               <Check aria-hidden /> Approve
             </Button>
             <Button variant="outline" size="sm" isDisabled={busy} onPress={() => onDecide("rejected")}>
@@ -292,6 +366,15 @@ function RequestCard({
           </>
         )}
       </div>
+
+      {assignOpen && !settled ? (
+        <AssignDatePanel
+          request={r}
+          service={service}
+          onClose={onToggleAssign}
+          onAssigned={onAssigned}
+        />
+      ) : null}
     </li>
   );
 }

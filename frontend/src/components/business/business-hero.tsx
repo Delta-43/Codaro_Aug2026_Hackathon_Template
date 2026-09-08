@@ -51,14 +51,22 @@ export function BusinessHero({
             a Supabase Storage URL on a host next/image isn't configured for. */}
         {p.coverUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={p.coverUrl} alt="" className="size-full object-cover" />
+          <img
+            src={p.coverUrl}
+            alt=""
+            width={1200}
+            height={400}
+            loading="lazy"
+            decoding="async"
+            className="size-full object-cover"
+          />
         ) : (
           <BusinessArt scene={scene} />
         )}
         {action ? <div className="absolute right-3 top-3 flex gap-1.5">{action}</div> : null}
         <div className="absolute -bottom-8 left-4">
           <div className="relative">
-            <BusinessBadge avatarUrl={p.avatarUrl} scene={scene} size="lg" />
+            <BusinessBadge avatarUrl={p.avatarUrl} name={p.name} scene={scene} size="lg" />
             {avatarAction}
           </div>
         </div>

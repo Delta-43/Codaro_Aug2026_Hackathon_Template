@@ -20,6 +20,12 @@ export interface VerticalConfig {
   serviceNounPlural: string;
   resourceNoun: string; // "Vehicle"
   resourceNounPlural: string;
+  /** Whether the unit picker offers "Any available <resource>" — the option
+   *  that leaves the unit unchosen and lets the tapped slot decide which one
+   *  backs the booking. True where units are interchangeable (one Corolla is
+   *  another Corolla); false where the customer is choosing a specific,
+   *  non-fungible thing and having it silently assigned would be wrong. */
+  allowAnyResource: boolean;
   bookingVerb: string; // primary CTA, e.g. "Reserve"
   /** Word for the party-size unit in shared_capacity verticals (else null). */
   partyNoun: string | null;
@@ -54,6 +60,7 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
     serviceNounPlural: "Vehicle classes",
     resourceNoun: "Vehicle",
     resourceNounPlural: "Vehicles",
+    allowAnyResource: true,
     bookingVerb: "Reserve",
     partyNoun: null,
     // These three default to the wording already on screen, so a config that
@@ -88,6 +95,7 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
     serviceNounPlural: "Subjects",
     resourceNoun: "Tutor",
     resourceNounPlural: "Tutors",
+    allowAnyResource: true,
     bookingVerb: "Book",
     partyNoun: null,
     // These three default to the wording already on screen, so a config that
@@ -113,6 +121,48 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
       noAvailability: "No open hours in this period.",
     },
   },
+  funeral: {
+    id: "funeral",
+    label: "Funeral homes",
+    providerNoun: "Funeral home",
+    providerNounPlural: "Funeral homes",
+    serviceNoun: "Arrangement",
+    serviceNounPlural: "Arrangements",
+    resourceNoun: "Chapel",
+    resourceNounPlural: "Chapels",
+    // The catalogue's units are not interchangeable — a retort, a hearse and a
+    // chapel of rest all sit behind the same noun, and a family choosing where
+    // to hold a service will not accept whichever one the calendar picked.
+    allowAnyResource: false,
+    // The reason this vertical exists as code rather than as config: the pivot
+    // file has no `terms` key for the CTA verb (see applyPivotVocabulary), so
+    // "Arrange" is only reachable from a real VerticalConfig.
+    bookingVerb: "Arrange",
+    partyNoun: null,
+    // The customer never picks one of these — the home assigns the date after
+    // the request is reviewed (`booking.granularity: "none"`). The noun is
+    // still needed wherever a date is NAMED rather than chosen.
+    slotNoun: "Date",
+    slotNounPlural: "Dates",
+    bookingNoun: "Arrangement",
+    bookingNounPlural: "Arrangements",
+    clientNoun: "Family",
+    clientNounPlural: "Families",
+    // Ids must match the categoryIds the backend seed writes.
+    categories: [
+      { id: "burial", label: "Burial" },
+      { id: "cremation", label: "Cremation" },
+      { id: "memorial", label: "Memorial" },
+      { id: "aftercare", label: "Aftercare" },
+      { id: "eternal", label: "Eternal" },
+    ],
+    searchPlaceholder: "Search funeral homes",
+    copy: {
+      noProviderTitle: "No funeral home selected",
+      noProviderBody: "Find a funeral home in Search to see the arrangements it offers.",
+      noAvailability: "Dates are assigned by the home.",
+    },
+  },
   group: {
     id: "group",
     label: "Group classes",
@@ -122,6 +172,7 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
     serviceNounPlural: "Classes",
     resourceNoun: "Room",
     resourceNounPlural: "Rooms",
+    allowAnyResource: true,
     bookingVerb: "Book",
     partyNoun: "spots",
     // These three default to the wording already on screen, so a config that

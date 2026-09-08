@@ -14,7 +14,6 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { Conversation } from "@/types/domain";
 import { AvatarImg } from "@/components/avatar-img";
-import { avatarDataUri } from "@/lib/business-view";
 import { timeAgo } from "@/lib/format";
 import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
@@ -33,7 +32,6 @@ export function ConversationList({
     <ul className="space-y-2">
       {conversations.map((c) => {
         const name = c.otherParty.name || "Conversation";
-        const avatar = c.otherParty.avatarUrl || avatarDataUri(name);
         const unread = c.unreadCount > 0;
         return (
           <li key={c.id}>
@@ -46,7 +44,7 @@ export function ConversationList({
                   : cn("border-border bg-card", buttonFx.surface),
               )}
             >
-              <AvatarImg src={avatar} name={name} alt="" className="size-11 shrink-0" />
+              <AvatarImg src={c.otherParty.avatarUrl} name={name} alt="" className="size-11 shrink-0" />
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
                   <span className={cn("truncate", unread ? "font-semibold" : "font-medium")}>{name}</span>

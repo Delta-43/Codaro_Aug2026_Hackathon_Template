@@ -10,8 +10,8 @@
  * synthetic cursor plays a short, one-time tour of the *real* app calendar:
  * it clicks Month and glides across a few open days, switches to Week then Day
  * lighting up example slots, picks one and books it on the real booking
- * control. When the tour finishes the calendar zooms out a little and a "Book
- * in three steps" note reveals underneath it, one line at a time.
+ * control. When the tour finishes the calendar zooms out a little and an
+ * "Arrange in three steps" note reveals underneath it, one line at a time.
  *
  * The show plays once each time the section enters view (it does not loop);
  * scrolling away and back replays it. The moment a visitor clicks any control
@@ -80,9 +80,9 @@ const SERVICE: Service = {
 
 // Dash-free, matching the rest of the landing copy.
 const STEPS: [string, string][] = [
-  ["Pick a day", "Open days are highlighted, and the dots show how open each one is."],
-  ["Choose your slots", "Grab one, or several in a row for a longer booking."],
-  ["Confirm", "Set your party size and you get instant confirmation."],
+  ["Choose a chapel", "See which chapels and dates are open at a glance."],
+  ["Hold a date", "Reserve a day for the service, or let a director set it with you."],
+  ["Leave the rest to us", "Confirm the details and a director takes it from there."],
 ];
 
 function slot(date: string, hour: number, status: Slot["status"], booked: number): Slot {
@@ -481,7 +481,7 @@ export function CalendarShowcase() {
               byDate={byDate}
               tz={TZ}
               isDaySlot={false}
-              nameFor={() => "Studio A"}
+              nameFor={() => "Chapel of Rest A"}
               selectedIds={selectedIds}
               onSelect={(s) => {
                 takeOver();
@@ -512,10 +512,10 @@ export function CalendarShowcase() {
                 <CheckIcon />
               </span>
               <div className="min-w-0 text-sm">
-                <p className="font-medium text-foreground">Booking confirmed</p>
+                <p className="font-medium text-foreground">Date reserved</p>
                 {bookSlot && (
                   <p className="truncate text-xs text-muted-foreground">
-                    {formatTimeRange(bookSlot.startUtc, bookSlot.endUtc, TZ)} · Studio A
+                    {formatTimeRange(bookSlot.startUtc, bookSlot.endUtc, TZ)} · Chapel of Rest A
                   </p>
                 )}
               </div>
@@ -530,11 +530,11 @@ export function CalendarShowcase() {
               }}
               className={cn(buttonVariants({ size: "lg" }), buttonFx.pill, "w-full")}
             >
-              Book this slot
+              Reserve this date
             </button>
           ) : (
             <p className="px-1 py-3 text-center text-xs text-muted-foreground">
-              Pick a time to book.
+              Pick a date to reserve.
             </p>
           )}
         </div>
@@ -577,7 +577,7 @@ export function CalendarShowcase() {
                     revealed ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0",
                   )}
                 >
-                  Book in three steps
+                  Arrange in three steps
                 </h3>
                 <div
                   className={cn(
@@ -653,7 +653,7 @@ function DemoDayView({
         tz={TZ}
         service={SERVICE}
         isDaySlot={false}
-        nameFor={() => "Studio A"}
+        nameFor={() => "Chapel of Rest A"}
         selectedIds={selectedIds}
         onSelect={onSelect}
       />

@@ -30,10 +30,9 @@ import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
-  { href: "#how", label: "How it works" },
+  { href: "#services", label: "Services" },
   { href: "#calendar", label: "Calendar" },
-  { href: "#reviews", label: "Reviews" },
-  { href: "/docs", label: "Docs", route: true },
+  { href: "#reviews", label: "Families" },
 ];
 
 const LINK_CLASS =
@@ -114,22 +113,16 @@ export function NavBar() {
             ref={scrollRef}
             className="no-scrollbar flex w-full min-w-0 items-center gap-2 overflow-x-auto [justify-content:safe_center]"
           >
-            {LINKS.map((l) =>
-              l.route ? (
-                <Link key={l.href} href={l.href} className={LINK_CLASS}>
-                  {l.label}
-                </Link>
-              ) : (
-                <a
-                  key={l.href}
-                  href={l.href}
-                  onClick={(e) => smoothScroll(e, l.href)}
-                  className={LINK_CLASS}
-                >
-                  {l.label}
-                </a>
-              ),
-            )}
+            {LINKS.map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                onClick={(e) => smoothScroll(e, l.href)}
+                className={LINK_CLASS}
+              >
+                {l.label}
+              </a>
+            ))}
           </div>
 
           {overflow && (

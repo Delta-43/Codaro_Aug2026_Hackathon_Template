@@ -190,7 +190,8 @@ next to it:
 |-----|-------------|-------|
 | `pricing.caps.perDayMinorUnits` | needs the customer's other bookings that day | a query, not arithmetic |
 | `payments.noShowFee` | nothing marks a no-show | a no-show action + the `PaymentAdapter` layer |
-| `timing.approvalWindowHours` | nothing expires a stale request | a scheduled job |
+| `timing.approvalWindowHours` | **surfaced to the UI** (`serialize_service` -> `Service.approvalWindowHours`, so the client can promise "a reply within N hours"); still **not enforced server-side** — nothing expires a stale request | a scheduled job |
+| `payments.payer` | **surfaced to the UI** (`rules.payment_state` -> `Booking.payment.payer`, so an invoice can be addressed to a third party/estate); still **not enforced** — it changes nothing about what is owed or who is charged | the `PaymentAdapter` layer |
 | `pricing.tiers[].quantityCap` | needs a sold-count | a query |
 | `capabilities.quotes` / `.cart` | those surfaces have no backend yet | the feature, plus its write gate |
 | `pricing.currencyExponent` | rendering uses the currency's own ISO exponent via `Intl` | only a currency `Intl` cannot resolve |

@@ -46,6 +46,9 @@ const VERTICAL_SCENE: Record<VerticalId, string> = {
   fleet: "car-hero",
   oneToOne: "tutor-hero",
   group: "yoga-hero",
+  // No dedicated art: business-art.tsx falls through on an unknown key and the
+  // consumer already defaults to "grad-amber", so the gradient is the scene.
+  funeral: "grad-amber",
 };
 
 interface OwnerContextValue {

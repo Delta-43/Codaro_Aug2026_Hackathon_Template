@@ -99,18 +99,22 @@ export function ProviderProfile({
 
   return (
     <section className="pb-2">
-      {/* Cover + avatar */}
+      {/* Cover + avatar. The banner keeps the page's own padding instead of
+          bleeding past it, so its edges line up with the meta row, the bio and
+          the service cards below; the avatar overlaps its bottom-left corner and
+          the name sits *under* it — same stack as the owner-side hero — so name,
+          tagline and every row that follows share one left edge. */}
       <div
-        className="-mx-4 h-32 bg-muted bg-cover bg-center md:-mx-6 md:rounded-xl"
-        style={{ backgroundImage: `url(${p.coverUrl ?? ""})` }}
+        className="h-32 rounded-xl bg-muted bg-cover bg-center"
+        style={p.coverUrl ? { backgroundImage: `url("${p.coverUrl}")` } : undefined}
         aria-hidden
       />
-      <div className="-mt-8 flex items-end gap-3 px-1">
+      <div className="-mt-10 flex">
         <AvatarImg src={p.avatarUrl} name={p.name} alt="" className={cn("size-20 border-4 border-background", buttonFx.link)} />
-        <div className="min-w-0 flex-1 pb-1">
-          <h1 className={cn(buttonFx.heading, "max-w-full truncate text-xl font-semibold tracking-tight")}>{p.name}</h1>
-          <p className="truncate text-sm text-muted-foreground">{p.tagline}</p>
-        </div>
+      </div>
+      <div className="mt-2 min-w-0">
+        <h1 className={cn(buttonFx.heading, "max-w-full truncate text-xl font-semibold tracking-tight")}>{p.name}</h1>
+        <p className="truncate text-sm text-muted-foreground">{p.tagline}</p>
       </div>
 
       {/* Meta row */}

@@ -15,6 +15,7 @@ import Link from "next/link";
 import { ArrowUpRight, Star } from "lucide-react";
 import { useOwner } from "@/context/owner-context";
 import { Skeleton } from "@/components/skeleton";
+import { AvatarImg } from "@/components/avatar-img";
 import { BusinessBadge } from "@/components/business/verified-badge";
 import { StatTile } from "@/components/business/stat-tile";
 import { BookingCalendar } from "@/components/business/booking-calendar";
@@ -117,7 +118,7 @@ export default function DashboardPage() {
     <section className="space-y-5 py-2">
       {/* Badge area */}
       <div className="flex items-center gap-3">
-        <BusinessBadge avatarUrl={provider.avatarUrl} scene={scene} size="md" />
+        <BusinessBadge avatarUrl={provider.avatarUrl} name={provider.name} scene={scene} size="md" />
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg font-semibold tracking-tight">{provider.name}</h1>
           <p className="truncate text-sm text-muted-foreground">
@@ -218,6 +219,7 @@ function RequestChecklist({ requests, tz }: { requests: OwnerRequest[]; tz: stri
               aria-label={`Mark ${r.client.displayName}'s request handled`}
               className="size-4 shrink-0 rounded border-border accent-primary"
             />
+            <AvatarImg src={r.client.avatarUrl} name={r.client.displayName} alt="" className="size-8" />
             <p className={`min-w-0 flex-1 text-sm ${checked ? "text-muted-foreground line-through" : ""}`}>
               <span className="font-medium">{r.client.displayName}</span> wants {r.serviceName}
               <span className="text-muted-foreground"> · {formatBookingWhen(r.startUtc, r.endUtc, tz)}</span>

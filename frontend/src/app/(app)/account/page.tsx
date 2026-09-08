@@ -21,7 +21,6 @@ import { AvatarImg } from "@/components/avatar-img";
 import { Skeleton } from "@/components/skeleton";
 import { getMyEntitlements, getMyReputation } from "@/api";
 import type { ClientReputation } from "@/types/domain";
-import { avatarDataUri } from "@/lib/business-view";
 import { formatMoney, whenLabel } from "@/lib/format";
 
 const EMPTY_REP: ClientReputation = { score: 0, count: 0, reviews: [] };
@@ -167,7 +166,7 @@ export default function ProfilePage() {
             {rep.reviews.map((rv, i) => (
               <li key={i} className={cn("rounded-2xl border border-border bg-card p-3", buttonFx.surface)}>
                 <div className="flex items-center gap-2">
-                  <AvatarImg src={avatarDataUri(rv.author)} alt="" className={cn("size-8", buttonFx.link)} />
+                  <AvatarImg src={rv.authorAvatarUrl} name={rv.author} alt="" className={cn("size-8", buttonFx.link)} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium">{rv.author}</span>

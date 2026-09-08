@@ -94,7 +94,29 @@ def test_reputation_aggregates_reviews_newest_first(client, db, auth):
     assert body["score"] == 4.0  # mean of 3 and 5
     assert [r["rating"] for r in body["reviews"]] == [5, 3]  # newest first
     assert all(r["author"] == "Acme Fleet" for r in body["reviews"])
-    assert set(body["reviews"][0]) == {"author", "rating", "text", "createdAtUtc"}
+    # `authorAvatarUrl` is the REVIEWING BUSINESS's logo (providers.metadata.
+    # avatar_url), so this reads as a list of businesses rather than initials.
+    # The provider here carries no avatar, so it degrades to "" — never absent.
+    assert set(body["reviews"][0]) == {
+        "author", "authorAvatarUrl", "rating", "text", "createdAtUtc"
+    }
+    assert all(r["authorAvatarUrl"] == "" for r in body["reviews"])
+
+
+def test_reputation_author_avatar_is_the_reviewing_business_logo(client, db, auth):
+    """`authorAvatarUrl` on `/me/reputation` is the PROVIDER's public logo
+    (`providers.metadata.avatar_url` — a public column, no admin lookup), so a
+    customer sees who rated them rather than a column of initials."""
+    auth(role="client")
+    p = make_provider(db, "Acme Fleet", metadata={"avatar_url": "http://img/acme.png"})
+    svc = make_service(db, p["id"], "S")
+    s = make_slot(db, service_id=svc["id"], hours_ahead=-5)
+    b = make_booking(db, slots=[s], service={**svc, "provider_id": p["id"]})
+    make_client_review(db, b, rating=5, provider_id=p["id"])
+
+    review = client.get("/me/reputation").json()["reviews"][0]
+    assert review["author"] == "Acme Fleet"
+    assert review["authorAvatarUrl"] == "http://img/acme.png"
 
 
 def test_reputation_scoped_to_the_signed_in_user(client, db, auth):
