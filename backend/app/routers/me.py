@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Current-user endpoints. `GET /me` assembles the User; `PATCH /me` updates the
 editable profile fields in Supabase `user_metadata` (role/verified are not
 self-editable). `POST /me/avatar` / `DELETE /me/avatar` upload/remove the

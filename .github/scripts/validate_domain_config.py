@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Validate domain.config.json — the single file a domain pivot edits.
 
 v1 of this script kept its own copy of the required keys and their types, which

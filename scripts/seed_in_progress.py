@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Exit 0 if a seed currently holds the seed lock, 1 otherwise.
 
 `make reseed` runs INSIDE the backend container, so `make reload` — which

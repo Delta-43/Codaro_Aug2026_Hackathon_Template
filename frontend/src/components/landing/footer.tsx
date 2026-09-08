@@ -1,3 +1,7 @@
+// Arbor — a config-driven booking engine
+// Copyright (C) 2026 Alban Billiette and the Arbor contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * Landing footer — a full-width footer bar on the shared glass plate
  * (`GlassPanel`). A big interactive Leaf badge is centered on top like the

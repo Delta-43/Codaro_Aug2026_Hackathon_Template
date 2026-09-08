@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Messaging — 1:1 conversations between a client and a provider's owner.
 
 A conversation is one thread per (provider, client) pair; messages carry

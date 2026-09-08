@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """End-to-end verification of `app/auth.py` — the real thing, not the stub.
 
 Every other module in this suite installs the `auth` fixture, which overrides

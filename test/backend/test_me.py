@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """/me — the current-user endpoints. GET assembles the User from the token's
 `user_metadata` + the follows table; PATCH updates the editable profile fields.
 Both require a token and return the full User shape.

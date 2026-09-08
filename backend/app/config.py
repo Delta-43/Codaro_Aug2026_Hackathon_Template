@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Loads, normalizes, validates and caches the domain pivot file.
 
 v1 loaded `domain.config.json` with a bare `json.load` and handed the raw dict

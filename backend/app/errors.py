@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Typed API errors that carry the frontend's ApiError codes.
 
 The frontend (`frontend/src/api/errors.ts`) models failures as an `ApiError`

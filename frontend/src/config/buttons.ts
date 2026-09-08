@@ -1,3 +1,7 @@
+// Arbor — a config-driven booking engine
+// Copyright (C) 2026 Alban Billiette and the Arbor contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * Single source of truth for button *interactivity* — the "feel" of a button
  * (how it reacts to hover/press and its shape), kept separate from colour and

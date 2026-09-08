@@ -1,3 +1,7 @@
+// Arbor — a config-driven booking engine
+// Copyright (C) 2026 Alban Billiette and the Arbor contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * Result ordering shared between the search page (which sorts the list) and the
  * Filter panel (which renders the picker). Each key maps a provider to one

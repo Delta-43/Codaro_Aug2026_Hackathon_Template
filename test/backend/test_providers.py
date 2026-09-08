@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """/providers — public discovery (search, by-id, by-code) + follow/unfollow.
 
 Discovery is public (personalised when a token is present); follow/unfollow
