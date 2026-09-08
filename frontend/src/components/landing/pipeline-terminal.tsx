@@ -11,7 +11,7 @@
  * client JS needed.
  */
 const STEPS = [
-  { cmd: "POST /bookings", result: "pending — rules resolved per service" },
+  { cmd: "POST /bookings", result: "pending: rules resolved per service" },
   { cmd: "owner approves", result: "slot held, capacity decremented" },
   { cmd: "GET /availability", result: "confirmed — same spine, any vertical" },
 ];

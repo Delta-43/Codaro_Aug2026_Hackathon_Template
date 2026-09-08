@@ -145,6 +145,11 @@ export function CalendarShowcase() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [booked, setBooked] = useState(false);
   const [finished, setFinished] = useState(false); // tour done → zoom out + reveal steps
+  // Which of the three steps the tour is currently demonstrating (-1 before it
+  // starts). On wide screens the steps sit beside the calendar and light up in
+  // time with the cursor, so the note narrates the tour instead of arriving
+  // after it.
+  const [stage, setStage] = useState(-1);
   // `ms` travels with the position so each hop can time itself: a fixed
   // duration makes a 20px nudge take as long as a glide across the plate,
   // which is most of what read as robotic.
@@ -346,12 +351,14 @@ export function CalendarShowcase() {
     }
 
     async function run() {
+      setStage(-1);
       // Dwell times below are trimmed to pay for the longer, distance-timed
       // hops, so the tour reads smoother without running noticeably longer.
       await sleep(350, timerRef);
       if (!alive()) return;
 
       // 1) Month — sweep a few open days.
+      setStage(0);
       await point(await waitFor('[data-demo-view="Month"]'), { click: true });
       for (const d of sweepDates.slice(0, 3)) {
         if (!alive()) return;
@@ -360,6 +367,7 @@ export function CalendarShowcase() {
 
       // 2) Week — light up the example slots.
       if (!alive()) return;
+      setStage(1);
       await point(q('[data-demo-view="Week"]'), { click: true });
       setZoom("Week");
       await waitFor('[data-demo-view="Week"][aria-pressed="true"]');
@@ -379,6 +387,7 @@ export function CalendarShowcase() {
         await point(b, { hl: true, hold: 190 });
       }
       let didSelect = false;
+      setStage(2);
       if (bookSlot) {
         const target = await waitFor(`[data-demo-slot="${bookSlot.id}"]`);
         if (target) {
@@ -439,6 +448,13 @@ export function CalendarShowcase() {
               the "three steps" note reveals underneath it — full-width plates so
               nothing crowds or overlaps. The calendar stays compact so the whole
               chapter still fits one screen. */}
+          {/* Two columns from `lg`: the calendar is only 20rem wide, so on a
+              max-w-4xl plate it used to sit as a narrow strip in the middle of a
+              mostly empty card. The steps take the space beside it instead of
+              stacking underneath, which fills the plate AND keeps the chapter
+              short enough that the fit-scale rarely has to shrink it. Below
+              `lg` it stacks exactly as before. */}
+          <div className="lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-center lg:gap-10">
           <div ref={plateRef} className="relative mx-auto w-full max-w-[20rem]">
             {/* Segmented control */}
             <div className="mb-3 inline-flex rounded-lg border border-border bg-card p-0.5">
@@ -589,14 +605,17 @@ export function CalendarShowcase() {
           <div
             className={cn(
               "grid transition-[grid-template-rows] duration-[900ms] ease-out",
-              revealed ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+              // Always open in the side column; the grow-in is for the stacked
+              // layout, where collapsing keeps the plate short until the payoff.
+              revealed ? "grid-rows-[1fr]" : "grid-rows-[0fr] lg:grid-rows-[1fr]",
             )}
           >
             <div className="overflow-hidden">
-              <div className="w-full px-1 pt-4 text-center">
+              <div className="w-full px-1 pt-4 text-center lg:pt-0 lg:text-left">
                 <h3
                   className={cn(
                     "text-lg font-semibold tracking-tight text-foreground transition-all duration-[800ms] ease-out sm:text-xl",
+                    "lg:translate-y-0 lg:opacity-100",
                     revealed ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0",
                   )}
                 >
@@ -604,26 +623,45 @@ export function CalendarShowcase() {
                 </h3>
                 <div
                   className={cn(
-                    "mt-2 flex justify-center transition-all duration-[800ms] ease-out",
+                    "mt-2 flex justify-center transition-all duration-[800ms] ease-out lg:hidden",
                     revealed ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0",
                   )}
                   style={{ transitionDelay: revealed ? "150ms" : "0ms" }}
                 >
                   <ChevronDown className="size-5 animate-bounce text-primary" aria-hidden />
                 </div>
-                <ol className="mx-auto mt-2 flex w-full max-w-lg flex-col gap-2 text-left">
-                  {STEPS.map(([title, body], i) => (
+                <ol className="mx-auto mt-2 flex w-full max-w-lg flex-col gap-2 text-left lg:mx-0">
+                  {STEPS.map(([title, body], i) => {
+                    // Lit either because the tour has reached this step, or
+                    // because the whole note was revealed at the end / on
+                    // take-over. The staggered delay belongs only to the second
+                    // case; a step the cursor just demonstrated should answer
+                    // immediately.
+                    const reached = stage >= i;
+                    const lit = revealed || reached;
+                    return (
                     <li
                       key={title}
                       className={cn(
                         "transition-all duration-[800ms] ease-out",
-                        revealed ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0",
+                        // In the side column the steps are present from the
+                        // first frame: they are what fills the plate, and a
+                        // column that stays blank until the tour reaches it
+                        // leaves the card looking half-empty on arrival. When
+                        // stacked they still ease in as the payoff.
+                        "lg:translate-y-0 lg:opacity-100",
+                        lit ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0",
                       )}
-                      style={{ transitionDelay: revealed ? `${300 + i * 450}ms` : "0ms" }}
+                      style={{ transitionDelay: lit && !reached ? `${300 + i * 450}ms` : "0ms" }}
                     >
                       <div
                         className={cn(
-                          "flex cursor-pointer items-center gap-3 rounded-xl border border-border/60 bg-background/40 px-4 py-2",
+                          "flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-2 transition-colors duration-500",
+                          // The cursor and the note stay in step: whichever the
+                          // tour is demonstrating is the one picked out here.
+                          reached && !revealed
+                            ? "border-primary/50 bg-primary/5"
+                            : "border-border/60 bg-background/40",
                           buttonFx.plate,
                         )}
                       >
@@ -636,10 +674,12 @@ export function CalendarShowcase() {
                         </div>
                       </div>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ol>
               </div>
             </div>
+          </div>
           </div>
         </GlassPanel>
         </div>
