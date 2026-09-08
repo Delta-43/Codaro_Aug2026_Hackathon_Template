@@ -26,14 +26,13 @@
 **Finished showcase project. Not actively maintained.**
 
 Arbor was built for a hackathon and is kept public as a working reference, not
-as a maintained product. Issues are closed, pull requests are not reviewed, and
-there is no support channel. Nothing here is being watched for a reply.
+as a maintained product. There is no issue tracker, no contribution process and
+no support channel. Nothing here is watched for a reply, and pull requests
+opened against this repository will not be reviewed.
 
-The code is yours under the AGPL-3.0: fork it, run it, take it somewhere else.
-[CONTRIBUTING.md](CONTRIBUTING.md) documents the branch flow, the CI gates and
-the two rules the codebase lives by, so a fork has everything it needs. For a
-security problem, read [SECURITY.md](SECURITY.md) first, and assume a fix will
-come from your fork rather than from here.
+To change anything, fork it. The AGPL-3.0 licence gives you that right and the
+fork is yours to take wherever you want. That applies to security problems too:
+the fix will come from your fork, not from here.
 
 ## What this is
 
@@ -416,12 +415,10 @@ Run `make` with no arguments for the full list.
 |---|---|
 | [CLAUDE.md](CLAUDE.md) | The architectural guide. Read this first. |
 | [DEPLOY.md](DEPLOY.md) | Vercel, Railway and Supabase, step by step |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | How the codebase is worked on, for forks |
 | [docs/PIVOT-SYSTEM.md](docs/PIVOT-SYSTEM.md) | Every config block and the precedence model |
 | [docs/PIVOT-COVERAGE.md](docs/PIVOT-COVERAGE.md) | The 100-pivot evidence run |
 | [backend/CLAUDE.md](backend/CLAUDE.md), [frontend/CLAUDE.md](frontend/CLAUDE.md), [supabase/CLAUDE.md](supabase/CLAUDE.md) | Per-layer conventions |
 | [CHANGELOG.md](CHANGELOG.md) | What changed in each release |
-| [SECURITY.md](SECURITY.md) | How to report a vulnerability (privately) |
 
 **API reference.** The backend generates its own, from the routers — start the
 stack and open <http://localhost:8000/docs> (Swagger UI), <http://localhost:8000/redoc>,
@@ -443,9 +440,8 @@ on Track B (Booking and Resource Scheduling).
 
 Copyright (C) 2026 Alban Billiette and the Arbor contributors.
 
-**[GNU Affero General Public License v3.0](LICENSE)** (AGPL-3.0), an
-OSI-approved open source license. See [NOTICE](NOTICE) for the copyright and
-warranty statement.
+**[GNU Affero General Public License v3.0](LICENSE)** (AGPL-3.0). See
+[NOTICE](NOTICE) for the copyright and warranty statement.
 
 You may use, modify and redistribute this code, including commercially. In
 return, the AGPL asks for reciprocity: if you distribute a modified version, or

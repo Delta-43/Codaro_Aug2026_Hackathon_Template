@@ -278,24 +278,37 @@ exists and how it's implemented) and `TODO.md` (what's missing or broken, and
 what to do next). **Both are gitignored on purpose.** They are point-in-time
 snapshots that go stale within a commit or two, and a public repo carrying a
 machine-generated defect list reads as an unmaintained project. Regenerate them
-locally whenever you want a fresh read; track real work as GitHub issues.
+locally whenever you want a fresh read.
 
-## Per-issue documentation
+## Working on the code
 
-When a Claude Code session finishes work on a GitHub issue, it posts a short
-summary in chat covering what changed and why, formatted to paste as a GitHub
-issue comment before opening the PR. The durable trail lives on the issue and
-in the PR description — not as committed files, which turn the repo into a
-working-notes dump.
+The repository is not accepting contributions and has no issue tracker. What
+follows is for the owner, and for anyone working in a fork.
 
-## Contributing
+Work lands through pull requests: a branch is PR'd into `develop` (staging), and
+`develop` is PR'd into `main` (production). Squash-merge into `develop`, but use
+a **merge commit** for a back-merge of `main` into `develop` and for the
+`develop` into `main` release, or `main` drops out of `develop`'s ancestry and
+the next release conflicts. CI runs three gates, worth running before you push:
 
-All work lands through pull requests: an issue becomes a branch, the branch is
-PR'd into `develop` (staging), and `develop` is PR'd into `main` (production).
-Every PR runs backend tests, a frontend typecheck + build, and a
-`domain.config.json` validation. See **[CONTRIBUTING.md](CONTRIBUTING.md)** for
-the exact commands and branch naming, and **[DEPLOY.md](DEPLOY.md)** for
-hosting.
+```bash
+python -m pytest test -q
+python .github/scripts/validate_domain_config.py
+cd frontend && npm ci && npx tsc --noEmit && npm run build
+```
+
+Two rules the codebase lives by, and the reason most review comments exist:
+
+- **No hard-coded domain words.** Say `resource`, never `room` or `doctor`. In
+  the frontend labels come from `useVertical()` (`src/config/verticals.ts`);
+  backend-side copy comes from `domain.config.json`'s `terms`/`copy`.
+- **No magic numbers.** Business values live in the `domain.config.json` v2
+  blocks (`timing`, `booking`, `pricing`, …), not the deprecated v1 `rules`
+  alias. A service row's own columns/`metadata` override the global default via
+  `rules.effective_service_rules`, so read the resolved value, never a literal.
+
+`supabase/schema.sql` is frozen; new domain data goes in `metadata jsonb`.
+See **[DEPLOY.md](DEPLOY.md)** for hosting.
 
 ## Track B checklist (what the base covers)
 
