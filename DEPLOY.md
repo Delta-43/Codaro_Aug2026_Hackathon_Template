@@ -98,6 +98,16 @@ NEXT_PUBLIC_SHOWCASE_ONLY=1
 `NEXT_PUBLIC_API_BASE` is then unused and can be dropped. No backend, no
 Supabase, no `CORS_ORIGINS`.
 
+Set the site URL too, so the social card resolves against a stable hostname:
+
+```
+NEXT_PUBLIC_SITE_URL=https://your-domain.vercel.app
+```
+
+Without it the Open Graph tags fall back to `VERCEL_URL`, which is the
+*per-deployment* hostname. The card still works, but its image URL changes with
+every deploy, and previously scraped cards point at an old one.
+
 What the flag changes ([`src/config/showcase.ts`](frontend/src/config/showcase.ts)):
 
 | | Normal | Showcase-only |

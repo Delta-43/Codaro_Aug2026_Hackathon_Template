@@ -13,7 +13,7 @@
  * This markets the engine itself rather than any one pivot of it: the plates
  * describe the config blocks, the booking pipeline and the evidence behind the
  * claim, so the page reads the same whatever `domain.config.json` currently
- * says. Full page: Hero → Calendar showcase → Pivot blocks → Evidence → Footer.
+ * says. Full page: Hero → Pivot blocks → Calendar showcase → Evidence → Footer.
  */
 import { SceneBackground } from "@/components/landing/scene-background";
 import { NavBar } from "@/components/landing/nav-bar";
@@ -25,12 +25,12 @@ import { Footer } from "@/components/landing/footer";
 
 export default function RootPage() {
   return (
-    <main className="relative h-dvh snap-y snap-mandatory overflow-y-auto scroll-smooth [scrollbar-gutter:stable_both-edges]">
+    <main className="relative h-dvh snap-y snap-proximity overflow-y-auto scroll-smooth [scrollbar-gutter:stable_both-edges]">
       <SceneBackground />
       <NavBar />
       <Hero />
-      <CalendarShowcase />
       <Products />
+      <CalendarShowcase />
       <Proof />
       <Footer />
     </main>
