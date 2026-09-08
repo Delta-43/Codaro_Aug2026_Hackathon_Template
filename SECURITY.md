@@ -1,5 +1,10 @@
 # Security policy
 
+> **Arbor is not actively maintained.** It is a finished showcase project kept
+> public as a reference. Reports are still welcome and still read, but there is
+> no response time behind them and no commitment that a fix will be written.
+> See [Project status](README.md#project-status).
+
 ## Reporting a vulnerability
 
 **Please do not open a public issue for a security problem.**
@@ -17,23 +22,19 @@ helps, but a clear description is enough to get started.
 
 ## What to expect
 
-| | |
-|---|---|
-| First response | within 5 working days |
-| Assessment and a plan | within 10 working days |
-| Fix and disclosure | coordinated with you before anything is made public |
+Best effort, on no schedule. A report may sit unread for a long time, and the
+honest planning assumption is that it will not be fixed here. If a fix does
+land, disclosure is coordinated with you before anything is made public, and
+you are credited in the advisory unless you would rather stay anonymous.
 
-We will credit you in the advisory unless you would rather stay anonymous.
+Because there is no maintained release, please disclose publicly whenever you
+judge it right to. You do not need to wait on this repository.
 
 ## Supported versions
 
-Arbor has not yet reached a stable release. Only the latest commit on `main`
-receives security fixes; older tags and the `develop` branch do not.
-
-| Version | Supported |
-|---|---|
-| `main` (latest) | yes |
-| everything else | no |
+None. No branch or tag receives guaranteed security fixes. `main` is the newest
+code and the best starting point for a fork, but treat it as unsupported
+software that you are responsible for auditing before you run it.
 
 ## Scope
 

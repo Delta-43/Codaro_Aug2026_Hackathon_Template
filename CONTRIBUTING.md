@@ -1,4 +1,12 @@
-# Contributing
+# Working on this codebase
+
+> **This repository is not accepting contributions.** Arbor is a finished
+> showcase project and pull requests here are not reviewed. See
+> [Project status](README.md#project-status).
+>
+> This document is kept because it is still the map of how the codebase is
+> worked on. If you fork Arbor, this is the flow and these are the rules the
+> code assumes.
 
 One flow for everything. No direct pushes to `develop` or `main`.
 
@@ -8,8 +16,8 @@ issue  →  branch  →  PR into develop  →  PR develop into main (release)
 
 ## 1. Open an issue
 
-There is a single issue form ([new issue](../../issues/new/choose)) — use it
-for features, bugs, everything. Note the number GitHub gives it, e.g. **#42**.
+Track the work as an issue in your fork and note its number, e.g. **#42**. The
+issue forms under `.github/ISSUE_TEMPLATE/` come with the fork.
 
 ## 2. Branch from `develop`
 
@@ -41,9 +49,10 @@ python .github/scripts/validate_domain_config.py
 cd frontend && npm ci && npx tsc --noEmit && npm run build
 ```
 
-CI runs exactly these. Push your branch, open a PR, and **set the base branch
-to `develop`** (GitHub defaults to `main`). Start the description with
-`Closes #42`. Get one approval and green CI, then **Squash and merge**.
+CI runs exactly these (`.github/workflows/ci.yml`, which comes with the fork).
+Push your branch, open a PR, and **set the base branch to `develop`** (GitHub
+defaults to `main`). Start the description with `Closes #42`. Get one approval
+and green CI, then **Squash and merge**.
 
 ## 4. Releasing
 
