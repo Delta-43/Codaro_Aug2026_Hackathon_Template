@@ -4,7 +4,7 @@
 
 import { createElement } from "react";
 
-import type { ShowcaseProvider, ShowcaseService } from "@/components/showcase/catalogue";
+import type { Provider, Service } from "@/types/domain";
 import { buttonFx } from "@/config/buttons";
 import { formatOffer } from "@/lib/format";
 import { getServiceAnimation } from "@/components/showcase/animations";
@@ -36,8 +36,8 @@ export function ServicePanel({
   provider,
   index = 0,
 }: {
-  service: ShowcaseService;
-  provider?: ShowcaseProvider;
+  service: Service;
+  provider?: Provider;
   /** Row position within the list — even rows put the animation on the left,
    *  odd rows flip it to the right. Defaults to 0 (icon-left) when omitted. */
   index?: number;

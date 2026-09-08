@@ -83,11 +83,11 @@ tables. Startup logs `Schema applied from …` on success, or a loud
 
 ---
 
-## Showcase-only: the frontend on its own
+## Showcase-only: the landing page on its own
 
 Arbor's hosted demo is retired. If you want the project *visitable* without
-paying for a backend, deploy the frontend alone in showcase-only mode: `/` and
-`/showcase` are presentational and render with no API behind them.
+paying for a backend, deploy the frontend alone in showcase-only mode: the
+landing page is presentational and renders with no API behind it.
 
 On Vercel, set one variable and redeploy:
 
@@ -102,23 +102,17 @@ What the flag changes ([`src/config/showcase.ts`](frontend/src/config/showcase.t
 
 | | Normal | Showcase-only |
 |---|---|---|
-| `/showcase` catalogue | `GET /services` + `GET /providers` | the generated snapshot, no request made |
+| Served routes | all of them | `/` and `/privacy` |
 | Sign-in CTAs | `/login` | the source repository |
-| `/login`, `/search`, `/bookings`, `/owner/*` | served | redirect to `/` |
+| everything else | served | redirects to `/` |
 
-The redirect is the point. Left reachable, those routes load and then fail every
-request, which reads as a broken app rather than a deliberately static one.
+The redirect is the point. Left reachable, the app routes load and then fail
+every request, which reads as a broken app rather than a deliberately static
+one.
 
-The catalogue is generated from `backend/seed_data.py`, so it lists what the
-seeded app lists rather than a hand-written copy that would drift:
-
-```bash
-python3 scripts/gen_showcase_snapshot.py           # regenerate
-python3 scripts/gen_showcase_snapshot.py --check   # CI-friendly: fails if stale
-```
-
-CI runs the `--check`, so editing the seed data without regenerating fails the
-build rather than silently shipping a stale catalogue.
+`/showcase` redirects too, deliberately. Its animations are burial, cremation
+and cryogenic suspension, which belong to the funeral pivot and contradict a
+landing page that markets a neutral engine.
 
 Unset the flag and everything behaves normally; this is a deployment mode, not a
 fork.

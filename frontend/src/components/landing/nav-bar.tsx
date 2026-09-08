@@ -31,9 +31,9 @@ import { cn } from "@/lib/utils";
 import { SHOWCASE_ONLY, SOURCE_URL } from "@/config/showcase";
 
 const LINKS = [
-  { href: "#services", label: "Services" },
+  { href: "#services", label: "Pivot" },
   { href: "#calendar", label: "Calendar" },
-  { href: "#reviews", label: "Families" },
+  { href: "#proof", label: "Evidence" },
 ];
 
 const LINK_CLASS =

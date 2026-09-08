@@ -3,17 +3,17 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /**
- * A stylized terminal showing the funeral arrangement pipeline (request → assign
- * a chapel → set the date), not a generic dev-tool prop — inspired by
+ * A stylized terminal showing the engine's booking pipeline (request → owner
+ * approval → confirmed), not a generic dev-tool prop — inspired by
  * dannypostma.com's landing page. Frosted-glass surface. Entrance is staggered
  * via tw-animate-css's `animate-in` utilities (Tailwind v4 auto-generates them
  * from the `--animate-*` theme keys in globals.css), no custom keyframes or
  * client JS needed.
  */
 const STEPS = [
-  { cmd: "submit arrangement", result: "received, with our condolences" },
-  { cmd: "assign director & chapel", result: "Chapel of Rest A reserved" },
-  { cmd: "set the date", result: "a director will call within 7 days" },
+  { cmd: "POST /bookings", result: "pending — rules resolved per service" },
+  { cmd: "owner approves", result: "slot held, capacity decremented" },
+  { cmd: "GET /availability", result: "confirmed — same spine, any vertical" },
 ];
 
 export function PipelineTerminal() {

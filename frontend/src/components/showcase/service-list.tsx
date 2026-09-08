@@ -5,9 +5,6 @@
 "use client";
 
 import { getServices, searchProviders } from "@/api";
-import { SHOWCASE_ONLY } from "@/config/showcase";
-import { CATALOGUE } from "@/components/showcase/catalogue";
-import type { ShowcaseProvider, ShowcaseService } from "@/components/showcase/catalogue";
 import { useAsync } from "@/hooks/use-async";
 import { EmptyState } from "@/components/empty-state";
 import { InlineMessage } from "@/components/ui/inline-message";
@@ -15,6 +12,7 @@ import { Skeleton } from "@/components/skeleton";
 import { Button } from "@/components/ui/button";
 import { ServicePanel } from "@/components/showcase/service-panel";
 import { EMPTY_STATE_TITLE, EMPTY_STATE_BODY } from "@/components/showcase/showcase-copy";
+import type { Provider, Service } from "@/types/domain";
 
 const SKELETON_COUNT = 4;
 
@@ -26,15 +24,8 @@ const SKELETON_COUNT = 4;
  * visitor as a signed-in one.
  */
 export function ServiceList() {
-  // In a showcase-only build there is no backend to call, so serve the
-  // generated snapshot rather than firing two requests that can only fail. Not
-  // an error fallback: the request is never made, so the page renders straight
-  // away and the console stays clean.
   const { data, error, loading, reload } = useAsync(
-    () =>
-      SHOWCASE_ONLY
-        ? Promise.resolve([CATALOGUE.services, CATALOGUE.providers])
-        : Promise.all([getServices(), searchProviders({})]),
+    () => Promise.all([getServices(), searchProviders({})]),
     [],
   );
 
@@ -61,7 +52,7 @@ export function ServiceList() {
     );
   }
 
-  const [services, providers] = data as [ShowcaseService[], ShowcaseProvider[]];
+  const [services, providers] = data as [Service[], Provider[]];
 
   if (services.length === 0) {
     return (
@@ -69,7 +60,7 @@ export function ServiceList() {
     );
   }
 
-  const providerById = new Map<string, ShowcaseProvider>(providers.map((p) => [p.id, p]));
+  const providerById = new Map<string, Provider>(providers.map((p) => [p.id, p]));
 
   return (
     <div className="flex flex-col gap-16 sm:gap-24">

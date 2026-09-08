@@ -11,7 +11,7 @@
  * it clicks Month and glides across a few open days, switches to Week then Day
  * lighting up example slots, picks one and books it on the real booking
  * control. When the tour finishes the calendar zooms out a little and an
- * "Arrange in three steps" note reveals underneath it, one line at a time.
+ * "Book in three steps" note reveals underneath it, one line at a time.
  *
  * The show plays once each time the section enters view (it does not loop);
  * scrolling away and back replays it. The moment a visitor clicks any control
@@ -80,9 +80,9 @@ const SERVICE: Service = {
 
 // Dash-free, matching the rest of the landing copy.
 const STEPS: [string, string][] = [
-  ["Choose a chapel", "See which chapels and dates are open at a glance."],
-  ["Hold a date", "Reserve a day for the service, or let a director set it with you."],
-  ["Leave the rest to us", "Confirm the details and a director takes it from there."],
+  ["Pick a resource", "Day availability and month density come off one occupancy view."],
+  ["Hold a slot", "Book outright or send a request the owner approves. Config decides which."],
+  ["Change your mind", "Reschedule and cancel obey the same per-service cutoff rules."],
 ];
 
 function slot(date: string, hour: number, status: Slot["status"], booked: number): Slot {
@@ -481,7 +481,7 @@ export function CalendarShowcase() {
               byDate={byDate}
               tz={TZ}
               isDaySlot={false}
-              nameFor={() => "Chapel of Rest A"}
+              nameFor={() => "Resource A"}
               selectedIds={selectedIds}
               onSelect={(s) => {
                 takeOver();
@@ -515,7 +515,7 @@ export function CalendarShowcase() {
                 <p className="font-medium text-foreground">Date reserved</p>
                 {bookSlot && (
                   <p className="truncate text-xs text-muted-foreground">
-                    {formatTimeRange(bookSlot.startUtc, bookSlot.endUtc, TZ)} · Chapel of Rest A
+                    {formatTimeRange(bookSlot.startUtc, bookSlot.endUtc, TZ)} · Resource A
                   </p>
                 )}
               </div>
@@ -577,7 +577,7 @@ export function CalendarShowcase() {
                     revealed ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0",
                   )}
                 >
-                  Arrange in three steps
+                  Book in three steps
                 </h3>
                 <div
                   className={cn(
@@ -653,7 +653,7 @@ function DemoDayView({
         tz={TZ}
         service={SERVICE}
         isDaySlot={false}
-        nameFor={() => "Chapel of Rest A"}
+        nameFor={() => "Resource A"}
         selectedIds={selectedIds}
         onSelect={onSelect}
       />
