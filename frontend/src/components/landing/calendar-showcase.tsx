@@ -145,7 +145,13 @@ export function CalendarShowcase() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [booked, setBooked] = useState(false);
   const [finished, setFinished] = useState(false); // tour done → zoom out + reveal steps
-  const [cursor, setCursor] = useState({ x: 40, y: 40 });
+  // `ms` travels with the position so each hop can time itself: a fixed
+  // duration makes a 20px nudge take as long as a glide across the plate,
+  // which is most of what read as robotic.
+  const [cursor, setCursor] = useState({ x: 40, y: 40, ms: 620 });
+  // Mirrors `cursor` for the tour's own maths, which runs outside React's
+  // render cycle and would otherwise close over a stale position.
+  const cursorRef = useRef({ x: 40, y: 40 });
   const [down, setDown] = useState(false);
   const [ready, setReady] = useState(false); // cursor has moved at least once
   const [inView, setInView] = useState(false);
@@ -311,9 +317,22 @@ export function CalendarShowcase() {
       if (!alive()) return;
       const at = aimAt(el);
       if (!el || !at) return;
-      setCursor(at);
+
+      // Time the hop by how far it actually is, the way a hand does: short
+      // corrections are quick, long crossings take longer, both clamped so
+      // nothing snaps or drags.
+      const from = cursorRef.current;
+      const dist = Math.hypot(at.x - from.x, at.y - from.y);
+      const ms = Math.round(Math.min(760, Math.max(240, dist * 1.15)));
+      cursorRef.current = at;
+      setCursor({ ...at, ms });
       setReady(true);
-      await sleep(400, timerRef);
+
+      // Wait for the cursor to ARRIVE, plus a beat to settle. This used to be a
+      // flat 400ms against a 620ms transition, so every click and highlight
+      // fired while the pointer was still a third of the way short of its
+      // target, hitting things it had visibly not reached.
+      await sleep(ms + 90, timerRef);
       if (!alive() || !el.isConnected) return;
       if (opts.click) {
         setDown(true);
@@ -327,14 +346,16 @@ export function CalendarShowcase() {
     }
 
     async function run() {
-      await sleep(450, timerRef);
+      // Dwell times below are trimmed to pay for the longer, distance-timed
+      // hops, so the tour reads smoother without running noticeably longer.
+      await sleep(350, timerRef);
       if (!alive()) return;
 
       // 1) Month — sweep a few open days.
       await point(await waitFor('[data-demo-view="Month"]'), { click: true });
       for (const d of sweepDates.slice(0, 3)) {
         if (!alive()) return;
-        await point(q(`[aria-label="${d}"]`), { hl: true, hold: 240 });
+        await point(q(`[aria-label="${d}"]`), { hl: true, hold: 200 });
       }
 
       // 2) Week — light up the example slots.
@@ -344,7 +365,7 @@ export function CalendarShowcase() {
       await waitFor('[data-demo-view="Week"][aria-pressed="true"]');
       for (const b of viewButtons().slice(0, 3)) {
         if (!alive()) return;
-        await point(b, { hl: true, hold: 220 });
+        await point(b, { hl: true, hold: 190 });
       }
 
       // 3) Day — glide the times, then select one.
@@ -355,7 +376,7 @@ export function CalendarShowcase() {
       const dayBtns = viewButtons();
       for (const b of dayBtns.slice(0, 2)) {
         if (!alive()) return;
-        await point(b, { hl: true, hold: 220 });
+        await point(b, { hl: true, hold: 190 });
       }
       let didSelect = false;
       if (bookSlot) {
@@ -364,7 +385,7 @@ export function CalendarShowcase() {
           await point(target, { click: true, hold: 300 });
           setSelectedId(bookSlot.id);
           didSelect = true;
-          await sleep(560, timerRef);
+          await sleep(430, timerRef);
         }
       }
 
@@ -546,7 +567,9 @@ export function CalendarShowcase() {
             className="pointer-events-none absolute left-0 top-0 z-30"
             style={{
               transform: `translate(${cursor.x}px, ${cursor.y}px)`,
-              transition: "transform 620ms cubic-bezier(0.4, 0, 0.2, 1)",
+              // Longer tail than the standard curve: the pointer leaves
+              // decisively and settles gently, which is what reads as smooth.
+              transition: `transform ${cursor.ms}ms cubic-bezier(0.4, 0, 0.15, 1)`,
             }}
           >
             <div className={cn("transition-transform duration-150", down ? "scale-90" : "scale-100")}>
