@@ -70,7 +70,7 @@ export function Footer() {
               <nav aria-label="More" className="flex flex-col gap-2.5">
                 <h3 className={COL_HEAD}>More</h3>
                 <Link href={SHOWCASE_ONLY ? SOURCE_URL : "/login"} className={LINK_CLASS}>
-                  Login
+                  {SHOWCASE_ONLY ? "Source on GitHub" : "Login"}
                 </Link>
                 <Link href="/privacy" className={LINK_CLASS}>
                   Data handling &amp; privacy policy
