@@ -7,7 +7,7 @@ usage limit. **Screenshots/images are the #1 cost**; prefer text tools and take
 at most one, only when a visual result must be shown. Read narrow (`grep` +
 `sed -n` ranges, not whole files), don't re-read after editing, batch tool
 calls, verify once, and keep prose/commit messages terse. Full rules:
-[docs/token-budget.md](docs/token-budget.md). This applies to every agent.
+[.claude/token-budget.md](.claude/token-budget.md). This applies to every agent.
 
 ## What this is
 
@@ -17,8 +17,7 @@ seed data instead of a rewrite. Multi-slot bookings, party size, reviews,
 follows, search, day-availability and month-density all ride on that neutral
 spine. Stack: **Next.js 14 + Tailwind** frontend, **FastAPI** backend, hosted
 **Supabase (Postgres + Auth)**. Startup applies the schema; demo data is seeded
-on demand with `make reseed`. See `REPORT.md` for the frontend⇄backend wiring snapshot (a
-regenerated snapshot — re-run the pipeline rather than trusting it blind).
+on demand with `make reseed`.
 
 The product shape: a public landing page showcasing what's on offer, and a
 gated dashboard with a customer view and a business-owner view. Customers view
@@ -134,8 +133,7 @@ accepted — supporting it let the token header pick the weaker scheme.
   the pivot design. `domain.config.json` still owns vocabulary/defaults; no
   domain term or magic number moves into auth code.
 
-Each subdir's `CLAUDE.md` records what's actually implemented; `REPORT.md` is
-the current verified snapshot.
+Each subdir's `CLAUDE.md` records what's actually implemented.
 
 ## Repo layout
 
@@ -275,25 +273,20 @@ agents in `.claude/agents/`, run in this order:
    pass/fail results. It cannot modify any file, including its own results.
 
 The orchestrating session runs these three in sequence (each depends on the
-previous one's output) and then writes two files at repo root from the
-combined results:
-
-- **`REPORT.md`** — what exists and how it's implemented (from the analyst +
-  test results).
-- **`TODO.md`** — what's missing or broken and what to do next, prioritized.
-
-Re-run the pipeline whenever you want a fresh read on the codebase state —
-`REPORT.md`/`TODO.md` are snapshots, not living docs, so regenerate rather
-than hand-edit them.
+previous one's output) and can write the combined result to `REPORT.md` (what
+exists and how it's implemented) and `TODO.md` (what's missing or broken, and
+what to do next). **Both are gitignored on purpose.** They are point-in-time
+snapshots that go stale within a commit or two, and a public repo carrying a
+machine-generated defect list reads as an unmaintained project. Regenerate them
+locally whenever you want a fresh read; track real work as GitHub issues.
 
 ## Per-issue documentation
 
-When a Claude Code session finishes work on a GitHub issue, it writes a short
-summary to `docs/issues/<issue#>-<slug>.md` (matching the branch name,
-`<issue#>-<slug>`) covering what changed and why, and also posts the same
-summary in chat, formatted to paste as a GitHub issue comment before opening
-the PR. This keeps a durable trail per issue, independent of the `REPORT.md`/
-`TODO.md` whole-repo snapshots above.
+When a Claude Code session finishes work on a GitHub issue, it posts a short
+summary in chat covering what changed and why, formatted to paste as a GitHub
+issue comment before opening the PR. The durable trail lives on the issue and
+in the PR description — not as committed files, which turn the repo into a
+working-notes dump.
 
 ## Contributing
 

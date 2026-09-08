@@ -1,7 +1,19 @@
-fastapi
-uvicorn[standard]
-python-multipart
-supabase
-psycopg[binary]
-python-dotenv
-pyjwt[crypto]
+# Runtime dependencies for the FastAPI backend.
+#
+# Bounds policy: pin to the compatible release (`~=`) so a patch/minor bump is
+# picked up but a breaking major (or, for FastAPI's 0.x line, a breaking minor)
+# never lands silently. Dev and test deps live in requirements-dev.txt and
+# test/requirements-test.txt and follow the same discipline.
+#
+# Regenerate the version floors with `pip freeze` after an intentional upgrade.
+
+fastapi~=0.141.1
+uvicorn[standard]~=0.52.4
+python-multipart~=0.0.32
+supabase~=2.31
+psycopg[binary]~=3.3
+python-dotenv~=1.2
+pyjwt[crypto]~=2.13
+# Direct dependency, not merely transitive via FastAPI: app/config_schema.py
+# validates domain.config.json with it.
+pydantic~=2.13

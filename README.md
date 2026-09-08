@@ -1,6 +1,6 @@
 <div align="center">
 
-# Codaro Booking Engine
+# Arbor
 
 **A generic, config-driven booking engine. Pivot the whole product by editing one JSON file.**
 
@@ -405,7 +405,14 @@ Run `make` with no arguments for the full list.
 | [docs/PIVOT-SYSTEM.md](docs/PIVOT-SYSTEM.md) | Every config block and the precedence model |
 | [docs/PIVOT-COVERAGE.md](docs/PIVOT-COVERAGE.md) | The 100-pivot evidence run |
 | [backend/CLAUDE.md](backend/CLAUDE.md), [frontend/CLAUDE.md](frontend/CLAUDE.md), [supabase/CLAUDE.md](supabase/CLAUDE.md) | Per-layer conventions |
-| [REPORT.md](REPORT.md), [TODO.md](TODO.md) | Regenerated snapshots of what works and what's left |
+| [CHANGELOG.md](CHANGELOG.md) | What changed in each release |
+| [SECURITY.md](SECURITY.md) | How to report a vulnerability (privately) |
+| [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) | Contributor Covenant 2.1 |
+
+**API reference.** The backend generates its own, from the routers — start the
+stack and open <http://localhost:8000/docs> (Swagger UI), <http://localhost:8000/redoc>,
+or fetch the spec at `/openapi.json`. There is no hand-written endpoint list to
+fall out of date.
 
 ## Team
 
