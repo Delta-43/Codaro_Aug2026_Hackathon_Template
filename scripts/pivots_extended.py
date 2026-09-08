@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Pivots #51-100 — probes, not padding.
 
 Batch 1 (#1-50) exhausted the nine design axes: `party` has three values,

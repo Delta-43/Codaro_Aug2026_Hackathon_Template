@@ -1,3 +1,7 @@
+// Arbor — a config-driven booking engine
+// Copyright (C) 2026 Alban Billiette and the Arbor contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * ============================================================================
  * THE API SEAM — now real HTTP to the FastAPI backend.
@@ -12,6 +16,7 @@
  * `Authorization: Bearer <jwt>` on every call; the backend verifies it and
  * derives identity + RLS scope from it (never from the request body).
  */
+import type { Terms as GeneratedTerms, Copy as GeneratedCopy } from "./config.generated";
 import type {
   Booking,
   ClientReputation,
@@ -264,46 +269,20 @@ function capabilitiesFromConfig(cfg: unknown): Capabilities {
  *  static three-vertical file, so pivoting `service` to "Plan" and `slot` to
  *  "Billing period" changed the seed data and left every label saying "Subject"
  *  and "session". Every key is optional — a term the config omits falls back to
- *  the static vertical's word rather than rendering an empty label. */
-export type ConfigTerms = Partial<
-  Record<
-    | "provider"
-    | "providers"
-    | "service"
-    | "services"
-    | "resource"
-    | "resources"
-    | "slot"
-    | "slots"
-    | "booking"
-    | "bookings"
-    | "client"
-    | "clients"
-    | "party",
-    string
-  >
->;
+ *  the static vertical's word rather than rendering an empty label.
+ *
+ *  The key set is DERIVED from the backend's own models via
+ *  `config.generated.ts`. It used to be hand-written here and had already
+ *  drifted: the backend declares 17 terms, this listed 13, and every generated
+ *  pivot sets three of the four it was missing. */
+export type ConfigTerms = Partial<Record<keyof GeneratedTerms, string>>;
 
 /** The pivot file's `copy` block — whole sentences the UI shows at named moments.
  *  Same story as `terms`: served, never read. Optional per key for the same
  *  reason. `waitlistJoined` / `quoteRequested` / `depositDue` /
  *  `prerequisiteBlocked` belong to surfaces that have no backend yet; they are
  *  parsed here so the seam is ready, and deliberately not rendered. */
-export type ConfigCopy = Partial<
-  Record<
-    | "landingTitle"
-    | "landingSubtitle"
-    | "confirmTitle"
-    | "emptyStateSlots"
-    | "emptyStateBookings"
-    | "requestPending"
-    | "waitlistJoined"
-    | "quoteRequested"
-    | "depositDue"
-    | "prerequisiteBlocked",
-    string
-  >
->;
+export type ConfigCopy = Partial<Record<keyof GeneratedCopy, string>>;
 
 /** Keep only the string values, so a malformed config yields a *missing* key
  *  (which falls back) rather than `undefined` rendered as a label. */

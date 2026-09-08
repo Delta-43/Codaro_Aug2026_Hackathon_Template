@@ -1,3 +1,7 @@
+// Arbor — a config-driven booking engine
+// Copyright (C) 2026 Alban Billiette and the Arbor contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * ============================================================================
  * DOMAIN CONTRACT — the single source of truth shared with the backend team.
@@ -222,7 +226,7 @@ export interface Resource {
 }
 
 // Not exported: the only external consumer (the landing calendar demo) moved
-// to landing/ (see docs/issues/97-...), which keeps its own copy of this
+// to landing/, which keeps its own copy of this
 // type. Kept here, unexported, since `Slot.status` below still needs it.
 type SlotStatus =
   | "available"

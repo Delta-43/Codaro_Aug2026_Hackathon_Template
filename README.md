@@ -1,20 +1,39 @@
 <div align="center">
 
-# Codaro Booking Engine
+# Arbor
 
 **A generic, config-driven booking engine. Pivot the whole product by editing one JSON file.**
 
 `provider -> service -> resource -> slot -> booking -> user`
 
+🏆 **First place, Track B (Booking and Resource Scheduling), at the Codaro x Google for Startups hackathon.**
+
+[![1st place](https://img.shields.io/badge/%F0%9F%8F%86_1st_place-Codaro_x_Google_for_Startups-FFD700)](#team)
+[![CI](https://github.com/kaveOO/Arbor/actions/workflows/ci.yml/badge.svg)](https://github.com/kaveOO/Arbor/actions/workflows/ci.yml)
 [![Next.js 14](https://img.shields.io/badge/frontend-Next.js%2014-000000)](frontend/)
 [![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688)](backend/)
 [![Supabase](https://img.shields.io/badge/data-Supabase%20Postgres-3ECF8E)](supabase/)
 [![Docker](https://img.shields.io/badge/self--host-Docker%20Compose-2496ED)](docker-compose.yml)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+[![Status: not actively maintained](https://img.shields.io/badge/status-not_actively_maintained-lightgrey.svg)](#project-status)
 
-[Quick start](#quick-start-local) | [Self-hosting](#self-hosting) | [Where the stack runs](#where-the-stack-runs) | [The pivot system](#the-pivot-system) | [Docs](#documentation)
+[Quick start](#quick-start-local) | [The pivot system](#the-pivot-system) | [Architecture](#architecture) | [Self-hosting](#self-hosting) | [Team](#team) | [Docs](#documentation)
 
 </div>
+
+## Project status
+
+**Finished showcase project. Not actively maintained.**
+
+Arbor was built for a hackathon and is kept public as a working reference, not
+as a maintained product. Issues are closed, pull requests are not reviewed, and
+there is no support channel. Nothing here is being watched for a reply.
+
+The code is yours under the AGPL-3.0: fork it, run it, take it somewhere else.
+[CONTRIBUTING.md](CONTRIBUTING.md) documents the branch flow, the CI gates and
+the two rules the codebase lives by, so a fork has everything it needs. For a
+security problem, read [SECURITY.md](SECURITY.md) first, and assume a fix will
+come from your fork rather than from here.
 
 ## What this is
 
@@ -34,6 +53,92 @@ The product has three faces:
 Everything the user reads (every noun, CTA, empty state) and every number the
 engine enforces comes from [`domain.config.json`](domain.config.json). Nothing in
 code hard-codes a term or a magic number.
+
+## Screenshots
+
+Every noun, label and price below is rendered from `domain.config.json`. This
+deployment is configured as a funeral home, so the engine's neutral
+`provider / service / resource / slot` spine surfaces as Funeral Home,
+Arrangement, Chapel and Date. Point it at a different config and the same
+screens speak a different business.
+
+| Browse a business | Availability |
+|---|---|
+| ![Customer view of a business, its arrangements and reviews](docs/screenshots/02-provider.png) | ![Month density and day availability grid](docs/screenshots/03-calendar.png) |
+| Services, reviews and booking entry points, all labelled from config. | Month density plus per-day slots, the Track B availability view. |
+
+| Owner dashboard | Landing page |
+|---|---|
+| ![Business owner dashboard with bookings and analytics](docs/screenshots/05-owner-dashboard.png) | ![Public marketing landing page](docs/screenshots/01-landing.png) |
+| The business side: requests, calendar, services and per-item analytics. | The public front door at `/`. |
+
+
+## Quick start (local)
+
+Both env files must exist before `make start`. Each service declares its own
+`env_file`, so a fresh clone fails without them.
+
+```bash
+cp backend/.env.example backend/.env
+cp frontend/.env.local.example frontend/.env.local
+make start
+```
+
+Prefer no Docker? Run the two halves natively:
+
+```bash
+cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && uvicorn app.main:app --reload
+```
+
+```bash
+cd frontend && npm install && npm run dev
+```
+
+Config, `supabase/`, and both app trees are bind-mounted, so edits are live with
+no rebuild. Rebuild only when dependencies change.
+
+## The pivot system
+
+`domain.config.json` (**v2**) holds the engine's vocabulary and the shape of the
+offering. Editing it plus `make reload` re-skins and re-rules the entire app.
+
+```mermaid
+flowchart LR
+    E["Edit<br/>domain.config.json"] --> N["normalize()"] --> V{"validate()"}
+    V -->|"invalid"| F["Fails at the edit.<br/>Every problem listed at once<br/>(422 from /config/reload)"]
+    V -->|"valid"| C["Cached config"]
+    C --> API["Backend enforces<br/>rules + pricing"]
+    C --> UI["Frontend renders<br/>every label + number"]
+
+    classDef ok fill:#e7f8ee,stroke:#2b9e5f,color:#0e2b1a
+    classDef bad fill:#fdecec,stroke:#cf4040,color:#3d0f0f
+    classDef neu fill:#fdf3e0,stroke:#c48a1c,color:#3a2a06
+    class E,N,V neu
+    class C,API,UI ok
+    class F bad
+```
+
+| Block | Controls |
+|---|---|
+| `terms`, `copy` | Vocabulary, CTAs, empty states |
+| `capabilities` | On/off spine: payments, inventory, waitlist, quotes, reviews |
+| `booking` | Unit kind, granularity, duration mode, party rules, add-ons |
+| `pricing` | Rate, tiers, fees, caps, deposit (per-hour, per-night, per-person) |
+| `payments` | Flow, payer, schedule, billing cycle, no-show fee |
+| `inventory` | none, finite, rentable, consumable, serialised |
+| `location` | On-site, at-customer, remote, delivery, pickup, timezone, service area |
+| `prerequisites` | ID checks, intake forms, waivers, memberships, approvals |
+| `timing` | Instant vs request-approve, waitlist, seasons, blackouts, lead time |
+| `metaFields` | Custom fields per entity, with **no migration** |
+
+Config is the default; the service row is the override. A service's own columns
+win over the config globals, and `services.metadata.<block>` lifts that precedence
+to whole blocks, which is how one deployment hosts businesses that price and gate
+completely differently.
+
+Proof it pivots: 100 deliberately different businesses live in [`pivots/`](pivots/)
+as complete, drop-in config files, each run through the real validator and pricing
+engine (`python3 scripts/check_pivots.py`).
 
 ## Architecture
 
@@ -209,8 +314,9 @@ make start
 ```
 
 Frontend on **:3000**, backend on **:8000**. On first boot the backend applies
-[`supabase/schema.sql`](supabase/schema.sql) over `SUPABASE_DB_URL` and seeds demo
-data if the database is empty. Both steps are idempotent, so restarts are safe.
+[`supabase/schema.sql`](supabase/schema.sql) over `SUPABASE_DB_URL`. It is
+idempotent, so restarts are safe. Seeding is a separate, explicit step: run
+`make reseed` once to fill an empty database with demo data.
 
 ### 2. Self-host everything, including Supabase
 
@@ -259,9 +365,9 @@ redirects resolve.
 > let Vercel do it. The backend image already defaults to its production command
 > (`uvicorn` binding `$PORT`, no `--reload`).
 
-> **Keep `WEB_CONCURRENCY=1`.** Schema setup and seeding run in the FastAPI
-> lifespan, that is, once per worker, so more than one worker can double-seed on
-> a cold start. To scale out, move schema and seed into a pre-deploy step first.
+> **Keep `WEB_CONCURRENCY=1`.** Schema setup runs in the FastAPI lifespan, that
+> is, once per worker, so more than one worker applies the DDL concurrently on a
+> cold start. To scale out, move schema setup into a pre-deploy step first.
 
 ### Data safety
 
@@ -269,73 +375,6 @@ The database is remote Supabase, not a Docker volume. `make reset` removes only
 the local `node_modules` and `.next` volumes; it never touches your data. The one
 destructive command is `make reseed`, which truncates the base tables and rebuilds
 demo data from the current config.
-
-## Quick start (local)
-
-Both env files must exist before `make start`. Each service declares its own
-`env_file`, so a fresh clone fails without them.
-
-```bash
-cp backend/.env.example backend/.env
-cp frontend/.env.local.example frontend/.env.local
-make start
-```
-
-Prefer no Docker? Run the two halves natively:
-
-```bash
-cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && uvicorn app.main:app --reload
-```
-
-```bash
-cd frontend && npm install && npm run dev
-```
-
-Config, `supabase/`, and both app trees are bind-mounted, so edits are live with
-no rebuild. Rebuild only when dependencies change.
-
-## The pivot system
-
-`domain.config.json` (**v2**) holds the engine's vocabulary and the shape of the
-offering. Editing it plus `make reload` re-skins and re-rules the entire app.
-
-```mermaid
-flowchart LR
-    E["Edit<br/>domain.config.json"] --> N["normalize()"] --> V{"validate()"}
-    V -->|"invalid"| F["Fails at the edit.<br/>Every problem listed at once<br/>(422 from /config/reload)"]
-    V -->|"valid"| C["Cached config"]
-    C --> API["Backend enforces<br/>rules + pricing"]
-    C --> UI["Frontend renders<br/>every label + number"]
-
-    classDef ok fill:#e7f8ee,stroke:#2b9e5f,color:#0e2b1a
-    classDef bad fill:#fdecec,stroke:#cf4040,color:#3d0f0f
-    classDef neu fill:#fdf3e0,stroke:#c48a1c,color:#3a2a06
-    class E,N,V neu
-    class C,API,UI ok
-    class F bad
-```
-
-| Block | Controls |
-|---|---|
-| `terms`, `copy` | Vocabulary, CTAs, empty states |
-| `capabilities` | On/off spine: payments, inventory, waitlist, quotes, reviews |
-| `booking` | Unit kind, granularity, duration mode, party rules, add-ons |
-| `pricing` | Rate, tiers, fees, caps, deposit (per-hour, per-night, per-person) |
-| `payments` | Flow, payer, schedule, billing cycle, no-show fee |
-| `inventory` | none, finite, rentable, consumable, serialised |
-| `location` | On-site, at-customer, remote, delivery, pickup, timezone, service area |
-| `prerequisites` | ID checks, intake forms, waivers, memberships, approvals |
-| `timing` | Instant vs request-approve, waitlist, seasons, blackouts, lead time |
-| `metaFields` | Custom fields per entity, with **no migration** |
-
-Config is the default; the service row is the override. A service's own columns
-win over the config globals, and `services.metadata.<block>` lifts that precedence
-to whole blocks, which is how one deployment hosts businesses that price and gate
-completely differently.
-
-Proof it pivots: 100 deliberately different businesses live in [`pivots/`](pivots/)
-as complete, drop-in config files, each run through the real validator and pricing
-engine (`python3 scripts/check_pivots.py`).
 
 ## Repo layout
 
@@ -347,7 +386,7 @@ backend/                    # FastAPI generic engine
   app/config_schema.py      #   normalize() + validate() for the whole v2 tree
   app/rules.py              #   per-service resolver + rules engine
   app/routers/              #   /providers /services /resources /slots /bookings
-  seed.py                   #   demo data (auto-seeds on first start)
+  seed.py                   #   demo data (run `make reseed`)
 frontend/                   # Next.js 14 + Tailwind
   src/api/index.ts          #   typed backend client (the HTTP seam)
   src/app/page.tsx          #   public landing page
@@ -377,16 +416,36 @@ Run `make` with no arguments for the full list.
 |---|---|
 | [CLAUDE.md](CLAUDE.md) | The architectural guide. Read this first. |
 | [DEPLOY.md](DEPLOY.md) | Vercel, Railway and Supabase, step by step |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Branch naming, PR flow, CI gates |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | How the codebase is worked on, for forks |
 | [docs/PIVOT-SYSTEM.md](docs/PIVOT-SYSTEM.md) | Every config block and the precedence model |
 | [docs/PIVOT-COVERAGE.md](docs/PIVOT-COVERAGE.md) | The 100-pivot evidence run |
 | [backend/CLAUDE.md](backend/CLAUDE.md), [frontend/CLAUDE.md](frontend/CLAUDE.md), [supabase/CLAUDE.md](supabase/CLAUDE.md) | Per-layer conventions |
-| [REPORT.md](REPORT.md), [TODO.md](TODO.md) | Regenerated snapshots of what works and what's left |
+| [CHANGELOG.md](CHANGELOG.md) | What changed in each release |
+| [SECURITY.md](SECURITY.md) | How to report a vulnerability (privately) |
+
+**API reference.** The backend generates its own, from the routers — start the
+stack and open <http://localhost:8000/docs> (Swagger UI), <http://localhost:8000/redoc>,
+or fetch the spec at `/openapi.json`. There is no hand-written endpoint list to
+fall out of date.
+
+## Team
+
+Built at the Codaro x Google for Startups hackathon, where it took first place
+on Track B (Booking and Resource Scheduling).
+
+- [@kaveOO](https://github.com/kaveOO) (Alban Billiette)
+- [@Rysia](https://github.com/Rysia)
+- [@Delta-43](https://github.com/Delta-43)
+- [@piotr-palamiotis](https://github.com/piotr-palamiotis)
+- [@philpiano](https://github.com/philpiano)
 
 ## License
 
+Copyright (C) 2026 Alban Billiette and the Arbor contributors.
+
 **[GNU Affero General Public License v3.0](LICENSE)** (AGPL-3.0), an
-OSI-approved open source license.
+OSI-approved open source license. See [NOTICE](NOTICE) for the copyright and
+warranty statement.
 
 You may use, modify and redistribute this code, including commercially. In
 return, the AGPL asks for reciprocity: if you distribute a modified version, or

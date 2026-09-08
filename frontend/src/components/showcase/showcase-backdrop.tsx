@@ -1,3 +1,7 @@
+// Arbor — a config-driven booking engine
+// Copyright (C) 2026 Alban Billiette and the Arbor contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * Static-in-JS, bespoke backdrop for `/showcase`: a near-black base dressed
  * as a moonlit cemetery — a crescent moon with a soft glow, a scattered

@@ -1,3 +1,7 @@
+// Arbor — a config-driven booking engine
+// Copyright (C) 2026 Alban Billiette and the Arbor contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * Long-form prose primitives for /docs. The project has no typography plugin,
  * so headings/tables/code get their styling from these instead of a `prose`

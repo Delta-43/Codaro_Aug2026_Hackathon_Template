@@ -29,8 +29,23 @@ jobs:
       # domain.config.json is the pivot file the whole engine reads from.
       # A typo here breaks the backend at startup and every label in the UI,
       # so it gets its own fast-failing job.
+      # config_schema.py validates with pydantic, so this job needs the runtime
+      # deps. It deliberately installs requirements.txt only — the point is to
+      # prove the config loads with exactly what production ships.
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
       - name: Validate the pivot config
         run: python .github/scripts/validate_domain_config.py
+
+      # domain.config.schema.json is generated from backend/app/config_models.py
+      # and gives the pivot file editor autocomplete. If the models change and
+      # the schema is not regenerated, every editor starts lying about the
+      # config shape — so the committed file has to stay current.
+      - name: The published JSON Schema is current
+        run: python scripts/gen_config_schema.py --check
 
   backend:
     name: Backend tests (pytest)
@@ -73,7 +88,9 @@ jobs:
         env:
           SUPABASE_URL: http://localhost:54321
           SUPABASE_SERVICE_KEY: ci-dummy-key
-        run: python -m pytest test -q
+        run: |
+          python -m pytest test -q \
+            --cov=backend/app --cov-report=term-missing --cov-report=xml
 
       # The 100-pivot harnesses (validator + pricing, then load→spec→rules→
       # serialize). They import backend/app, hence they live in this job where
@@ -86,6 +103,10 @@ jobs:
         run: |
           python scripts/check_pivots.py
           python scripts/check_pivot_states.py
+          # The 100 pivots/*.json are generated from fragments in
+          # scripts/generate_pivots.py. Any DEFAULTS change desynchronizes
+          # them silently, so verify the committed files are current.
+          python scripts/generate_pivots.py --check
 
   frontend:
     name: Frontend typecheck + build
@@ -102,6 +123,16 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
+
+      # src/api/config.generated.ts is generated from domain.config.schema.json,
+      # which is itself generated from the backend's pydantic models. If it goes
+      # stale the TypeScript stops describing what the backend actually serves —
+      # which is the drift this whole chain exists to prevent.
+      - name: Config types match the schema
+        working-directory: frontend
+        run: |
+          npm run codegen:config
+          git diff --exit-code src/api/config.generated.ts
 
       - name: Lint (eslint)
         working-directory: frontend
@@ -122,3 +153,63 @@ jobs:
       - name: Build
         working-directory: frontend
         run: npm run build
+
+      # Runs all 100 pivots/*.json through the real frontend parsers in
+      # src/api/index.ts. Catches the case where the backend adds a config
+      # key the hand-written TS types do not know about — which has already
+      # happened once with terms.staff/subject/admin.
+      - name: Pivot configs parse in the frontend
+        working-directory: frontend
+        run: npx tsx ../scripts/check_pivot_frontend.mts
+
+  # Known-vulnerable dependencies. Split from the build jobs so an advisory
+  # published overnight is reported as its own red X rather than looking like a
+  # test failure.
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Audit Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pip-audit
+          pip-audit -r backend/requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # Non-blocking, deliberately. As of this commit `npm audit` reports two
+      # high-severity advisories (next, postcss) whose only fix is Next.js
+      # 14 -> 16, a semver-major upgrade tracked as its own piece of work.
+      # Gating on it would mean a permanently red CI that everyone learns to
+      # ignore. Remove `continue-on-error` once that upgrade lands.
+      - name: Audit npm dependencies
+        working-directory: frontend
+        continue-on-error: true
+        run: npm audit --audit-level=high
+
+  # The deploy path (Railway builds backend/Dockerfile, Vercel builds the
+  # frontend) was never exercised by CI, so a Dockerfile could rot unnoticed
+  # while every other job stayed green.
+  docker:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Context is the repo root, not backend/ — the image needs
+      # domain.config.json and supabase/ from the root.
+      - name: Build the backend image
+        run: docker build -f backend/Dockerfile -t arbor-backend:ci .
+
+      - name: Build the frontend image
+        run: docker build -t arbor-frontend:ci ./frontend

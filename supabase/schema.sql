@@ -1,3 +1,7 @@
+-- Arbor — a config-driven booking engine
+-- Copyright (C) 2026 Alban Billiette and the Arbor contributors
+-- SPDX-License-Identifier: AGPL-3.0-or-later
+
 -- Neutral booking-engine schema. Idempotent by design (IF NOT EXISTS / OR
 -- REPLACE, never DROP/ALTER) so a backend restart can safely re-run this
 -- without touching existing data. Treat as frozen once the pivot happens —

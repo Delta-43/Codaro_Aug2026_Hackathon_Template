@@ -1,3 +1,7 @@
+// Arbor — a config-driven booking engine
+// Copyright (C) 2026 Alban Billiette and the Arbor contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import Link from "next/link";
 import { DocShell, type TocEntry } from "@/components/docs/doc-shell";
 import { C, Code, H3, Item, List, Note, Section, Table } from "@/components/docs/prose";

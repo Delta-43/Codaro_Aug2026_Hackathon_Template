@@ -12,5 +12,8 @@
     "tw-animate-css",
     "tailwindcss"
   ],
-  "ignoreExportsUsedInFile": true
+  "ignoreExportsUsedInFile": true,
+  "ignore": [
+    "src/api/config.generated.ts"
+  ]
 }

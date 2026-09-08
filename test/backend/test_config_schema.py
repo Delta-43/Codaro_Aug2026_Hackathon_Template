@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `app.config_schema` — the v2 pivot-file resolver.
 
 Pure dict work: no Supabase, no FastAPI, no `domain.config.json` dependency
@@ -1064,12 +1068,20 @@ def _dig(tree: dict, path: str):
     return node
 
 
+# Modules that declare the config shape rather than act on it. Both name every
+# key by construction, so a mention in either is evidence of nothing —
+# `config_schema.py` declares them in DEFAULTS, `config_models.py` as pydantic
+# fields. Excluding them is what keeps this scan a test of *enforcement*.
+_SHAPE_DECLARING_MODULES = {"config_schema.py", "config_models.py"}
+
+
 def _modules_reading(key: str) -> set[str]:
     """Backend modules whose *code* (comments stripped) mentions `key`.
-    `config_schema.py` is excluded: declaring a key is not enforcing it."""
+    The shape-declaring modules are excluded: declaring a key is not
+    enforcing it."""
     found = set()
     for path in sorted(BACKEND_APP.rglob("*.py")):
-        if path.name == "config_schema.py":
+        if path.name in _SHAPE_DECLARING_MODULES:
             continue
         for line in path.read_text().splitlines():
             if key in line.split("#", 1)[0]:

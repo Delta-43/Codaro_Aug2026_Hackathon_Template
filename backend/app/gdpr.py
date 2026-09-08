@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """GDPR right-to-erasure orchestration (see backend/CLAUDE.md "Auth" and the
 schema's FK map in supabase/schema.sql).
 

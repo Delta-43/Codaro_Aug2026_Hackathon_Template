@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -38,7 +42,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Codaro Booking Engine", lifespan=lifespan)
+app = FastAPI(title="Arbor", lifespan=lifespan)
 
 # CORS origins come from the environment so prod can lock the API to the
 # deployed frontend while local dev stays open. `CORS_ORIGINS` is a

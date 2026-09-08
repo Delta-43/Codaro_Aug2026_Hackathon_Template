@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Live auth verification against a running backend + the real Supabase project.
 
 The offline suite (`test/backend/test_auth.py`) mints its own tokens and stubs

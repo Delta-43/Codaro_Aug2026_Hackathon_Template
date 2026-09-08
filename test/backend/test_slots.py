@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """/slots — public reads (+ /slots/occupancy) and owner-gated writes.
 
 `POST /slots` derives `ends_at` from `rules.slotDurationMinutes` and defaults

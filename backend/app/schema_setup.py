@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Idempotently applies supabase/schema.sql over a direct Postgres
 connection. Guarded so a failure here never crashes the server — startup
 just logs and continues (schema.sql may already have been applied by hand)."""

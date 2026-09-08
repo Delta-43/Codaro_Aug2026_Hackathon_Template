@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Availability grouping + month density — the calendar's two read endpoints.
 
 Both group slots by *local* date in the viewer's timezone (from `?tz=`, else the

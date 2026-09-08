@@ -23,8 +23,8 @@ seeding/reset are destructive). From **Settings → API** and **Connect** collec
 - `service_role` key (`SUPABASE_SERVICE_KEY`)
 - Session-pooler connection string (`SUPABASE_DB_URL`)
 
-The backend applies `supabase/schema.sql` and seeds on first boot, so the
-project can start empty — **but only if `SUPABASE_DB_URL` is set** (see below).
+The backend applies `supabase/schema.sql` on first boot, so the project can
+start empty (seed it afterwards with `make reseed`) — **but only if `SUPABASE_DB_URL` is set** (see below).
 Table creation runs DDL over a direct Postgres connection, which is impossible
 through the REST key alone; without `SUPABASE_DB_URL` the app boots with no
 tables. Startup logs `Schema applied from …` on success, or a loud
@@ -99,11 +99,11 @@ backend per PR — off by default because it multiplies usage.
 
 ## Notes & gotchas
 
-- **`WEB_CONCURRENCY=1` is deliberate.** `create_tables_if_configured()` and
-  `seed_if_empty()` run in the FastAPI lifespan, i.e. once *per worker*. More
-  than one worker can double-seed on a cold start. To scale out, move
-  schema/seed into a Railway **pre-deploy command** (or a one-off job) and then
-  raise `WEB_CONCURRENCY`.
+- **`WEB_CONCURRENCY=1` is deliberate.** `create_tables_if_configured()` runs
+  in the FastAPI lifespan, i.e. once *per worker*, so more than one worker
+  applies the DDL concurrently on a cold start. To scale out, move schema setup
+  into a Railway **pre-deploy command** (or a one-off job) and then raise
+  `WEB_CONCURRENCY`. (No seeding runs on startup.)
 - **Local dev is unchanged.** `docker-compose.yml` overrides the container
   command with `--reload`; the image's default `CMD` is the production command.
 - **Build context is the repo root, not `backend/`.** The backend resolves

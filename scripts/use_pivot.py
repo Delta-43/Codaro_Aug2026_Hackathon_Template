@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Swap `domain.config.json` for one of the pivots in `pivots/`.
 
     python3 scripts/use_pivot.py 3          # by number

@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """/bookings — the reworked, auth-gated booking loop, through the real endpoints.
 
 A booking spans one-or-more contiguous same-resource slots, carries a party
