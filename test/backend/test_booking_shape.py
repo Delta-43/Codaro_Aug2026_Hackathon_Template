@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """The v2 `booking` blocks that had no input path until now.
 
 `booking.party.composition`, `booking.options`, `booking.subject` and

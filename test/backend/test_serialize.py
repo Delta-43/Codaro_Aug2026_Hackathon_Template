@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Pure unit tests for `app.serialize` — the row → camelCase wire mappers.
 
 These are offline and config-independent: none of the serializers touch

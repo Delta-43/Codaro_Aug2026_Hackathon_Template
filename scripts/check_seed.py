@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Does the seeded database actually match the loaded `domain.config.json`?
 
     docker compose exec backend python /workspace/scripts/check_seed.py

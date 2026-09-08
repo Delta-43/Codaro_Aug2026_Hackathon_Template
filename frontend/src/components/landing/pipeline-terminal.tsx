@@ -1,3 +1,7 @@
+// Arbor — a config-driven booking engine
+// Copyright (C) 2026 Alban Billiette and the Arbor contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * A stylized terminal showing the funeral arrangement pipeline (request → assign
  * a chapel → set the date), not a generic dev-tool prop — inspired by

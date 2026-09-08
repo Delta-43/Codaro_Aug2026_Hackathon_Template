@@ -1,3 +1,7 @@
+// Arbor — a config-driven booking engine
+// Copyright (C) 2026 Alban Billiette and the Arbor contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * Content module for `/showcase` — the "morbid.com" brand voice. Everything
  * that reads as copy on the page (not layout, not data) lives here so the

@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for `app.pricing.quote` — the config-driven price engine.
 
 v1 priced every booking with one hardcoded expression in `routers/bookings.py`::

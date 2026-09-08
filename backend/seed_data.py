@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Ported three-vertical seed data (transcribed verbatim from
 frontend/src/api/seed/{fleet,oneToOne,group}.ts). Pure data — the assembler in
 seed.py turns each vertical into DB rows."""

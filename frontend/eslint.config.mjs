@@ -1,3 +1,7 @@
+// Arbor — a config-driven booking engine
+// Copyright (C) 2026 Alban Billiette and the Arbor contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Flat config. Like the ruff config on the backend, this is scoped to catching
 // dead code rather than enforcing a style — `no-unused-vars` is the rule that
 // pays for this file's existence. Next's own configs come along because
@@ -14,6 +18,11 @@ export default [
   // gate for code that is not the app. Enumerating dirs to ignore cannot cover
   // the ones nobody has created yet, so ignore everything and re-include src/.
   { ignores: ["**/*", "!src/**"] },
+  // Generated from domain.config.schema.json by `npm run codegen:config`, and
+  // gated in CI so it cannot go stale. Excluded because the generator's banner
+  // is an unconditional `eslint-disable`, which then warns as an unused
+  // directive — there is no version of this file for a human to fix.
+  { ignores: ["src/api/config.generated.ts"] },
   ...nextCoreWebVitals,
   ...nextTypeScript,
   {

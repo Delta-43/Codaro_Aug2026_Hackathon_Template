@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Waitlist — who wants a slot that is already full.
 
 `timing.waitlist` (`enabled`, `autoPromote`, `maxPerSlot`) shipped with v2 and

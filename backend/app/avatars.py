@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Shared avatar-image handling for the public Supabase Storage `avatars`
 bucket (see supabase/schema.sql). Used by both `/me/avatar` (the signed-in
 user's own picture, keyed by user id) and `/providers/{id}/avatar` (a business

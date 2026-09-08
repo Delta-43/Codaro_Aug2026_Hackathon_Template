@@ -1,3 +1,7 @@
+// Arbor — a config-driven booking engine
+// Copyright (C) 2026 Alban Billiette and the Arbor contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 "use client";
 
 // Tab 3 — Calendar / availability + booking. Browsable Month · Week · Day with

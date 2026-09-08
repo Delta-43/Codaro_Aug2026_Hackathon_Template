@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Row → wire-shape serializers.
 
 The frontend contract (`frontend/src/types/domain.ts`) is **camelCase** and models
