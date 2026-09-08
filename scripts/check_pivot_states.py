@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Run every `pivots/*.json` through the real load -> seed-spec -> serve path.
 
 `check_pivots.py` asks whether a pivot is *expressible* (validator + pricing).

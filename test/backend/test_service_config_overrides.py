@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Per-service config overrides — `services.metadata.<block>`.
 
 The hole this file covers: `validate()` only ever ran on the global

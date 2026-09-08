@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Service discovery (public reads). A service carries the per-service rules as
 columns and its `resourceIds` as a derived link array."""
 from fastapi import APIRouter, Depends, HTTPException, Response

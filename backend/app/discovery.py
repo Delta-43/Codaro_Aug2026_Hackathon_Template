@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Aggregation helpers shared by the discovery routers (providers/services/
 resources). Providers carry derived `rating`/`reviewCount` (from `reviews`) and
 `serviceIds`; services carry `resourceIds`. At demo scale these are computed by

@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Frontend <-> backend contract, checked statically (no browser, no network).
 
 `frontend/src/api/index.ts` is the only place the UI talks to the API and

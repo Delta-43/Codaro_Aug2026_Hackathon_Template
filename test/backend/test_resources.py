@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """/resources — public reads + owner-gated writes, through the real endpoints.
 
 Reads are open; create/patch/analytics require the owner role (`require_owner`).

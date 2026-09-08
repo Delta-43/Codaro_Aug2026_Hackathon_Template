@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """/services — public reads. A service carries per-service rule columns and a
 derived `resourceIds` link array (its active resources)."""
 

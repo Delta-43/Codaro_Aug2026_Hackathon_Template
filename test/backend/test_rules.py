@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Unit tests for the data-driven rules engine (backend/app/rules.py).
 
 Every assertion here is about *config-driven* behaviour: the same code path

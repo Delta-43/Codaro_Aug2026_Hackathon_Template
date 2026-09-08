@@ -1,3 +1,7 @@
+// Arbor — a config-driven booking engine
+// Copyright (C) 2026 Alban Billiette and the Arbor contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 // Flat config. Like the ruff config on the backend, this is scoped to catching
 // dead code rather than enforcing a style — `no-unused-vars` is the rule that
 // pays for this file's existence. Next's own configs come along because

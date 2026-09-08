@@ -16,8 +16,8 @@ user` — built so a completely different niche can be adopted via config +
 seed data instead of a rewrite. Multi-slot bookings, party size, reviews,
 follows, search, day-availability and month-density all ride on that neutral
 spine. Stack: **Next.js 14 + Tailwind** frontend, **FastAPI** backend, hosted
-**Supabase (Postgres + Auth)**. Demo data is **seeded automatically** on first
-backend start. See `REPORT.md` for the frontend⇄backend wiring snapshot (a
+**Supabase (Postgres + Auth)**. Startup applies the schema; demo data is seeded
+on demand with `make reseed`. See `REPORT.md` for the frontend⇄backend wiring snapshot (a
 regenerated snapshot — re-run the pipeline rather than trusting it blind).
 
 The product shape: a public landing page showcasing what's on offer, and a
@@ -163,7 +163,7 @@ backend/                    # FastAPI generic engine
                             #  <-- add a surprise rule here
   app/routers/              #  /providers /services /resources /slots /availability
                             #  /bookings /me /messages /owner /waitlist
-  seed.py                   #  demo data (auto-seeds on first start)
+  seed.py                   #  demo data (run `make reseed`)
 frontend/                   # Next.js 14 + Tailwind — the app lives in src/
   src/config/verticals.ts   #  UI vocabulary per vertical (useVertical())
   src/api/index.ts          #  typed backend client (the HTTP seam)
@@ -193,8 +193,9 @@ cp frontend/.env.local.example frontend/.env.local  # NEXT_PUBLIC_API_BASE + Sup
 make start                                      # frontend :3000, backend :8000
 ```
 
-Supabase (Postgres) stays hosted — no DB container. Backend startup still
-creates tables (if `SUPABASE_DB_URL` is set) and seeds demo data on an empty DB.
+Supabase (Postgres) stays hosted — no DB container. Backend startup creates the
+tables (if `SUPABASE_DB_URL` is set). It does **not** seed: run `make reseed`
+once to fill an empty database with demo data.
 
 **At pivot time:** edit `domain.config.json` (and UI files), then `make reload`
 — the backend caches config, so reload it to pick up the change. The frontend
@@ -214,7 +215,7 @@ cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env            # fill SUPABASE_URL + SERVICE_KEY (+ DB_URL to auto-create tables)
-uvicorn app.main:app --reload   # creates tables + seeds demo data on first start
+uvicorn app.main:app --reload   # creates tables (no seeding; see `make reseed`)
 ```
 
 Startup does two things, both idempotent and guarded (won't crash the server):
@@ -232,15 +233,17 @@ npm run dev                 # http://localhost:3000 (landing page is the app roo
 
 ## Demo data and reseeding after a pivot
 
-Seeding is domain-aware: `seed()` reads the **current** config and names rows
+Seeding is domain-aware: `seed_from_config()` reads the **current** config and names rows
 from it — medical config → `Doctor 1..3`, restaurant config → `Table 1..3`, each
 with upcoming slots sized by the config's duration and capacity.
 
-- **First boot:** `seed_if_empty` runs automatically — but **only when the DB
-  has zero resources**. It fills an empty database and never touches it again.
-- **After a pivot:** your old rows are still there (`Doctor 1`…), so the
-  auto-seed does nothing and the demo data no longer matches the new domain. To
-  get fresh, matching data you must **clear then reseed**:
+- **First boot:** nothing is seeded. Startup only applies `supabase/schema.sql`,
+  so a fresh database has the tables and no rows. Run `make reseed` once to fill
+  it. (`seed_if_empty()` still exists in `backend/seed.py` but is no longer
+  wired into startup.)
+- **After a pivot:** your old rows are still there (`Doctor 1`…), so the demo
+  data no longer matches the new domain. To get fresh, matching data you must
+  **clear then reseed**:
 
   ```bash
   make reload    # backend now serves the new terms/rules
@@ -248,7 +251,7 @@ with upcoming slots sized by the config's duration and capacity.
   ```
 
 `make reseed` (backend `reseed.py`) truncates the base tables (via
-`SUPABASE_DB_URL`, cascading), then re-runs `seed()`. **It deletes all existing
+`SUPABASE_DB_URL`, cascading), then re-runs `seed_from_config()`. **It deletes all existing
 data** — run it only when you want a clean demo for the new domain. To keep real
 data you entered, skip it and add rows normally.
 

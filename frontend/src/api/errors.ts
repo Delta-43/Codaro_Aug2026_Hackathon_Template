@@ -1,3 +1,7 @@
+// Arbor — a config-driven booking engine
+// Copyright (C) 2026 Alban Billiette and the Arbor contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /**
  * The error contract. The backend mirrors these codes so UI error handling
  * (inline "slot was just taken", disabled-with-reason, retry) needs no change

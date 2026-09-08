@@ -1,3 +1,7 @@
+# Arbor — a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Config-driven `metadata` validator.
 
 Built from ``get_config()["metaFields"][entity]`` *at request time*, so a
