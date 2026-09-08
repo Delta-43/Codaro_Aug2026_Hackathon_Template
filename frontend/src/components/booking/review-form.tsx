@@ -15,6 +15,7 @@ import { Star } from "lucide-react";
 import type { Booking } from "@/types/domain";
 import { isApiError, leaveReview } from "@/api";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { formatDate } from "@/lib/format";
 import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
@@ -112,13 +113,13 @@ export function ReviewForm({
         })}
       </div>
 
-      <textarea
+      <Textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="Share how it went (optional)"
         aria-label="Review note"
         rows={3}
-        className="mt-3 w-full resize-none rounded-lg border border-input bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+        className="mt-3"
       />
 
       {error ? (

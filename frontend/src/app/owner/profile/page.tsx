@@ -20,7 +20,6 @@ import { AvatarImg } from "@/components/avatar-img";
 import { BusinessHero } from "@/components/business/business-hero";
 import { getProviderReviews } from "@/api";
 import type { ProviderReview } from "@/types/domain";
-import { avatarDataUri } from "@/lib/business-view";
 import { whenLabel } from "@/lib/format";
 
 export default function ProfilePage() {
@@ -113,7 +112,7 @@ export default function ProfilePage() {
             {reviews.map((rv, i) => (
               <li key={i} className="rounded-2xl border border-border bg-card p-3">
                 <div className="flex items-center gap-2">
-                  <AvatarImg src={avatarDataUri(rv.author)} alt="" className="size-8" />
+                  <AvatarImg src={rv.authorAvatarUrl} name={rv.author} alt="" className="size-8" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="truncate text-sm font-medium">{rv.author}</span>

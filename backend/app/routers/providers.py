@@ -337,13 +337,23 @@ def provider_reviews(provider_id: str, limit: int = 8):
         reviewer_by_booking = {b["id"]: (b.get("client_id") or "") for b in brows}
 
     names: dict[str, str] = {}
+    # The reviewer's public avatar rides along with the name: the admin lookup
+    # has already happened, so surfacing it costs nothing and keeps a reviews
+    # list from being a column of initials. Public profile field, like the
+    # display name — the private email still never leaves this function.
+    avatars: dict[str, str] = {}
     for client_id in {cid for cid in reviewer_by_booking.values() if cid}:
         md = admin_user_metadata(db, client_id)
         names[client_id] = md.get("display_name") or md.get("displayName") or ""
+        avatars[client_id] = md.get("avatar_url") or md.get("avatarUrl") or ""
 
     def _author(row: dict) -> str:
         client_id = reviewer_by_booking.get(row.get("booking_id")) or ""
         return names.get(client_id) or "Guest"
+
+    def _author_avatar(row: dict) -> str:
+        client_id = reviewer_by_booking.get(row.get("booking_id")) or ""
+        return avatars.get(client_id) or ""
 
     return [
         {
@@ -351,6 +361,7 @@ def provider_reviews(provider_id: str, limit: int = 8):
             "text": r.get("text") or "",
             "createdAtUtc": iso_utc(r.get("created_at")),
             "author": _author(r),
+            "authorAvatarUrl": _author_avatar(r),
         }
         for r in rows
     ]

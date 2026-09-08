@@ -35,6 +35,9 @@ SERVICE_KEYS = {
     "capabilities",
     "pricingModel",
     "rateUnit",
+    # `pricing.chargePerPerson`, so the client previews a total with the same
+    # formula the engine bills with.
+    "chargePerPerson",
     "paymentFlow",
     "billingCycle",
     "prerequisites",
@@ -46,6 +49,10 @@ SERVICE_KEYS = {
     # alone collect) a party band, an add-on, a subject, a course or a payment
     # schedule.
     "unitKind",
+    # `booking.granularity` (`none` = the customer picks no date at all) and
+    # `timing.approvalWindowHours` (display-only reply promise).
+    "granularity",
+    "approvalWindowHours",
     "party",
     "subject",
     "options",

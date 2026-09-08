@@ -576,7 +576,13 @@ def payment_state(metadata: dict | None, service: dict | None = None,
       invoiced     — nothing owed at booking time; billed afterwards
     """
     md = metadata or {}
-    flow = (effective_service_config(service)["payments"] or {}).get("flow") or "none"
+    payments_cfg = effective_service_config(service)["payments"] or {}
+    flow = payments_cfg.get("flow") or "none"
+    # WHO settles it (`payments.payer`) — the customer, a third party (an estate,
+    # an insurer, an employer), or a split. It changes nothing about what is
+    # owed, so it rides along with the amounts rather than gating them; the
+    # client uses it to address the invoice to the right party.
+    payer = payments_cfg.get("payer") or "customer"
     total = int(md.get("price_minor_units") or 0)
     deposit = int(md.get("deposit_minor_units") or 0)
     paid = int(md.get("amount_paid_minor_units") or 0)
@@ -600,6 +606,7 @@ def payment_state(metadata: dict | None, service: dict | None = None,
 
     return {
         "flow": flow,
+        "payer": payer,
         "state": state,
         "totalMinorUnits": total,
         "depositMinorUnits": deposit,

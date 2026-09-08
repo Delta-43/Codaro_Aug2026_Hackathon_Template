@@ -8,7 +8,8 @@
  * Seeded off a stable key (the use case + entity id), so a given business/user
  * always renders the same avatar across tabs and refreshes.
  *
- * What lives here: the seeded RNG, `avatarDataUri`, and the `Metric` /
+ * What lives here: the seeded RNG, the avatar gradient/initials helpers, and
+ * the `Metric` /
  * `BookingView` shapes that the owner views (fed real `/owner/*` data) type
  * against.
  */
@@ -46,23 +47,25 @@ function pick<T>(r: () => number, arr: readonly T[]): T {
 
 const AVATAR_HUES = [3, 28, 46, 152, 190, 220, 260, 320];
 
-/** A small initials avatar as an inline SVG data URI (no network, theme-safe). */
-export function avatarDataUri(name: string): string {
-  const r = rng(name);
+/** The two gradient stops a given name always maps to. Shared by every avatar
+ *  fallback so the same person gets the same colours on every surface. */
+export function avatarGradient(name: string): { from: string; to: string } {
+  const r = rng(name || "?");
   const hue = pick(r, AVATAR_HUES);
-  const initials = name
+  return {
+    from: `hsl(${hue} 70% 62%)`,
+    to: `hsl(${(hue + 40) % 360} 68% 48%)`,
+  };
+}
+
+/** Up to two uppercase initials from a display name (`""` when unnameable). */
+export function avatarInitials(name: string | undefined | null): string {
+  return (name ?? "")
+    .trim()
     .split(/\s+/)
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase() ?? "")
     .join("");
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96">
-<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-<stop offset="0" stop-color="hsl(${hue} 70% 62%)"/>
-<stop offset="1" stop-color="hsl(${(hue + 40) % 360} 68% 48%)"/></linearGradient></defs>
-<rect width="96" height="96" rx="48" fill="url(#g)"/>
-<text x="48" y="49" dominant-baseline="central" text-anchor="middle" font-family="Outfit, ui-sans-serif, system-ui, sans-serif" font-size="38" font-weight="600" fill="#fff">${initials}</text>
-</svg>`;
-  return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
 // --- shapes -----------------------------------------------------------------

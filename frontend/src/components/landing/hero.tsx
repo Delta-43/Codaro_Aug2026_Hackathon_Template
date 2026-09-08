@@ -14,9 +14,9 @@ import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal"
 import { ScrollCue } from "@/components/landing/scroll-cue";
 
 /**
- * Above-the-fold pitch for the product — deliberately vertical-agnostic (no
- * provider/service/resource nouns from any one vertical). One liquid-glass
- * plate (copy + terminal) over the scene, plus a scroll cue to the next plate.
+ * Above-the-fold pitch for the funeral-home pivot: Arbor keeps its name and leaf
+ * mark, the deadpan tagline sells the farewell. One liquid-glass plate (copy +
+ * arrangement terminal) over the scene, plus a scroll cue to the next plate.
  */
 export function Hero() {
   const { ref, style } = useScrollMotion<HTMLDivElement>();
@@ -33,11 +33,11 @@ export function Hero() {
               </span>
             </p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-              One booking engine. Built for every business.
+              Don&apos;t worry, be sad.
             </h1>
             <p className="mx-auto mt-4 max-w-md text-foreground/80">
-              One engine, infinite businesses. Booking, scheduling, and availability, reshaped
-              instantly for the business you&apos;re building.
+              Less stress for you, we&apos;ll take it from here. Arrange the farewell in minutes;
+              you don&apos;t even choose the date. A director sets it with you within the week.
             </p>
             <div className="mt-8 flex justify-center">
               <Link
@@ -48,7 +48,7 @@ export function Hero() {
                   "gap-1.5 px-6",
                 )}
               >
-                Get Started
+                Arrange a farewell
                 <ArrowRight className="size-4" aria-hidden />
               </Link>
             </div>

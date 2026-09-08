@@ -42,6 +42,10 @@ interface Tab {
   href: string;
   label: string;
   icon: LucideIcon;
+  /** Section this tab lights up for, when it lands deeper than the section root.
+   *  Settings opens `/account/settings` directly (same as the owner console's
+   *  Settings tab) but stays lit on the profile page above it. */
+  match?: string;
 }
 
 // Messaging is the permanent centre button (paper plane); the tabs stay balanced
@@ -51,7 +55,12 @@ const SERVICES_TAB: Tab = { href: "/provider", label: "Services", icon: Store };
 const CALENDAR_TAB: Tab = { href: "/calendar", label: "Calendar", icon: CalendarClock };
 const MESSAGING_TAB: Tab = { href: "/messages", label: "Messaging", icon: Send };
 const BOOKINGS_TAB: Tab = { href: "/bookings", label: "Bookings", icon: CalendarDays };
-const PROFILE_TAB: Tab = { href: "/account", label: "Settings", icon: CircleUser };
+const PROFILE_TAB: Tab = {
+  href: "/account/settings",
+  label: "Settings",
+  icon: CircleUser,
+  match: "/account",
+};
 
 // Marketplace: discovery leads, and Calendar is folded into Bookings.
 const TABS: Tab[] = [SEARCH_TAB, SERVICES_TAB, MESSAGING_TAB, BOOKINGS_TAB, PROFILE_TAB];
@@ -66,7 +75,8 @@ const SINGLE_TABS: Tab[] = [
   PROFILE_TAB,
 ];
 
-function isActive(pathname: string, href: string): boolean {
+function isActive(pathname: string, tab: Tab): boolean {
+  const href = tab.match ?? tab.href;
   return pathname === href || pathname.startsWith(href + "/");
 }
 
@@ -110,8 +120,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     tab === BOOKINGS_TAB ? { ...tab, label: vertical.bookingNounPlural } : tab,
   );
 
-  const active = tabs.find((t) => isActive(pathname, t.href)) ?? tabs[0];
-  const heading = pathname.startsWith("/account/settings") ? "Settings" : active.label;
+  const active = tabs.find((t) => isActive(pathname, t)) ?? tabs[0];
+  // The account section holds two pages under one tab: the profile page and the
+  // Settings panel the tab itself opens.
+  const heading = pathname === "/account" ? "Profile" : active.label;
   const showProviderContext = active.href === "/provider" || active.href === "/calendar";
   const badgeFor = (href: string) => (href === "/messages" ? unread : 0);
 
@@ -135,7 +147,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <NavItem
               key={tab.href}
               tab={tab}
-              active={isActive(pathname, tab.href)}
+              active={isActive(pathname, tab)}
               badge={badgeFor(tab.href)}
             />
           ))}
@@ -226,7 +238,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t border-border bg-card/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
         {tabs.map((tab) => {
           const Icon = tab.icon;
-          const activeTab = isActive(pathname, tab.href);
+          const activeTab = isActive(pathname, tab);
           const badge = badgeFor(tab.href);
           return (
             <Link

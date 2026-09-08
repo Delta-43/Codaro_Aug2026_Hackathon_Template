@@ -21,6 +21,9 @@ from helpers import (
     make_booking,
     make_catalog,
     make_entitlement,
+    make_provider,
+    make_resource,
+    make_service,
     make_slot,
 )
 
@@ -1314,6 +1317,128 @@ def test_payment_currency_falls_back_to_the_service_pricing(client, db, auth):
     )
     out = client.get(f"/bookings/{booking['id']}").json()
     assert out["payment"]["currency"] == "USD"
+
+
+# ---------------------------------------------------------------------------
+# the additive Booking keys: payment.payer / providerAvatarUrl / metadata
+# ---------------------------------------------------------------------------
+
+
+def test_payment_payer_reaches_the_wire_from_the_config(client, db, auth, domain_config):
+    """`payments.payer` says WHO settles the bill — the customer, or a third
+    party (an estate, an insurer, an employer). It is display-only, but the
+    client cannot address an invoice without it, so it has to survive the whole
+    create -> read path, not just `payment_state`."""
+    domain_config(payments={"flow": "prepay", "payer": "third_party"})
+    auth(role="client")
+    cat = make_catalog(db, price_minor_units=5000)
+    slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100)
+    created = client.post("/bookings", json={
+        "serviceId": cat["service"]["id"],
+        "resourceId": cat["resource"]["id"],
+        "slotIds": [slot["id"]],
+        "partySize": 1,
+    })
+    assert created.status_code == 200, created.text
+    assert created.json()["payment"]["payer"] == "third_party"
+    # ...and on the read path too (a different serializer call site).
+    fetched = client.get(f"/bookings/{created.json()['id']}").json()
+    assert fetched["payment"]["payer"] == "third_party"
+
+
+def test_payment_payer_defaults_to_customer(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db, price_minor_units=5000)
+    slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100)
+    booking = make_booking(db, slots=[slot], service=cat["service"])
+    assert client.get(f"/bookings/{booking['id']}").json()["payment"]["payer"] == "customer"
+
+
+def test_payment_payer_is_resolved_per_service(client, db, auth, domain_config):
+    """`payments` is an overridable block, so a marketplace can host a business
+    billing an estate next to one billing the customer."""
+    domain_config(payments={"flow": "prepay", "payer": "customer"})
+    auth(role="client")
+    cat = make_catalog(db, metadata={"payments": {"payer": "third_party"}})
+    slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100)
+    booking = make_booking(db, slots=[slot], service=cat["service"])
+    assert client.get(f"/bookings/{booking['id']}").json()["payment"]["payer"] == "third_party"
+
+
+def test_bookings_list_embeds_the_provider_avatar(client, db, auth):
+    """The list path resolves it in ONE batched query (`_provider_avatar_map`),
+    which is the reason it is embedded at all — a bookings list must not fetch
+    each provider by id to show a face."""
+    auth(role="client")
+    provider = make_provider(db, "Acme Fleet", metadata={"avatar_url": "http://img/acme.png"})
+    svc = make_service(db, provider["id"], "S", price_minor_units=1000)
+    res = make_resource(db, service_id=svc["id"])
+    slot = make_slot(db, res["id"], service_id=svc["id"], hours_ahead=100)
+    booking = make_booking(db, slots=[slot], service={**svc, "provider_id": provider["id"]})
+
+    listed = client.get("/bookings?scope=all").json()
+    assert [b["providerAvatarUrl"] for b in listed] == ["http://img/acme.png"]
+    # Same value on the single-booking read and on a mutation response.
+    assert client.get(f"/bookings/{booking['id']}").json()["providerAvatarUrl"] == \
+        "http://img/acme.png"
+    cancelled = client.post(f"/bookings/{booking['id']}/cancel")
+    assert cancelled.status_code == 200
+    assert cancelled.json()["providerAvatarUrl"] == "http://img/acme.png"
+
+
+def test_bookings_provider_without_an_avatar_serves_empty_string(client, db, auth):
+    auth(role="client")
+    cat = make_catalog(db)  # provider metadata carries no avatar_url
+    slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100)
+    make_booking(db, slots=[slot], service=cat["service"])
+    assert client.get("/bookings?scope=all").json()[0]["providerAvatarUrl"] == ""
+
+
+def test_a_declared_meta_field_written_at_create_is_readable_back(
+    client, db, auth, domain_config
+):
+    """The round trip the `metadata` key exists for: a pivot's custom booking
+    field was writable (`meta.merged_metadata`) but not readable, so the app
+    could collect it and never show it again. Engine-owned keys stay out of the
+    echo — they have their own serialized shapes."""
+    domain_config(metaFields={"bookings": [
+        {"key": "deceasedName", "label": "Name of the deceased", "type": "text"},
+    ]})
+    auth(role="client")
+    cat = make_catalog(db, price_minor_units=1000)
+    slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100)
+    created = client.post("/bookings", json={
+        "serviceId": cat["service"]["id"],
+        "resourceId": cat["resource"]["id"],
+        "slotIds": [slot["id"]],
+        "partySize": 1,
+        "metadata": {"deceasedName": "A. Kowalska"},
+    })
+    assert created.status_code == 200, created.text
+    assert created.json()["metadata"] == {"deceasedName": "A. Kowalska"}
+    assert client.get(f"/bookings/{created.json()['id']}").json()["metadata"] == \
+        {"deceasedName": "A. Kowalska"}
+    # The column really does hold the engine's own keys alongside it...
+    stored = db.get_row("bookings", created.json()["id"])["metadata"]
+    assert stored["deceasedName"] == "A. Kowalska"
+    assert stored["price_minor_units"] == 1000
+    # ...and none of them leak into the echo.
+    assert "price_minor_units" not in created.json()["metadata"]
+
+
+def test_bookings_metadata_echoes_the_declared_key_and_drops_the_rest(client, db, auth):
+    """Present on every booking regardless of the pivot, so the wire shape does
+    not change between deployments — and filtered to what the config declares.
+    The fixture config declares exactly one booking field, `note`."""
+    auth(role="client")
+    cat = make_catalog(db)
+    slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100)
+    make_booking(
+        db, slots=[slot], service=cat["service"],
+        metadata={"note": "declared", "internalScore": 7},
+    )
+    listed = client.get("/bookings?scope=all").json()[0]
+    assert listed["metadata"] == {"note": "declared"}
 
 
 # ---------------------------------------------------------------------------

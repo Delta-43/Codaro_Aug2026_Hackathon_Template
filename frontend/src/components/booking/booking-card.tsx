@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import type { Booking } from "@/types/domain";
+import { AvatarImg } from "@/components/avatar-img";
 import { StatusBadge } from "@/components/booking/status-badge";
 import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
@@ -34,6 +35,12 @@ export function BookingCard({
         buttonFx.surface,
       )}
     >
+      <AvatarImg
+        src={booking.providerAvatarUrl}
+        name={providerName}
+        alt=""
+        className="size-11 self-start"
+      />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <span className="truncate font-medium">{serviceName}</span>

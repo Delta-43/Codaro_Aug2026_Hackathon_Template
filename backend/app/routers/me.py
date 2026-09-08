@@ -130,13 +130,18 @@ def my_reputation(user: AuthUser = Depends(require_user)):
         rows = []  # table not present yet (e.g. offline) — empty reputation
     provider_ids = list({r["provider_id"] for r in rows if r.get("provider_id")})
     names: dict[str, str] = {}
+    avatars: dict[str, str] = {}
     if provider_ids:
-        provs = db.table("providers").select("id,name").in_("id", provider_ids).execute().data or []
+        provs = db.table("providers").select("id,name,metadata").in_("id", provider_ids).execute().data or []
         names = {p["id"]: p["name"] for p in provs}
+        # The reviewing business's logo, so this reads as a list of businesses
+        # rather than a list of initials. Already a public provider column.
+        avatars = {p["id"]: ((p.get("metadata") or {}).get("avatar_url") or "") for p in provs}
 
     reviews = [
         {
             "author": names.get(r.get("provider_id"), "A business"),
+            "authorAvatarUrl": avatars.get(r.get("provider_id"), ""),
             "rating": int(r["rating"]),
             "text": r.get("text") or "",
             "createdAtUtc": iso_utc(r.get("created_at")),

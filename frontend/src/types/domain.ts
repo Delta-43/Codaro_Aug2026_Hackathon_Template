@@ -24,8 +24,15 @@ export type ID = string;
 /** ISO 8601, always UTC, always with a trailing 'Z'. Never store local time. */
 export type IsoUtc = string;
 
-/** Runtime-switchable demo vertical. Maps 1:1 to a BookingModel. */
-export type VerticalId = "fleet" | "oneToOne" | "group";
+/** Runtime-switchable demo vertical.
+ *
+ *  This no longer maps 1:1 to a `BookingModel` — the backend reports the
+ *  booking model per service (`Service.bookingModel`), and a vertical is now
+ *  purely a UI vocabulary bundle (`src/config/verticals.ts`). `funeral`, for
+ *  instance, shares `one_to_one` with `oneToOne` but speaks a different
+ *  language and books without a date at all. Read the model off the service,
+ *  never off the vertical id. */
+export type VerticalId = "fleet" | "oneToOne" | "group" | "funeral";
 
 export type BookingModel =
   | "unit_selection" // many distinct resources, capacity 1 each; user picks the unit
@@ -76,6 +83,11 @@ export interface Service {
   /** `pricing.rate.per` — what one unit of the base rate buys ("slot", "hour",
    *  "person", "booking", "unit"). */
   rateUnit: string;
+  /** `pricing.chargePerPerson` — whether the base rate is multiplied by the
+   *  party. Only used to PREVIEW a total when the engine's quote can't be
+   *  reached; the quote stays authoritative. Optional: older backends omit it,
+   *  and the engine's own default is true. */
+  chargePerPerson?: boolean;
   /** `payments.flow` — when money is collected. One of the engine's five:
    *  "none" (no payment in the product at all), "prepay", "pay_on_site",
    *  "invoice_after", "split". NOT "deposit" — that is a `pricing.deposit`
@@ -93,6 +105,19 @@ export interface Service {
   /** `booking.unitKind` — what one bookable unit IS ("time_slot", "seat",
    *  "room", "asset", "class_capacity"…). Vocabulary, not behaviour. */
   unitKind: string;
+  /** `booking.granularity` — how finely the customer picks WHEN. "none" means
+   *  they pick nothing at all: they submit a request and the business assigns
+   *  the date afterwards (`timing.confirmation: "request_approve"`). Behaviour,
+   *  not vocabulary — the calendar must not render for a "none" service.
+   *
+   *  Optional, for two reasons: an older backend does not send it, and the
+   *  landing page's static demo `Service` literal predates it. Every reader
+   *  therefore tests `granularity === "none"` (undefined-safe) rather than
+   *  branching on its absence. */
+  granularity?: string;
+  /** `timing.approvalWindowHours` — how long the business has to respond to a
+   *  request. Optional: older backends do not send it. */
+  approvalWindowHours?: number;
   /** `booking.party` — how many, and (with `composition`) of what kinds. A
    *  non-empty `composition` means the party splits into priced bands: the
    *  booking sends counts per band and the engine weights them. */
@@ -234,7 +259,9 @@ export interface Booking {
   userId: ID;
   providerId: ID;
   serviceId: ID;
-  providerName: string; // embedded by the API so a list needn't fetch each provider
+  providerName: string;
+  /** The provider's logo, embedded so a bookings list needn't fetch each one. */
+  providerAvatarUrl?: string; // embedded by the API so a list needn't fetch each provider
   serviceName: string; // embedded by the API so a list needn't fetch each service
   resourceId: ID;
   slotIds: ID[]; // >1 for multi-slot / multi-day bookings
@@ -269,6 +296,9 @@ export interface Booking {
   options: { key: string; label: string; amountMinorUnits: number }[];
   /** The `booking.subject` this booking is about, as validated on create. */
   subject: Record<string, unknown> | null;
+  /** The deployment's own `metaFields.bookings` values, echoed back by the
+   *  backend. Only declared keys appear; `{}` where none are declared. */
+  metadata?: Record<string, unknown> | null;
 }
 
 /** Derived payment position on a booking (`payments.flow`). `state` is one of
@@ -276,6 +306,10 @@ export interface Booking {
 export interface PaymentState {
   flow: string;
   state: string;
+  /** `payments.payer` — who is billed. "customer" on almost every deployment;
+   *  "third_party" where someone other than the booker settles it (an estate,
+   *  an insurer, an employer). Optional: older backends do not send it. */
+  payer?: string;
   totalMinorUnits: number;
   depositMinorUnits: number;
   paidMinorUnits: number;
@@ -448,13 +482,22 @@ export interface ProviderReview {
   text: string;
   createdAtUtc: IsoUtc;
   author: string;
+  /** The reviewer's public profile photo; "" when they have none. */
+  authorAvatarUrl?: string;
 }
 
 /** A customer's reputation as businesses see it (customer Profile tab). */
 export interface ClientReputation {
   score: number;
   count: number;
-  reviews: { author: string; rating: number; text: string; createdAtUtc: IsoUtc | null }[];
+  reviews: {
+    author: string;
+    /** The reviewing business's logo; "" when it has none. */
+    authorAvatarUrl?: string;
+    rating: number;
+    text: string;
+    createdAtUtc: IsoUtc | null;
+  }[];
 }
 
 // --- messaging — 1:1 conversations between a client and a provider ----------

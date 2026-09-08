@@ -1,6 +1,6 @@
 # Pivot library
 
-100 complete, validated `domain.config.json` files — one per business the engine
+101 complete, validated `domain.config.json` files — one per business the engine
 was designed to become. See [index.md](index.md) for the full table.
 
 ## Why they exist
@@ -12,6 +12,10 @@ only the keys each business changes. That is right for evidence and wrong for
 use: you cannot drop a fragment into the repo and start the app.
 
 This folder is the same 100 businesses as whole files. Each one boots.
+
+Plus one that is not in the harness: `120-funeral-homes.json`, the config the
+funeral-home deployment actually runs. It validates like the rest, which is why
+the folder holds 101 files against the harness's 100.
 
 ## Using one
 

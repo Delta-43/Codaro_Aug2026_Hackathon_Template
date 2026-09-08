@@ -5,10 +5,10 @@
 "use client";
 
 /**
- * Social-proof chapter — the team behind Codaro, in their own words. These are
- * real teammate reviews (fixed page copy, not engine data / not config-driven);
- * two slots are left open for teammates still to add theirs. Laid out as a
- * horizontal, snap-scrolling row.
+ * Social-proof chapter — bereaved families on the farewells we arranged for
+ * them. Deadpan fictional reviews for the funeral-home pivot (fixed page copy,
+ * not engine data / not config-driven), each nodding at one of the products the
+ * business offers. Laid out as a horizontal, snap-scrolling row.
  */
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Quote, Star } from "lucide-react";
@@ -29,47 +29,48 @@ type Review =
 const REVIEWS: Review[] = [
   {
     kind: "review",
-    name: "Aryna Bobryk",
-    role: "Jobless · Student · 42 attendee",
-    initials: "AB",
+    name: "Margaret Holloway",
+    role: "Widow",
+    initials: "MH",
     rating: 5,
     message:
-      "Great platform, I really enjoyed working on it, endless possibilities for businesses, great team i worked with, recommend it for sure! ;)",
+      "My Harold is now a one-carat diamond on my finger. He always said he'd put a ring on it eventually. Ashes-to-Diamond, five stars. 💍",
   },
   {
     kind: "review",
-    name: "Philip Warda",
-    role: "Music teacher",
-    initials: "PW",
+    name: "Piotr Kowalczyk",
+    role: "Bereaved son",
+    initials: "PK",
     rating: 5,
     message:
-      "Arbor is an amazing platform, it offers awesome functionality specifically for ease of use for the business and a user. I really like how flexible and functional it is, and how it makes getting information about what you want super easy. Overall I really recommend Arbor",
+      "We planted Dad as an oak. He's finally putting down roots and giving back oxygen, which is more than he managed in life. The memorial tree is lovely.",
   },
   {
     kind: "review",
-    name: "Alban Billiette",
-    role: "Unemployed",
-    initials: "AB",
+    name: "Deborah Vance",
+    role: "Next of kin",
+    initials: "DV",
     rating: 5,
     message:
-      "Arbor is amazing because I really like programming, crocs and also my hackathon group, yayyy",
+      "Bought Mum a star in her name. My kids can now honestly say grandma is watching over them from up there. Made a childhood dream come true. ⭐",
   },
   {
     kind: "review",
-    name: "Debadeep Chaudhury",
-    role: "Software Engineer",
-    initials: "DC",
+    name: "Alban Mercier",
+    role: "Estate executor",
+    initials: "AM",
     rating: 5,
-    message: "Dis da bomb",
+    message:
+      "Nana still texts me happy birthday. The AI voice companion nailed her passive-aggression perfectly. Genuinely can't tell the difference.",
   },
   {
     kind: "review",
-    name: "Peter P.",
-    role: "Had a life",
-    initials: "PP",
+    name: "The Ashcombe Family",
+    role: "The whole family",
+    initials: "AF",
     rating: 5,
     message:
-      "Arbor changed everything about my life. It optimized our booking rates to 300% 📈. Now I don't need to sleep 😴 because I have to serve my customers 😤",
+      "No date to choose, no decisions, no stress. A director rang within the week and handled everything. Discreet, punctual, done. Thank you. 🕊️",
   },
 ];
 
@@ -109,10 +110,10 @@ export function Testimonials() {
             </span>
           </div>
           <h2 className="text-center text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-            Built for every business, and it shows.
+            Families we&apos;ve helped say goodbye.
           </h2>
           <p className="mx-auto mt-3 max-w-md text-center text-foreground/80">
-            The team that built Arbor, in their own words.
+            Real farewells, in the words of the bereaved.
           </p>
 
           <div className="relative mt-10">

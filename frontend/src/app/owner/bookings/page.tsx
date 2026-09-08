@@ -16,6 +16,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Clock, Star, Users } from "lucide-react";
 import { useOwner } from "@/context/owner-context";
+import { AvatarImg } from "@/components/avatar-img";
 import { Skeleton } from "@/components/skeleton";
 import { Modal } from "@/components/modal";
 import { Button } from "@/components/ui/button";
@@ -258,6 +259,7 @@ export default function BookingsPage() {
                       buttonFx.surface,
                     )}
                   >
+                    <AvatarImg name={b.client} alt="" className="size-11 self-start" />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2">
                         <span className="truncate font-medium">{b.title}</span>
@@ -290,9 +292,12 @@ export default function BookingsPage() {
         {selected ? (
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="font-semibold">{selected.title}</h3>
-                <p className="text-sm text-muted-foreground">{selected.client}</p>
+              <div className="flex min-w-0 items-center gap-3">
+                <AvatarImg name={selected.client} alt="" className="size-10" />
+                <div className="min-w-0">
+                  <h3 className="truncate font-semibold">{selected.title}</h3>
+                  <p className="truncate text-sm text-muted-foreground">{selected.client}</p>
+                </div>
               </div>
               <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-xs font-medium capitalize", STATUS_CLASS[selected.status])}>
                 {selected.status}
