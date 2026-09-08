@@ -20,6 +20,7 @@ import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { GlassPanel } from "@/components/landing/scroll-reveal";
 import { ScrollTopLink } from "@/components/landing/scroll-top-link";
+import { SHOWCASE_ONLY, SOURCE_URL } from "@/config/showcase";
 
 const EXPLORE = [
   { href: "#services", label: "What we offer", anchor: true },
@@ -68,7 +69,7 @@ export function Footer() {
               </nav>
               <nav aria-label="More" className="flex flex-col gap-2.5">
                 <h3 className={COL_HEAD}>More</h3>
-                <Link href="/login" className={LINK_CLASS}>
+                <Link href={SHOWCASE_ONLY ? SOURCE_URL : "/login"} className={LINK_CLASS}>
                   Login
                 </Link>
                 <Link href="/privacy" className={LINK_CLASS}>

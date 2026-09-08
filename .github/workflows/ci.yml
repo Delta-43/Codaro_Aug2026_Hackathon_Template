@@ -107,6 +107,10 @@ jobs:
           # scripts/generate_pivots.py. Any DEFAULTS change desynchronizes
           # them silently, so verify the committed files are current.
           python scripts/generate_pivots.py --check
+          # The /showcase catalogue snapshot is built from backend/seed_data.py.
+          # A seed-data edit desynchronizes it silently, and a showcase-only
+          # deployment would then advertise services the app no longer seeds.
+          python scripts/gen_showcase_snapshot.py --check
 
   frontend:
     name: Frontend typecheck + build

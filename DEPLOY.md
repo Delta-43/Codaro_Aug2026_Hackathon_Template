@@ -83,6 +83,46 @@ tables. Startup logs `Schema applied from …` on success, or a loud
 
 ---
 
+## Showcase-only: the frontend on its own
+
+Arbor's hosted demo is retired. If you want the project *visitable* without
+paying for a backend, deploy the frontend alone in showcase-only mode: `/` and
+`/showcase` are presentational and render with no API behind them.
+
+On Vercel, set one variable and redeploy:
+
+```
+NEXT_PUBLIC_SHOWCASE_ONLY=1
+```
+
+`NEXT_PUBLIC_API_BASE` is then unused and can be dropped. No backend, no
+Supabase, no `CORS_ORIGINS`.
+
+What the flag changes ([`src/config/showcase.ts`](frontend/src/config/showcase.ts)):
+
+| | Normal | Showcase-only |
+|---|---|---|
+| `/showcase` catalogue | `GET /services` + `GET /providers` | the generated snapshot, no request made |
+| Sign-in CTAs | `/login` | the source repository |
+| `/login`, `/search`, `/bookings`, `/owner/*` | served | redirect to `/` |
+
+The redirect is the point. Left reachable, those routes load and then fail every
+request, which reads as a broken app rather than a deliberately static one.
+
+The catalogue is generated from `backend/seed_data.py`, so it lists what the
+seeded app lists rather than a hand-written copy that would drift:
+
+```bash
+python3 scripts/gen_showcase_snapshot.py           # regenerate
+python3 scripts/gen_showcase_snapshot.py --check   # CI-friendly: fails if stale
+```
+
+CI runs the `--check`, so editing the seed data without regenerating fails the
+build rather than silently shipping a stale catalogue.
+
+Unset the flag and everything behaves normally; this is a deployment mode, not a
+fork.
+
 ## Continuous deployment
 
 Both platforms watch GitHub:

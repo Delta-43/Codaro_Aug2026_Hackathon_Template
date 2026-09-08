@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { PipelineTerminal } from "@/components/landing/pipeline-terminal";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";
 import { ScrollCue } from "@/components/landing/scroll-cue";
+import { SHOWCASE_ONLY, SOURCE_URL } from "@/config/showcase";
 
 /**
  * Above-the-fold pitch for the funeral-home pivot: Arbor keeps its name and leaf
@@ -41,7 +42,7 @@ export function Hero() {
             </p>
             <div className="mt-8 flex justify-center">
               <Link
-                href="/login"
+                href={SHOWCASE_ONLY ? SOURCE_URL : "/login"}
                 className={cn(
                   buttonVariants({ size: "lg" }),
                   buttonFx.pill,

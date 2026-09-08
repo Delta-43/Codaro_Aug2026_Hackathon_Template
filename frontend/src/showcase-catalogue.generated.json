@@ -1,0 +1,190 @@
+{
+  "providers": [
+    {
+      "id": "a51472d9-876f-53d4-a2a1-13a3cf168b7e",
+      "name": "Wieczny Spokój"
+    },
+    {
+      "id": "f23a00d4-8bb3-5b96-a954-cec9754f8a7e",
+      "name": "Kaplica Lipowa"
+    },
+    {
+      "id": "e6f92f4b-5ab0-5e65-91fc-c2e82f88ea02",
+      "name": "Dom Żałoby Bursztyn"
+    },
+    {
+      "id": "4364757c-903b-5d41-a324-adb18ba1d249",
+      "name": "Odra Pamięć"
+    },
+    {
+      "id": "cc50f8b6-32cc-528b-a5dd-8600d53f2149",
+      "name": "Cichy Dom"
+    },
+    {
+      "id": "2cbc6d0b-3d92-52aa-a326-1500eb1b0b66",
+      "name": "Ostatnia Granica"
+    }
+  ],
+  "services": [
+    {
+      "currency": "EUR",
+      "description": "A full service in the chapel of rest followed by a cortège to the graveside or the crematorium. The fee covers the celebrant, six bearers, an order of service printed to your own text, the chapel for the morning or the afternoon, and every registry filing the death requires. A director walks in front of the hearse to the corner of the street, which is the last thing most families remember of the day.",
+      "id": "29d88ed9-25ed-52a8-89f0-63d88185f1ba",
+      "name": "Traditional Funeral Service",
+      "priceMinorUnits": 285000,
+      "pricingModel": "fixed",
+      "providerId": "a51472d9-876f-53d4-a2a1-13a3cf168b7e",
+      "rateUnit": "booking"
+    },
+    {
+      "currency": "EUR",
+      "description": "Committal to the retort, with or without a preceding chapel service. Ashes are returned in a sealed urn within fourteen days, in person, to the applicant named on the form and to nobody else. We will scatter them for you at the garden of remembrance if you would prefer not to be the one holding the urn.",
+      "id": "a2f4e09c-738a-54a7-89f9-e130c0344b6d",
+      "name": "Cremation",
+      "priceMinorUnits": 165000,
+      "pricingModel": "fixed",
+      "providerId": "a51472d9-876f-53d4-a2a1-13a3cf168b7e",
+      "rateUnit": "booking"
+    },
+    {
+      "currency": "EUR",
+      "description": "Interment at the cemetery of your choosing. We prepare the grave, provide six bearers, and deal with the cemetery office over depth, headstone permissions and the plot deed — three conversations that are difficult to have in the week after a death. Powązki, Bródno and Północny are all within our standard route.",
+      "id": "575f5782-6747-5b3f-9b1a-9987949e52ae",
+      "name": "Burial",
+      "priceMinorUnits": 195000,
+      "pricingModel": "fixed",
+      "providerId": "a51472d9-876f-53d4-a2a1-13a3cf168b7e",
+      "rateUnit": "booking"
+    },
+    {
+      "currency": "EUR",
+      "description": "A seated service with no committal, held on any date the family chooses — including months or years after the death, or after a cremation elsewhere. Readings, music and catering for forty are included. Families who were abroad when it happened, or who were not ready in the first week, book this most often, and there is no time limit on it.",
+      "id": "95846906-7f9c-513c-b28f-2ecc97e49f97",
+      "name": "Memorial Gathering",
+      "priceMinorUnits": 78000,
+      "pricingModel": "fixed",
+      "providerId": "a51472d9-876f-53d4-a2a1-13a3cf168b7e",
+      "rateUnit": "booking"
+    },
+    {
+      "currency": "EUR",
+      "description": "Collection, documentation and committal with no mourners present and no ceremony of any kind. The family is telephoned once it is complete, usually the same afternoon. This is our least expensive arrangement and it is a legitimate choice, not a lesser one — but we will say plainly if we think a family is choosing it under pressure.",
+      "id": "9ef3f454-3ebd-548e-8a45-de5e294de4a6",
+      "name": "Direct Committal",
+      "priceMinorUnits": 90000,
+      "pricingModel": "fixed",
+      "providerId": "a51472d9-876f-53d4-a2a1-13a3cf168b7e",
+      "rateUnit": "booking"
+    },
+    {
+      "currency": "EUR",
+      "description": "A consultation at which a person specifies their own funeral in full — chapel, vehicle, readings, the lot — and fixes the price in escrow at today's figure. The file is then held indefinitely at no further charge and may be amended as often as they like. Nothing at all is delivered on the day of the appointment except tea and a folder.",
+      "id": "37a414a5-6d00-5221-a958-99d9cadc949c",
+      "name": "Pre-Need Arrangement",
+      "priceMinorUnits": 45000,
+      "pricingModel": "fixed",
+      "providerId": "a51472d9-876f-53d4-a2a1-13a3cf168b7e",
+      "rateUnit": "booking"
+    },
+    {
+      "currency": "EUR",
+      "description": "Perfusion, vitrification and transfer to long-term storage at −196 °C, arranged with our partner facility outside Łódź and administered from here. Cooling is funded from an escrow account under a standing order reviewed each January, and the vault is alarmed independently of the building. We make no claim, and permit none to be made on our behalf, regarding eventual revival.",
+      "id": "e03a091f-9a19-5920-bb27-8e6b2e6374f5",
+      "name": "Cryogenic Suspension",
+      "priceMinorUnits": 4800000,
+      "pricingModel": "fixed",
+      "providerId": "a51472d9-876f-53d4-a2a1-13a3cf168b7e",
+      "rateUnit": "booking"
+    },
+    {
+      "currency": "EUR",
+      "description": "Vitrification followed by launch to a stable low Earth orbit at 620 km, where the payload remains for approximately four centuries before atmospheric re-entry. The launch window is confirmed six weeks in advance and the family is invited to the pad; a scrub moves the date at no charge and has happened twice. Tracking data is sent to the family annually for as long as the object is catalogued.",
+      "id": "41fb9356-7d73-53a8-8bd7-23f7d790433a",
+      "name": "Orbital Committal",
+      "priceMinorUnits": 6500000,
+      "pricingModel": "fixed",
+      "providerId": "a51472d9-876f-53d4-a2a1-13a3cf168b7e",
+      "rateUnit": "booking"
+    },
+    {
+      "currency": "EUR",
+      "description": "An after-hours arrangement for light-sensitive families. The chapel is opened after sunset and closed before first light, the west windows are shuttered, and the cortège route is planned to avoid the eastern approach at dawn. Staff are briefed not to ask why, and the reason is not recorded on the file. Mirrors in the foyer are covered as a matter of course, which several families have told us they appreciated.",
+      "id": "7ca54ba6-3498-5dee-b31a-785d62e376e8",
+      "name": "Nocturnal Aftercare Programme",
+      "priceMinorUnits": 132000,
+      "pricingModel": "fixed",
+      "providerId": "a51472d9-876f-53d4-a2a1-13a3cf168b7e",
+      "rateUnit": "booking"
+    },
+    {
+      "currency": "EUR",
+      "description": "For a death that the family would rather not explain. We do not ask how it happened and we do not speculate on the file. Collection is unmarked and out of hours, the register entry carries the minimum detail the law requires and not one word more, and all correspondence goes by sealed post to an address of your choosing. Where the law obliges us to notify someone, we will tell you before we do it.",
+      "id": "243d713e-1210-5798-9a8a-dad8bfa8a7e3",
+      "name": "Discreet Arrangement",
+      "priceMinorUnits": 340000,
+      "pricingModel": "fixed",
+      "providerId": "a51472d9-876f-53d4-a2a1-13a3cf168b7e",
+      "rateUnit": "booking"
+    },
+    {
+      "currency": "EUR",
+      "description": "Choose your neighbours. Reserve the plot beside an existing interment, or two side by side for later, on a fifty-year renewable term. The cemetery register is a public document and we will print the neighbouring entries for you before you commit — who is already there, when they were interred, and how long their own term has left to run.",
+      "id": "65f5b773-f15c-557b-a5fc-ac487f933e23",
+      "name": "Adjacent Plot Reservation",
+      "priceMinorUnits": 62000,
+      "pricingModel": "fixed",
+      "providerId": "a51472d9-876f-53d4-a2a1-13a3cf168b7e",
+      "rateUnit": "booking"
+    },
+    {
+      "currency": "EUR",
+      "description": "Committal to the retort, with or without a preceding service. Ashes are returned in a sealed urn to the person named on the application, in person, by appointment.",
+      "id": "3ed683f5-1b1d-5ea9-bc91-c66a97bb19e8",
+      "name": "Cremation",
+      "priceMinorUnits": 165000,
+      "pricingModel": "fixed",
+      "providerId": "f23a00d4-8bb3-5b96-a954-cec9754f8a7e",
+      "rateUnit": "booking"
+    },
+    {
+      "currency": "EUR",
+      "description": "A seated service without a committal, held on a date of the family's choosing — weeks or years after the death. Catering, an order of service and a PA for readings are included; the chapel seats forty.",
+      "id": "b7ee699e-d804-5095-a4ca-15c5f7b9adf1",
+      "name": "Memorial Gathering",
+      "priceMinorUnits": 78000,
+      "pricingModel": "fixed",
+      "providerId": "e6f92f4b-5ab0-5e65-91fc-c2e82f88ea02",
+      "rateUnit": "booking"
+    },
+    {
+      "currency": "EUR",
+      "description": "A two-hour consultation at which the arrangement is specified in full and the price is fixed in escrow. The file is then held indefinitely at no further charge. Nothing is provided on the day of the appointment except tea and a folder.",
+      "id": "eec69153-af4c-5453-9e5f-4716fe96a0ad",
+      "name": "Pre-Need Arrangement",
+      "priceMinorUnits": 45000,
+      "pricingModel": "fixed",
+      "providerId": "4364757c-903b-5d41-a324-adb18ba1d249",
+      "rateUnit": "booking"
+    },
+    {
+      "currency": "EUR",
+      "description": "Collection, documentation and committal with no attending mourners and no ceremony. The family is notified by telephone once it is complete. This is the least expensive arrangement we offer and we do not recommend it against the family's wishes.",
+      "id": "64960f93-07cf-5c62-bf10-ca6911c22a9c",
+      "name": "Direct Committal",
+      "priceMinorUnits": 90000,
+      "pricingModel": "fixed",
+      "providerId": "cc50f8b6-32cc-528b-a5dd-8600d53f2149",
+      "rateUnit": "booking"
+    },
+    {
+      "currency": "EUR",
+      "description": "Perfusion, vitrification and transfer to long-term storage at −196 °C. The bay is held under a standing order funded from escrow and reviewed annually. No claim is made, or implied, regarding eventual revival.",
+      "id": "c4243688-6f8d-546a-bbc6-037fb06c4795",
+      "name": "Cryogenic Suspension",
+      "priceMinorUnits": 4800000,
+      "pricingModel": "fixed",
+      "providerId": "2cbc6d0b-3d92-52aa-a326-1500eb1b0b66",
+      "rateUnit": "booking"
+    }
+  ]
+}
