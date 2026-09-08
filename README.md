@@ -420,8 +420,11 @@ on Track B (Booking and Resource Scheduling).
 
 ## License
 
+Copyright (C) 2026 Alban Billiette and the Arbor contributors.
+
 **[GNU Affero General Public License v3.0](LICENSE)** (AGPL-3.0), an
-OSI-approved open source license.
+OSI-approved open source license. See [NOTICE](NOTICE) for the copyright and
+warranty statement.
 
 You may use, modify and redistribute this code, including commercially. In
 return, the AGPL asks for reciprocity: if you distribute a modified version, or
