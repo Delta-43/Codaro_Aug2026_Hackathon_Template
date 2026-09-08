@@ -1,3 +1,7 @@
+// Arbor — a config-driven booking engine
+// Copyright (C) 2026 Alban Billiette and the Arbor contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import type { Metadata } from "next";
 import { ShowcaseBackdrop } from "@/components/showcase/showcase-backdrop";
 import { ShowcaseHeader } from "@/components/showcase/showcase-header";

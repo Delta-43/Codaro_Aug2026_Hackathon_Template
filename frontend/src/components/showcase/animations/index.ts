@@ -1,3 +1,7 @@
+// Arbor — a config-driven booking engine
+// Copyright (C) 2026 Alban Billiette and the Arbor contributors
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import type { ServiceAnimationComponent } from "./service-animation-contract";
 import { OrbitalCommittalAnimation } from "./orbital-committal";
 import { MemorialGatheringAnimation } from "./memorial-gathering";
