@@ -250,15 +250,10 @@ def test_meta_field_type_accepts_the_string_alias_only_on_the_field():
 
 def test_the_shipped_config_set_is_what_we_think_it_is():
     """Guard the glob: a renamed pivot directory would make the suite below pass
-    by covering nothing.
-
-    101, not 100: the first 100 mirror the `check_pivots.py` harness one-for-one,
-    and `120-funeral-homes.json` is the config the funeral-home deployment
-    actually runs. It is a real pivot and validates like the rest, it just has no
-    fragment in the harness."""
+    by covering nothing."""
     assert REPO_CONFIG.is_file()
     assert MEDICAL_CONFIG.is_file()
-    assert len(PIVOT_CONFIGS) == 101
+    assert len(PIVOT_CONFIGS) == 100
     assert PIVOTS_DIR / "manifest.json" not in PIVOT_CONFIGS
 
 
