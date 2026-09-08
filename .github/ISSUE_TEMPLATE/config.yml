@@ -1,8 +1,0 @@
-blank_issues_enabled: false
-contact_links:
-  - name: Report a security vulnerability
-    url: https://github.com/kaveOO/Arbor/security/advisories/new
-    about: Please report vulnerabilities privately, never as a public issue. See SECURITY.md.
-  - name: How the pivot system works
-    url: https://github.com/kaveOO/Arbor/blob/main/docs/PIVOT-SYSTEM.md
-    about: Before proposing a domain-specific feature, check whether it is already a config key.
