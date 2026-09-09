@@ -20,8 +20,11 @@ directly again, no frozen copies.)
 
 The app models `Provider → Service → Resource → Slot → Booking → User`
 (`src/types/domain.ts`, camelCase, UTC-`Z` timestamps, the exact shapes the
-backend returns). Five tabs under the gated `(app)` group: **search / provider /
-calendar / bookings / account**.
+backend returns). Five tabs under the gated `(app)` group, with Messaging
+permanently centred: **search / provider / messaging / bookings / settings**.
+Calendar is folded into Bookings in marketplace mode; in single-business mode
+Search drops away and Calendar un-merges, so it stays five either way
+(`components/app-shell.tsx`).
 
 | File | Responsibility |
 |------|-----------------|

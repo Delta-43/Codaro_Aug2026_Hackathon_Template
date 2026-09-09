@@ -17,7 +17,7 @@ Run it locally the same way CI does:
 
 Pass a path to check an alternative domain file:
 
-    python .github/scripts/validate_domain_config.py domain.config.medical.example.json
+    python .github/scripts/validate_domain_config.py domain.config.json
 """
 import json
 import sys

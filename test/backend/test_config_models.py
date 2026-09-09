@@ -52,7 +52,7 @@ SHIPPED_CONFIGS = [REPO_CONFIG]
 
 # Keys a shipped config declares that `config_schema.DEFAULTS` does not, so the
 # models (blocks are `extra="ignore"`, matching `check_shape`) drop them on a
-# round trip. `inventory.seatMap` is deliberate: `scripts/check_pivots.py` lists
+# round trip. `inventory.seatMap` is deliberate: it is documented as
 # it as "positional inventory (E3, deferred)" and no reader exists. A NEW entry
 # appearing here means someone put a key in a pivot that neither DEFAULTS nor the
 # models declare, so `GET /config` serves it but the generated schema/TS hides it.

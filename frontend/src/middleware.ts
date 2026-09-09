@@ -9,7 +9,7 @@ import { PUBLIC_ROUTES, SHOWCASE_ONLY } from "@/config/showcase";
 /**
  * Keeps a showcase-only deployment to the pages that work without a backend.
  *
- * `/` and `/showcase` are presentational; everything else (`/login`, `/search`,
+ * `/`, `/docs` and `/privacy` are presentational; everything else (`/login`, `/search`,
  * `/bookings`, `/owner/*`) needs an API that a showcase build has not got. Left
  * reachable they would load, fire requests at nothing and sit there failing,
  * which reads as a broken app rather than a deliberately static one. So they

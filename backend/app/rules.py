@@ -541,7 +541,7 @@ def capability(name: str, service: dict | None = None) -> bool:
     the endpoint wide open, the exact "looks live, does nothing" failure the
     config's own audit map exists to prevent. Routers call this before the write;
     the surfaces that have no backend yet are listed as unbuilt in
-    `scripts/check_pivots.py` rather than pretended to be gated here.
+    `backend/CLAUDE.md` rather than pretended to be gated here.
     """
     # Fail LOUD on an unknown name. `.get(name, True)` meant a typo in a gate
     # (`capability("review", ...)`) silently permitted the write forever, the
@@ -568,12 +568,12 @@ def payment_state(metadata: dict | None, service: dict | None = None,
     rather than stored as a free-standing field, so it cannot drift out of sync
     with the config the way a persisted enum would after a pivot.
 
-      none        , the product carries no payment at all
-      not_required, cancelled/rejected: nothing is owed either way
-      paid        , settled (recorded via POST /bookings/{id}/pay)
-      deposit_due , a deposit is owed now, the balance later
-      due         , the full amount is owed now (prepay / pay_on_site)
-      invoiced    , nothing owed at booking time; billed afterwards
+      none          the product carries no payment at all
+      not_required  cancelled/rejected: nothing is owed either way
+      paid          settled (recorded via POST /bookings/{id}/pay)
+      deposit_due   a deposit is owed now, the balance later
+      due           the full amount is owed now (prepay / pay_on_site)
+      invoiced      nothing owed at booking time; billed afterwards
     """
     md = metadata or {}
     payments_cfg = effective_service_config(service)["payments"] or {}
@@ -825,7 +825,7 @@ def resolve_options(
             amount = int(choice.get("priceMinorUnits") or 0)
             lines.append({
                 "key": key,
-                "label": f"{label}, {choice.get('label') or choice.get('key')}",
+                "label": f"{label}: {choice.get('label') or choice.get('key')}",
                 "choice": choice.get("key"),
                 "amountMinorUnits": amount,
             })

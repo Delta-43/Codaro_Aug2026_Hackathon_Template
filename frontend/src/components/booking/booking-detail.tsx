@@ -297,7 +297,7 @@ export function BookingDetail({
           ) : null}
           {booking.loan.overdueFeeMinorUnits > 0 ? (
             <p className="mt-1 text-sm text-destructive">
-              {booking.loan.daysOverdue} day{booking.loan.daysOverdue === 1 ? "" : "s"} overdue -{" "}
+              {booking.loan.daysOverdue} day{booking.loan.daysOverdue === 1 ? "" : "s"} overdue,{" "}
               {formatMoney(booking.loan.overdueFeeMinorUnits, booking.currency)} owed.
             </p>
           ) : null}

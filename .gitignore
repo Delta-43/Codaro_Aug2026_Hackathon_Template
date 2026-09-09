@@ -32,7 +32,7 @@ sandbox/
 
 # Snapshots from the 3-agent verification pipeline (see CLAUDE.md). Generated
 # on demand and stale within a commit or two, so they are regenerated rather
-# than tracked, real work belongs in GitHub issues.
+# than tracked.
 REPORT.md
 TODO.md
 
@@ -49,5 +49,5 @@ ds-bundle/
 # Per-developer Claude Code settings (settings.json IS shared).
 .claude/settings.local.json
 
-# scratch backup written by scripts/use_pivot.py
+# scratch backup written when swapping the config by hand
 domain.config.json.bak

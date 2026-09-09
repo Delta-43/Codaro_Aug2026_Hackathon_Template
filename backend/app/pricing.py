@@ -86,7 +86,7 @@ def quote(pricing: dict, ctx: dict) -> dict:
     # fixed / per_hour / per_person / per_unit / tiered / deposit_balance are
     # exactly what `rate.per`, `tiers` and `deposit` already express; `quote` and
     # `subscription` need the quote flow and the billing adapter, and are listed
-    # as unbuilt in scripts/check_pivots.py rather than silently priced as fixed.
+    # as unbuilt rather than silently priced as fixed.
     if pricing.get("model") == "free":
         amount = 0
 
@@ -123,7 +123,7 @@ def quote(pricing: dict, ctx: dict) -> dict:
     # reading: fees are typically pass-through (a booking fee, a cleaning
     # charge), and percentage fees below therefore compute off the discounted
     # charge. Whether a platform's commission sits on the net or the gross is
-    # already an open question in this schema, see scripts/check_pivots.py #65,
+    # already an open question in this schema,
     # and a member discount must not quietly answer it a second way.
     entitlement = ctx.get("entitlement")
     if isinstance(entitlement, dict):

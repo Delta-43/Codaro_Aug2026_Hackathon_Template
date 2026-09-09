@@ -90,14 +90,14 @@ suite.
 
 ## How to run (update this section whenever the suite changes)
 
-**Backend suite (offline, this is what CI runs):**
+**Backend suite (offline). CI runs `pytest test -q` with coverage:**
 
 ```bash
 python -m pip install -r backend/requirements.txt -r test/requirements-test.txt
 python -m pytest test/backend -q          # from the repo root
 ```
 
-No Supabase, no network and no `SUPABASE_*` credentials are needed: the
+No Supabase, no network and CI sets dummy `SUPABASE_URL`/`SUPABASE_SERVICE_KEY` so `get_supabase()` does not KeyError on import: the
 suite injects an in-memory fake Supabase client and neutralises the
 FastAPI startup hook (`create_tables_if_configured`); `seed_if_empty` is no
 longer called on startup but is kept inert on the seed module too.
@@ -146,8 +146,8 @@ skipped and never fails collection when the env is absent.
 In the dev container the env lives in the backend container, so run e2e there:
 
 ```bash
-docker exec -w /workspace/test codarohackathon-backend-1 python3 -m pytest e2e -q
-docker exec -w /workspace/backend codarohackathon-backend-1 \
+docker exec -w /workspace/test arbor-backend-1 python3 -m pytest e2e -q
+docker exec -w /workspace/backend arbor-backend-1 \
   python3 -c "import seed; print(seed.active_vertical())"   # -> fleet after the run
 ```
 
@@ -202,7 +202,7 @@ path the UI calls exists on the FastAPI app (method-aware) and that the
 
 ## Current state
 
-`python -m pytest test/backend -q` from the repo root: **1099 passed**
+`python -m pytest test/backend -q` from the repo root: **1260 passed**
 (0 failures, **no xfails left**, and **no known gaps pinned**, the four that
 were are now asserted as fixed behaviour, see below). `python -m pytest test/` adds the 8 live e2e
 tests, which skip without `SUPABASE_URL`/`SUPABASE_ANON_KEY`.

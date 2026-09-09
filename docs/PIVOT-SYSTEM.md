@@ -35,7 +35,7 @@ catalogue (one service per tier); `terms` supply the nouns.
 
 Two things the config cannot supply are generated: prose (taglines,
 descriptions), and the names of marketplace businesses other than the flagship,
-`domain.config.json` carries no directory of businesses. `POST /demo/vertical`
+`domain.config.json` carries no directory of businesses. `seed.seed_vertical()`
 still loads one of the three canned verticals from `seed_data.py` on purpose;
 that data will not match any pivot.
 
@@ -120,7 +120,7 @@ Every block is per-service overridable. Types are shown with their defaults.
 ### `tenancy`
 | Field | Type | Default | Controls |
 |---|---|---|---|
-| `mode` | `single \| multi` | `multi` | `single` collapses the marketplace to one implicit business: no Search tab, 4 tabs not 5, root redirects to `/provider`, no business-signup link |
+| `mode` | `single \| multi` | `multi` | `single` collapses the marketplace to one implicit business: no Search tab, Calendar un-merges from Bookings so there are still five, `/search` redirects to `/provider`, no business-signup link |
 | `providerCode` | string \| null | `null` | In single mode, resolves *the* business via `GET /providers/by-code/{code}`. **Required** when mode is `single` |
 | `selfOnboarding` | bool | `mode == "multi"` | Whether businesses can sign themselves up |
 | `tenantVerification` | `{required, credentials[]}` | off | Licence/KYC gating on the *business* side |
@@ -181,7 +181,7 @@ unknown clause fails closed**, a typo must not widen a discount to everyone.
 > time, and applied to the whole booking. A 17:00-19:00 booking under a
 > 17:00-18:00 happy-hour tier bills entirely at the happy-hour rate. Time-banded
 > pricing that must *split* a booking across bands is not supported, see
-> issue #83.
+> a known gap.
 
 A deposit clamps differently depending on `refundable`: non-refundable is a
 prepayment and never exceeds the total; refundable is a bond and may.

@@ -242,9 +242,9 @@ export function AssignDatePanel({
       const who = name || request.serviceName;
       const at = resourceName ? `, at ${resourceName}` : "";
       return (
-        `The service for ${who} is set for ${longDate(slot.startUtc, tz)} ` +
+        `${request.serviceName} for ${who} is set for ${longDate(slot.startUtc, tz)} ` +
         `at ${shortTime(slot.startUtc, tz)}${at}. ` +
-        `We will be in touch about the order of service. With our condolences.`
+        `We will be in touch with the details.`
       );
     },
     [name, request.serviceName, resourceName, tz],

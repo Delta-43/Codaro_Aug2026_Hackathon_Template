@@ -105,7 +105,7 @@ def join_waitlist(slot_id: str, party_size: int = 1, user: AuthUser = Depends(re
     # Bookable means bookable FOR THIS PARTY: with 2 seats left a party of 4
     # can't book, so they may queue, refusing both paths stranded them.
     if remaining >= party_size:
-        raise api_error(INVALID_RANGE, "That time is still available, book it instead.")
+        raise api_error(INVALID_RANGE, "That time is still available, so book it instead.")
 
     existing = (
         db.table("waitlist_entries").select("*")

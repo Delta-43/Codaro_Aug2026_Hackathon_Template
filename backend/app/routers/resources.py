@@ -24,7 +24,7 @@ def delete_resources_for_services(uc, db, service_ids: set[str]) -> None:
     go through the RLS-scoped user client, so only the owner's own units go."""
     if not service_ids:
         return
-    rows = db.table("resources").select("*").execute().data or []
+    rows = fetch_all(db.table("resources").select("*"))
     for r in rows:
         if (r.get("metadata") or {}).get("service_id") in service_ids:
             uc.table("resources").delete().eq("id", r["id"]).execute()
@@ -47,7 +47,7 @@ def list_resources(service_id: str | None = None):
     """List resources as the frontend `Resource` shape. With `?service_id`,
     returns only that service's **active** resources (getResources); without it,
     returns all (owner/debug listing)."""
-    rows = get_supabase().table("resources").select("*").execute().data or []
+    rows = fetch_all(get_supabase().table("resources").select("*"))
     out = [serialize_resource(r) for r in rows]
     if service_id:
         out = [r for r in out if r["serviceId"] == service_id and r["active"]]
