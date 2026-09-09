@@ -17,9 +17,9 @@ These tests are what notices:
   first differing dotted path so a drift names itself;
 * **enum agreement** — every `Literal` alias covers exactly the matching
   frozenset in `config_schema`, one test id per enum;
-* **every shipped config validates** — `domain.config.json`
-  and all 100 files in `pivots/` (a model too narrow for a real pivot would
-  publish a schema that rejects the repo's own data);
+* **every shipped config validates** — `domain.config.json` (a model too
+  narrow for a real pivot would publish a schema that rejects the repo's own
+  data);
 * **strictness holds** — the models reject what `config_schema._int`/`_bool`
   reject. Lax coercion (`"30"` as an int, `1` as a bool) would silently widen the
   published schema in a way the golden test cannot see, because defaults are
@@ -48,7 +48,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 REPO_CONFIG = REPO_ROOT / "domain.config.json"
 
 
-# `pivots/manifest.json` is an index, not a config — glob the numbered files only.
 SHIPPED_CONFIGS = [REPO_CONFIG]
 
 # Keys a shipped config declares that `config_schema.DEFAULTS` does not, so the
