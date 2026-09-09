@@ -1,8 +1,12 @@
 # Verifying changes — the local CI recipe
 
-These three checks mirror `.github/workflows/ci.yml` exactly. Run the ones that
-touch what you changed (or all three before opening a PR). Passing them locally
-means the PR's CI will pass too. The repo also has a `test-runner` agent
+These checks mirror `.github/workflows/ci.yml`. Run the ones that touch what you
+changed, or all of them before opening a PR. Passing them locally means the PR's
+CI will pass too.
+
+**Run the lint over the whole repository, not just the directory you edited.**
+CI runs a bare `ruff check .`, so a stray import left in `test/` fails the build
+exactly as one in `backend/` would. The repo also has a `test-runner` agent
 (`.claude/agents/`) that executes the same suite and reports pass/fail.
 
 ## 1. Pivot config (fast, always cheap)
@@ -15,7 +19,16 @@ Confirms `domain.config.json` still has every required section/key with the
 right types. Run it after **any** edit to `domain.config.json` — a typo there
 breaks the backend at startup and every UI label.
 
-## 2. Backend tests
+## 2. Lint
+
+```bash
+ruff check .
+```
+
+The whole repository, `test/` included. This is its own CI step and it fails the
+build on its own, so a green test run is not enough.
+
+## 3. Backend tests
 
 ```bash
 # one-time: a venv with backend + test deps
@@ -30,7 +43,7 @@ SUPABASE_URL=http://localhost:54321 SUPABASE_SERVICE_KEY=ci-dummy-key \
 Expected: all `test/backend` pass; `test/e2e` skips unless `SUPABASE_URL` +
 `SUPABASE_ANON_KEY` point at a live stack. Run after any `backend/` change.
 
-## 3. Frontend typecheck + build
+## 4. Frontend typecheck + build
 
 ```bash
 cd frontend

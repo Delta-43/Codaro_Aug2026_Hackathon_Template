@@ -4,6 +4,25 @@ All notable changes to this project are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Removed
+
+- The pivot library: `pivots/` (100 generated configs), `scripts/check_pivots.py`
+  and its companions, `docs/PIVOT-COVERAGE.md`, and the medical example config.
+- The funeral-home vertical: its seed catalogue and demo content, the
+  `/showcase` animation gallery, and its photography. `domain.config.json` is
+  neutral again.
+
+The pivot *system* is unchanged. What went is the example library around it, so
+the repository ships the engine and one generic config.
+
+### Added
+
+- Showcase-only deployment mode (`NEXT_PUBLIC_SHOWCASE_ONLY=1`), which serves
+  the landing page with no backend. See [DEPLOY.md](DEPLOY.md).
+- An Open Graph card, generated at build time from the page's own wording.
 While the major version is `0`, minor bumps may contain breaking changes.
 
 ## [Unreleased]

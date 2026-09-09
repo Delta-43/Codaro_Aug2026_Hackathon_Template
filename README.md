@@ -97,6 +97,13 @@ cd frontend && npm install && npm run dev
 Config, `supabase/`, and both app trees are bind-mounted, so edits are live with
 no rebuild. Rebuild only when dependencies change.
 
+**On the demo credentials.** `make reseed` creates demo accounts with fixed
+passwords, and the sign-in page lists them (`src/components/demo-logins.tsx`,
+`backend/seed.py`). That is deliberate, so anyone can open the app and look
+around. They are seed data for a throwaway database and grant nothing anywhere
+else, but do not point a real Supabase project at this seeder and then leave it
+public.
+
 ## The pivot system
 
 `domain.config.json` (**v2**) holds the engine's vocabulary and the shape of the

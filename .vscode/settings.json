@@ -14,8 +14,7 @@
     {
       "fileMatch": [
         "domain.config.json",
-        "domain.config.*.example.json",
-        "pivots/*.json"
+        "domain.config.*.example.json"
       ],
       "url": "./domain.config.schema.json"
     }

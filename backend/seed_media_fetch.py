@@ -236,8 +236,40 @@ def _fetch_one(url: str, dest: Path) -> tuple[bool, str]:
     dest.parent.mkdir(parents=True, exist_ok=True)
     tmp = dest.with_suffix(".part")
     tmp.write_bytes(blob)
+    note = _downscale(tmp)
     tmp.replace(dest)  # atomic-ish: a half-written file never looks cached
-    return True, f"{len(blob) // 1024} KiB"
+    return True, f"{dest.stat().st_size // 1024} KiB{note}"
+
+
+# Avatars render at 40-80px behind `object-cover` on a circle, so the committed
+# files are centre-cropped squares at this size. Sources are commonly 1920px
+# wide, which is ~700 KB of JPEG per face for pixels nobody sees.
+_AVATAR_PX = 512
+
+
+def _downscale(path: Path) -> str:
+    """Shrink a fetched avatar to `_AVATAR_PX`, if Pillow happens to be around.
+
+    Optional on purpose: this module is stdlib-only so `ensure_media` can run
+    inside the backend image without adding a dependency for a maintenance
+    script. Without Pillow the file is kept at full size, which costs disk and
+    nothing else — the browser crops it to the same circle either way.
+    """
+    if path.parent.name != "avatars":
+        return ""
+    try:
+        from PIL import Image, ImageOps  # noqa: PLC0415
+    except ImportError:
+        return " (full size: pip install pillow to downscale)"
+    try:
+        with Image.open(path) as im:
+            im = ImageOps.exif_transpose(im).convert("RGB")
+            # The same centre-crop the browser performs, done once, up front.
+            im = ImageOps.fit(im, (_AVATAR_PX, _AVATAR_PX), method=Image.LANCZOS)
+            im.save(path, "JPEG", quality=82, optimize=True, progressive=True)
+    except Exception as exc:  # a bad decode must not fail the fetch
+        return f" (kept full size: {exc})"
+    return ""
 
 
 def ensure_media(root: Path | None = None) -> dict:
