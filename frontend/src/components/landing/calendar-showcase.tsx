@@ -633,7 +633,11 @@ export function CalendarShowcase() {
               revealed ? "grid-rows-[1fr]" : "grid-rows-[0fr] lg:grid-rows-[1fr]",
             )}
           >
-            <div className="overflow-hidden">
+            {/* The clip exists only for the grid-rows grow-in, which runs when
+                the note is stacked under the calendar. In the side column it is
+                always open, and clipping there crops the step cards as they
+                scale on hover. */}
+            <div className="overflow-hidden lg:overflow-visible">
               <div className="w-full px-1 pt-4 text-center lg:pt-0 lg:text-left">
                 <h3
                   className={cn(
@@ -653,7 +657,7 @@ export function CalendarShowcase() {
                 >
                   <ChevronDown className="size-5 animate-bounce text-primary" aria-hidden />
                 </div>
-                <ol className="mx-auto mt-2 flex w-full max-w-lg flex-col gap-2 text-left lg:mx-0">
+                <ol className="mx-auto mt-2 flex w-full max-w-lg flex-col gap-2 px-1 text-left lg:mx-0">
                   {STEPS.map(([title, body], i) => {
                     // Lit either because the tour has reached this step, or
                     // because the whole note was revealed at the end / on
