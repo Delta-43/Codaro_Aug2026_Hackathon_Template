@@ -183,7 +183,7 @@ DEFAULTS: dict[str, Any] = {
         "chargePerPerson": True,
         # perBookingMinorUnits is enforced by pricing.quote(). perDayMinorUnits is
         # NOT: it needs the customer's other bookings that day, which is a query,
-        # not arithmetic. Declared so a config can express it; see TODO.
+        # not arithmetic. Declared so a config can express it, unenforced for now.
         "caps": {"perBookingMinorUnits": None, "perDayMinorUnits": None},
         "fees": [],
         "deposit": {"enabled": False, "kind": "percent", "value": 0, "refundable": True},
