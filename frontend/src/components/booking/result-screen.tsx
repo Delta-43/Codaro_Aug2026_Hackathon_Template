@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Booking result — success mark, the reference in large monospace, a summary,
+ * Booking result: success mark, the reference in large monospace, a summary,
  * and two actions: View in Bookings and Done.
  */
 import Link from "next/link";
@@ -30,10 +30,10 @@ export function ResultScreen({
 }) {
   const { copy, vertical } = useApp();
   // A `timing.confirmation: request_approve` pivot lands the booking as PENDING,
-  // and this screen still said "You're booked" — the one moment the config has a
+  // and this screen still said "You're booked", the one moment the config has a
   // dedicated sentence for (`copy.requestPending`) was the moment it was wrong.
   // A quote request is a pending booking with a different meaning, and the
-  // config has always carried its own sentence (`copy.quoteRequested`) — it was
+  // config has always carried its own sentence (`copy.quoteRequested`), it was
   // just never rendered, so a quote-model deployment said "request sent" where
   // it meant "we'll price this and come back to you".
   const byQuote = service.pricingModel === "quote" && service.capabilities.quotes !== false;
@@ -56,13 +56,13 @@ export function ResultScreen({
 
       {/* A repeating series: say exactly how many landed. A customer who asked
           for 12 and got 3 must not have to count their own bookings to find
-          out — `skipped` is reported by the server for precisely this. */}
+          out, `skipped` is reported by the server for precisely this. */}
       {booking.series ? (
         <p className="mt-2 max-w-sm text-sm text-muted-foreground">
           {booking.series.bookedIds.length} of {booking.series.requested}{" "}
           {booking.series.pattern} {vertical.bookingNounPlural.toLowerCase()} booked
           {booking.series.skipped.length
-            ? ` — ${booking.series.skipped.length} had no availability and were skipped.`
+            ? `, ${booking.series.skipped.length} had no availability and were skipped.`
             : "."}
         </p>
       ) : null}
@@ -95,7 +95,7 @@ export function ResultScreen({
           </>
         )}
         {/* No money line where there is none to show: `payments.flow: "none"`
-            carries no charge, and a quote request has not been priced yet — both
+            carries no charge, and a quote request has not been priced yet, both
             rendered a "Total 0.00" that reads as a bug rather than as free. */}
         {service.paymentFlow !== "none" && !byQuote ? (
           <div className="flex justify-between py-0.5">

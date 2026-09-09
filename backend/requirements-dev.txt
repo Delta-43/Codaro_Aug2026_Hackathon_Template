@@ -1,5 +1,5 @@
 # Dev-only tooling. Kept out of requirements.txt so the runtime image does not
-# ship a linter — CI installs both, the Dockerfile installs only requirements.txt.
+# ship a linter, CI installs both, the Dockerfile installs only requirements.txt.
 #
 #   pip install -r backend/requirements.txt -r backend/requirements-dev.txt
 ruff>=0.6,<1

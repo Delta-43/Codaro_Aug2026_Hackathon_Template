@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -8,7 +8,7 @@ The frontend contract (`frontend/src/types/domain.ts`) is **camelCase** and mode
 `Provider / Service / Resource / Slot / Booking / User / DayAvailability /
 MonthDensityCell`. The database is snake_case and stores the extra domain fields
 in each base table's `metadata jsonb` (schema is frozen). These pure functions
-are the single place that maps between the two — every router returns shapes
+are the single place that maps between the two, every router returns shapes
 produced here, so the JSON the frontend receives matches its types exactly.
 
 Metadata key conventions (snake_case; this module is the authority, and
@@ -75,7 +75,7 @@ def iso_utc(value: Any) -> Optional[str]:
     dt = _parse(value)
     if dt is None:
         return None
-    # Millisecond precision, always 'Z' — matches the frontend's IsoUtc contract.
+    # Millisecond precision, always 'Z', matches the frontend's IsoUtc contract.
     return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond // 1000:03d}Z"
 
 
@@ -115,7 +115,7 @@ def effective_booking_status(
     """Wire BookingStatus is confirmed|cancelled|completed|pending|rejected.
     A stored 'confirmed' booking whose end is in the past reads as 'completed'.
     'pending' (awaiting owner approval on a manual-approve service) and
-    'rejected' (owner declined) pass through unchanged — a pending request is
+    'rejected' (owner declined) pass through unchanged, a pending request is
     never auto-completed just because its slot elapsed; the owner still acts on
     it (or it's surfaced as stale)."""
     if status == "confirmed":
@@ -230,12 +230,12 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
         # "€65" was wrong for every tiered/per-person/subscription service.
         "pricingModel": pricing.get("model") or "fixed",
         "rateUnit": (pricing.get("rate") or {}).get("per") or "slot",
-        # `pricing.chargePerPerson` — whether the rate is multiplied by heads.
+        # `pricing.chargePerPerson`, whether the rate is multiplied by heads.
         # Served so the client can PREVIEW a total with the same formula the
         # engine bills with; without it a shared court read as per-head.
         "chargePerPerson": bool(pricing.get("chargePerPerson", True)),
         # How money is collected. `none` means the product carries no payment at
-        # all; `invoice_after` means nothing is due at booking time — a confirm
+        # all; `invoice_after` means nothing is due at booking time, a confirm
         # screen showing "Total" with a pay affordance is wrong in both cases.
         "paymentFlow": svc_config["payments"].get("flow") or "none",
         "billingCycle": svc_config["payments"].get("billingCycle") or "none",
@@ -275,7 +275,7 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
             "maxOccurrences": int(svc_config["recurrence"].get("maxOccurrences") or 1),
         },
         # The SHAPE of the offer. Every one of these blocks shipped in v2, was
-        # validated at load, and then reached no client — so a config could
+        # validated at load, and then reached no client, so a config could
         # declare child pricing, paid add-ons, a per-participant intake, a course
         # of four sessions or a two-part payment schedule and the app had no way
         # to render, let alone collect, any of it.
@@ -285,8 +285,8 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
         # and another does not serves each the truth about itself.
         "unitKind": svc_config["booking"].get("unitKind") or "time_slot",
         # The size of the unit the customer picks. `none` means there is no
-        # calendar at all — the customer sends a REQUEST and the business comes
-        # back with a time — so the client needs this to decide whether to render
+        # calendar at all, the customer sends a REQUEST and the business comes
+        # back with a time, so the client needs this to decide whether to render
         # a date picker or a "we will contact you" form. Resolved per service, so
         # one tenant's date-less enquiry sits beside another's time grid.
         "granularity": svc_config["booking"].get("granularity") or "minute",
@@ -299,7 +299,7 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
             "mode": (svc_config["booking"].get("party") or {}).get("mode") or "individual",
             "min": int((svc_config["booking"].get("party") or {}).get("min") or 1),
             "max": (svc_config["booking"].get("party") or {}).get("max"),
-            # [{key, label, priceFactor}] — the bands a party splits into. Empty
+            # [{key, label, priceFactor}], the bands a party splits into. Empty
             # list (not null) so the client can render `.length` without a guard.
             "composition": list((svc_config["booking"].get("party") or {}).get("composition") or []),
             "matchResourceCapacity": bool(
@@ -312,7 +312,7 @@ def serialize_service(row: dict, *, resource_ids: Iterable[str] = ()) -> dict:
             "fields": list((svc_config["booking"].get("subject") or {}).get("fields") or []),
         },
         # Paid extras. Priced server-side by `rules.resolve_options`, so these
-        # descriptors are for rendering the controls only — a client that invents
+        # descriptors are for rendering the controls only, a client that invents
         # an option key or a price is rejected, not believed.
         "options": list(svc_config["booking"].get("options") or []),
         "sequence": {
@@ -337,13 +337,13 @@ def loan_state(md: dict, end_utc, service: dict | None = None, now=None) -> dict
     """The return leg of a rentable booking, or None when nothing is loaned.
 
     `inventory.returnRequired` deployments (ski hire, a tool library, plant
-    rental) do not finish when the slot ends — the item has to come back, and
+    rental) do not finish when the slot ends, the item has to come back, and
     late costs money. The whole block was declared and enforced by nothing: a
     tool library could state a 168-hour loan and a 100/day overdue fee and the
     engine would treat the booking as complete the moment the slot ended.
 
     The booking IS the loan record, so this rides in `bookings.metadata` rather
-    than a new table — base tables stay frozen and new fields go in metadata.
+    than a new table, base tables stay frozen and new fields go in metadata.
 
     `dueBackUtc` is slot end + `loanPeriodHours`; a null loan period means the
     item is due when the booking ends. The fee is computed, never stored: it
@@ -360,7 +360,7 @@ def loan_state(md: dict, end_utc, service: dict | None = None, now=None) -> dict
     due = end + timedelta(hours=int(hours)) if hours else end
     returned_at = md.get("returned_at_utc")
     # Single clock source (app.clock via `_now`), so a frozen test clock and the
-    # booking-status derivation in the same serialize call agree — not a second,
+    # booking-status derivation in the same serialize call agree, not a second,
     # unfreezable `datetime.now()` that drifts from the rest of this module.
     now = _now(now)
     reference = _parse(returned_at) if returned_at else now
@@ -403,8 +403,8 @@ def serialize_quote(priced: dict, service: dict | None = None, *,
                     entitlement: dict | None = None) -> dict:
     """A `pricing.quote()` result on the wire.
 
-    `breakdown` is the engine's own line list — base rate, tier, each fee, the
-    cap adjustment — so the UI can show WHY a total is what it is instead of
+    `breakdown` is the engine's own line list, base rate, tier, each fee, the
+    cap adjustment, so the UI can show WHY a total is what it is instead of
     reproducing the arithmetic and drifting from it.
     """
     config = effective_service_config(service) if service is not None else None
@@ -424,7 +424,7 @@ def serialize_quote(priced: dict, service: dict | None = None, *,
         # what to say about money from this one response.
         "paymentFlow": payments.get("flow") or "none",
         # The entitlement that was applied, so the customer can see WHY they were
-        # charged less — a silent discount is as confusing as a silent surcharge.
+        # charged less, a silent discount is as confusing as a silent surcharge.
         "entitlement": None if not entitlement else {
             "key": entitlement.get("key"),
             "label": entitlement.get("label"),
@@ -559,14 +559,14 @@ def serialize_booking(
         "cancelledAtUtc": iso_utc(md.get("cancelled_at_utc")) if md.get("cancelled_at_utc") else None,
         "changeHistory": _change_history(md),
         "review": review_out,
-        # None unless `inventory.returnRequired` — the overwhelming majority of
+        # None unless `inventory.returnRequired`, the overwhelming majority of
         # deployments loan nothing and must not grow a return surface.
         "loan": loan_state(md, end_utc, service, now),
         # What still blocks confirmation. Empty on every deployment that
         # declares no blocking prerequisite, which is almost all of them.
         "prerequisitesPending": list(md.get("prerequisites_pending") or []),
         "prerequisitesMet": list(md.get("prerequisites_met") or []),
-        # What is owed and whether it is settled — derived from `payments.flow`,
+        # What is owed and whether it is settled, derived from `payments.flow`,
         # never stored, so it cannot drift from the config after a pivot.
         "payment": payment_state(md, service, row.get("status")),
         # What the customer actually chose, where the config offers a choice.
@@ -597,7 +597,7 @@ def serialize_conversation(
 ) -> dict:
     """A thread as the inbox lists it. `other_party` is the resolved
     {id, name, avatarUrl} of whoever the current user is talking to (the provider
-    for a client; the customer for an owner) — resolved by the router, since it
+    for a client; the customer for an owner), resolved by the router, since it
     spans a cross-user lookup RLS can't do."""
     return {
         "id": row["id"],
@@ -616,7 +616,7 @@ def serialize_conversation(
 def serialize_message(row: dict, *, me_id: str) -> dict:
     """A single message. `mine` is derived from the viewer so the UI can align
     bubbles left/right without knowing ids. A soft-deleted message keeps its
-    envelope (timestamps/receipts) but its body is blanked — the client renders
+    envelope (timestamps/receipts) but its body is blanked, the client renders
     the "Message deleted" placeholder from `deletedAtUtc`."""
     deleted = row.get("deleted_at") is not None
     return {

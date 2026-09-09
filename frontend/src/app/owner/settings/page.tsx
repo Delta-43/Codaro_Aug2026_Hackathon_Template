@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Business Settings Panel — the shared Settings template configured for the
+ * Business Settings Panel: the shared Settings template configured for the
  * business persona. Reached from the top-right avatar (desktop) or the Profile
  * tab's cog (mobile). Identity follows the active demo use case, so the business
  * name is shown read-only here; the niche itself is switched in the Demo section.
@@ -28,8 +28,8 @@ export default function BusinessSettingsPage() {
   const { user, signOut } = useAuth();
   const { activeProvider, scene, vocab, replaceProvider } = useOwner();
 
-  // The Profile section shows the *same* header the Profile tab does — banner,
-  // verified logo, name, tagline and meta row — with the banner and logo
+  // The Profile section shows the *same* header the Profile tab does, banner,
+  // verified logo, name, tagline and meta row, with the banner and logo
   // swappable in place, so the owner edits what a customer actually sees rather
   // than a shrunken stand-in. Both belong to the active provider, so the header
   // only appears once one is loaded; until then the panel falls back to its
@@ -68,7 +68,7 @@ export default function BusinessSettingsPage() {
       hero={hero}
       displayName={activeProvider?.name ?? "Your business"}
       displayNameLabel="Business name"
-      email={user?.email ?? "—"}
+      email={user?.email ?? "-"}
       onSignOut={signOut}
       onDeleteAccount={async () => {
         await deleteAccount();

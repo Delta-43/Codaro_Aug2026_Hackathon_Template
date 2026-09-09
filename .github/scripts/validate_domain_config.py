@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Validate domain.config.json — the single file a domain pivot edits.
+"""Validate domain.config.json, the single file a domain pivot edits.
 
 v1 of this script kept its own copy of the required keys and their types, which
 meant CI and the engine could disagree about what a valid config was. It now
@@ -48,8 +48,8 @@ def check(path: Path) -> list[str]:
     if shape_errors:
         return shape_errors
 
-    # Then validate what the engine will actually resolve — defaults applied and
-    # the v1 `rules`/`search` aliases folded in — so a v1 file still passes.
+    # Then validate what the engine will actually resolve, defaults applied and
+    # the v1 `rules`/`search` aliases folded in, so a v1 file still passes.
     return validate(normalize(raw))
 
 
@@ -69,7 +69,7 @@ def main() -> int:
             print(f"✓ {target.name}")
 
     if failed:
-        print("\ndomain.config.json is the file a pivot edits — fix the keys above before merging.")
+        print("\ndomain.config.json is the file a pivot edits, fix the keys above before merging.")
     return 1 if failed else 0
 
 

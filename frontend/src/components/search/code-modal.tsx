@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * "Enter a code" — the single entry point for resolving a provider by its
+ * "Enter a code", the single entry point for resolving a provider by its
  * publicCode, whether typed or scanned. Both paths go through the same
  * getProviderByCode call (a real scan would too); the demo scan is a set of
  * tappable seeded codes, labelled honestly as a demo. Replaces the separate
@@ -65,7 +65,7 @@ export function CodeModal({
         <QrCode className="size-14 text-muted-foreground/40" aria-hidden />
       </div>
       <p className="mb-2 text-xs text-muted-foreground">
-        Demo scanner — no camera is used. Tap a code to simulate a scan.
+        Demo scanner, no camera is used. Tap a code to simulate a scan.
       </p>
 
       <div className="space-y-2">

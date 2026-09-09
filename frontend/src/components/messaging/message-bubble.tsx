@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -6,7 +6,7 @@
 
 /**
  * One chat bubble, iMessage-style: pink (primary) for the viewer's own messages,
- * grey (muted) for received. Renders — top to bottom — an optional reply quote,
+ * grey (muted) for received. Renders, top to bottom, an optional reply quote,
  * the body (with a client-only link chip), and a timestamp; under the *last sent*
  * message only, a Delivered → "Read at HH:MM" receipt. A soft-deleted message
  * shows an italic placeholder. Long-press (touch) or right-click (desktop) opens

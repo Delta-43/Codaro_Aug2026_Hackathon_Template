@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Tab 3 — Messaging. The permanent hub for the customer's threads with the
+ * Tab 3: Messaging. The permanent hub for the customer's threads with the
  * businesses they book. Self-contained inbox: fetches the user's conversations,
  * refetches on focus (return from a thread refreshes previews + unread), and
  * shows a purposeful empty state instead of self-hiding like the embeddable

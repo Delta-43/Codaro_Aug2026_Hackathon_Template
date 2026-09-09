@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -9,14 +9,14 @@ the JWKS endpoint. That covers the logic, but two things it *cannot* prove are
 exactly the two that matter in production:
 
   * that the real project's tokens verify through the JWKS path, which is now
-    the *only* path — the legacy HS256 shared-secret scheme has been removed, so
+    the *only* path, the legacy HS256 shared-secret scheme has been removed, so
     if this deployment ever started issuing symmetric tokens every request would
     401. `test_the_live_project_signs_asymmetrically` is that canary;
   * whether Row Level Security is actually applied to the live database. The
     offline `FakeSupabase` returns the same store for the service client and the
     user client, so RLS is simulated by nothing at all. Slot writes in particular
-    have **no router-level ownership check** — they rely entirely on the
-    `slots_write_owner` policy — so RLS being live is load-bearing.
+    have **no router-level ownership check**, they rely entirely on the
+    `slots_write_owner` policy, so RLS being live is load-bearing.
 
 Read-only by design: these tests sign in and issue GETs. The single write is a
 self-promotion attempt that is asserted to be *refused*, so a pass leaves the
@@ -108,7 +108,7 @@ def user_headers(token) -> dict:
 
 def test_the_live_project_signs_asymmetrically(token):
     """The backend accepts only `_ALLOWED_ALGS`. If the project were ever
-    reconfigured to sign symmetrically, every request would 401 — so assert the
+    reconfigured to sign symmetrically, every request would 401, so assert the
     live tokens still match what the verifier will take."""
     header = _decode_segment(token, 0)
     assert header["alg"] in ("ES256", "RS256"), header
@@ -118,7 +118,7 @@ def test_the_live_project_signs_asymmetrically(token):
 def test_a_legacy_hs256_token_is_refused(api, claims):
     """The retired scheme, end to end: an HS256 token carrying the real claims
     and an escalated role. Hand-signed, since PyJWT will not encode some of
-    these. No secret guess can matter — there is no symmetric path left."""
+    these. No secret guess can matter, there is no symmetric path left."""
     forged_claims = {**claims, "app_metadata": {**(claims.get("app_metadata") or {}), "role": "owner"}}
     header = _b64({"alg": "HS256", "typ": "JWT"})
     payload = _b64(forged_claims)
@@ -158,7 +158,7 @@ def test_garbage_token_is_401(api):
 def test_tampered_signature_is_401(api, token):
     """Flip a bit in the signature *bytes*, not in its base64 text.
 
-    An ES256 signature is 64 bytes, and 64 = 21*3 + 1 — so the final base64
+    An ES256 signature is 64 bytes, and 64 = 21*3 + 1, so the final base64
     character carries only 2 significant bits and its low 4 bits are padding a
     decoder throws away. Editing that last character therefore decodes to the
     identical signature perhaps half the time, and the request is legitimately
@@ -188,7 +188,7 @@ def test_owner_routes_require_a_token(api):
 
 
 def test_owner_routes_are_role_gated(api, auth_headers, user_headers, claims):
-    """The demo user's trusted role decides this, and `profiles` is that truth —
+    """The demo user's trusted role decides this, and `profiles` is that truth,
     so assert against `profiles`, not against the token's metadata."""
     rows = httpx.get(
         f"{SUPABASE_URL.rstrip('/')}/rest/v1/profiles",

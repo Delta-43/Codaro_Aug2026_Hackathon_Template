@@ -9,7 +9,7 @@ on:
     branches: [develop, main]
   workflow_dispatch:
 
-# A new push to the same PR cancels the previous run — no point burning
+# A new push to the same PR cancels the previous run, no point burning
 # minutes on a commit nobody will merge.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
@@ -30,7 +30,7 @@ jobs:
       # A typo here breaks the backend at startup and every label in the UI,
       # so it gets its own fast-failing job.
       # config_schema.py validates with pydantic, so this job needs the runtime
-      # deps. It deliberately installs requirements.txt only — the point is to
+      # deps. It deliberately installs requirements.txt only, the point is to
       # prove the config loads with exactly what production ships.
       - name: Install dependencies
         run: |
@@ -43,7 +43,7 @@ jobs:
       # domain.config.schema.json is generated from backend/app/config_models.py
       # and gives the pivot file editor autocomplete. If the models change and
       # the schema is not regenerated, every editor starts lying about the
-      # config shape — so the committed file has to stay current.
+      # config shape, so the committed file has to stay current.
       - name: The published JSON Schema is current
         run: python scripts/gen_config_schema.py --check
 
@@ -70,7 +70,7 @@ jobs:
           pip install -r test/requirements-test.txt
 
       # Catches dead code (unused imports/locals/undefined names) that would
-      # otherwise only be found by reading. Deliberately a narrow rule set — see
+      # otherwise only be found by reading. Deliberately a narrow rule set, see
       # ruff.toml. Run from the repo root so test/ and scripts/ are covered too;
       # scoping this to backend/ previously let 8 unused imports accumulate in
       # test/.
@@ -82,7 +82,7 @@ jobs:
       # values only exist so `get_supabase()` does not KeyError on import.
       #
       # `test/e2e` needs a running stack and is skipped automatically because
-      # E2E_BASE_URL is deliberately not set here — it still gets collected,
+      # E2E_BASE_URL is deliberately not set here, it still gets collected,
       # so a broken import in those files fails the build rather than hiding.
       - name: Run tests
         env:
@@ -110,7 +110,7 @@ jobs:
 
       # src/api/config.generated.ts is generated from domain.config.schema.json,
       # which is itself generated from the backend's pydantic models. If it goes
-      # stale the TypeScript stops describing what the backend actually serves —
+      # stale the TypeScript stops describing what the backend actually serves,
       # which is the drift this whole chain exists to prevent.
       - name: Config types match the schema
         working-directory: frontend
@@ -123,12 +123,12 @@ jobs:
         run: npm run lint
 
       # Unused files, exports and dependencies. Green as of this commit, so it
-      # gates — if it starts failing, something genuinely became unreachable.
+      # gates, if it starts failing, something genuinely became unreachable.
       - name: Unused code (knip)
         working-directory: frontend
         run: npx knip
 
-      # Uses tsconfig.typecheck.json (excludes .next) — same command as local
+      # Uses tsconfig.typecheck.json (excludes .next), same command as local
       # `npm run typecheck`, so CI and dev check the identical file set.
       - name: Typecheck
         working-directory: frontend
@@ -183,7 +183,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Context is the repo root, not backend/ — the image needs
+      # Context is the repo root, not backend/, the image needs
       # domain.config.json and supabase/ from the root.
       - name: Build the backend image
         run: docker build -f backend/Dockerfile -t arbor-backend:ci .

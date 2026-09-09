@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -37,7 +37,7 @@ logging.basicConfig(level=logging.INFO)
 async def lifespan(app: FastAPI):
     # Referenced through its module-level name so tests can monkeypatch
     # `main.create_tables_if_configured` to a no-op. No demo seeding runs on
-    # startup — the app serves only real Supabase data; seed manually if needed.
+    # startup, the app serves only real Supabase data; seed manually if needed.
     create_tables_if_configured()
     yield
 
@@ -95,7 +95,7 @@ def _config_with_facets() -> dict:
     what's *possible* (a free niche → no price, a remote niche → no distance), so
     any pivot's seed auto-configures the filter UI. `domain.config.json`'s
     `search.facets` is an optional override that can force a facet **off**
-    (`"distance": false`) — you can't conjure a dimension the data lacks, so a
+    (`"distance": false`), you can't conjure a dimension the data lacks, so a
     declared `true` just defers to derivation. Best-effort: if the catalog read
     fails, fall back to all-on rather than break config delivery."""
     cfg = get_config()
@@ -130,7 +130,7 @@ def config():
 def reload_config(owner: AuthUser = Depends(require_owner)):
     """Instant pivot: drop the cached config and return the fresh file.
 
-    Two changes from v1. It is **owner-gated** — this is a control-plane endpoint
+    Two changes from v1. It is **owner-gated**, this is a control-plane endpoint
     that re-reads a file off disk, and it was open to anyone. And the fresh file
     is parsed and validated *before* the good cache is dropped, so a typo made
     mid-pivot returns a 422 listing every problem instead of swapping a broken

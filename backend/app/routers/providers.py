@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -51,7 +51,7 @@ def search_providers(
     near: str | None = None,
     user: AuthUser | None = Depends(optional_user),
 ):
-    """searchProviders — category exact, `near` substring on city, `text`
+    """searchProviders, category exact, `near` substring on city, `text`
     substring over name+tagline+bio+city. Followed providers pin to the top,
     then rating desc (mirrors the mock)."""
     provs = _all_serialized(get_supabase())
@@ -68,7 +68,7 @@ def search_providers(
         return True
 
     result = [p for p in provs if match(p)]
-    # Only the follow set is needed here — call followed_ids directly rather than
+    # Only the follow set is needed here, call followed_ids directly rather than
     # load_user, which would also hit the auth admin API for user_metadata we
     # never read (one wasted remote round trip on every signed-in search).
     followed: set[str] = set(followed_ids(user)) if user else set()
@@ -78,7 +78,7 @@ def search_providers(
 
 @router.get("/by-code/{code}")
 def get_provider_by_code(code: str):
-    """Resolve a provider by its public code (case-insensitive) — code entry / QR."""
+    """Resolve a provider by its public code (case-insensitive), code entry / QR."""
     for p in _all_serialized(get_supabase()):
         if (p["publicCode"] or "").lower() == code.lower():
             return p
@@ -124,7 +124,7 @@ def my_providers(owner: AuthUser = Depends(require_owner)):
 def create_provider(payload: ProviderCreate, owner: AuthUser = Depends(require_owner)):
     # `tenancy.selfOnboarding` was computed by `normalize()` (defaulting to
     # `mode == "multi"`) and then read by nobody, so the shipped single-business
-    # config — `mode: "single"`, `selfOnboarding: false` — still let any signed-up
+    # config, `mode: "single"`, `selfOnboarding: false`, still let any signed-up
     # owner stand up a second business on the deployment. A marketplace onboards
     # businesses; a single-business site does not, and now says so.
     if not get_config()["tenancy"].get("selfOnboarding"):
@@ -199,7 +199,7 @@ def _write_provider_image(db, owner: AuthUser, existing: dict, field: str, url: 
     """Persist an image URL into the provider's metadata under `field`
     (`avatar_url` or `cover_url`) via an RLS-scoped write, and return the freshly
     built provider (rating/reviewCount blended, as PATCH does). Aggregates are
-    scoped to this one provider — an image change doesn't need a repo-wide
+    scoped to this one provider, an image change doesn't need a repo-wide
     reviews/services scan."""
     md = {**(existing.get("metadata") or {}), field: url}
     updated = (
@@ -225,7 +225,7 @@ def _write_provider_image(db, owner: AuthUser, existing: dict, field: str, url: 
 async def _upload_provider_image(
     provider_id: str, file: UploadFile, owner: AuthUser, *, kind: str, field: str
 ) -> dict:
-    """Shared upload path for a provider's avatar and cover — owner-gated,
+    """Shared upload path for a provider's avatar and cover, owner-gated,
     own-provider only, stored in the avatars bucket keyed by provider id + kind."""
     db = get_supabase()
     existing = _owned_provider(db, provider_id, owner)
@@ -261,7 +261,7 @@ async def upload_provider_avatar(
 
 @router.delete("/{provider_id}/avatar")
 def delete_provider_avatar(provider_id: str, owner: AuthUser = Depends(require_owner)):
-    """Remove a business's avatar — deletes the object and clears
+    """Remove a business's avatar, deletes the object and clears
     metadata.avatar_url (falls back to initials on the cards/profile)."""
     return _delete_provider_image(provider_id, owner, kind="avatar", field="avatar_url")
 
@@ -279,7 +279,7 @@ async def upload_provider_cover(
 
 @router.delete("/{provider_id}/cover")
 def delete_provider_cover(provider_id: str, owner: AuthUser = Depends(require_owner)):
-    """Remove a business's banner — deletes the object and clears
+    """Remove a business's banner, deletes the object and clears
     metadata.cover_url (the generated on-brand scene shows again)."""
     return _delete_provider_image(provider_id, owner, kind="cover", field="cover_url")
 
@@ -310,7 +310,7 @@ def delete_provider(provider_id: str, owner: AuthUser = Depends(require_owner)):
 
 @router.get("/{provider_id}/reviews")
 def provider_reviews(provider_id: str, limit: int = 8):
-    """Recent reviews for a provider (public read) — powers the profile's Reviews
+    """Recent reviews for a provider (public read), powers the profile's Reviews
     section. Author is the reviewer's self-chosen public display name (never their
     private email); it falls back to "Guest" when unknown. Newest first."""
     db = get_supabase()
@@ -320,7 +320,7 @@ def provider_reviews(provider_id: str, limit: int = 8):
     # the genuinely newest. (Server-side order+limit would be cheaper but leans on
     # the offline fake's .limit(); the correctness fix does not.)
     rows = fetch_all(db.table("reviews").select("*").eq("provider_id", provider_id))
-    # Newest first, then keep only the page we return — so the per-reviewer admin
+    # Newest first, then keep only the page we return, so the per-reviewer admin
     # lookups below are bounded by `limit`, not by the provider's whole review
     # history (a well-reviewed provider would otherwise fan out hundreds of
     # sequential admin round trips on every public request).
@@ -329,7 +329,7 @@ def provider_reviews(provider_id: str, limit: int = 8):
 
     booking_ids = [r["booking_id"] for r in rows if r.get("booking_id")]
     # Resolve each review's reviewer id from its booking, then that reviewer's
-    # public display_name — GDPR: the private email is never exposed to a public
+    # public display_name, GDPR: the private email is never exposed to a public
     # profile viewer. Best-effort; degrades to "Guest" if a lookup is unavailable.
     reviewer_by_booking: dict[str, str] = {}
     if booking_ids:
@@ -340,7 +340,7 @@ def provider_reviews(provider_id: str, limit: int = 8):
     # The reviewer's public avatar rides along with the name: the admin lookup
     # has already happened, so surfacing it costs nothing and keeps a reviews
     # list from being a column of initials. Public profile field, like the
-    # display name — the private email still never leaves this function.
+    # display name, the private email still never leaves this function.
     avatars: dict[str, str] = {}
     for client_id in {cid for cid in reviewer_by_booking.values() if cid}:
         md = admin_user_metadata(db, client_id)

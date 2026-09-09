@@ -1,8 +1,8 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Waitlist — who wants a slot that is already full.
+"""Waitlist, who wants a slot that is already full.
 
 `timing.waitlist` (`enabled`, `autoPromote`, `maxPerSlot`) shipped with v2 and
 was enforced by nothing: a config could advertise a 200-deep auto-promoting
@@ -65,7 +65,7 @@ def serialize_entry(row: dict, *, ahead: int | None = None) -> dict:
 def join_waitlist(slot_id: str, party_size: int = 1, user: AuthUser = Depends(require_user)):
     """Take a place in the queue for a full slot.
 
-    Refuses when the slot still has room — a waitlist for something bookable is
+    Refuses when the slot still has room, a waitlist for something bookable is
     a worse experience than booking it, and would let someone hold a queue place
     against a seat they could simply take.
     """
@@ -103,9 +103,9 @@ def join_waitlist(slot_id: str, party_size: int = 1, user: AuthUser = Depends(re
     occ = maybe_row(db.table("slot_occupancy").select("*").eq("slot_id", slot_id))
     remaining = int((occ or {}).get("available_count") or 0)
     # Bookable means bookable FOR THIS PARTY: with 2 seats left a party of 4
-    # can't book, so they may queue — refusing both paths stranded them.
+    # can't book, so they may queue, refusing both paths stranded them.
     if remaining >= party_size:
-        raise api_error(INVALID_RANGE, "That time is still available — book it instead.")
+        raise api_error(INVALID_RANGE, "That time is still available, book it instead.")
 
     existing = (
         db.table("waitlist_entries").select("*")
@@ -137,7 +137,7 @@ def join_waitlist(slot_id: str, party_size: int = 1, user: AuthUser = Depends(re
 
 @router.delete("/{slot_id}/waitlist")
 def leave_waitlist(slot_id: str, user: AuthUser = Depends(require_user)):
-    """Give up a place. Positions are NOT renumbered — see the schema note."""
+    """Give up a place. Positions are NOT renumbered, see the schema note."""
     uc = get_user_client(user.token)
     uc.table("waitlist_entries").update({"status": "cancelled"}) \
         .eq("slot_id", slot_id).eq("user_id", user.id).eq("status", "waiting").execute()
@@ -173,7 +173,7 @@ def promote_from_waitlist(db, slot_ids: list[str], service: dict | None) -> list
     they have not agreed to. In that mode the queue is recorded and the owner
     works it manually, so this returns nothing.
 
-    Best-effort by design — a cancellation must succeed whether or not the
+    Best-effort by design, a cancellation must succeed whether or not the
     promotion does. The customer being cancelled is owed their cancellation; the
     person on the waitlist is owed a call, and a failure here leaves them at the
     head of the queue for the next attempt rather than losing their place.
@@ -209,7 +209,7 @@ def promote_from_waitlist(db, slot_ids: list[str], service: dict | None) -> list
             # same slot cannot both promote it into two pending bookings. The
             # status flip is a compare-and-set on 'waiting'; only the winner (a
             # non-empty result) goes on to book. Losers see an empty write and
-            # move on — the same CAS discipline the booking transitions use.
+            # move on, the same CAS discipline the booking transitions use.
             claimed = (
                 db.table("waitlist_entries")
                 .update({"status": "promoted"})
@@ -222,7 +222,7 @@ def promote_from_waitlist(db, slot_ids: list[str], service: dict | None) -> list
             if booking is None:
                 # A skipped promotion (started slot, unmet booking schema,
                 # unresolvable email) releases the claim back to 'waiting' so the
-                # entry stays at the head of the queue for the next attempt — as
+                # entry stays at the head of the queue for the next attempt, as
                 # the docstring promises.
                 db.table("waitlist_entries").update(
                     {"status": "waiting"}
@@ -242,7 +242,7 @@ def _book_for_entry(db, entry: dict, slot_id: str) -> dict | None:
 
     Deliberately created as PENDING regardless of the service's auto-approve
     setting. The customer joined a queue, they did not agree to a specific
-    booking — auto-confirming would charge and commit someone who has not said
+    booking, auto-confirming would charge and commit someone who has not said
     yes since. Pending holds no capacity, so the seat stays available to whoever
     acts first, which is the honest behaviour.
     """
@@ -257,14 +257,14 @@ def _book_for_entry(db, entry: dict, slot_id: str) -> dict | None:
     if service is None or slot is None:
         return None
     # Mirror the join guard: a mid-slot cancel (started but not ended) must not
-    # mint a pending booking for a start time already past — approve's
+    # mint a pending booking for a start time already past, approve's
     # _resolve_selection would permanently refuse it once the slot ends.
     starts_at = parse_ts(slot.get("starts_at"))
     if starts_at and starts_at <= now_utc():
         return None
     # A promotion carries no customer-supplied metadata; on a deployment whose
     # `metaFields.bookings` REQUIRES a field, the minted booking would violate
-    # the schema the direct-create path 422s on — skip promotion instead.
+    # the schema the direct-create path 422s on, skip promotion instead.
     try:
         validate_metadata("bookings", {})
     except HTTPException:
@@ -273,7 +273,7 @@ def _book_for_entry(db, entry: dict, slot_id: str) -> dict | None:
     # `bookings.client_email` is NOT NULL and the waitlist row cannot carry it:
     # the table is new but already created, and the schema is append-only
     # (no ALTER), so the address is resolved here instead. One extra call on a
-    # rare path — a cancellation with someone actually waiting.
+    # rare path, a cancellation with someone actually waiting.
     try:
         email = db.auth.admin.get_user_by_id(entry["user_id"]).user.email
     except Exception:

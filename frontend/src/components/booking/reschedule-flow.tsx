@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -7,8 +7,8 @@
 /**
  * Move an existing booking to new times. Selection mirrors the create flow
  * (single-slot services confirm on tap; range services build a contiguous span)
- * but is pinned to the booking's own resource and party size — the two things
- * reschedule can't change — and commits via rescheduleBooking. The backend is
+ * but is pinned to the booking's own resource and party size, the two things
+ * reschedule can't change, and commits via rescheduleBooking. The backend is
  * atomic (acquire new, release old) and re-checks the cutoff, so on
  * CUTOFF_PASSED we surface its message and bounce back to the detail screen; on
  * SLOT_UNAVAILABLE / CAPACITY_EXCEEDED we refresh availability and let the user
@@ -42,7 +42,7 @@ export function RescheduleFlow({
   tz: string;
   onDone: (updated: Booking) => void;
   onCancel: () => void;
-  /** CUTOFF_PASSED came back mid-flow — bubble the message up to the detail. */
+  /** CUTOFF_PASSED came back mid-flow, bubble the message up to the detail. */
   onCutoff: (message: string) => void;
 }) {
   const vertical = useVertical();

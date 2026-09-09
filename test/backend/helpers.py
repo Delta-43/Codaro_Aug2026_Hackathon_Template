@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -211,7 +211,7 @@ def make_entitlement(
     **extra,
 ) -> dict:
     """Insert an `entitlements` row (a plan a customer holds). The plan itself
-    lives in config (`entitlements.plans[]`) — declare a matching `plan_key`
+    lives in config (`entitlements.plans[]`), declare a matching `plan_key`
     there via `domain_config` or the row resolves to nothing."""
     return db.insert_row(
         "entitlements",

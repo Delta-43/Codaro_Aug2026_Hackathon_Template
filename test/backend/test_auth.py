@@ -1,19 +1,19 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""End-to-end verification of `app/auth.py` — the real thing, not the stub.
+"""End-to-end verification of `app/auth.py`, the real thing, not the stub.
 
 Every other module in this suite installs the `auth` fixture, which overrides
 the `require_user` / `optional_user` FastAPI dependencies so a test can run "as"
 a chosen user. That is the right trade for router tests, but it means the token
-verification itself — signature, expiry, audience, algorithm selection, JWKS
-rotation — and the trusted-role resolution were never executed by a test.
+verification itself, signature, expiry, audience, algorithm selection, JWKS
+rotation, and the trusted-role resolution were never executed by a test.
 
 This module deliberately does NOT use the `auth` fixture. It mints real JWTs
 locally, signed with a generated EC keypair served through a stubbed JWKS
-endpoint — the same shape the live Supabase project issues (ES256 with a `kid`)
-— and drives `app.auth` directly, plus a handful of requests through
+endpoint, the same shape the live Supabase project issues (ES256 with a `kid`)
+- and drives `app.auth` directly, plus a handful of requests through
 `TestClient` with a genuine `Authorization` header.
 
 The legacy symmetric HS256 scheme has been removed; `TestRetiredHs256Scheme`
@@ -67,7 +67,7 @@ _REAL_JWKS_FACTORY = auth_mod._jwks_client
 
 @pytest.fixture(scope="session")
 def ec_key():
-    """One P-256 keypair for the whole session — this is what Supabase uses."""
+    """One P-256 keypair for the whole session, this is what Supabase uses."""
     private = ec.generate_private_key(ec.SECP256R1())
     return private, private.public_key()
 
@@ -88,7 +88,7 @@ class _FakeSigningKey:
 
 
 class _FakeJWKSClient:
-    """Stands in for `PyJWKClient` — no network. `fail_times` makes the first N
+    """Stands in for `PyJWKClient`, no network. `fail_times` makes the first N
     lookups raise, to exercise the rotate-and-retry path."""
 
     def __init__(self, key, *, fail_times: int = 0, error=None):
@@ -121,7 +121,7 @@ def install_jwks(monkeypatch, jwks_client) -> dict:
 @pytest.fixture(autouse=True)
 def _auth_env(monkeypatch, ec_key):
     """Serve the session public key from a stubbed JWKS, and keep the module's
-    process-global state clean — `_role_cache` and the JWKS `lru_cache` would
+    process-global state clean, `_role_cache` and the JWKS `lru_cache` would
     otherwise leak a cached role or key set between tests.
 
     `SUPABASE_JWT_SECRET` is deliberately set to a plausible value: nothing may
@@ -151,7 +151,7 @@ def claims_for(
     app_role: str | None = None,
 ) -> dict:
     """A Supabase-shaped claim set. `role: "authenticated"` at the top level is
-    Postgres' role, exactly as Supabase stamps it — the engine role lives in the
+    Postgres' role, exactly as Supabase stamps it, the engine role lives in the
     metadata objects."""
     now = int(time.time())
     payload: dict = {"iat": now + iat_delta, "exp": now + exp_delta, "role": "authenticated"}
@@ -196,7 +196,7 @@ def _b64json(obj: dict) -> str:
 
 
 def unsigned_token(alg: str = "none") -> str:
-    """A hand-built token with no signature — the classic `alg: none` forgery."""
+    """A hand-built token with no signature, the classic `alg: none` forgery."""
     header = _b64json({"alg": alg, "typ": "JWT"})
     payload = _b64json(claims_for(app_role="owner"))
     return f"{header}.{payload}."
@@ -204,7 +204,7 @@ def unsigned_token(alg: str = "none") -> str:
 
 def hs256_signed_with(key: bytes | str, claims: dict | None = None) -> str:
     """An HS256 token signed with an arbitrary key, built by hand because PyJWT
-    refuses to encode some of these — the attacker is not using PyJWT."""
+    refuses to encode some of these, the attacker is not using PyJWT."""
     if isinstance(key, str):
         key = key.encode()
     header = _b64json({"alg": "HS256", "typ": "JWT"})
@@ -283,7 +283,7 @@ class TestAsymmetricTokens:
         assert require_user(creds(make_token(ec_key, email=None))).email is None
 
     def test_unset_supabase_url_is_a_500_not_an_open_door(self, monkeypatch, db, ec_key):
-        """SUPABASE_URL is now the single auth-critical env var — it locates the
+        """SUPABASE_URL is now the single auth-critical env var, it locates the
         JWKS. A misconfigured deployment must fail loud, never let a request
         through unverified."""
         monkeypatch.setattr(auth_mod, "_jwks_client", _REAL_JWKS_FACTORY)
@@ -614,7 +614,7 @@ class TestThroughTheApp:
     def test_me_role_follows_profiles_not_the_token(self, client, db, ec_key):
         """The endpoint exists so the frontend stops deriving the role from the
         JWT. A self-asserted `user_metadata.role: owner` must report `client`
-        here — otherwise the UI would open business mode on a token claim the
+        here, otherwise the UI would open business mode on a token claim the
         API then refuses, which is the exact divergence this closes."""
         db.insert_row("profiles", id=SUB, email=EMAIL, role="client")
         token = make_token(ec_key, user_role="owner")

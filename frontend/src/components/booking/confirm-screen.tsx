@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Confirmation — a full screen, not a dialog. Shows provider, service,
+ * Confirmation: a full screen, not a dialog. Shows provider, service,
  * resource, date, start–end with timezone, duration, party size, an itemised
  * price and total, and the cancellation policy in words. Primary action is the
  * vertical's bookingVerb.
@@ -52,7 +52,7 @@ const LOCATION_LABELS: Record<string, string> = {
   pickup: "Collected by you",
 };
 
-/** What the money line is called, per `payments.flow` — one of
+/** What the money line is called, per `payments.flow`, one of
  *  prepay | pay_on_site | invoice_after | split | none. */
 const MONEY_LABELS: Record<string, string> = {
   prepay: "Due now",
@@ -81,7 +81,7 @@ function dueLabel(offsetHours: number | undefined): string {
   return offsetHours < 0 ? ` · ${span} before` : ` · ${span} after`;
 }
 
-/** Minutes one unit of a period rate covers — the engine's own map
+/** Minutes one unit of a period rate covers, the engine's own map
  *  (`pricing._MINUTES_PER_UNIT`), mirrored here for the preview below. */
 const MINUTES_PER_UNIT: Record<string, number> = {
   day: 1440,
@@ -91,8 +91,8 @@ const MINUTES_PER_UNIT: Record<string, number> = {
 };
 
 /** How many units of the base rate this selection buys, in the engine's terms
- *  (`pricing._quantity`). `unit` is the one rate a client cannot derive — the
- *  quantity is an input, not a property of the selection — so it previews as
+ *  (`pricing._quantity`). `unit` is the one rate a client cannot derive, the
+ *  quantity is an input, not a property of the selection, so it previews as
  *  one unit. */
 function rateQuantity(
   rateUnit: string,
@@ -116,8 +116,8 @@ function plural(count: number, noun: string): string {
 
 /** A preview of the total for when the engine's quote cannot be reached.
  *
- *  It runs the engine's own base formula — rate × quantity × heads, plus the
- *  extras the option descriptors already carry a price for — but it cannot see
+ *  It runs the engine's own base formula, rate × quantity × heads, plus the
+ *  extras the option descriptors already carry a price for, but it cannot see
  *  tiers, fees, caps or a member discount, which live in the config the client
  *  never receives. So it is rendered as a *preview*, never as the total, and
  *  the screen still commits to whatever the engine charges. Returns null where
@@ -141,7 +141,7 @@ function pricePreview(
   );
   const rate = service.pricingModel === "free" ? 0 : service.priceMinorUnits;
   const qty = rateQuantity(service.rateUnit, slots.length, minutes, personUnits, slotNoun);
-  // `per: "person"` already counts heads; multiplying again would square it —
+  // `per: "person"` already counts heads; multiplying again would square it,
   // the same guard the engine's `_party_factor` makes.
   const factor =
     service.rateUnit === "person" || service.chargePerPerson === false ? 1 : personUnits;
@@ -213,17 +213,17 @@ export function ConfirmScreen({
   vertical: VerticalConfig;
   partySize: number;
   onPartyChange: (n: number) => void;
-  /** `booking.party.composition` — heads per band. Replaces the flat stepper
+  /** `booking.party.composition`, heads per band. Replaces the flat stepper
    *  wherever the config declares bands, because the bands ARE the party size. */
   partyBands: Record<string, number>;
   onPartyBandsChange: (next: Record<string, number>) => void;
-  /** `booking.options` — chosen paid extras, priced server-side. */
+  /** `booking.options`, chosen paid extras, priced server-side. */
   options: Record<string, string | boolean>;
   onOptionsChange: (next: Record<string, string | boolean>) => void;
-  /** `booking.subject` — who/what the booking is about. */
+  /** `booking.subject`, who/what the booking is about. */
   subject: FieldValues;
   onSubjectChange: (next: FieldValues) => void;
-  /** `metaFields.bookings` — the deployment's own declared fields. */
+  /** `metaFields.bookings`, the deployment's own declared fields. */
   metaValues: FieldValues;
   onMetaChange: (next: FieldValues) => void;
   /** The repeat pattern in force, and the patterns on offer (`recurrence`).
@@ -233,7 +233,7 @@ export function ConfirmScreen({
   onRepeatPatternChange: (pattern: string) => void;
   repeatCount: number;
   onRepeatChange: (n: number) => void;
-  /** `booking.sequence` — whether to book the whole course, not just step 1. */
+  /** `booking.sequence`, whether to book the whole course, not just step 1. */
   bookSequence: boolean;
   onBookSequenceChange: (on: boolean) => void;
   busy: boolean;
@@ -248,11 +248,11 @@ export function ConfirmScreen({
   const bands = service.party.composition;
   const bookingFields = metaFields.bookings ?? [];
   const isShared = service.bookingModel === "shared_capacity";
-  /** `booking.granularity: "none"` — the slot behind this screen is a
+  /** `booking.granularity: "none"`, the slot behind this screen is a
    *  placeholder the flow resolved, not a date the customer chose. Nothing here
    *  may present it as theirs. */
   const requestMode = service.granularity === "none";
-  /** `timing.approvalWindowHours` in days — how long the business has to come
+  /** `timing.approvalWindowHours` in days, how long the business has to come
    *  back with a date. Optional; absent on an older backend. */
   const approvalDays =
     requestMode && service.approvalWindowHours
@@ -272,11 +272,11 @@ export function ConfirmScreen({
   // Re-quoted whenever the selection or party size changes.
   const slotKey = slots.map((s) => s.id).join(",");
   // Stamped with the inputs it was quoted for. A bare `quote` would keep showing
-  // the previous total while a re-quote is in flight after a party change —
+  // the previous total while a re-quote is in flight after a party change,
   // displaying a stale price is the exact bug this component is fixing, so the
   // result is only rendered when its stamp still matches the selection.
   // Bands, options and the subject all change the PRICE (weighted heads, add-on
-  // lines, `subjectField` tiers), so they belong in the stamp — a stale total
+  // lines, `subjectField` tiers), so they belong in the stamp, a stale total
   // after ticking "Full board" is the same bug as a stale total after a party
   // change, which is what this stamp exists to prevent.
   const shapeKey = JSON.stringify([partyBands, options, subject]);
@@ -329,7 +329,7 @@ export function ConfirmScreen({
     : null;
 
   const moneyLabel = MONEY_LABELS[service.paymentFlow] ?? "Total";
-  // `pricing.model: "quote"` + `capabilities.quotes` — the business prices this
+  // `pricing.model: "quote"` + `capabilities.quotes`, the business prices this
   // by hand after seeing the request. The engine returns 0 for such a service,
   // which the price card would render as "Free"; the honest screen asks for a
   // quote instead of quoting one.
@@ -337,7 +337,7 @@ export function ConfirmScreen({
   const blocking = service.prerequisites.filter((p) => p.blocksConfirmation);
   // A required `booking.subject` / `metaFields.bookings` field left empty is a
   // guaranteed 422 from the backend's validator. Gating the CTA turns that
-  // round-trip rejection into a visible, local "this is still missing" — the
+  // round-trip rejection into a visible, local "this is still missing", the
   // asterisks in the form now mean something before the request is sent.
   const unanswered = [
     ...(service.subject.enabled ? missingRequired(service.subject.fields, subject) : []),
@@ -405,7 +405,7 @@ export function ConfirmScreen({
           </>
         )}
         {bands.length ? (
-          // `party.composition` — the bands are the party size, so the flat
+          // `party.composition`, the bands are the party size, so the flat
           // stepper is replaced rather than shown alongside it.
           <div className="py-2">
             <span className="text-sm text-muted-foreground">
@@ -444,7 +444,7 @@ export function ConfirmScreen({
         ) : null}
       </div>
 
-      {/* Paid extras (`booking.options`) — priced into the quote below. */}
+      {/* Paid extras (`booking.options`), priced into the quote below. */}
       {service.options.length ? (
         <div className="mt-3 rounded-xl border border-border bg-card p-4">
           <p className="mb-3 text-sm font-semibold">Extras</p>
@@ -471,7 +471,7 @@ export function ConfirmScreen({
         </div>
       ) : null}
 
-      {/* `metaFields.bookings` — whatever this deployment additionally asks for.
+      {/* `metaFields.bookings`, whatever this deployment additionally asks for.
           Validated server-side against the same descriptors. */}
       {bookingFields.length ? (
         <div className="mt-3 rounded-xl border border-border bg-card p-4">
@@ -497,7 +497,7 @@ export function ConfirmScreen({
         </div>
       ) : null}
 
-      {/* Price — every line comes from the quote, so what is shown is charged. */}
+      {/* Price, every line comes from the quote, so what is shown is charged. */}
       {!byQuote && service.paymentFlow !== "none" ? (
         <div className="mt-3 rounded-xl border border-border bg-card p-4">
           {quote ? (
@@ -525,7 +525,7 @@ export function ConfirmScreen({
                   </span>
                 </div>
               ) : null}
-              {/* `payments.schedule` — when each part falls due. Display-only:
+              {/* `payments.schedule`, when each part falls due. Display-only:
                   there is no PSP in this engine, but these are the terms the
                   customer is agreeing to, and hiding them was the problem. */}
               {service.paymentSchedule.length ? (
@@ -556,7 +556,7 @@ export function ConfirmScreen({
             // The engine is still the only thing that may state THE price, so
             // nothing here is presented as one: a preview of the base formula
             // is labelled as a preview, and the sentence under it says what it
-            // cannot see. Showing nothing at all was the worse failure — the
+            // cannot see. Showing nothing at all was the worse failure, the
             // customer reached the last screen before committing with no idea
             // of the cost.
             <>
@@ -586,7 +586,7 @@ export function ConfirmScreen({
                 </div>
               )}
               <p className="mt-2 text-xs text-muted-foreground">
-                Estimated from the listed rate — any fees, discounts or seasonal
+                Estimated from the listed rate, any fees, discounts or seasonal
                 pricing are applied when you {vertical.bookingVerb.toLowerCase()}.
               </p>
             </>
@@ -619,7 +619,7 @@ export function ConfirmScreen({
         </div>
       ) : null}
 
-      {/* Repeat — `recurrence`. Later occurrences are best-effort on the server:
+      {/* Repeat, `recurrence`. Later occurrences are best-effort on the server:
           they land only where the business actually opened a slot, and the
           response names any that could not be booked. */}
       {repeatPattern ? (
@@ -697,7 +697,7 @@ export function ConfirmScreen({
         </Button>
       </div>
 
-      {/* `capabilities.cart` — keep this selection and go and pick another.
+      {/* `capabilities.cart`, keep this selection and go and pick another.
           Nothing is held: the basket is a list of intents, and each one is
           re-priced and re-checked when it is actually booked. */}
       {capability("cart") && !byQuote ? (

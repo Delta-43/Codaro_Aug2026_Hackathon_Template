@@ -1,8 +1,8 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""/availability and /month-density — the calendar's two public read endpoints.
+"""/availability and /month-density, the calendar's two public read endpoints.
 
 Both group slots by local date (viewer tz, default UTC) and compute slot status
 + occupancy server-side. Reads are public (optional_user).
@@ -104,7 +104,7 @@ def test_month_density_returns_a_cell_per_day(client, db):
 #
 # The business step is new in config v2. Without it an anonymous visitor always
 # saw days grouped in UTC, which silently shifts every evening slot into the
-# next day for a business east of Greenwich — the calendar looked wrong to
+# next day for a business east of Greenwich, the calendar looked wrong to
 # exactly the people who had not logged in yet.
 # ----------------------------------------------------------------------
 
@@ -156,7 +156,7 @@ def test_availability_uses_this_services_own_timezone_not_the_global_block(
 ):
     """The business-timezone fallback resolves PER SERVICE (`location` is in
     OVERRIDABLE_BLOCKS), but every other test here sets the GLOBAL block, where
-    passing the service and passing None merge to the same answer — so they pass
+    passing the service and passing None merge to the same answer, so they pass
     whether or not the lookup fires at all. Two services differing ONLY by
     `metadata.location.timezone`, same anonymous viewer, same instant: if the
     per-service lookup regresses to the global block, both group the same and
@@ -246,7 +246,7 @@ def test_month_density_uses_the_business_timezone_too(client, db, auth, domain_c
 def test_a_bogus_business_timezone_cannot_even_be_loaded(domain_config, client):
     """`validate()` rejects a non-IANA `location.timezone` at load, so the
     calendar can never be grouped by a zone that does not exist. (The viewer's
-    own `?tz=` is unvalidated user input — that path is covered below.)"""
+    own `?tz=` is unvalidated user input, that path is covered below.)"""
     import pytest as _pytest
 
     from app.config_schema import ConfigError
@@ -261,7 +261,7 @@ def test_an_unparseable_tz_query_param_degrades_to_utc_rather_than_500(
     client, db, auth, domain_config
 ):
     """`?tz=` is raw user input and never validated, so `_tz` has to be
-    defensive — the calendar must not be the thing that goes down."""
+    defensive, the calendar must not be the thing that goes down."""
     auth(anon=True)
     domain_config()
     svc, utc_date, _ = _late_evening_slot(db)

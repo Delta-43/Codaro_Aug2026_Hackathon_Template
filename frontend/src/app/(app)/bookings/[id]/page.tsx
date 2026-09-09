@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Booking detail — deep-linkable at /bookings/:id. Loads the booking and the
+ * Booking detail: deep-linkable at /bookings/:id. Loads the booking and the
  * entities it references (bookings carry only ids), then hands off to
  * BookingDetail for the full view + lifecycle actions.
  */

@@ -1,30 +1,30 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Unit tests for `app.config_models` — the Pydantic mirror of the v2 config tree.
+"""Unit tests for `app.config_models`, the Pydantic mirror of the v2 config tree.
 
 Pure dict/model work: no Supabase, no FastAPI, no fixtures.
 
 `config_models` is the new single source of truth for the config *shape*
 (`scripts/gen_config_schema.py` publishes a JSON Schema from it, and the frontend
-generates its TypeScript from that). It is **generation-only for now** —
+generates its TypeScript from that). It is **generation-only for now**,
 `config_schema.validate()` is still the production validator, so nothing in the
 running app would notice if the models drifted from `config_schema.DEFAULTS`.
 These tests are what notices:
 
-* **the golden test** — `config_dump() == config_schema.DEFAULTS`, reported as the
+* **the golden test**: `config_dump() == config_schema.DEFAULTS`, reported as the
   first differing dotted path so a drift names itself;
-* **enum agreement** — every `Literal` alias covers exactly the matching
+* **enum agreement**: every `Literal` alias covers exactly the matching
   frozenset in `config_schema`, one test id per enum;
-* **every shipped config validates** — `domain.config.json` (a model too
+* **every shipped config validates**: `domain.config.json` (a model too
   narrow for a real pivot would publish a schema that rejects the repo's own
   data);
-* **strictness holds** — the models reject what `config_schema._int`/`_bool`
+* **strictness holds**: the models reject what `config_schema._int`/`_bool`
   reject. Lax coercion (`"30"` as an int, `1` as a bool) would silently widen the
   published schema in a way the golden test cannot see, because defaults are
   well-typed;
-* **no import warnings** — the module is written to avoid pydantic's
+* **no import warnings**: the module is written to avoid pydantic's
   "field shadows parent attribute" `UserWarning` on `copy` (hence `copy_`, aliased).
 """
 
@@ -55,7 +55,7 @@ SHIPPED_CONFIGS = [REPO_CONFIG]
 # round trip. `inventory.seatMap` is deliberate: `scripts/check_pivots.py` lists
 # it as "positional inventory (E3, deferred)" and no reader exists. A NEW entry
 # appearing here means someone put a key in a pivot that neither DEFAULTS nor the
-# models declare — so `GET /config` serves it but the generated schema/TS hides it.
+# models declare, so `GET /config` serves it but the generated schema/TS hides it.
 UNDECLARED_IN_DEFAULTS = {"inventory.seatMap"}
 
 # (Literal alias in config_models, frozenset in config_schema).
@@ -256,7 +256,7 @@ def test_the_shipped_config_set_is_what_we_think_it_is():
 def test_shipped_config_validates_against_the_models(path):
     raw = json.loads(path.read_text())
     # The models describe the NORMALIZED tree (that is what DEFAULTS is, and what
-    # `GET /config` serves), so normalize first — exactly as the load path does.
+    # `GET /config` serves), so normalize first, exactly as the load path does.
     DomainConfig.model_validate(config_schema.normalize(raw))
 
 
@@ -265,8 +265,8 @@ def test_shipped_config_survives_a_model_round_trip(path):
     """Parsing then dumping must not drop or rewrite a value the engine reads:
     the generated schema/TS would then describe a tree the app does not have.
 
-    Optional fields the file omits come back as `null` — the models declare them,
-    which is the point of publishing a schema — so this is directional; see
+    Optional fields the file omits come back as `null`, the models declare them,
+    which is the point of publishing a schema, so this is directional; see
     `_lost_or_rewritten`.
     """
     normalized = config_schema.normalize(json.loads(path.read_text()))
@@ -282,7 +282,7 @@ def test_shipped_config_survives_a_model_round_trip(path):
 
 @pytest.mark.parametrize("path", UNDECLARED_IN_DEFAULTS, ids=sorted(UNDECLARED_IN_DEFAULTS))
 def test_the_undeclared_exceptions_really_are_undeclared(path):
-    """The allow-list above exists because `DEFAULTS` does not declare the key —
+    """The allow-list above exists because `DEFAULTS` does not declare the key,
     not to paper over a model that forgot one. If the engine ever declares it,
     this fails and the exception must go."""
     node: Any = config_schema.DEFAULTS
@@ -291,7 +291,7 @@ def test_the_undeclared_exceptions_really_are_undeclared(path):
             node = None
             break
         node = node[part]
-    assert node is None, f"{path} is declared in DEFAULTS now — drop it from UNDECLARED_IN_DEFAULTS"
+    assert node is None, f"{path} is declared in DEFAULTS now, drop it from UNDECLARED_IN_DEFAULTS"
 
 
 # -- 4. strictness holds ------------------------------------------------------
@@ -304,7 +304,7 @@ def _mutated(path: str, value: Any) -> dict:
     parts = path.split(".")
     for part in parts[:-1]:
         node = node[part]
-    assert parts[-1] in node, f"{path} is not a DEFAULTS leaf — fix the test, not the model"
+    assert parts[-1] in node, f"{path} is not a DEFAULTS leaf, fix the test, not the model"
     node[parts[-1]] = value
     return config
 
@@ -322,7 +322,7 @@ STRICTNESS_CASES = (
     ("capabilities.reviews", 0),
     ("pricing.chargePerPerson", "true"),
     ("timing.waitlist.enabled", 1),
-    # A bool where a number belongs — `_int` rejects bool explicitly.
+    # A bool where a number belongs, `_int` rejects bool explicitly.
     ("timing.leadTimeMinutes", True),
     # Unknown enum members.
     ("booking.unitKind", "nope"),
@@ -375,7 +375,7 @@ def test_defaults_mutation_helper_does_not_touch_defaults():
 
 def test_unknown_top_level_keys_are_ignored_like_check_shape():
     """`config_schema` only inspects keys `DEFAULTS` declares, so an unknown
-    block is dropped, not an error — the models must agree or the published
+    block is dropped, not an error, the models must agree or the published
     schema would reject a file the engine loads."""
     config = copy.deepcopy(config_schema.DEFAULTS)
     config["theme"] = {"primary": "#000"}  # v1's removed block

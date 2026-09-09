@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -19,7 +19,7 @@ Design notes / deliberate fidelity choices:
 * ``slot_occupancy`` is a *derived view*, recomputed on every read exactly like
   the SQL view in ``supabase/schema.sql``: it **sums party_size** across the
   ``confirmed`` bookings linked to each slot **via booking_slots**. That means
-  multi-slot + shared-capacity party sizes are genuinely exercised — insert a
+  multi-slot + shared-capacity party sizes are genuinely exercised, insert a
   booking (plus its booking_slots) and occupancy shifts with no test bookkeeping.
 * Column defaults mirror ``supabase/schema.sql`` so an insert that omits them
   behaves like the real table.
@@ -155,7 +155,7 @@ REQUIRED_COLUMNS: dict[str, tuple[str, ...]] = {
 # Tables whose primary key is caller-supplied (composite join tables / profiles):
 # a duplicate insert must raise a unique violation, exactly like Postgres, so the
 # routers' idempotency (`follow` swallows the conflict) is genuinely exercised.
-# `conversations` is here for its UNIQUE (provider_id, client_id) — same insert
+# `conversations` is here for its UNIQUE (provider_id, client_id), same insert
 # behaviour as a composite PK, which is what the find-or-create route relies on.
 PRIMARY_KEYS: dict[str, tuple[str, ...]] = {
     "booking_slots": ("booking_id", "slot_id"),
@@ -198,7 +198,7 @@ class _Query:
         return self
 
     def is_(self, column: str, value) -> "_Query":
-        """PostgREST's IS filter — the routers use it for `"null"`/`"not.null"`
+        """PostgREST's IS filter, the routers use it for `"null"`/`"not.null"`
         (soft-delete + read-receipt predicates on `messages`)."""
         self._filters.append(("is", column, value))
         return self
@@ -428,7 +428,7 @@ class FakeSupabase:
         self.calls: list[tuple[str, str]] = []
         # Minimal Supabase Auth admin surface. Empty by default, so every code
         # path that degrades when the admin API is unavailable (owner screening,
-        # review author names) keeps degrading exactly as before — only a test
+        # review author names) keeps degrading exactly as before, only a test
         # that calls `seed_auth_user()` makes a user resolvable.
         self.auth_users: dict[str, dict] = {}
         self.auth = _FakeAuth(self)
@@ -470,7 +470,7 @@ class FakeSupabase:
             ("booking_slots", "id", "booking_id"),
             ("reviews", "id", "booking_id"),
             ("client_reviews", "id", "booking_id"),
-            # waitlist_entries.booking_id is ON DELETE SET NULL, not cascade —
+            # waitlist_entries.booking_id is ON DELETE SET NULL, not cascade,
             # deliberately not modelled here (this map only deletes).
         ),
         "providers": (
@@ -533,7 +533,7 @@ class FakeSupabase:
     def after_insert(self, table: str, row: dict) -> None:
         """Mirror the `on_message_insert` trigger: stamp the parent thread's
         inbox preview/timestamp on every new message, so the inbox can list
-        threads without scanning messages — exactly like the SQL trigger."""
+        threads without scanning messages, exactly like the SQL trigger."""
         if table != "messages":
             return
         for conv in self.tables["conversations"]:

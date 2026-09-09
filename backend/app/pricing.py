@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -8,7 +8,7 @@ v1 priced every booking with one hardcoded expression in `routers/bookings.py`::
 
     price_minor_units = rules["priceMinorUnits"] * len(rows) * party
 
-That is exactly one pricing model — per-slot, multiplied by party — and it is
+That is exactly one pricing model, per-slot, multiplied by party, and it is
 the reason a per-hour, per-night, per-person, tiered, capped or fee-bearing
 niche could not be reached by editing the pivot file.
 
@@ -19,7 +19,7 @@ un-pivoted config prices identically to before.
 
 Order of operations, and it matters:
 
-1. pick the per-unit amount — a matching tier overrides `rate.amountMinorUnits`,
+1. pick the per-unit amount, a matching tier overrides `rate.amountMinorUnits`,
    and `model: "free"` zeroes it (fees below still apply)
 2. base = amount x quantity(rate.per) x party factor
 3. + secondary rate (an independent axis, e.g. pallets x weeks)
@@ -37,7 +37,7 @@ import math
 from datetime import date, datetime, time
 from typing import Any
 
-# Whole-unit periods bill by started unit — half a day of storage is a day.
+# Whole-unit periods bill by started unit, half a day of storage is a day.
 # An hour is the exception: 90 minutes of a court is genuinely 1.5 hours.
 _MINUTES_PER_UNIT = {"day": 1440, "night": 1440, "week": 10080, "month": 43200}
 
@@ -78,11 +78,11 @@ def quote(pricing: dict, ctx: dict) -> dict:
     if tier is not None and tier.get("amountMinorUnits") is not None:
         amount = _int(tier["amountMinorUnits"])
 
-    # `model` was validated against a nine-value enum and then read by NOTHING —
+    # `model` was validated against a nine-value enum and then read by NOTHING,
     # every total came off `rate.per`, so `"model": "free"` on a config that still
     # carried a rate charged full price for it. Free zeroes the RATE, not the
     # booking: a free class with a booking fee is a real pivot (#57), and fees,
-    # caps and the deposit still apply below. The other models need no branch —
+    # caps and the deposit still apply below. The other models need no branch,
     # fixed / per_hour / per_person / per_unit / tiered / deposit_balance are
     # exactly what `rate.per`, `tiers` and `deposit` already express; `quote` and
     # `subscription` need the quote flow and the billing adapter, and are listed
@@ -112,7 +112,7 @@ def quote(pricing: dict, ctx: dict) -> dict:
             {"key": "secondary", "label": _money_label(sec_per), "amountMinorUnits": sec}
         )
 
-    # An entitlement the customer holds — a membership, a pass — discounts the
+    # An entitlement the customer holds, a membership, a pass, discounts the
     # SERVICE CHARGE (base + secondary), not the fees below it.
     #
     # `entitlements.plans[].discountBps` was declared, validated and read by
@@ -123,7 +123,7 @@ def quote(pricing: dict, ctx: dict) -> dict:
     # reading: fees are typically pass-through (a booking fee, a cleaning
     # charge), and percentage fees below therefore compute off the discounted
     # charge. Whether a platform's commission sits on the net or the gross is
-    # already an open question in this schema — see scripts/check_pivots.py #65 —
+    # already an open question in this schema, see scripts/check_pivots.py #65,
     # and a member discount must not quietly answer it a second way.
     entitlement = ctx.get("entitlement")
     if isinstance(entitlement, dict):
@@ -142,7 +142,7 @@ def quote(pricing: dict, ctx: dict) -> dict:
             )
 
     # Paid add-ons the customer chose (`booking.options`), already resolved to
-    # `{key, label, amountMinorUnits}` by `rules.resolve_options` — this module
+    # `{key, label, amountMinorUnits}` by `rules.resolve_options`, this module
     # only ever sees the `pricing` block, so the caller does the config lookup.
     #
     # Placed AFTER the entitlement discount and BEFORE the fees on purpose: a
@@ -217,7 +217,7 @@ def _quantity(per: str, ctx: dict) -> float:
 
 
 def _person_units(ctx: dict) -> float:
-    """Weighted head count — `booking.party.composition` lets an adult and a
+    """Weighted head count, `booking.party.composition` lets an adult and a
     child cost different multiples of the same base rate."""
     if ctx.get("person_units") is not None:
         return float(ctx["person_units"])
@@ -226,7 +226,7 @@ def _person_units(ctx: dict) -> float:
 
 def _party_factor(pricing: dict, per: str, ctx: dict) -> float:
     """`per: "person"` already counts heads, so multiplying again would square
-    it. Otherwise `chargePerPerson` decides — true reproduces the v1 formula
+    it. Otherwise `chargePerPerson` decides, true reproduces the v1 formula
     (price x slots x party); false is the shared-unit case, where a court costs
     the same for two players or four."""
     if per == "person":
@@ -241,7 +241,7 @@ def _party_factor(pricing: dict, per: str, ctx: dict) -> float:
 
 def match_tier(tiers: list, ctx: dict) -> dict | None:
     """First tier whose sales window is open AND whose `appliesWhen` matches.
-    Order in the config is the precedence order — put the most specific first."""
+    Order in the config is the precedence order, put the most specific first."""
     now = ctx.get("now")
     for tier in tiers:
         if not isinstance(tier, dict):
@@ -269,7 +269,7 @@ def _within_sales_window(tier: dict, now: datetime | None) -> bool:
 
 
 def _matches(condition: dict, ctx: dict) -> bool:
-    """Every declared clause must hold. An unknown clause key fails closed —
+    """Every declared clause must hold. An unknown clause key fails closed,
     a typo must not silently widen a discount to everyone."""
     if not condition:
         return True
@@ -363,7 +363,7 @@ def _apply_caps(caps: dict, total: int, breakdown: list) -> int:
 def _deposit(deposit: dict, total: int) -> int:
     """A deposit is one of two different things, and they clamp differently.
 
-    A NON-refundable deposit is a prepayment — part of the price — so it can
+    A NON-refundable deposit is a prepayment, part of the price, so it can
     never exceed the total. A REFUNDABLE deposit is a damage bond: a hold that
     is returned, and routinely larger than the hire fee (a 300 bond on a 200
     tool hire). Clamping that to the total silently under-secures the asset,
@@ -383,7 +383,7 @@ def _deposit(deposit: dict, total: int) -> int:
 
 def _int(value: Any, default: int = 0) -> int:
     """A hand-edited config can put a string or null anywhere. Coerce rather
-    than 500 — validation already reported the bad value at load time."""
+    than 500, validation already reported the bad value at load time."""
     if isinstance(value, bool) or value is None:
         return default
     try:

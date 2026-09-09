@@ -1,17 +1,17 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /**
- * Landing footer — a full-width footer bar on the shared glass plate
+ * Landing footer: a full-width footer bar on the shared glass plate
  * (`GlassPanel`). A big interactive Leaf badge is centered on top like the
  * other plates' indicator icon; below it the bar keeps its left/right layout:
  * brand name + pitch on the left, the site's real links in two columns on the
  * right, then the credit + the day/night toggle that used to live in the nav.
- * Only routes/anchors we actually have — no filler.
+ * Only routes/anchors we actually have: no filler.
  *
  * Below the bar, a giant ARBOR wordmark fades top→bottom (transparent at the
- * top, solid at the very bottom edge; black in light mode, white in dark) — the
+ * top, solid at the very bottom edge; black in light mode, white in dark), the
  * closing flourish, like the SUKOYA reference. Hovering it nudges it up a touch.
  *
  * Server component; only the nested `ThemeToggle` needs the client.
@@ -38,7 +38,7 @@ export function Footer() {
       {/* The bar */}
       <div className="mx-auto w-full max-w-4xl px-4">
         <GlassPanel className="px-6 py-12 sm:px-10 sm:py-14">
-          {/* Bar — brand + pitch on the left, link columns on the right */}
+          {/* Bar, brand + pitch on the left, link columns on the right */}
           <div className="flex flex-col gap-10 sm:flex-row sm:items-start sm:justify-between">
             <div className="max-w-xs">
               <ScrollTopLink className="inline-flex origin-left items-center gap-1.5 text-lg font-bold tracking-tight text-primary transition-transform duration-200 ease-out hover:scale-110">
@@ -79,7 +79,7 @@ export function Footer() {
             </div>
           </div>
 
-          {/* Bottom row — interactive credit + the light/dark toggle (no label) */}
+          {/* Bottom row, interactive credit + the light/dark toggle (no label) */}
           <div className="mt-10 flex items-center justify-between border-t border-border/40 pt-6">
             <p className="origin-left cursor-pointer text-sm font-medium text-primary transition-transform duration-200 ease-out hover:scale-105">
               © {year} Arbor
@@ -89,11 +89,11 @@ export function Footer() {
         </GlassPanel>
       </div>
 
-      {/* Giant fading wordmark — dissolving upward from the bottom, locked to the
+      {/* Giant fading wordmark, dissolving upward from the bottom, locked to the
           exact same width as the glass plates above (same `max-w-4xl` + `px-4`
           container). Drawn as SVG text whose viewBox matches the word's *natural*
           proportions in the site font (≈ 842 × 180 for "ARBOR" at weight 800), so
-          `w-full` scales it up to the plate width uniformly — big, responsive, and
+          `w-full` scales it up to the plate width uniformly, big, responsive, and
           without the horizontal stretch a fixed `textLength` would force. The
           particle field finds this element by `data-wordmark` and steers its dots
           clear of it while it's on screen. */}

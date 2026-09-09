@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -6,7 +6,7 @@
 
 /**
  * The shared Settings template, recycled by both the User and Business settings
- * panels. It renders the ~80% of settings every app has — profile photo, name,
+ * panels. It renders the ~80% of settings every app has, profile photo, name,
  * email, change password, notifications, appearance, and a sign-out. Callers
  * pass a small config and (optionally) extra profile fields specific to their
  * persona.
@@ -30,12 +30,12 @@ import { SignOutButton } from "@/components/auth/sign-out-button";
 import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
-/** Interactive feel for the plate headings — a gentle hover-grow, anchored left
+/** Interactive feel for the plate headings, a gentle hover-grow, anchored left
  *  so the title doesn't drift. Same feel the rest of the platform uses. */
 const HEADING_FX =
   "inline-block origin-left transition-transform duration-200 ease-out hover:scale-105";
 
-/** Interactive form labels — grow and turn pink on hover like the login field
+/** Interactive form labels, grow and turn pink on hover like the login field
  *  labels, anchored left and only as wide as the text so the row doesn't shift. */
 const LABEL_FX =
   "inline-block w-fit origin-left transition-all duration-200 ease-out hover:scale-110 hover:text-primary";
@@ -65,7 +65,7 @@ export function SettingsPanel(cfg: SettingsConfig) {
     <section className="space-y-6 py-2">
       <div>
         {/* The shell's desktop top bar shows the "Settings" title, and on mobile
-            the bottom tab bar marks the tab — so this stays screen-reader only,
+            the bottom tab bar marks the tab, so this stays screen-reader only,
             no on-screen copy. */}
         <h1 className="sr-only">Settings</h1>
         <p className="text-sm text-muted-foreground">

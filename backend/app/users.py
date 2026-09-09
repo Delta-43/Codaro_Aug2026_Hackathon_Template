@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -19,7 +19,7 @@ from app.serialize import serialize_user
 def apply_user_attrs(user_id: str, attrs: dict) -> None:
     """Persist `attrs` (e.g. {"user_metadata": md} and/or {"email": ...}) via
     the Supabase Auth admin API. Best-effort: if the admin API is unavailable
-    (e.g. offline), no-op — callers already return the intended state so the
+    (e.g. offline), no-op, callers already return the intended state so the
     client's optimistic update holds for this session."""
     try:
         get_supabase().auth.admin.update_user_by_id(user_id, attrs)

@@ -1,8 +1,8 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""/owner/* — the business-mode (owner) dashboard aggregation router.
+"""/owner/*, the business-mode (owner) dashboard aggregation router.
 
 Every endpoint is owner-gated (`require_owner`) and scoped to the caller's own
 providers (`providers.owner_id == auth.uid()`). Reads use the service key; the
@@ -123,7 +123,7 @@ def test_dashboard_revenue_buckets_per_currency_no_cross_sum(client, db, auth):
     revenue = client.get("/owner/dashboard").json()["glance"]["revenue"]
     by_currency = {e["currency"]: e["minorUnits"] for e in revenue["byCurrency"]}
     assert by_currency == {"EUR": 10000, "PLN": 5000}
-    # Headline is the dominant currency's own total — never the 15000 cross sum.
+    # Headline is the dominant currency's own total, never the 15000 cross sum.
     assert revenue["currency"] == "EUR"
     assert revenue["minorUnits"] == 10000
     assert revenue["minorUnits"] != 15000
@@ -253,7 +253,7 @@ def test_owner_requests_pending_only_with_client_card(client, db, auth):
         "rating",
         "reviewCount",
     }
-    # FakeSupabase has no auth.admin — the router degrades gracefully.
+    # FakeSupabase has no auth.admin, the router degrades gracefully.
     assert client_card["memberSinceUtc"] is None
     assert client_card["displayName"] == "ada"  # falls back to email local part
     assert client_card["email"] == "ada@example.com"

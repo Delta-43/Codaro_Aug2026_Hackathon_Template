@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -9,15 +9,15 @@
     docker compose exec backend python /workspace/scripts/check_seed.py -v
 
 Swapping the pivot file changes what the ENGINE believes. It does not change
-what is in the DB. This script reports, per dimension, whether the two agree —
+what is in the DB. This script reports, per dimension, whether the two agree,
 so "I pivoted and nothing looks different" becomes a list of specific
 mismatches instead of a guess.
 
 Two things it deliberately keeps apart:
 
-  RESET  — did the wipe leave a clean, consistent dataset?
+  RESET , did the wipe leave a clean, consistent dataset?
            (`seed_vertical()` truncates and rebuilds; this checks the result.)
-  MATCH  — does that dataset correspond to the config now loaded?
+  MATCH , does that dataset correspond to the config now loaded?
 
 RESET failures are bugs. MATCH failures mostly are not: `seed.py` seeds from
 `seed_data.VERTICALS`, never from the config, and a seeded service COLUMN
@@ -44,7 +44,7 @@ from app.rules import _SERVICE_RULE_MAP  # noqa: E402
 from seed import _EXTENDED_TABLES, BOOKING_MODEL_TO_VERTICAL, active_vertical  # noqa: E402
 from seed_data import VERTICALS  # noqa: E402
 
-# THIS SCRIPT'S OWN heuristic, not the engine's — no mapping between
+# THIS SCRIPT'S OWN heuristic, not the engine's, no mapping between
 # `booking.unitKind` and `services.booking_model` exists anywhere in the code.
 # Only clear contradictions are flagged; an unlisted unitKind is not judged.
 UNIT_KIND_TO_MODEL = {
@@ -88,7 +88,7 @@ def check_reset(db) -> dict:
             record(RESET, False, f"count {table}", str(exc)[:120])
 
     record(RESET, bool(counts.get("providers")), "providers present",
-           f"{counts.get('providers')} rows — a wipe that did not rebuild leaves 0")
+           f"{counts.get('providers')} rows, a wipe that did not rebuild leaves 0")
     record(RESET, bool(counts.get("slots")), "slots present", f"{counts.get('slots')} rows")
 
     # Referential integrity: the truncate is `cascade`, so a survivor pointing at
@@ -121,14 +121,14 @@ def check_reset(db) -> dict:
         if not isinstance((r.get("metadata") or {}).get("attributes", []), list)
     ]
     record(RESET, not bad_attrs, "resource attributes are [{label,value}] lists",
-           f"{len(bad_attrs)} resource(s) carry a non-list — the provider page maps over this")
+           f"{len(bad_attrs)} resource(s) carry a non-list, the provider page maps over this")
 
     dupes = [c for c, n in Counter(p["public_code"] for p in data["providers"]).items() if n > 1]
     record(RESET, not dupes, "provider codes unique", f"duplicated: {dupes}" if dupes else "")
 
     owned = [p for p in data["providers"] if p.get("owner_id")]
     record(RESET, bool(owned), "a provider is owned by the demo owner",
-           f"{len(owned)} owned — without one the owner dashboard is empty")
+           f"{len(owned)} owned, without one the owner dashboard is empty")
 
     try:
         n = db.table("profiles").select("id", count="exact").limit(1).execute().count
@@ -150,7 +150,7 @@ def check_match(cfg: dict, data: dict) -> None:
                f"{code!r} -> {hit[0]['name'] if hit else 'NO SUCH PROVIDER'}"
                + ("" if hit else "; single mode shows 'No business yet'"))
     else:
-        record(MATCH, True, "tenancy is multi — no sole provider to resolve", "")
+        record(MATCH, True, "tenancy is multi, no sole provider to resolve", "")
 
     # The seven scalars the engine resolves per service. A service COLUMN wins
     # over the config default, so a mismatch here is exactly "the pivot changed
@@ -198,7 +198,7 @@ def check_match(cfg: dict, data: dict) -> None:
         record(MATCH, not over, "slot capacity within booking.party.max",
                f"party.max={want_max}; capacities {dict(caps)}")
     # The one that actually catches a stale seed: a group/buyout config, or a
-    # party.min above 1, cannot be served by capacity-1 slots — every booking
+    # party.min above 1, cannot be served by capacity-1 slots, every booking
     # would be refused for want of room.
     needs_room = party["mode"] != "individual" or party.get("matchResourceCapacity") or want_min > 1
     too_small = [c for c in caps if isinstance(c, int) and c < want_min] or (
@@ -209,7 +209,7 @@ def check_match(cfg: dict, data: dict) -> None:
            + ("; capacity-1 slots cannot hold a group booking" if too_small else ""))
 
     # Slot grid vs the business timezone. Checking only that local starts are
-    # whole hours is not enough — a grid laid in Europe/Warsaw and read as UTC
+    # whole hours is not enough, a grid laid in Europe/Warsaw and read as UTC
     # is still on the hour, just at the wrong hour. The seed lays its grid in the
     # vertical's `baseTz`, so compare that directly, and show the local times so
     # a wrong zone is visible as an implausible trading day.
@@ -273,7 +273,7 @@ def main() -> int:
         failed = [r for r in group if r[1] == "FAIL"]
         head = "did the wipe leave a clean dataset?" if kind == RESET \
             else "does that dataset match the config now loaded?"
-        print(f"{kind}  — {head}")
+        print(f"{kind} , {head}")
         for _k, status, title, detail in group:
             if status == "FAIL" or VERBOSE:
                 mark = "  ok  " if status == "ok" else "  FAIL"
@@ -288,11 +288,11 @@ def main() -> int:
     if match_failed and not reset_failed:
         print("The wipe is clean; the data just does not describe this config.")
         print("`make reseed` rebuilds from domain.config.json (seed_config.py), so this")
-        print("usually means the data predates the current config — reseed and re-check.")
+        print("usually means the data predates the current config, reseed and re-check.")
         print("Data loaded by `POST /demo/vertical` comes from seed_data.VERTICALS")
         print("instead and will not match any pivot.")
     if reset_failed:
-        print("RESET failures are real bugs — the rebuild left inconsistent data.")
+        print("RESET failures are real bugs, the rebuild left inconsistent data.")
 
     return 1 if reset_failed or (STRICT and match_failed) else 0
 

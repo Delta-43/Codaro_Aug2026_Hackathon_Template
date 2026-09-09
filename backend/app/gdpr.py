@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -6,7 +6,7 @@
 schema's FK map in supabase/schema.sql).
 
 `erase_user` removes every record tied to a user and then their Supabase Auth
-account. It runs with the **service key** (a system, cross-user operation —
+account. It runs with the **service key** (a system, cross-user operation,
 mirrors `owner.py`) because the user↔booking link is a `client_id` column plus
 `metadata`, not a database foreign key, so a plain `auth.users` delete would NOT
 cascade bookings. The order matters:
@@ -21,7 +21,7 @@ cascade bookings. The order matters:
 
 The record-cleanup steps (1–5) are best-effort/idempotent: an offline admin API
 or an already-deleted row must not turn erasure into a 500. The final
-auth-account deletion (6) is authoritative — if it fails, `erase_user` raises so
+auth-account deletion (6) is authoritative, if it fails, `erase_user` raises so
 the endpoint cannot falsely report success while the account still exists.
 """
 from __future__ import annotations
@@ -36,7 +36,7 @@ logger = logging.getLogger(__name__)
 
 def _safe(step: str, fn) -> None:
     """Run one erasure step, swallowing (but logging) any failure so the overall
-    erasure proceeds — partial success beats a 500 that leaves the user unsure
+    erasure proceeds, partial success beats a 500 that leaves the user unsure
     whether anything was removed."""
     try:
         fn()
@@ -46,7 +46,7 @@ def _safe(step: str, fn) -> None:
 
 def _delete_owned_businesses(db, owner_id: str) -> None:
     """For an owner, remove the whole business under each provider they own:
-    every booking made against it (other customers' rows — provider_id lives in
+    every booking made against it (other customers' rows, provider_id lives in
     bookings.metadata, so this is a scan-and-filter), the resources beneath its
     services (slots cascade from resources), then the provider row itself
     (cascades services, reviews, follows, and client_reviews via their provider
@@ -61,7 +61,7 @@ def _delete_owned_businesses(db, owner_id: str) -> None:
     )
     service_ids = {s["id"] for s in services}
 
-    # Bookings under these providers (provider_id is in metadata jsonb — no column
+    # Bookings under these providers (provider_id is in metadata jsonb, no column
     # to filter on, so scan and match in Python, like owner.py's _Scope), then a
     # single batched delete rather than one round trip per row.
     all_bookings = db.table("bookings").select("id,metadata").execute().data or []
@@ -103,7 +103,7 @@ def erase_user(db, user: AuthUser) -> None:
         "own-bookings",
         lambda: db.table("bookings").delete().eq("client_id", uid).execute(),
     )
-    # Legacy bookings keyed only by metadata.user_id (null client_id) — the same
+    # Legacy bookings keyed only by metadata.user_id (null client_id), the same
     # fallback identity list_bookings honours. Without this, a user's pre-auth
     # bookings survived erasure, leaving the GDPR delete incomplete.
     _safe(
@@ -125,7 +125,7 @@ def erase_user(db, user: AuthUser) -> None:
         _safe("owned-businesses", lambda: _delete_owned_businesses(db, uid))
 
     # The auth account is the definitive erasure: unlike the record-cleanup steps
-    # above, a failure here must NOT be swallowed — reporting success while the
+    # above, a failure here must NOT be swallowed, reporting success while the
     # account still exists would be a false GDPR erasure. Let it propagate so
     # DELETE /me surfaces an error instead of a 204.
     db.auth.admin.delete_user(uid)

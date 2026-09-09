@@ -1,11 +1,11 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """Aggregation helpers shared by the discovery routers (providers/services/
 resources). Providers carry derived `rating`/`reviewCount` (from `reviews`) and
 `serviceIds`; services carry `resourceIds`. At demo scale these are computed by
-fetching the small tables and grouping in Python — no per-row round trips.
+fetching the small tables and grouping in Python, no per-row round trips.
 All reads use the service-key client (public discovery bypasses RLS)."""
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ def _resolved_price(row: dict, fallback: tuple[int, str]) -> tuple[int, str]:
 
     Reading `price_minor_units` directly skipped `metadata.pricing`, so a service
     priced only through an override reported 0 here while `serialize_service`
-    reported (and `quote()` charged) the real amount — the provider's
+    reported (and `quote()` charged) the real amount, the provider's
     `priceFromMinorUnits` and the whole `price` search facet were computed from a
     number nothing else in the engine used.
 
@@ -65,8 +65,8 @@ def _resolved_price(row: dict, fallback: tuple[int, str]) -> tuple[int, str]:
     turned a column read into ~0.1 ms of work per overridden service on the
     provider-list, my-providers, update-provider, get-provider and /config paths.
     For a row with no `pricing` block the resolver provably returns the columns
-    themselves — `price_minor_units` and `currency` are NOT NULL DEFAULT, and the
-    fold-in below `_merge` copies them over the global block unconditionally — so
+    themselves, `price_minor_units` and `currency` are NOT NULL DEFAULT, and the
+    fold-in below `_merge` copies them over the global block unconditionally, so
     the fast path is the same answer, not an approximation. An override that is
     INVALID still takes the slow path and is still dropped there, which is the
     behaviour that keeps a typo'd block priced from its own column."""
@@ -82,7 +82,7 @@ def _resolved_price(row: dict, fallback: tuple[int, str]) -> tuple[int, str]:
 
 
 def price_from_by_provider(db) -> dict[str, tuple[int, str]]:
-    """(min_price_minor_units, currency) per provider — the cheapest of its
+    """(min_price_minor_units, currency) per provider, the cheapest of its
     services, so discovery can expose a provider-level `priceFromMinorUnits`
     for price ordering. Providers with no services are simply absent."""
     rows = fetch_all(db.table("services").select(_PRICING_COLUMNS))
@@ -108,7 +108,7 @@ def resource_ids_by_service(db) -> dict[str, list[str]]:
 
 
 def search_facets(db) -> dict[str, bool]:
-    """Which search facets the current catalog actually supports — derived from
+    """Which search facets the current catalog actually supports, derived from
     the seeded data so the filter UI pivots automatically, with no hand-kept
     flags. A free niche seeds no priced services → `price` off; a remote niche
     seeds no real coordinates → `distance` off; those sliders/sort keys then

@@ -1,12 +1,12 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * The reusable "front and centre" inbox block — a heading + the conversation
- * list — that both existing panels embed (client Bookings, business Requests)
+ * The reusable "front and centre" inbox block, a heading + the conversation
+ * list, that both existing panels embed (client Bookings, business Requests)
  * and the future single-business shell can reuse unchanged. Self-contained: it
  * fetches the current user's threads, derives the viewer timezone from
  * `useAuth()` (so it works in either shell), refetches on window focus for

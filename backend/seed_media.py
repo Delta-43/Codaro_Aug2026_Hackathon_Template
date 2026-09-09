@@ -15,7 +15,7 @@ gradient:
 That fallback is the whole design. The files are downloaded on demand by
 `seed_media_fetch.py` (`make fetchmedia`) from Wikimedia Commons, they are not
 committed as a hard dependency of seeding, and a dead CDN, a skipped fetch or a
-half-populated media directory must never break a reseed — it can only make the
+half-populated media directory must never break a reseed, it can only make the
 demo less pretty. Nothing in this module touches the filesystem or the network,
 so it cannot fail either.
 

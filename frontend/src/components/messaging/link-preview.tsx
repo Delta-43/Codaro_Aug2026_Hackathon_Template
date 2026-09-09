@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -6,7 +6,7 @@
 
 /**
  * A lightweight, CLIENT-ONLY link chip. It regex-detects the first URL in a
- * message body and renders a bordered card with a globe icon + hostname — no
+ * message body and renders a bordered card with a globe icon + hostname, no
  * fetch, no OpenGraph, no backend work (a deliberate scope guardrail). The chip
  * reads on both bubble variants (semi-transparent card over either background).
  */

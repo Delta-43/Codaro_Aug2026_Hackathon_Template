@@ -21,9 +21,9 @@ redeploy automatically.
 
 ---
 
-## 0. Prerequisites — a production Supabase project
+## 0. Prerequisites, a production Supabase project
 
-Use a **separate** Supabase project for production (don't share your dev one —
+Use a **separate** Supabase project for production (don't share your dev one,
 seeding/reset are destructive). From **Settings → API** and **Connect** collect:
 
 - Project URL (`SUPABASE_URL`)
@@ -32,7 +32,7 @@ seeding/reset are destructive). From **Settings → API** and **Connect** collec
 - Session-pooler connection string (`SUPABASE_DB_URL`)
 
 The backend applies `supabase/schema.sql` on first boot, so the project can
-start empty (seed it afterwards with `make reseed`) — **but only if `SUPABASE_DB_URL` is set** (see below).
+start empty (seed it afterwards with `make reseed`), **but only if `SUPABASE_DB_URL` is set** (see below).
 Table creation runs DDL over a direct Postgres connection, which is impossible
 through the REST key alone; without `SUPABASE_DB_URL` the app boots with no
 tables. Startup logs `Schema applied from …` on success, or a loud
@@ -49,12 +49,12 @@ tables. Startup logs `Schema applied from …` on success, or a loud
    in the image when the build context is the whole repo. Railway reads
    `railway.json` at the root, which points the build at `backend/Dockerfile`.
    There is deliberately only **one** `railway.json`, at the repo root. Setting
-   Root Directory to `backend` does not just read a different config — it breaks
+   Root Directory to `backend` does not just read a different config, it breaks
    the build outright, because `backend/Dockerfile` copies `backend/…`,
    `supabase/` and `domain.config.json`, none of which exist inside `backend/`.
 3. **Settings → Networking → Generate Domain** to get a public URL
    (e.g. `https://codaro-backend.up.railway.app`).
-4. **Variables** — add:
+4. **Variables**: add:
    ```
    SUPABASE_URL=...
    SUPABASE_SERVICE_KEY=...
@@ -63,7 +63,7 @@ tables. Startup logs `Schema applied from …` on success, or a loud
    CORS_ORIGINS=https://<your-vercel-domain>.vercel.app
    WEB_CONCURRENCY=1
    ```
-   Do **not** set `PORT` — Railway injects it and the container binds `$PORT`.
+   Do **not** set `PORT`, Railway injects it and the container binds `$PORT`.
 5. **Region:** set the service region to match your Supabase project's region
    (Settings → Region) so every backend→DB query stays same-region. This is the
    single biggest latency win and costs nothing.
@@ -276,7 +276,7 @@ Both platforms watch GitHub:
   backend. No extra pipeline YAML needed.
 
 (Optional) In Railway, enable **PR environments** if you want a throwaway
-backend per PR — off by default because it multiplies usage.
+backend per PR, off by default because it multiplies usage.
 
 ---
 

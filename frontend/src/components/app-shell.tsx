@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * One responsive shell for the whole app — no separate mobile app, no
+ * One responsive shell for the whole app: no separate mobile app, no
  * user-agent sniffing. Breakpoint at 768px (Tailwind `md`):
  *  - below md: fixed bottom tab bar (5 items, icon + label), compact sticky
  *    header, content scrolls under it.
@@ -88,7 +88,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   // AuthGate has already established a session, so a finished boot with no
   // profile means `/me` failed. Boot degrades each leg independently rather than
-  // hanging, which is right — but every downstream surface then substitutes a
+  // hanging, which is right, but every downstream surface then substitutes a
   // default, and `user?.timezone ?? "UTC"` on the bookings, calendar and booking
   // detail pages would render real appointment times in the wrong zone with
   // nothing on screen to say so. Stop here instead, and offer a way out.
@@ -102,7 +102,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       // would clear this screen while leaving those wrong until a hard reload.
       await reload();
     } catch {
-      /* still failing — stay on this screen so the retry remains available */
+      /* still failing, stay on this screen so the retry remains available */
     } finally {
       setRetrying(false);
     }
@@ -180,7 +180,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           className="group flex items-center gap-2 rounded-full py-1 pl-3 pr-1 transition-all hover:bg-primary/10 hover:text-primary"
           aria-label="Profile"
         >
-          {/* Name first, avatar hard against the right edge — same order as the
+          {/* Name first, avatar hard against the right edge, same order as the
               business shell's chip. */}
           <span className="max-w-[10rem] truncate text-base font-medium">{user?.displayName ?? "Account"}</span>
           <AvatarImg
@@ -193,7 +193,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </header>
 
-      {/* Mobile compact header — the brand only (tapping it goes to the landing
+      {/* Mobile compact header, the brand only (tapping it goes to the landing
           page), plus the cart, which is a control rather than a title and has
           nowhere else to live on mobile. No page name up here: the bottom tab
           bar already says which tab you are on. Each page keeps its own sr-only
@@ -213,7 +213,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         <CartButton onOpen={() => setCartOpen(true)} />
       </header>
 
-      {/* `capabilities.cart` — one basket for the whole app, so it survives
+      {/* `capabilities.cart`, one basket for the whole app, so it survives
           moving between tabs while the customer picks the next thing. */}
       <CartSheet open={cartOpen} onClose={() => setCartOpen(false)} tz={browserTz()} />
 

@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -7,7 +7,7 @@
 /**
  * Lightweight modal: bottom sheet on mobile, centred dialog on desktop.
  * Escape and overlay-click close it; focus moves into the panel on open and
- * body scroll is locked. A drop-in target for shadcn `Dialog` later — callers
+ * body scroll is locked. A drop-in target for shadcn `Dialog` later, callers
  * only depend on `open`/`onClose`.
  */
 import { useEffect, useRef, type ReactNode } from "react";

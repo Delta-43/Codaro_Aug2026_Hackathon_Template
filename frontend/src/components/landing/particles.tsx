@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -7,11 +7,11 @@
 /**
  * Sparse particle field pinned to the bottom of the landing backdrop.
  *
- * A tiny canvas effect (no library — the reference particles.js config only
+ * A tiny canvas effect (no library, the reference particles.js config only
  * informed the parameters). Each dot has a fixed "rest" spot weighted toward the
  * bottom of the viewport and a soft spring that pulls it back there, so the
  * field naturally gathers low and settles down after any disturbance. Colour
- * follows the theme — near-black dots in light mode, near-white in dark — and
+ * follows the theme, near-black dots in light mode, near-white in dark, and
  * updates live on theme switch.
  *
  * The web of links between near neighbours is the point, not decoration: it is
@@ -80,7 +80,7 @@ export function Particles() {
       const bias = Math.pow(Math.random(), 1.6); // skew toward the bottom edge
       const restX = Math.random() * W;
       const restY = H - bias * H * 0.5;
-      // Independent upper-half rest spot for the bottom-of-page state — the
+      // Independent upper-half rest spot for the bottom-of-page state, the
       // same bottom-weighted formula mirrored to the top edge. Drawn on its
       // own (not reflected from restY) so *every* dot gets a real destination
       // up top: reflecting restY would pin any dot resting near the middle to
@@ -101,7 +101,7 @@ export function Particles() {
         a: 0.15 + z * 0.4,
         // Per-dot vertical spring rate, scaled by depth so near dots answer
         // faster than far ones. Varying it (instead of one shared constant)
-        // means dots settle — and migrate up at the bottom of the page — at
+        // means dots settle, and migrate up at the bottom of the page, at
         // their own pace, so the field never moves as one rigid sheet. That
         // staggering dissolves the migration instead of sweeping a visible
         // line through the middle.
@@ -226,8 +226,8 @@ export function Particles() {
     };
 
     // The field normally gathers in the lower half of the screen. When you reach
-    // the very bottom of the landing page — i.e. the ARBOR wordmark scrolls into
-    // view — the whole field migrates up, mirroring the same distribution into
+    // the very bottom of the landing page, i.e. the ARBOR wordmark scrolls into
+    // view, the whole field migrates up, mirroring the same distribution into
     // the *upper* half instead, so it clears the footer/wordmark entirely. The
     // footer mounts alongside this background; resolve it lazily (canvas is fixed
     // & full-viewport, so viewport px === canvas px).

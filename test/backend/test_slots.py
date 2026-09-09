@@ -1,8 +1,8 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""/slots — public reads (+ /slots/occupancy) and owner-gated writes.
+"""/slots, public reads (+ /slots/occupancy) and owner-gated writes.
 
 `POST /slots` derives `ends_at` from `rules.slotDurationMinutes` and defaults
 `capacity` from `rules.maxBookingsPerSlot` (no magic literals), runs the
@@ -156,7 +156,7 @@ def test_delete_requires_owner(client, db, auth):
 # `slots.py` now resolves its defaults from `get_config()["timing"]`. Because
 # `config_schema.normalize` mirrors the five legacy keys in BOTH directions, a
 # v1 file declaring only `rules` and a v2 file declaring only `timing` must
-# produce identical slots — that back-compat guarantee is what these pin.
+# produce identical slots, that back-compat guarantee is what these pin.
 
 
 def test_slot_defaults_can_be_declared_on_the_v2_timing_path(client, db, auth, domain_config):

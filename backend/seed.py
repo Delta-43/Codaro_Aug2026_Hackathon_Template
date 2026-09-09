@@ -1,11 +1,11 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """Domain-aware seeding for the three demo verticals (fleet / oneToOne / group).
 
 Ports `frontend/src/api/seed/*` to the backend: it turns the declarative
-`seed_data.VERTICALS` config into real DB rows — providers, services, resources,
+`seed_data.VERTICALS` config into real DB rows, providers, services, resources,
 DST-aware slot grids, edge-case occupancy (a blocked day, a fully-booked day, a
 one-seat-left slot), plus a demo user's seed bookings + a review + a follow.
 
@@ -15,11 +15,11 @@ Auth users provisioned via the Supabase admin API:
     partial slots are real (occupancy is derived from confirmed bookings).
   * the **owner** (`owner@codaro.app`) owns the demo provider, so the business
     dashboard is populated; the primary service is manual-approve.
-  * a **prospect** (`prospect@codaro.app`) — a fresh client whose pending
+  * a **prospect** (`prospect@codaro.app`), a fresh client whose pending
     request appears in the owner's Requests tab.
 
 `seed_if_empty()` seeds the default vertical when no providers exist. It is no
-longer called on startup — the app serves only real Supabase data; run it (or
+longer called on startup, the app serves only real Supabase data; run it (or
 `make reseed`) manually to populate demo data. `seed_vertical(id)` is the
 destructive reseed used by `reseed.py` and the demo vertical-switch endpoint.
 """
@@ -70,7 +70,7 @@ def _person_avatar(name: str) -> str:
 
     Every seeded account goes through this. `serialize_user` reads
     `user_metadata.avatar_url` and nothing else, so an account created without
-    that key has no face anywhere in the app — message threads, the conversation
+    that key has no face anywhere in the app, message threads, the conversation
     list, the account page, review authors, the owner's request cards. The key
     was simply never written: the provider path below has always set
     `avatar_url`, so every *business* in the demo was a photograph while every
@@ -103,13 +103,13 @@ def _throwaway_password() -> str:
 
 logger = logging.getLogger(__name__)
 
-# Demo credentials — surfaced to the operator so they can log in and see the
+# Demo credentials, surfaced to the operator so they can log in and see the
 # seeded bookings. (Anyone can also register their own empty account.)
 DEMO_EMAIL = "demo@codaro.app"
 DEMO_PASSWORD = "Codaro-Demo-2026"
 OWNER_EMAIL = "owner@codaro.app"
 OWNER_PASSWORD = "Codaro-Owner-2026"
-# A fresh prospective client — appears in the owner's Requests tab as a new
+# A fresh prospective client, appears in the owner's Requests tab as a new
 # member (little history), the counterpart to the established demo user.
 PROSPECT_EMAIL = "prospect@codaro.app"
 PROSPECT_PASSWORD = "Codaro-Prospect-2026"
@@ -254,12 +254,12 @@ def _chunked_insert(db, table: str, rows: list[dict], chunk: int = 500) -> list[
 # seeders overlapping therefore corrupt each other: the documented workflow
 # (`make reload` restarting the backend while `make reseed` runs) has startup's
 # `seed_if_empty` read an empty `providers` mid-wipe and start its own seed, and
-# whichever one truncates second deletes rows the other is still referencing —
+# whichever one truncates second deletes rows the other is still referencing,
 # surfacing as `services_provider_id_fkey` / `reviews_provider_id_fkey`
 # violations against a provider that was inserted seconds earlier.
 #
 # An advisory lock is session-scoped, so the connection is held open for the
-# whole seed and released when it closes — including on a crash, which a table
+# whole seed and released when it closes, including on a crash, which a table
 # flag would not survive.
 _SEED_LOCK_KEY = 0x0C0DA205  # arbitrary but stable; "codaro seed"
 
@@ -267,7 +267,7 @@ _SEED_LOCK_KEY = 0x0C0DA205  # arbitrary but stable; "codaro seed"
 @contextmanager
 def seed_lock(*, wait: bool = True):
     """Serialise seeding. Yields True when the lock is held, False when another
-    seeder has it and `wait=False` — the caller should then do nothing.
+    seeder has it and `wait=False`, the caller should then do nothing.
 
     Without `SUPABASE_DB_URL` there is no way to take the lock, so it yields
     True and says so once: a deployment with no direct connection cannot wipe
@@ -275,7 +275,7 @@ def seed_lock(*, wait: bool = True):
     """
     url = get_db_url()
     if not url:
-        logger.warning("No SUPABASE_DB_URL — seeding is not serialised.")
+        logger.warning("No SUPABASE_DB_URL, seeding is not serialised.")
         yield True
         return
     conn = psycopg.connect(url)
@@ -328,7 +328,7 @@ _USER_IDS: dict[str, str] = {}
 def _known_users(db) -> dict[str, str]:
     """Every existing account, by email. Populated once and then reused.
 
-    A seed now provisions the whole cast — two dozen accounts — and
+    A seed now provisions the whole cast, two dozen accounts, and
     `_ensure_user` used to discover an existing one by letting `create_user`
     fail and then listing *every* user to find it. That is an O(n) admin listing
     per person on the second seed onwards. One listing up front is the same
@@ -365,7 +365,7 @@ def _known_users(db) -> dict[str, str]:
 def _ensure_user(db, email: str, password: str, metadata: dict) -> str:
     """Create (or find) a Supabase auth user; return its id. On an existing user
     the profile metadata is reset to the seed values, so a reseed restores every
-    seeded account — including its `avatar_url` — to a pristine state."""
+    seeded account, including its `avatar_url`, to a pristine state."""
     uid = _known_users(db).get(email)
     if uid:
         try:
@@ -381,7 +381,7 @@ def _ensure_user(db, email: str, password: str, metadata: dict) -> str:
         return resp.user.id
     except Exception:
         # Exists but wasn't in the listing (a racing seeder, or a listing that
-        # failed) — locate by email and reset its metadata.
+        # failed), locate by email and reset its metadata.
         try:
             for u in db.auth.admin.list_users():
                 if getattr(u, "email", None) == email:
@@ -400,8 +400,8 @@ def _seed_people_users(db, tz: str) -> dict[str, dict]:
     """Provision the whole cast as real Supabase accounts, keyed by email.
 
     The three contractual logins keep their published passwords; everyone else
-    gets a throwaway one, because they exist to populate the demo — a face on a
-    thread, a name on a review, a family in the request queue — rather than to
+    gets a throwaway one, because they exist to populate the demo, a face on a
+    thread, a name on a review, a family in the request queue, rather than to
     be logged into. All of them carry `avatar_url`, so the app has a photograph
     for the person wherever it renders them.
 
@@ -442,7 +442,7 @@ def _seed_people_users(db, tz: str) -> dict[str, dict]:
 
 
 def _client_pool(people: dict[str, dict]) -> list[dict]:
-    """The bereaved families — everyone seeded except the home's own people.
+    """The bereaved families, everyone seeded except the home's own people.
     Bookings, reviews and threads all draw from this list."""
     return [p for p in people.values() if p.get("role") == "client"]
 
@@ -453,7 +453,7 @@ def _client_pool(people: dict[str, dict]) -> list[dict]:
 def seed_vertical(vertical_id: str, spec: dict | None = None) -> dict:
     """Wipe and reseed the DB from a vertical spec. Returns a small summary.
 
-    `spec` overrides the `seed_data.VERTICALS` entry — that is how
+    `spec` overrides the `seed_data.VERTICALS` entry, that is how
     `seed_from_config()` feeds in a spec derived from `domain.config.json`
     instead. The assembler below reads only the spec, so both sources go through
     exactly the same code path."""
@@ -508,7 +508,7 @@ def _seed_vertical_locked(vertical_id: str, spec: dict | None = None) -> dict:
     demo_provider_id = None
     primary_service = None  # (service_id, resource rows, dur, cutoff, price)
     # Every service the demo home offers, in catalogue order. The demand seeder
-    # books across ALL of them — a catalogue of eleven arrangements where only
+    # books across ALL of them, a catalogue of eleven arrangements where only
     # the first one has ever been sold does not read as a working business.
     demo_services: list[dict] = []
     provider_ids: list[str] = []
@@ -594,12 +594,12 @@ def _seed_vertical_locked(vertical_id: str, spec: dict | None = None) -> dict:
             "metadata": {
                 # Provenance, so a checker (and `active_vertical()`) reads what
                 # this data was built from instead of inferring it from the
-                # shape of the rows — a guess that can only ever name a vertical
+                # shape of the rows, a guess that can only ever name a vertical
                 # whose `booking_model` happens to be unique.
                 "seeded": {
                     "source": vertical_id,
                     # The vertical by NAME, so `active_vertical()` can read it
-                    # back instead of guessing from `booking_model` — a mapping
+                    # back instead of guessing from `booking_model`, a mapping
                     # that can only ever name the three canned verticals and
                     # therefore cannot express a fourth.
                     "verticalId": vertical_id,
@@ -736,12 +736,12 @@ def _slot_for_booking(db, service_id, resource_id, capacity, start: datetime, du
     Below a day the grid is dense and a dedicated slot sits harmlessly between
     two grid ones, so each booking keeps getting its own. From a day upward the
     grid holds exactly ONE slot per unit, and a dedicated slot at an arbitrary
-    time necessarily overlaps the grid slot around it — the resource then reads
+    time necessarily overlaps the grid slot around it, the resource then reads
     as double-booked and its occupancy is wrong. So reuse the nearest grid slot
     instead, skipping any already taken by an earlier booking.
 
-    Falls back to a dedicated insert when nothing is in range — the lifecycle
-    bookings reach past both ends of the seeded window — but aligns it to the
+    Falls back to a dedicated insert when nothing is in range, the lifecycle
+    bookings reach past both ends of the seeded window, but aligns it to the
     same lattice first. An unaligned fallback landing just beyond the grid's
     forward edge still overlaps the last grid slot, which is most of what this
     function exists to prevent.
@@ -837,7 +837,7 @@ def _seed_requests(db, primary, provider_id, model, currency, requesters, tz: st
 
     made = 0
     # A pending request holds no capacity, so sharing a slot with a confirmed
-    # booking is harmless — but a dedicated slot at an arbitrary hour is not:
+    # booking is harmless, but a dedicated slot at an arbitrary hour is not:
     # for a day-or-longer unit it straddles the grid slot beside it, and the
     # resource's own calendar then shows two units covering the same days.
     used: set[str] = set()
@@ -886,7 +886,7 @@ def _seed_requests(db, primary, provider_id, model, currency, requesters, tz: st
 
 
 # How many arrangements land in each state. `completed` is by far the largest
-# because it is the past — a home open eight weeks has buried far more people
+# because it is the past, a home open eight weeks has buried far more people
 # than it currently has on the books. `pending` is second: this deployment
 # confirms by request (`timing.confirmation`), so an unanswered request is the
 # normal resting state of a new arrangement, not an exception.
@@ -908,17 +908,17 @@ _DEMAND_WINDOW = {
 }
 
 # `pricing.tiers[0]` charges 405 000 rather than the 285 000 base when the
-# manner of death is the awkward one — a supplement of 1 200 EUR for handling
+# manner of death is the awkward one, a supplement of 1 200 EUR for handling
 # nobody asks questions about. The base differs per service (a direct committal
 # is not a full booking), so the seed applies the DIFFERENCE rather than the
 # tier's absolute figure: what the tier actually expresses is the cost of
 # discretion, and that cost does not depend on which arrangement it rides on.
 _DISCREET_SURCHARGE = 120000
-_DISCREET_MANNER = "Mysterious circumstances — no questions asked"
+_DISCREET_MANNER = "Mysterious circumstances, no questions asked"
 
 
 def _live_booking_block() -> dict:
-    """`booking` from the loaded config — the add-on catalogue and the subject
+    """`booking` from the loaded config, the add-on catalogue and the subject
     field list. Read at seed time rather than hard-coded, so a pivot that
     renames a field or re-prices an add-on reseeds correctly."""
     try:
@@ -931,7 +931,7 @@ def _live_booking_block() -> dict:
 
 def _pick_options(block: dict, rng) -> tuple[list[dict], int]:
     """A plausible basket of add-ons, in the shape `rules.resolve_options`
-    produces — `{key, label, choice, amountMinorUnits}` — because that is what
+    produces, `{key, label, choice, amountMinorUnits}`, because that is what
     `serialize_booking` echoes back and what the pricing breakdown adds up.
 
     Booleans are sparse (most families take none or one); the three selects
@@ -950,7 +950,7 @@ def _pick_options(block: dict, rng) -> tuple[list[dict], int]:
             choice = rng.choice(choices)
             lines.append({
                 "key": key,
-                "label": f"{label} — {choice.get('label') or choice['key']}",
+                "label": f"{label}, {choice.get('label') or choice['key']}",
                 "choice": choice["key"],
                 "amountMinorUnits": int(choice.get("priceMinorUnits") or 0),
             })
@@ -1026,13 +1026,13 @@ class _SlotPool:
 
     This vertical books a whole day exclusively: `booking.party.max` is 1, every
     venue has capacity 1, and `enforce_slot_capacity` rejects a second confirmed
-    booking on the same slot. So the pool hands each slot out exactly ONCE —
+    booking on the same slot. So the pool hands each slot out exactly ONCE,
     including to pending/cancelled/rejected bookings, which hold no capacity but
     would still make a resource's calendar read as double-booked.
 
     The seeded grid runs a week back and two months forward; the demand reaches
     eight weeks in both directions. A date outside the grid gets a dedicated
-    slot inserted at local midnight — the same lattice `_align_to_unit_grid`
+    slot inserted at local midnight, the same lattice `_align_to_unit_grid`
     snaps to, so a made-up date abuts the grid instead of straddling it.
     """
 
@@ -1052,7 +1052,7 @@ class _SlotPool:
 
     def take(self, service_id: str, resource_id: str, date) -> str | None:
         """Claim `date` on `resource_id`, or None when it is already spoken for
-        (or blocked — the edge-case seeder sets a whole day to capacity 0)."""
+        (or blocked, the edge-case seeder sets a whole day to capacity 0)."""
         key = date.isoformat()
         dates = self.by_resource.setdefault(resource_id, {})
         slot = dates.get(key)
@@ -1095,7 +1095,7 @@ def _seed_demand(db, services: list[dict], provider_id: str, clients: list[dict]
                  currency: str, tz: str, pool: "_SlotPool | None" = None) -> dict:
     """The home's actual trade: ~80 arrangements across the whole catalogue.
 
-    Every row carries what this vertical's config declares — a `subject` (the
+    Every row carries what this vertical's config declares, a `subject` (the
     subject fields the config declares), the `metaFields.bookings` values (the
     payer, who is always somebody OTHER than the subject, plus the reference and the
     mourner estimate), and a basket of `booking.options` add-ons. That is the
@@ -1120,7 +1120,7 @@ def _seed_demand(db, services: list[dict], provider_id: str, clients: list[dict]
     rng.shuffle(plan)
 
     rows: list[dict] = []
-    links: list[tuple[str, str]] = []   # (reference, slot_id) — booking ids come back from the insert
+    links: list[tuple[str, str]] = []   # (reference, slot_id), booking ids come back from the insert
     completed: list[dict] = []
     for i, status in enumerate(plan):
         service = services[i % len(services)]
@@ -1282,7 +1282,7 @@ def _seed_provider_reviews(db, provider_id: str, completed: list[dict]) -> int:
 
 _CLIENT_REVIEW_LINES = [
     (5, "Punctual, friendly and left everything spotless. A pleasure to host."),
-    (5, "Clear communicator and easy to work with — welcome back any time."),
+    (5, "Clear communicator and easy to work with, welcome back any time."),
     (4, "Respectful of our space and prompt with everything. Highly rated."),
 ]
 
@@ -1317,14 +1317,14 @@ def _seed_client_reviews(db, provider_id: str, completed: list[dict]) -> int:
     try:
         return len(_chunked_insert(db, "client_reviews", rows))
     except Exception:
-        # Table may not exist on an older DB — reputation just stays empty.
+        # Table may not exist on an older DB, reputation just stays empty.
         logger.warning("Could not seed client reviews.")
         return 0
 
 
 _FALLBACK_THREADS = [
     (None, 20, [
-        (True, "Good afternoon — I would like to ask about availability next week."),
+        (True, "Good afternoon, I would like to ask about availability next week."),
         (False, "Of course. I will come back to you this afternoon with a date."),
     ]),
 ]
@@ -1334,7 +1334,7 @@ def _seed_messages(db, provider_id, people: dict[str, dict], owner_uid) -> tuple
     """The home's inbox: one thread per family, a hundred-odd messages.
 
     `conversations` is unique on `(provider_id, client_id)`, so a family has
-    exactly ONE thread with the home however many times they come back — the
+    exactly ONE thread with the home however many times they come back, the
     prose in `seed_people.THREADS` is therefore keyed by email and any later
     segment for the same family is appended to their existing thread rather than
     starting a second one that the database would refuse.
@@ -1376,7 +1376,7 @@ def _seed_messages(db, provider_id, people: dict[str, dict], owner_uid) -> tuple
             }).execute().data[0]
         except Exception:
             if conversations == 0:
-                return 0, 0   # messaging tables absent (older DB) — skip cleanly
+                return 0, 0   # messaging tables absent (older DB), skip cleanly
             logger.warning("Could not open a thread for %s", email)
             continue
         conversations += 1
@@ -1431,8 +1431,8 @@ def _seed_messages(db, provider_id, people: dict[str, dict], owner_uid) -> tuple
 
 
 def _inject_edge_cases(db, primary, tz, holds_uid, provider_id, currency) -> tuple[int, set[str]]:
-    """A blocked day (capacity 0), a fully-booked day, and — for shared capacity
-    — a one-seat-left slot. Occupancy is made real via holds bookings."""
+    """A blocked day (capacity 0), a fully-booked day, and, for shared capacity
+   , a one-seat-left slot. Occupancy is made real via holds bookings."""
     service_id = primary["id"]
     price = primary["spec"]["priceMinorUnits"]
     now = datetime.now(timezone.utc)
@@ -1559,7 +1559,7 @@ def _seed_bookings(db, primary, provider_id, demo_uid, demo_email, model, curren
     # were written for a 30-minute grid, where any two of them are trivially
     # disjoint; once `booking.granularity` can make a unit a week or a month,
     # "5 days apart" is the SAME week. So space them by whole units whenever the
-    # unit is at least a day. `created`/`cancelled` stay in real days — they are
+    # unit is at least a day. `created`/`cancelled` stay in real days, they are
     # history timestamps and never define a slot.
     step = timedelta(minutes=dur) if dur >= 1440 else day
     # 1) upcoming, outside cutoff (changeable)
@@ -1572,9 +1572,9 @@ def _seed_bookings(db, primary, provider_id, demo_uid, demo_email, model, curren
     # 4) completed, with review
     past4 = now - 16 * step
     commit(past4, 1, "confirmed", now - 21 * day,
-           review={"rating": 5, "text": "Exactly as described. Smooth from start to finish — would book again.",
+           review={"rating": 5, "text": "Exactly as described. Smooth from start to finish, would book again.",
                    "at": past4 + timedelta(minutes=dur) + 2 * hour})
-    # 5) cancelled (capacity released — no hold)
+    # 5) cancelled (capacity released, no hold)
     commit(now + timedelta(seconds=cutoff_s) + 12 * step, 1, "cancelled", now - 10 * day,
            cancelled=now - 9 * day)
     # 6) multi-slot completed (only where the model allows > 1 slot)
@@ -1602,7 +1602,7 @@ def active_vertical() -> str:
 
     Falls back to the old shape-based guess via `BOOKING_MODEL_TO_VERTICAL` for
     data seeded before the stamp existed, then to `DEFAULT_VERTICAL`. Never
-    raises — callers treat it as best-effort provenance, not a source of truth.
+    raises, callers treat it as best-effort provenance, not a source of truth.
     """
     try:
         rows = (
@@ -1642,7 +1642,7 @@ def seed_from_config() -> dict:
 def _seed_from_config_locked() -> dict:
     """`seed_from_config` for a caller that ALREADY holds the seed lock.
 
-    The lock is per-connection, and `seed_lock()` opens its own — so taking it
+    The lock is per-connection, and `seed_lock()` opens its own, so taking it
     again from inside would wait on a lock held by a session that is waiting for
     this call to return. That is a deadlock, not re-entrancy.
     """
@@ -1677,7 +1677,7 @@ def seed_if_empty() -> None:
     if existing:
         return
     # Try, never wait. A seeder already holding the lock is mid-wipe, so
-    # `providers` reading empty above says nothing about the end state — and
+    # `providers` reading empty above says nothing about the end state, and
     # blocking here would stall boot behind a full reseed. Skipping is correct:
     # when that seeder finishes the data is there.
     with seed_lock(wait=False) as held:
@@ -1693,7 +1693,7 @@ def _seed_if_empty_locked() -> None:
     # documented pivot workflow (`make reload` restarting the backend while
     # `make reseed` has the tables truncated) can read "empty", then insert into
     # a table the reseed has already refilled. That surfaced as a startup crash
-    # loop on a duplicate `providers.public_code` — the API never came up, and
+    # loop on a duplicate `providers.public_code`, the API never came up, and
     # every screen degraded to "we couldn't load your profile" / "no business
     # yet" with nothing pointing at the seed. A DB that already has data is the
     # success case for this function, so log and carry on.

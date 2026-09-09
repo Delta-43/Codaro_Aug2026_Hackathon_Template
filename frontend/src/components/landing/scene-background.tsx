@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -6,15 +6,15 @@
  * Full-page, theme-aware backdrop behind the whole landing page.
  *
  * Deliberately plain and colourless (as installed in issue 81): a solid
- * black/white base — white in light mode, black in dark — with only the sparse
+ * black/white base, white in light mode, black in dark, with only the sparse
  * *monochrome* particle field (see `Particles`) gathering along the bottom edge.
  * No gradient, no colour blooms: the liquid-glass plates read their cleanest,
  * footer-perfect frost when the backdrop they refract is neutral. (Colour blooms
- * tint and muddy the same glass — that regression is what this restores.) Fixed,
+ * tint and muddy the same glass, that regression is what this restores.) Fixed,
  * so the glass chapters float over it.
  *
  * It also hosts the `#liquid-glass-distortion` SVG filter + the `.liquid-glass`
- * class the plates use — the `.liquid-glass` blur/saturate is what frosts the
+ * class the plates use, the `.liquid-glass` blur/saturate is what frosts the
  * backdrop behind each plate.
  */
 import { Particles } from "@/components/landing/particles";
@@ -22,10 +22,10 @@ import { Particles } from "@/components/landing/particles";
 export function SceneBackground() {
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
-      {/* Plain black/white base — white in light mode, black in dark */}
+      {/* Plain black/white base, white in light mode, black in dark */}
       <div className="absolute inset-0 bg-white dark:bg-black" />
 
-      {/* Bottom-weighted monochrome particle field (hover to repulse) — the only
+      {/* Bottom-weighted monochrome particle field (hover to repulse), the only
           texture the glass frosts, kept neutral so the frost stays clean. */}
       <Particles />
 

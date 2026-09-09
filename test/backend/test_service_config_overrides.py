@@ -1,29 +1,29 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Per-service config overrides — `services.metadata.<block>`.
+"""Per-service config overrides, `services.metadata.<block>`.
 
 The hole this file covers: `validate()` only ever ran on the global
 `domain.config.json` at load. Per-service override blocks (consumed by
 `rules.effective_service_config`, and through it by the pricing and scheduling
-paths) reached the engine **completely unvalidated** — a service could carry a
-`pricing` block that quoted real money with no schema check — and the feature was
+paths) reached the engine **completely unvalidated**, a service could carry a
+`pricing` block that quoted real money with no schema check, and the feature was
 unreachable anyway, because the API only ever wrote `image_url`/`auto_approve`
 into service metadata.
 
 Three layers, in order:
 
-* `config_schema.validate_overrides(overrides, base=None)` — validate a PARTIAL
+* `config_schema.validate_overrides(overrides, base=None)`: validate a PARTIAL
   config: merge the declared blocks onto the deployment's resolved config
   (`base`, defaulting to DEFAULTS when none is loaded), validate, and keep
-  exactly the errors the override INTRODUCES — i.e. those not already produced by
+  exactly the errors the override INTRODUCES, i.e. those not already produced by
   the base on its own. Attribution used to be a filter on the error's leading
   path segment, which silently dropped cross-block violations.
 * `rules.service_overrides` / `service_override_problems` /
-  `effective_service_config` — the READ path: an invalid block is dropped (per
+  `effective_service_config`, the READ path: an invalid block is dropped (per
   block, not per service) and falls back to the global one, with a warning.
-* `POST`/`PATCH /services` + `POST /bookings` — the WRITE path and the
+* `POST`/`PATCH /services` + `POST /bookings`, the WRITE path and the
   marketplace claim it buys: a business's own `pricing` block prices a real
   booking, and a bad block is a 422 that writes nothing.
 """
@@ -50,7 +50,7 @@ from helpers import DEFAULT_OWNER_ID, make_provider, make_resource, make_service
 
 OTHER_OWNER_ID = "99999999-9999-9999-9999-999999999999"
 
-# Key set of the wire `Service` shape — overrides live in metadata and must not
+# Key set of the wire `Service` shape, overrides live in metadata and must not
 # leak a new key onto it (the frontend contract is frozen).
 SERVICE_KEYS = {
     "id", "providerId", "name", "description", "imageUrl", "bookingModel",
@@ -59,7 +59,7 @@ SERVICE_KEYS = {
     "capabilities", "pricingModel", "rateUnit", "chargePerPerson", "paymentFlow",
     "billingCycle", "prerequisites", "recurrence", "waitlist", "resourceIds",
     # The v2 offer-shape blocks. Every one was declared in the config, resolved
-    # per service, and served to nobody — so the client could not render (let
+    # per service, and served to nobody, so the client could not render (let
     # alone collect) a party band, an add-on, a subject, a course or a payment
     # schedule.
     "unitKind",
@@ -79,7 +79,7 @@ SERVICE_KEYS = {
 
 
 # ======================================================================
-# 1. config_schema.validate_overrides — validating a PARTIAL config
+# 1. config_schema.validate_overrides, validating a PARTIAL config
 # ======================================================================
 
 
@@ -261,7 +261,7 @@ def test_problems_from_several_declared_blocks_are_all_reported():
 
 def test_a_partial_block_merges_over_the_defaults_rather_than_replacing_them():
     """Declaring `rate.per` alone must not fail for the `amountMinorUnits` it
-    didn't restate — otherwise every override would have to be a whole block."""
+    didn't restate, otherwise every override would have to be a whole block."""
     assert validate_overrides({"pricing": {"rate": {"per": "night"}}}) == []
     assert validate_overrides({"pricing": {"rate": {"per": "night"}}}) == validate_overrides(
         {"pricing": {"rate": {"per": "night", "amountMinorUnits": 0}}}
@@ -273,7 +273,7 @@ def test_errors_already_present_in_the_base_are_not_attributed_to_the_caller(mon
     error's leading path segment.
 
     What survived the change: a service overriding `pricing` must never be blamed
-    for the deployment's own broken `tenancy` — a pre-existing defect in the base
+    for the deployment's own broken `tenancy`, a pre-existing defect in the base
     is not the override's fault, so it is reported to NOBODY (not even to a caller
     that happens to declare the same block). What the old leading-segment filter
     got wrong is the other half, covered by the next test: an error the override
@@ -305,8 +305,8 @@ def test_an_override_that_introduces_an_error_is_reported_even_when_it_names_ano
     """The bug the diff-based attribution fixed. On a deployment with
     `capabilities.payments: false` (so `payments.flow` must be `"none"`), a
     service overriding ONLY `payments.flow` produces an error phrased from the
-    `capabilities` side. The old filter — keep errors whose leading path segment
-    is a declared block — dropped it as 'undeclared', so the write gate accepted
+    `capabilities` side. The old filter, keep errors whose leading path segment
+    is a declared block, dropped it as 'undeclared', so the write gate accepted
     exactly the contradiction `validate()` exists to prevent.
     """
     base = normalize({"capabilities": {"payments": False}, "payments": {"flow": "none"}})
@@ -315,7 +315,7 @@ def test_an_override_that_introduces_an_error_is_reported_even_when_it_names_ano
     assert len(problems) == 1
     assert problems[0].startswith("capabilities.payments is false")
     assert "payments.flow" in problems[0]
-    # the caller declared `payments` only — the error names `capabilities`.
+    # the caller declared `payments` only, the error names `capabilities`.
     assert problems[0].split(".", 1)[0] == "capabilities"
     # an override that keeps the deployment consistent is still clean.
     assert validate_overrides({"payments": {"payer": "customer"}}, base) == []
@@ -368,7 +368,7 @@ def test_a_cross_block_error_is_reported_from_whichever_side_introduces_it():
     """`capabilities.payments: false` with a non-`none` `payments.flow` is one
     error phrased from the capabilities side; declaring `capabilities` alone
     introduces it (the flow it conflicts with comes from the base). The mirror
-    image — declaring only `payments` on a payments-disabled deployment — is the
+    image, declaring only `payments` on a payments-disabled deployment, is the
     case the old leading-segment filter dropped, covered above."""
     problems = validate_overrides({"capabilities": {"payments": False}})
     assert len(problems) == 1
@@ -403,7 +403,7 @@ def test_a_malformed_season_window_is_reported_with_its_dotted_path():
     without a dotted path ("timing seasons/blackouts entry 0 needs startDate and
     endDate"), covering both lists in a single concatenated sentence, so the
     block-attribution filter in `validate_overrides` could not recognise it as a
-    `timing` error and dropped it — a malformed window sailed through the
+    `timing` error and dropped it, a malformed window sailed through the
     per-service write gate while the global load path rejected it. `validate()`
     now walks `seasons` and `blackouts` separately and emits
     `timing.<list>[i] needs startDate and endDate`, so BOTH paths catch it.
@@ -430,7 +430,7 @@ def test_a_malformed_season_window_is_reported_with_its_dotted_path():
 )
 def test_both_window_lists_reject_a_malformed_entry(key, window):
     """`seasons` and `blackouts` are validated as separate lists, each naming
-    itself — not as one merged sentence."""
+    itself, not as one merged sentence."""
     assert validate_overrides({"timing": {key: [window]}}) == [
         f"timing.{key}[0] needs startDate and endDate"
     ]
@@ -484,7 +484,7 @@ def test_a_malformed_window_in_the_defaults_is_blamed_on_nobody(monkeypatch):
     """The path was added so the error is *attributable*; the diff decides WHO it
     is attributable to. A window that is already broken in the base is a
     pre-existing defect of the deployment, not something any override introduced,
-    so no caller is blamed for it — including one that declares `timing`."""
+    so no caller is blamed for it, including one that declares `timing`."""
     monkeypatch.setitem(DEFAULTS["timing"], "blackouts", [{"startDate": "2026-01-01"}])
     assert "timing.blackouts[0] needs startDate and endDate" in validate(normalize({}))
     assert validate_overrides({"pricing": {"currency": "PLN"}}) == []
@@ -542,7 +542,7 @@ def test_service_overrides_returns_only_the_declared_config_blocks():
     [
         {},
         {"image_url": "x", "auto_approve": True},
-        {"tenancy": {"commission": {"rateBps": 9999}}},  # not overridable — inert in metadata
+        {"tenancy": {"commission": {"rateBps": 9999}}},  # not overridable, inert in metadata
         {"terms": {"slot": "Bay"}},                       # presentation stays global
         {"pricing": "cheap"},                             # non-dict value is ignored
         {"pricing": None},
@@ -591,7 +591,7 @@ def test_a_non_overridable_block_in_metadata_is_never_validated_nor_applied(doma
 
 
 # ======================================================================
-# 2b. rules.surviving_overrides — the single source of truth for
+# 2b. rules.surviving_overrides, the single source of truth for
 #     "which of a service's overrides actually apply"
 # ======================================================================
 
@@ -628,7 +628,7 @@ def test_surviving_overrides_removes_only_the_offending_block(domain_config):
 
 
 def test_surviving_overrides_drops_a_block_by_its_indexed_error_too(domain_config):
-    """`pricing.fees[0].kind` must still be recognised as a `pricing` problem —
+    """`pricing.fees[0].kind` must still be recognised as a `pricing` problem,
     the `[i]` suffix is stripped before the block name is taken."""
     domain_config()
     service = {
@@ -688,7 +688,7 @@ def test_surviving_overrides_logs_the_drop_once_naming_the_service(domain_config
 
 
 # ======================================================================
-# 3. rules.effective_service_config — invalid blocks are DROPPED
+# 3. rules.effective_service_config, invalid blocks are DROPPED
 # ======================================================================
 
 
@@ -809,7 +809,7 @@ def test_a_service_declaring_blocks_is_validated_against_the_deployment_config(
 ):
     """The cost invariant worth pinning is the zero-call one above (a service
     declaring nothing must not pay for a validation pass at all); the exact call
-    count for a DECLARING service is an implementation detail — `validate()` now
+    count for a DECLARING service is an implementation detail, `validate()` now
     runs twice per `validate_overrides` call (baseline + merged) precisely so the
     errors can be diffed. What this pins instead is the argument: the resolver
     hands the validator the service's declared blocks AND the deployment's own
@@ -833,7 +833,7 @@ def test_effective_service_pricing_falls_back_to_the_global_block_but_keeps_the_
     *rejected* metadata block: because the bad block declared a
     `rate.amountMinorUnits`, the service's own `price_minor_units` column was NOT
     folded in and the service silently priced at the global amount (0 by default)
-    — a free booking caused by a typo in an unrelated key. Both resolvers read
+   , a free booking caused by a typo in an unrelated key. Both resolvers read
     `rules.surviving_overrides` now, so the rejected block is invisible here and
     the column wins.
     """
@@ -858,7 +858,7 @@ def test_effective_service_pricing_falls_back_to_the_global_block_but_keeps_the_
 
 def test_a_rejected_pricing_block_cannot_zero_a_service_with_no_column_either(domain_config):
     """With no `price_minor_units` column there is nothing to fold in, so the
-    global amount is the right answer — the fix must not invent a price."""
+    global amount is the right answer, the fix must not invent a price."""
     domain_config(pricing={"currency": "EUR", "rate": {"per": "slot", "amountMinorUnits": 700}})
     service = {"id": "s", "metadata": {"pricing": {"rate": {"per": "fortnight"}}}}
     assert effective_service_pricing(service)["rate"] == {"per": "slot", "amountMinorUnits": 700}
@@ -890,7 +890,7 @@ def test_effective_auto_approve_survives_an_invalid_timing_block(domain_config):
 
 
 # ======================================================================
-# 4. POST /services — the write path
+# 4. POST /services, the write path
 # ======================================================================
 
 VALID_CONFIG = {
@@ -909,7 +909,7 @@ def test_create_service_persists_validated_config_blocks_into_metadata(client, d
     resp = _post_service(client, p["id"], config=VALID_CONFIG, imageUrl="http://img/x.png")
     assert resp.status_code == 200
     body = resp.json()
-    # the wire shape is unchanged — overrides are backend state, not a new field.
+    # the wire shape is unchanged, overrides are backend state, not a new field.
     assert set(body) == SERVICE_KEYS
     stored = db.get_row("services", body["id"])
     assert stored["metadata"]["pricing"] == VALID_CONFIG["pricing"]
@@ -918,7 +918,7 @@ def test_create_service_persists_validated_config_blocks_into_metadata(client, d
     assert stored["metadata"]["image_url"] == "http://img/x.png"
     # `autoApprove` was not sent, so no key is written at all (it used to be
     # stamped `true` unconditionally, which shadowed a `timing.confirmation`
-    # override — see the confirmation-override tests below).
+    # override, see the confirmation-override tests below).
     assert "auto_approve" not in stored["metadata"]
     assert body["autoApprove"] is True  # from the config default, not a stamp
     # and never as columns.
@@ -927,7 +927,7 @@ def test_create_service_persists_validated_config_blocks_into_metadata(client, d
 
 def test_create_service_without_config_writes_no_metadata_at_all(client, db, auth):
     """Every non-column field is optional now, so a bare create leaves metadata
-    empty — nothing is stamped on the caller's behalf."""
+    empty, nothing is stamped on the caller's behalf."""
     auth(role="owner")
     p = make_provider(db, "P", owner_id=DEFAULT_OWNER_ID)
     body = _post_service(client, p["id"]).json()
@@ -1101,7 +1101,7 @@ def _bookable(db, service_id, *, owner_id=DEFAULT_OWNER_ID, duration=60):
 def test_a_service_created_with_a_pricing_config_prices_a_real_booking(client, db, auth):
     """End to end, through the real endpoints: an owner creates two services with
     IDENTICAL price columns, one of which declares its own `pricing` block, and a
-    customer's booking is billed by the service's own config — not by the column
+    customer's booking is billed by the service's own config, not by the column
     and not by the platform default. This is the marketplace claim.
     """
     auth(role="owner")
@@ -1360,7 +1360,7 @@ def test_serialized_auto_approve_reflects_the_effective_confirmation_mode(db):
 
 
 def test_serialized_auto_approve_ignores_an_invalid_timing_override(db):
-    """A dropped block must not flip the wire field either — `serialize_service`
+    """A dropped block must not flip the wire field either, `serialize_service`
     goes through the same resolver, so it sees the fallback."""
     from app.serialize import serialize_service
 
@@ -1378,7 +1378,7 @@ def test_the_wire_and_the_booking_path_agree_on_a_by_request_service(client, db,
     `timing.confirmation` override must report `autoApprove: false` on
     `GET /services/{id}` AND actually produce a pending booking. Before the fix
     the wire said `true` (it read the stamped metadata key) and the booking
-    confirmed — the UI and the engine were wrong in the same direction, so
+    confirmed, the UI and the engine were wrong in the same direction, so
     neither half alone would have shown it.
     """
     auth(role="owner")
@@ -1420,7 +1420,7 @@ def test_the_wire_and_the_booking_path_agree_on_a_by_request_service(client, db,
 
 
 # ======================================================================
-# 6. PATCH /services/{id} — wholesale-per-block replacement
+# 6. PATCH /services/{id}, wholesale-per-block replacement
 # ======================================================================
 
 
@@ -1519,7 +1519,7 @@ def test_patch_with_an_invalid_block_is_a_422_and_writes_nothing(
     detail = resp.json()["detail"]
     assert detail["code"] == "VALIDATION_ERROR"
     assert any(fragment in p for p in detail["details"]["problems"])
-    # nothing at all is written — not even the valid `name` in the same request.
+    # nothing at all is written, not even the valid `name` in the same request.
     assert db.get_row("services", svc["id"]) == before
 
 
@@ -1564,8 +1564,8 @@ def test_patch_with_an_empty_config_changes_nothing(client, db, auth):
 
 def test_a_service_written_with_a_bad_block_before_the_gate_existed_still_serves(client, db, auth):
     """The read-path fallback is for rows the write gate never saw (seeds, direct
-    DB edits). Such a service must still be bookable — at the global price, with
-    a warning — rather than 500 on a customer's booking."""
+    DB edits). Such a service must still be bookable, at the global price, with
+    a warning, rather than 500 on a customer's booking."""
     p = make_provider(db, "P", owner_id=DEFAULT_OWNER_ID)
     svc = make_service(
         db, p["id"], "Legacy", slot_duration_minutes=60, price_minor_units=1000,

@@ -9,7 +9,7 @@
  * The complete `domain.config.json` tree, after normalization.
  *
  * Every block is also overridable per service through
- * `services.metadata.<block>` — see `rules.effective_service_config`. The
+ * `services.metadata.<block>`: see `rules.effective_service_config`. The
  * service row wins over these globals.
  */
 export interface DomainConfig {
@@ -36,7 +36,7 @@ export interface DomainConfig {
 export interface Tenancy {
   mode?: "single" | "multi";
   /**
-   * Required when mode is 'single' — how the app resolves its one business.
+   * Required when mode is 'single', how the app resolves its one business.
    */
   providerCode?: string | null;
   /**
@@ -63,7 +63,7 @@ export interface Commission {
 }
 /**
  * The on/off spine. A false capability means the UI hides the surface AND
- * the backend refuses the write — not one without the other.
+ * the backend refuses the write, not one without the other.
  */
 export interface Capabilities {
   payments?: boolean;
@@ -109,7 +109,7 @@ export interface Party {
    */
   max?: number | null;
   /**
-   * Age bands and similar — each with its own priceFactor.
+   * Age bands and similar: each with its own priceFactor.
    */
   composition?: CompositionBand[] | null;
   matchResourceCapacity?: boolean;
@@ -171,7 +171,7 @@ export interface Pricing {
   secondaryRate?: Rate | null;
   tiers?: Tier[];
   /**
-   * True reproduces the v1 formula (price x slots x party). False where the party shares one unit — a tennis court costs the same for 2 or 4.
+   * True reproduces the v1 formula (price x slots x party). False where the party shares one unit, a tennis court costs the same for 2 or 4.
    */
   chargePerPerson?: boolean;
   caps?: Caps;
@@ -256,7 +256,7 @@ export interface ScheduleStep {
   [k: string]: unknown;
 }
 /**
- * NOT YET ENFORCED — needs the payments layer (no payments table exists).
+ * NOT YET ENFORCED: needs the payments layer (no payments table exists).
  */
 export interface NoShowFee {
   enabled?: boolean;
@@ -329,7 +329,7 @@ export interface PrereqField {
 export interface Timing {
   confirmation?: "instant" | "request_approve";
   /**
-   * NOT YET ENFORCED — auto-expiring a stale request needs a scheduled job.
+   * NOT YET ENFORCED: auto-expiring a stale request needs a scheduled job.
    */
   approvalWindowHours?: number;
   leadTimeMinutes?: number;
@@ -397,7 +397,7 @@ export interface Matching {
 }
 /**
  * Every noun the UI renders. All 17 keys are required to be non-empty
- * strings — the frontend's `<Term>` has nothing to fall back to.
+ * strings, the frontend's `<Term>` has nothing to fall back to.
  */
 export interface Terms {
   provider?: string;
@@ -431,7 +431,7 @@ export interface Copy {
   prerequisiteBlocked?: string;
 }
 /**
- * Custom fields per entity. Adding one needs no migration — the values land
+ * Custom fields per entity. Adding one needs no migration, the values land
  * in that table's `metadata` jsonb column.
  */
 export interface MetaFields {
@@ -445,7 +445,7 @@ export interface MetaFields {
 export interface MetaField {
   key: string;
   /**
-   * 'string' is accepted as an alias for 'text' — it shipped in domain.config.medical.example.json and matched nothing in the v1 validator.
+   * 'string' is accepted as an alias for 'text', it shipped in domain.config.medical.example.json and matched nothing in the v1 validator.
    */
   type: ("text" | "number" | "boolean" | "date" | "select" | "file") | "string";
   label?: string | null;

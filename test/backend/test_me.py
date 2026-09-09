@@ -1,8 +1,8 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""/me — the current-user endpoints. GET assembles the User from the token's
+"""/me, the current-user endpoints. GET assembles the User from the token's
 `user_metadata` + the follows table; PATCH updates the editable profile fields.
 Both require a token and return the full User shape.
 """
@@ -96,7 +96,7 @@ def test_reputation_aggregates_reviews_newest_first(client, db, auth):
     assert all(r["author"] == "Acme Fleet" for r in body["reviews"])
     # `authorAvatarUrl` is the REVIEWING BUSINESS's logo (providers.metadata.
     # avatar_url), so this reads as a list of businesses rather than initials.
-    # The provider here carries no avatar, so it degrades to "" — never absent.
+    # The provider here carries no avatar, so it degrades to "", never absent.
     assert set(body["reviews"][0]) == {
         "author", "authorAvatarUrl", "rating", "text", "createdAtUtc"
     }
@@ -105,7 +105,7 @@ def test_reputation_aggregates_reviews_newest_first(client, db, auth):
 
 def test_reputation_author_avatar_is_the_reviewing_business_logo(client, db, auth):
     """`authorAvatarUrl` on `/me/reputation` is the PROVIDER's public logo
-    (`providers.metadata.avatar_url` — a public column, no admin lookup), so a
+    (`providers.metadata.avatar_url`, a public column, no admin lookup), so a
     customer sees who rated them rather than a column of initials."""
     auth(role="client")
     p = make_provider(db, "Acme Fleet", metadata={"avatar_url": "http://img/acme.png"})

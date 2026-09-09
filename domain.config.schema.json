@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/kaveOO/Arbor/main/domain.config.schema.json",
   "title": "DomainConfig",
-  "description": "The complete `domain.config.json` tree, after normalization.\n\nEvery block is also overridable per service through\n`services.metadata.<block>` — see `rules.effective_service_config`. The\nservice row wins over these globals.",
+  "description": "The complete `domain.config.json` tree, after normalization.\n\nEvery block is also overridable per service through\n`services.metadata.<block>`, see `rules.effective_service_config`. The\nservice row wins over these globals.",
   "$defs": {
     "Booking": {
       "additionalProperties": false,
@@ -131,7 +131,7 @@
     },
     "Capabilities": {
       "additionalProperties": false,
-      "description": "The on/off spine. A false capability means the UI hides the surface AND\nthe backend refuses the write — not one without the other.",
+      "description": "The on/off spine. A false capability means the UI hides the surface AND\nthe backend refuses the write, not one without the other.",
       "properties": {
         "payments": {
           "default": true,
@@ -980,7 +980,7 @@
               "type": "string"
             }
           ],
-          "description": "'string' is accepted as an alias for 'text' — it shipped in domain.config.medical.example.json and matched nothing in the v1 validator."
+          "description": "'string' is accepted as an alias for 'text', it shipped in domain.config.medical.example.json and matched nothing in the v1 validator."
         },
         "label": {
           "anyOf": [
@@ -1028,7 +1028,7 @@
     },
     "MetaFields": {
       "additionalProperties": false,
-      "description": "Custom fields per entity. Adding one needs no migration — the values land\nin that table's `metadata` jsonb column.",
+      "description": "Custom fields per entity. Adding one needs no migration, the values land\nin that table's `metadata` jsonb column.",
       "properties": {
         "providers": {
           "items": {
@@ -1241,7 +1241,7 @@
             }
           ],
           "default": null,
-          "description": "Age bands and similar — each with its own priceFactor."
+          "description": "Age bands and similar, each with its own priceFactor."
         },
         "matchResourceCapacity": {
           "default": false,
@@ -1291,7 +1291,7 @@
         },
         "noShowFee": {
           "$ref": "#/$defs/NoShowFee",
-          "description": "NOT YET ENFORCED — needs the payments layer (no payments table exists)."
+          "description": "NOT YET ENFORCED, needs the payments layer (no payments table exists)."
         },
         "usageMetered": {
           "default": false,
@@ -1614,7 +1614,7 @@
         },
         "chargePerPerson": {
           "default": true,
-          "description": "True reproduces the v1 formula (price x slots x party). False where the party shares one unit — a tennis court costs the same for 2 or 4.",
+          "description": "True reproduces the v1 formula (price x slots x party). False where the party shares one unit, a tennis court costs the same for 2 or 4.",
           "type": "boolean"
         },
         "caps": {
@@ -2004,7 +2004,7 @@
             }
           ],
           "default": null,
-          "description": "Required when mode is 'single' — how the app resolves its one business."
+          "description": "Required when mode is 'single', how the app resolves its one business."
         },
         "selfOnboarding": {
           "anyOf": [
@@ -2069,7 +2069,7 @@
     },
     "Terms": {
       "additionalProperties": false,
-      "description": "Every noun the UI renders. All 17 keys are required to be non-empty\nstrings — the frontend's `<Term>` has nothing to fall back to.",
+      "description": "Every noun the UI renders. All 17 keys are required to be non-empty\nstrings, the frontend's `<Term>` has nothing to fall back to.",
       "properties": {
         "provider": {
           "default": "Business",
@@ -2247,7 +2247,7 @@
             }
           ],
           "default": 48,
-          "description": "NOT YET ENFORCED — auto-expiring a stale request needs a scheduled job."
+          "description": "NOT YET ENFORCED, auto-expiring a stale request needs a scheduled job."
         },
         "leadTimeMinutes": {
           "anyOf": [

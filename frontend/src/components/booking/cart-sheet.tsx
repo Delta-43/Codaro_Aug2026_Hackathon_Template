@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -7,7 +7,7 @@
 /**
  * The basket, and its checkout (`capabilities.cart`).
  *
- * Checkout is a sequence of ordinary bookings, so the outcome can be partial —
+ * Checkout is a sequence of ordinary bookings, so the outcome can be partial,
  * this reports exactly which items landed and which did not, and leaves the
  * failures in the basket. A basket that silently books three of five is the
  * same failure a repeating series already refuses to make.
@@ -34,7 +34,7 @@ export function CartSheet({
   const [result, setResult] = useState<CheckoutResult | null>(null);
 
   const currency = items[0]?.currency ?? "EUR";
-  // Only meaningful where every item is priced in one currency — a mixed basket
+  // Only meaningful where every item is priced in one currency, a mixed basket
   // (a cross-border marketplace) gets no single total rather than a wrong one.
   const mixed = items.some((i) => i.currency !== currency);
   const total = items.reduce((sum, i) => sum + i.amountMinorUnits, 0);
@@ -81,7 +81,7 @@ export function CartSheet({
           <div className="flex items-baseline justify-between pt-1">
             <span className="text-sm font-semibold">Total</span>
             <span className="text-base font-semibold">
-              {mixed ? "—" : formatMoney(total, currency)}
+              {mixed ? "-" : formatMoney(total, currency)}
             </span>
           </div>
           {mixed ? (
@@ -98,7 +98,7 @@ export function CartSheet({
               <ul className="mt-1 space-y-1">
                 {result.failed.map((f) => (
                   <li key={f.key} className="text-sm text-muted-foreground">
-                    {f.serviceName} — {f.message}
+                    {f.serviceName}, {f.message}
                   </li>
                 ))}
               </ul>

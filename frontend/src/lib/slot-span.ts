@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -8,7 +8,7 @@
  * Both flows let the user drag out a contiguous run of slots on one resource,
  * and both must reject the same three things: too many slots for the service,
  * a slot that is not bookable, and a gap in the middle. That rule lived twice,
- * byte-identical, in `booking-flow.tsx` and `reschedule-flow.tsx` — so a change
+ * byte-identical, in `booking-flow.tsx` and `reschedule-flow.tsx`, so a change
  * to the limit or the copy could be applied to one flow and silently not the
  * other. One definition, both callers.
  */

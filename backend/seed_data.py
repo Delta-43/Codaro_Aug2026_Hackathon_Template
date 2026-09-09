@@ -1,15 +1,15 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """Ported three-vertical seed data (transcribed verbatim from
-frontend/src/api/seed/{fleet,oneToOne,group}.ts). Pure data — the assembler in
+frontend/src/api/seed/{fleet,oneToOne,group}.ts). Pure data, the assembler in
 seed.py turns each vertical into DB rows."""
 
 # --- shared helpers --------------------------------------------------------
 # Some verticals book a whole DAY rather than a time-of-day slot: one venue,
 # one family, one date. `seed_config._grid` takes the same branch for any
-# service whose duration is >= 1440 minutes — a single 00:00 start per day —
+# service whose duration is >= 1440 minutes, a single 00:00 start per day,
 # so the calendar reads as a date picker rather than a timetable.
 
 
@@ -135,7 +135,7 @@ VERTICALS = {
         "demoServices": [
             {
                 "name": "Compact class",
-                "description": "Nimble city cars — easy to park, light on fuel.",
+                "description": "Nimble city cars, easy to park, light on fuel.",
                 "slotDurationMinutes": 1440,
                 "minSlotsPerBooking": 1,
                 "maxSlotsPerBooking": 14,

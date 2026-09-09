@@ -1,8 +1,8 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Pydantic models describing `domain.config.json` — the shape of the whole v2
+"""Pydantic models describing `domain.config.json`, the shape of the whole v2
 tree, in one place.
 
 Why this file exists
@@ -10,7 +10,7 @@ Why this file exists
 The config shape used to be written three times: `config_schema.DEFAULTS` (a
 dict literal), `config_schema.validate()` (imperative checks) and the
 hand-written TypeScript in `frontend/src/api/index.ts`. Nothing linked them, and
-they had already drifted — the backend declares 17 `terms` keys, the frontend
+they had already drifted, the backend declares 17 `terms` keys, the frontend
 type declared 13, and `scripts/generate_pivots.py` writes three of the missing
 ones into all 100 shipped pivots.
 
@@ -25,7 +25,7 @@ What this file is NOT (yet)
 ---------------------------
 It does not validate anything in production. `config_schema.validate()` is still
 the validator, and it stays that way until an equivalence harness proves these
-models emit byte-identical problem strings — the strings are a production
+models emit byte-identical problem strings, the strings are a production
 contract, not just a test one (`config_schema.validate_overrides` set-diffs them
 to decide which per-service override blocks survive, and a wrongly-dropped block
 silently reprices a service). See `test_config_models.py` for the golden test
@@ -109,7 +109,7 @@ class _Block(BaseModel):
     of the two behaviours to surface in an editor: a key the engine drops
     silently is exactly the typo a pivot author needs told about, and without it
     the generated TypeScript grows an `[k: string]: unknown` index signature
-    that collapses `keyof Terms` to `string` — which is the drift these types
+    that collapses `keyof Terms` to `string`, which is the drift these types
     exist to prevent."""
 
     model_config = ConfigDict(
@@ -151,7 +151,7 @@ class Tenancy(_Block):
     mode: TenancyMode = "multi"
     providerCode: str | None = Field(
         default=None,
-        description="Required when mode is 'single' — how the app resolves its one business.",
+        description="Required when mode is 'single', how the app resolves its one business.",
     )
     selfOnboarding: StrictBool | None = Field(
         default=None,
@@ -166,7 +166,7 @@ class Tenancy(_Block):
 
 class Capabilities(_Block):
     """The on/off spine. A false capability means the UI hides the surface AND
-    the backend refuses the write — not one without the other."""
+    the backend refuses the write, not one without the other."""
 
     payments: StrictBool = True
     inventory: StrictBool = False
@@ -203,7 +203,7 @@ class Party(_Block):
         default=None, description="null means the resource's own capacity is the ceiling."
     )
     composition: list[CompositionBand] | None = Field(
-        default=None, description="Age bands and similar — each with its own priceFactor."
+        default=None, description="Age bands and similar, each with its own priceFactor."
     )
     matchResourceCapacity: StrictBool = False
 
@@ -317,7 +317,7 @@ class Pricing(_Block):
     tiers: list[Tier] = Field(default_factory=list)
     chargePerPerson: StrictBool = Field(
         default=True,
-        description="True reproduces the v1 formula (price x slots x party). False where the party shares one unit — a tennis court costs the same for 2 or 4.",
+        description="True reproduces the v1 formula (price x slots x party). False where the party shares one unit, a tennis court costs the same for 2 or 4.",
     )
     caps: Caps = Field(default_factory=Caps)
     fees: list[Fee] = Field(default_factory=list)
@@ -349,7 +349,7 @@ class Payments(_Block):
     billingCycle: BillingCycle = "none"
     noShowFee: NoShowFee = Field(
         default_factory=NoShowFee,
-        description="NOT YET ENFORCED — needs the payments layer (no payments table exists).",
+        description="NOT YET ENFORCED, needs the payments layer (no payments table exists).",
     )
     usageMetered: StrictBool = False
     adapter: str = Field(
@@ -451,7 +451,7 @@ class Timing(_Block):
     confirmation: ConfirmationMode = "instant"
     approvalWindowHours: Number = Field(
         default=48,
-        description="NOT YET ENFORCED — auto-expiring a stale request needs a scheduled job.",
+        description="NOT YET ENFORCED, auto-expiring a stale request needs a scheduled job.",
     )
     leadTimeMinutes: Number = 0
     waitlist: Waitlist = Field(default_factory=Waitlist)
@@ -520,7 +520,7 @@ class Discovery(_Block):
 
 class Terms(_Block):
     """Every noun the UI renders. All 17 keys are required to be non-empty
-    strings — the frontend's `<Term>` has nothing to fall back to."""
+    strings, the frontend's `<Term>` has nothing to fall back to."""
 
     provider: str = "Business"
     providers: str = "Businesses"
@@ -557,7 +557,7 @@ class Copy(_Block):
 class MetaField(_Item):
     key: str
     type: MetaFieldType | Literal["string"] = Field(
-        description="'string' is accepted as an alias for 'text' — it shipped in domain.config.medical.example.json and matched nothing in the v1 validator."
+        description="'string' is accepted as an alias for 'text', it shipped in domain.config.medical.example.json and matched nothing in the v1 validator."
     )
     label: str | None = None
     required: StrictBool | None = None
@@ -565,7 +565,7 @@ class MetaField(_Item):
 
 
 class MetaFields(_Block):
-    """Custom fields per entity. Adding one needs no migration — the values land
+    """Custom fields per entity. Adding one needs no migration, the values land
     in that table's `metadata` jsonb column."""
 
     providers: list[MetaField] = Field(default_factory=list)
@@ -609,7 +609,7 @@ class DomainConfig(_Block):
     """The complete `domain.config.json` tree, after normalization.
 
     Every block is also overridable per service through
-    `services.metadata.<block>` — see `rules.effective_service_config`. The
+    `services.metadata.<block>`, see `rules.effective_service_config`. The
     service row wins over these globals.
     """
 
@@ -629,15 +629,15 @@ class DomainConfig(_Block):
     discovery: Discovery = Field(default_factory=Discovery)
     terms: Terms = Field(default_factory=Terms)
     # Aliased: a field literally named `copy` shadows BaseModel.copy and makes
-    # pydantic warn at import. The JSON key is still `copy` — dump by alias.
+    # pydantic warn at import. The JSON key is still `copy`, dump by alias.
     copy_: Copy = Field(default_factory=Copy, alias="copy")
     metaFields: MetaFields = Field(default_factory=MetaFields)
     rules: LegacyRules = Field(
-        default_factory=LegacyRules, deprecated="Use `timing` — normalize() keeps these in sync."
+        default_factory=LegacyRules, deprecated="Use `timing`, normalize() keeps these in sync."
     )
     search: LegacySearch = Field(
         default_factory=LegacySearch,
-        deprecated="Use `discovery` — normalize() keeps these in sync.",
+        deprecated="Use `discovery`, normalize() keeps these in sync.",
     )
 
 
@@ -645,7 +645,7 @@ def config_dump(config: DomainConfig | None = None) -> dict[str, Any]:
     """The config as the plain dict the engine passes around.
 
     Always dumps by alias, so `copy_` lands back under its real JSON key. With
-    no argument it returns the full default tree — which is exactly
+    no argument it returns the full default tree, which is exactly
     `config_schema.DEFAULTS`, and a test holds the two together.
     """
     return (config or DomainConfig()).model_dump(by_alias=True)

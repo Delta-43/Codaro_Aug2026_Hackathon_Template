@@ -1,13 +1,13 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Resource picker for unit_selection services — appears before the calendar.
- * A scrollable list of units (image, name, attribute rows), plus — where the
- * vertical allows it and there is more than one unit to choose between — an
+ * Resource picker for unit_selection services, appears before the calendar.
+ * A scrollable list of units (image, name, attribute rows), plus, where the
+ * vertical allows it and there is more than one unit to choose between, an
  * "Any available unit" option that shows the union of availability.
  */
 import { Layers } from "lucide-react";

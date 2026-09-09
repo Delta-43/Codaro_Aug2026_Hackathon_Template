@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Customer tab 5 — Profile. The user's public profile: businesses screen a
+ * Customer tab 5: Profile. The user's public profile: businesses screen a
  * customer before accepting a booking (rating, reviews left by businesses,
  * membership), so users are motivated to keep a good profile too. Mirrors the
  * business Profile: a cog (top-right) opens the User Settings Panel. Editable
@@ -27,7 +27,7 @@ const EMPTY_REP: ClientReputation = { score: 0, count: 0, reviews: [] };
 
 /** What the customer holds under `entitlements`, and what is on offer.
  *
- *  Renders nothing at all when the deployment sells no plans — `entitlements`
+ *  Renders nothing at all when the deployment sells no plans, `entitlements`
  *  is off in most configs, and an empty "Membership" heading is worse than no
  *  section. The catalogue and the held rows arrive in one response, so this is
  *  a single request that can also say "become a Member" to someone who is not.
@@ -159,7 +159,7 @@ export default function ProfilePage() {
         <h2 className="mb-2 text-sm font-semibold">Reviews from businesses</h2>
         {rep.reviews.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-xs text-muted-foreground">
-            No reviews yet — businesses rate you after a completed booking.
+            No reviews yet, businesses rate you after a completed booking.
           </p>
         ) : (
           <ul className="space-y-3">

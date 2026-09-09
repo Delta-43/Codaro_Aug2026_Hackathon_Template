@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -52,7 +52,7 @@ _AUDIENCE = "authenticated"
 # PyJWT checks `iat`/`nbf`/`exp` with zero tolerance, and Supabase stamps `iat`
 # from its own clock. A sub-second difference between that clock and ours is
 # enough to make a token the user has *just* been issued fail as
-# `ImmatureSignatureError` ("not yet valid") — which is the login-then-/me
+# `ImmatureSignatureError` ("not yet valid"), which is the login-then-/me
 # sequence, so the symptom is a signed-in user whose profile will not load,
 # clearing up on its own once the clocks converge. Leeway is what the claim is
 # for: 60s absorbs ordinary skew without meaningfully extending a token's life
@@ -78,7 +78,7 @@ class AuthUser:
 
 
 # Short-lived cache of the trusted engine role keyed by `sub`. Without it,
-# _resolve_role hits Supabase (`profiles`) on EVERY authenticated request — a
+# _resolve_role hits Supabase (`profiles`) on EVERY authenticated request, a
 # per-request internet round trip on the hot path of every page.
 #
 # The TTL is deliberately short: it exists to collapse the burst of requests a
@@ -110,8 +110,8 @@ def _resolve_role(sub: str, email: str | None, token_role: str) -> str:
 
     `profiles.role` is admin-controllable, which is what closes the "role is
     self-asserted in the token" gap. On first sight of a user we seed their
-    profile from the sign-up role (`token_role`) — insert-if-missing only, so a
-    later admin change is never clobbered — which also makes profiles reliably
+    profile from the sign-up role (`token_role`), insert-if-missing only, so a
+    later admin change is never clobbered, which also makes profiles reliably
     populated even if the DB trigger was skipped for lack of privilege.
 
     Cached per `sub` for `_ROLE_TTL_SECONDS` so a page's burst of requests
@@ -134,7 +134,7 @@ def _resolve_role_uncached(sub: str, email: str | None, token_role: str) -> tupl
     """The uncached `profiles` lookup + seed-on-first-sight (see `_resolve_role`).
 
     Returns ``(role, cacheable)``. ``cacheable`` is False only for the token
-    fallback used when `profiles` is unreachable — that self-asserted value must
+    fallback used when `profiles` is unreachable, that self-asserted value must
     not be pinned in the cache, so it's re-checked on the very next request."""
     try:
         from app.db import get_supabase, maybe_row
@@ -148,7 +148,7 @@ def _resolve_role_uncached(sub: str, email: str | None, token_role: str) -> tupl
                 {"id": sub, "email": email, "role": token_role}
             ).execute()
         except Exception:
-            pass  # concurrent request already seeded it — fine
+            pass  # concurrent request already seeded it, fine
         return token_role, True
     except Exception:
         logger.warning(
@@ -180,7 +180,7 @@ _ALLOWED_ALGS = ("ES256", "RS256")
 
 @lru_cache
 def _jwks_client() -> PyJWKClient:
-    """Cached client for the project's JSON Web Key Set — the public keys that
+    """Cached client for the project's JSON Web Key Set, the public keys that
     verify the access tokens Supabase issues. The project signs with a rotating
     asymmetric key and names it in the token header's `kid`; this fetches the
     matching public key by that `kid`.
@@ -200,7 +200,7 @@ def _jwks_client() -> PyJWKClient:
 
 def _decode_asymmetric(token: str, *, refresh: bool = True) -> dict:
     """Verify a token against the project's JWKS. On a key/signature failure,
-    drop the cached JWK set and retry once — this recovers from a stale cache
+    drop the cached JWK set and retry once, this recovers from a stale cache
     after Supabase rotates its signing keys, which would otherwise 401 perfectly
     valid tokens until the process restarts. A genuinely bad token fails the
     retry too and still raises.
@@ -224,7 +224,7 @@ def _decode_token(token: str) -> dict:
     """Verify a Supabase access token against the project's JWKS.
 
     The header's `alg` is checked against `_ALLOWED_ALGS` first so an
-    unsupported one — `none`, or the retired HS256 — is refused outright,
+    unsupported one, `none`, or the retired HS256, is refused outright,
     without spending a JWKS lookup on it. There is no second scheme to fall
     back to: an algorithm we do not sign with is simply not a token we issued."""
     alg = jwt.get_unverified_header(token).get("alg")
@@ -268,7 +268,7 @@ def optional_user(
 ) -> AuthUser | None:
     """Like ``require_user`` but never raises: returns the verified user when a
     valid token is present, else ``None``. For public reads (discovery) that
-    still want to personalise when signed in — e.g. pinning followed providers
+    still want to personalise when signed in, e.g. pinning followed providers
     to the top of search."""
     if creds is None or not creds.credentials:
         return None
@@ -278,7 +278,7 @@ def optional_user(
         if exc.status_code != 401:
             # Only "this token isn't good" degrades to anonymous. A 500 means
             # auth is misconfigured (no SUPABASE_URL, so no JWKS to verify
-            # against) — swallowing that would serve every public read as
+            # against), swallowing that would serve every public read as
             # anonymous and let a broken deployment look healthy, which is the
             # opposite of the fail-loud the 500 exists for.
             raise
@@ -296,7 +296,7 @@ def require_owner(user: AuthUser = Depends(require_user)) -> AuthUser:
 def enforce_rls_write(data, *, entity: str = "record"):
     """Raise 403 when an RLS-scoped write returns no rows. The in-router checks
     should have already authorized the caller, so an empty result means the
-    database's Row Level Security refused the write — surface that as a clear
+    database's Row Level Security refused the write, surface that as a clear
     403 instead of a silent empty 200."""
     if not data:
         raise HTTPException(

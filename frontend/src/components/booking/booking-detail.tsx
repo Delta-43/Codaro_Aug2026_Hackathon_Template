@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -6,7 +6,7 @@
 
 /**
  * Full booking detail + the whole lifecycle: reschedule, cancel, and (once
- * completed) review. It owns the mutable booking — every mutation through the
+ * completed) review. It owns the mutable booking, every mutation through the
  * API returns the updated row, which we swap in place, so nothing here refetches
  * or recomputes status. The cutoff greying-out is a client hint only; the
  * backend stays the authority and its ApiError messages are shown verbatim.
@@ -67,12 +67,12 @@ export function BookingDetail({
   const withinCutoff = isWithinCutoff(booking.startUtc, service.cancellationCutoffHours);
   const canModify = booking.status === "confirmed" && !withinCutoff;
   const isShared = service.bookingModel === "shared_capacity";
-  /** `booking.granularity: "none"` and still pending — the slot on this booking
+  /** `booking.granularity: "none"` and still pending, the slot on this booking
    *  is the placeholder the request flow resolved, not a date anyone has agreed
    *  to. The business assigns the real one on approval, at which point the
    *  booking becomes `confirmed` and the date below becomes true. */
   const dateUnassigned = booking.status === "pending" && service.granularity === "none";
-  /** `payments.payer: "third_party"` — somebody other than the person who made
+  /** `payments.payer: "third_party"`, somebody other than the person who made
    *  the request settles it. Their name, where the deployment collects one,
    *  arrives in the booking's `metaFields` as `payer_name`; it is not part of
    *  the typed contract, so it is read defensively. */
@@ -162,7 +162,7 @@ export function BookingDetail({
         {dateUnassigned ? null : (
           <DetailRow label="Duration" value={formatSpan(slotCount, service.slotDurationMinutes)} />
         )}
-        {/* Exclusive-resource bookings are always a party of one — nothing to read. */}
+        {/* Exclusive-resource bookings are always a party of one, nothing to read. */}
         {isShared || booking.partySize > 1 ? (
           <DetailRow
             label={isShared ? (vertical.partyNoun ?? "Party") : "Party"}
@@ -171,14 +171,14 @@ export function BookingDetail({
         ) : null}
       </div>
 
-      {/* Price — absent where `payments.flow: "none"` carries no charge at all,
+      {/* Price, absent where `payments.flow: "none"` carries no charge at all,
           for the same reason the payment panel below is: a "Total 0.00" reads as
           a bug, not as free. */}
       {service.paymentFlow === "none" ? null : (
         <div className="mt-3 rounded-xl border border-border bg-card p-4">
           {/* `perSlot × slots × party` is only the total under the fixed model. For
             tiered / per-hour / per-person etc. it disagrees with the engine's
-            real total, so showing it beside the actual total misleads — the same
+            real total, so showing it beside the actual total misleads, the same
             reason confirm-screen and selection-bar only render the multiply for
             the fixed model. Non-fixed shows just the Total. */}
           {service.pricingModel === "fixed" ? (
@@ -206,7 +206,7 @@ export function BookingDetail({
 
       {/* What is owed. `payments.flow: none` means the product carries no
           payment at all, so the whole panel is absent rather than showing a
-          zero — a "Total: 0" reads as a bug, not as "free". */}
+          zero, a "Total: 0" reads as a bug, not as "free". */}
       {booking.payment.state !== "none" && booking.payment.state !== "not_required" ? (
         <div className="mt-3 rounded-xl border border-border bg-card p-4">
           <DetailRow
@@ -222,7 +222,7 @@ export function BookingDetail({
         </div>
       ) : null}
 
-      {/* `payments.payer: "third_party"` — the person who arranged this is not
+      {/* `payments.payer: "third_party"`, the person who arranged this is not
           the person being billed, and the detail screen said nothing about it. */}
       {booking.payment?.payer === "third_party" ? (
         <div className="mt-3 rounded-xl border border-border bg-card p-4">
@@ -230,7 +230,7 @@ export function BookingDetail({
         </div>
       ) : null}
 
-      {/* What was chosen where the config offered a choice — the party split
+      {/* What was chosen where the config offered a choice, the party split
           (`party.composition`), the paid extras (`booking.options`) and the
           subject (`booking.subject`). All three were collected at booking time
           and then invisible afterwards, so a customer could not check what they
@@ -280,7 +280,7 @@ export function BookingDetail({
         </div>
       ) : null}
 
-      {/* The return leg — only where `inventory.returnRequired`. A rentable
+      {/* The return leg, only where `inventory.returnRequired`. A rentable
           booking is not finished when the slot ends; the item has to come back,
           and an overdue one is accruing a fee the customer should see. */}
       {booking.loan ? (
@@ -297,7 +297,7 @@ export function BookingDetail({
           ) : null}
           {booking.loan.overdueFeeMinorUnits > 0 ? (
             <p className="mt-1 text-sm text-destructive">
-              {booking.loan.daysOverdue} day{booking.loan.daysOverdue === 1 ? "" : "s"} overdue —{" "}
+              {booking.loan.daysOverdue} day{booking.loan.daysOverdue === 1 ? "" : "s"} overdue -{" "}
               {formatMoney(booking.loan.overdueFeeMinorUnits, booking.currency)} owed.
             </p>
           ) : null}
@@ -308,7 +308,7 @@ export function BookingDetail({
       {booking.status === "confirmed" ? (
         <p className="mt-3 text-sm text-muted-foreground">
           {withinCutoff
-            ? `Changes are closed — within ${service.cancellationCutoffHours}h of the start.`
+            ? `Changes are closed, within ${service.cancellationCutoffHours}h of the start.`
             : formatCutoffPolicy(booking.startUtc, service.cancellationCutoffHours, tz)}
         </p>
       ) : null}
@@ -360,7 +360,7 @@ export function BookingDetail({
         </div>
       ) : null}
 
-      {/* Review (completed only, and only where reviews are enabled — the
+      {/* Review (completed only, and only where reviews are enabled, the
           backend refuses the write, so showing this would 404 on submit).
           Read off THIS service, not the global block: the gate is per service. */}
       {booking.status === "completed" && service.capabilities.reviews !== false ? (

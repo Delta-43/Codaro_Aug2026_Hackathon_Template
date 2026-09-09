@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -24,7 +24,7 @@ export function ProviderCard({
   provider: Provider;
   isFollowed: boolean;
   onOpen: (p: Provider) => void;
-  /** Facet gates — a free/remote vertical hides price/distance on the card. */
+  /** Facet gates, a free/remote vertical hides price/distance on the card. */
   showPrice?: boolean;
   showDistance?: boolean;
 }) {

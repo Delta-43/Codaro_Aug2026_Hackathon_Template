@@ -1,8 +1,8 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Unit tests for `app.pricing.quote` — the config-driven price engine.
+"""Unit tests for `app.pricing.quote`, the config-driven price engine.
 
 v1 priced every booking with one hardcoded expression in `routers/bookings.py`::
 
@@ -10,7 +10,7 @@ v1 priced every booking with one hardcoded expression in `routers/bookings.py`::
 
 That is exactly one pricing model. `quote()` replaces it with a resolved
 `pricing` block, and the **first thing these tests pin is that the defaults
-reproduce that expression exactly** — an un-pivoted deployment must not
+reproduce that expression exactly**, an un-pivoted deployment must not
 re-price a single booking. Everything after that is the new reach: per hour /
 night / person / unit, tiers, fees, caps and deposits.
 
@@ -51,7 +51,7 @@ def at(hour: int, minute: int = 0) -> datetime:
 
 
 # ======================================================================
-# v1 parity — the whole point of the default block
+# v1 parity, the whole point of the default block
 # ======================================================================
 
 
@@ -59,7 +59,7 @@ def at(hour: int, minute: int = 0) -> datetime:
 @pytest.mark.parametrize("party", [1, 2, 5])
 @pytest.mark.parametrize("price", [0, 1, 500, 4500])
 def test_default_pricing_reproduces_the_v1_formula_exactly(slots, party, price):
-    """`priceMinorUnits * slot_count * party_size` — the expression the router
+    """`priceMinorUnits * slot_count * party_size`, the expression the router
     used to inline. Every combination, so a refactor of `quote` cannot quietly
     reprice the existing catalog."""
     result = quote(
@@ -90,7 +90,7 @@ def test_an_empty_context_defaults_to_one_slot_and_one_head():
 
 
 # ======================================================================
-# rate.per — every period in RATE_PERIODS
+# rate.per, every period in RATE_PERIODS
 # ======================================================================
 
 
@@ -110,7 +110,7 @@ def test_per_booking_still_multiplies_by_party_when_charging_per_person():
     [(30, 0.5), (60, 1.0), (90, 1.5), (150, 2.5)],
 )
 def test_per_hour_is_fractional(minutes, expected_units):
-    """90 minutes of a court is genuinely 1.5 hours — the one period that does
+    """90 minutes of a court is genuinely 1.5 hours, the one period that does
     not round up."""
     block = pricing(rate={"per": "hour", "amountMinorUnits": 2000})
     result = quote(block, {"duration_minutes": minutes, "slot_count": 3})
@@ -146,7 +146,7 @@ def test_a_whole_unit_period_never_bills_less_than_one_unit():
 @pytest.mark.parametrize("unit_count", [0, 1, 5, 20])
 def test_a_whole_unit_period_ignores_unit_count_entirely(per, unit_count):
     """A period is a duration; a unit is a quantity. `duration_minutes` is the
-    ONLY input to a day/night/week/month quantity — whatever `unit_count` is in
+    ONLY input to a day/night/week/month quantity, whatever `unit_count` is in
     the ctx belongs to a `per: "unit"` rate and must not leak onto the period
     axis."""
     block = pricing(rate={"per": per, "amountMinorUnits": 1000})
@@ -181,7 +181,7 @@ def test_per_unit_ignores_the_duration_the_way_periods_ignore_the_unit_count():
 
 
 def test_a_unit_rate_and_a_period_secondary_rate_do_not_share_unit_count():
-    """Regression — warehouse pallet-space: 20 pallets at 300 each for a 28-day
+    """Regression, warehouse pallet-space: 20 pallets at 300 each for a 28-day
     term, plus 1000 per week of storage. `unit_count` used to override the
     duration-derived period quantity, so the 20 pallets were billed as 20 WEEKS
     (6000 + 20000 = 26000) instead of 4 (6000 + 4000 = 10000).
@@ -228,7 +228,7 @@ def test_per_person_ignores_charge_per_person_being_false_too():
 
 
 # ======================================================================
-# chargePerPerson — the shared-unit case
+# chargePerPerson, the shared-unit case
 # ======================================================================
 
 
@@ -255,7 +255,7 @@ def test_weighted_person_units_replace_the_raw_head_count():
 
 
 # ======================================================================
-# tiers — appliesWhen
+# tiers, appliesWhen
 # ======================================================================
 
 
@@ -312,7 +312,7 @@ def test_config_order_is_the_tier_precedence_order():
     [(8, False), (9, True), (14, True), (16, True), (17, False), (23, False)],
 )
 def test_time_of_day_window_is_half_open(hour, matches):
-    """[from, to) — an off-peak band ending at 17:00 does not cover 17:00."""
+    """[from, to), an off-peak band ending at 17:00 does not cover 17:00."""
     tier = {"key": "offpeak", "amountMinorUnits": 500,
             "appliesWhen": {"timeOfDay": {"from": "09:00", "to": "17:00"}}}
     assert (match_tier([tier], {"start_local": at(hour)}) is tier) is matches
@@ -330,7 +330,7 @@ def test_a_time_of_day_window_that_wraps_midnight(hour, matches):
 
 
 def test_a_time_of_day_tier_cannot_match_without_a_local_start():
-    """No start time means no evidence the window applies — fail closed."""
+    """No start time means no evidence the window applies, fail closed."""
     tier = {"key": "night", "amountMinorUnits": 500,
             "appliesWhen": {"timeOfDay": {"from": "18:00", "to": "06:00"}}}
     assert match_tier([tier], {}) is None
@@ -491,7 +491,7 @@ def test_a_percent_fee_is_basis_points_of_the_running_subtotal():
 
 
 def test_fees_compound_in_declaration_order():
-    """A percent fee declared after a flat one is charged on the flat one too —
+    """A percent fee declared after a flat one is charged on the flat one too,
     order in the config is the order of operations."""
     block = pricing(
         rate={"per": "slot", "amountMinorUnits": 10000},
@@ -633,7 +633,7 @@ def test_a_flat_deposit_is_taken_as_declared():
 # ----------------------------------------------------------------------
 # `refundable` selects between two different things
 #
-# A NON-refundable deposit is a PREPAYMENT — part of the price — so it can
+# A NON-refundable deposit is a PREPAYMENT, part of the price, so it can
 # never exceed the total. A REFUNDABLE deposit is a damage BOND: a hold that
 # comes back, and routinely larger than the hire fee (a 300 bond on a 200 tool
 # hire). Clamping a bond to the total silently under-secures the asset, which
@@ -642,7 +642,7 @@ def test_a_flat_deposit_is_taken_as_declared():
 
 
 def test_a_non_refundable_percent_deposit_over_a_hundred_is_clamped_to_the_total():
-    """A prepayment of 150% is nonsense — you cannot pre-pay more than the price."""
+    """A prepayment of 150% is nonsense, you cannot pre-pay more than the price."""
     block = pricing(
         rate={"per": "slot", "amountMinorUnits": 10000},
         deposit={"enabled": True, "kind": "percent", "value": 150, "refundable": False},
@@ -665,7 +665,7 @@ def test_a_non_refundable_flat_deposit_larger_than_the_booking_is_clamped_to_the
 def test_a_non_refundable_percent_deposit_under_the_total_is_untouched_by_the_clamp(
     percent, expected
 ):
-    """The clamp only ever binds above 100% — every share at or below it is
+    """The clamp only ever binds above 100%, every share at or below it is
     the plain arithmetic, identical to the bond branch."""
     block = pricing(
         rate={"per": "slot", "amountMinorUnits": 10000},
@@ -710,7 +710,7 @@ def test_a_refundable_percent_bond_over_a_hundred_is_not_clamped():
     ],
 )
 def test_neither_branch_can_produce_a_negative_deposit(kind, value, refundable):
-    """A negative or unparseable `value` floors at 0 on both branches — a
+    """A negative or unparseable `value` floors at 0 on both branches, a
     hand-edited config must never hand money back through the deposit field."""
     block = pricing(
         rate={"per": "slot", "amountMinorUnits": 10000},
@@ -722,7 +722,7 @@ def test_neither_branch_can_produce_a_negative_deposit(kind, value, refundable):
 @pytest.mark.parametrize("refundable", [True, False])
 @pytest.mark.parametrize("kind", ["flat", "percent"])
 def test_a_disabled_deposit_is_zero_whichever_kind_it_would_have_been(kind, refundable):
-    """`enabled` is checked before `refundable` — the bond branch is not a way
+    """`enabled` is checked before `refundable`, the bond branch is not a way
     around the off switch."""
     block = pricing(
         rate={"per": "slot", "amountMinorUnits": 10000},
@@ -760,7 +760,7 @@ def test_the_deposit_is_derived_from_the_capped_total_not_the_raw_one():
 
 
 # ======================================================================
-# robustness — a hand-edited config must not 500 the booking path
+# robustness, a hand-edited config must not 500 the booking path
 # ======================================================================
 
 
@@ -792,14 +792,14 @@ def test_an_unknown_rate_period_falls_back_to_a_quantity_of_one():
 
 
 # ======================================================================
-# unknown fee kinds — why validate() now rejects them
+# unknown fee kinds, why validate() now rejects them
 # ======================================================================
 
 
 def test_a_typo_fee_kind_contributes_nothing_which_is_why_validate_rejects_it():
     """`kind: "percentage"` is a plausible hand-edit for "percent". `_fee_amount`
     matches no branch and falls through to 0, so the fee disappears from every
-    quote — no error, no breakdown line, just a permanently under-charged
+    quote, no error, no breakdown line, just a permanently under-charged
     booking. That silence is the reason `config_schema.validate` now makes it a
     load-time error (see `test_config_schema.test_an_unknown_fee_kind_...`)."""
     typo = {"key": "service", "label": "Service fee", "kind": "percentage", "rateBps": 1250}
@@ -817,7 +817,7 @@ def test_a_typo_fee_kind_contributes_nothing_which_is_why_validate_rejects_it():
 
 @pytest.mark.parametrize("kind", ["percentage", "distance_band", "PERCENT", "flat "])
 def test_every_unrecognised_fee_kind_is_silently_free(kind):
-    """One parametrized proof that *no* unknown kind fails loudly at quote time —
+    """One parametrized proof that *no* unknown kind fails loudly at quote time,
     the validator is the only thing standing between a typo and a lost fee."""
     fee = {"key": "x", "label": "X", "kind": kind, "amountMinorUnits": 5000, "rateBps": 1000}
     assert _fee_amount(fee, 10_000, {}) == 0
@@ -827,7 +827,7 @@ def test_every_unrecognised_fee_kind_is_silently_free(kind):
 def test_a_falsy_fee_kind_is_charged_as_flat_but_still_rejected_at_load(kind):
     """`_fee_amount` does `fee.get("kind") or "flat"`, so an empty/null kind
     prices as flat, while `validate` reads `fee.get("kind", "flat")` and reports
-    it. The validator being the stricter of the two is the safe direction — a
+    it. The validator being the stricter of the two is the safe direction, a
     config that means "flat" should say so."""
     fee = {"key": "x", "label": "X", "kind": kind, "amountMinorUnits": 5000}
     assert _fee_amount(fee, 10_000, {}) == 5000

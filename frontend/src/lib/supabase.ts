@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -30,7 +30,7 @@ export function getSupabase(): SupabaseClient | null {
     // opens devtools.
     if (!SHOWCASE_ONLY) {
       console.warn(
-        "Supabase auth is not configured — set NEXT_PUBLIC_SUPABASE_URL and " +
+        "Supabase auth is not configured, set NEXT_PUBLIC_SUPABASE_URL and " +
           "NEXT_PUBLIC_SUPABASE_ANON_KEY in frontend/.env.local",
       );
     }

@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -6,7 +6,7 @@
 
 /**
  * A full conversation view: header (back + other party), the scrollable message
- * list, and the composer. Reusable and shell-agnostic — it reads identity from
+ * list, and the composer. Reusable and shell-agnostic, it reads identity from
  * `useAuth()` (present app-wide), so it drops into both the client `(app)` shell
  * and the `owner` shell unchanged. Live delivery + typing come from
  * `use-conversation-realtime`; the durable send/read/delete go through the seam,
@@ -162,7 +162,7 @@ export function MessageThread({ backHref }: { backHref: string }) {
 
   async function handleDelete(m: Message) {
     if (!conversationId) return;
-    // An unsent optimistic bubble isn't persisted — just drop it locally.
+    // An unsent optimistic bubble isn't persisted, just drop it locally.
     if (m.id.startsWith("temp-")) {
       setMessages((prev) => prev.filter((x) => x.id !== m.id));
       return;
@@ -218,7 +218,7 @@ export function MessageThread({ backHref }: { backHref: string }) {
           <p className="py-10 text-center text-sm text-muted-foreground">{error}</p>
         ) : messages.length === 0 ? (
           <p className="py-10 text-center text-sm text-muted-foreground">
-            No messages yet — say hello 👋
+            No messages yet, say hello 👋
           </p>
         ) : (
           messages.map((m) => (

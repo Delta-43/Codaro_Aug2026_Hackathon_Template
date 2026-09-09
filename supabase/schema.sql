@@ -1,10 +1,10 @@
--- Arbor — a config-driven booking engine
+-- Arbor: a config-driven booking engine
 -- Copyright (C) 2026 Alban Billiette and the Arbor contributors
 -- SPDX-License-Identifier: AGPL-3.0-or-later
 
 -- Neutral booking-engine schema. Idempotent by design (IF NOT EXISTS / OR
 -- REPLACE, never DROP/ALTER) so a backend restart can safely re-run this
--- without touching existing data. Treat as frozen once the pivot happens —
+-- without touching existing data. Treat as frozen once the pivot happens,
 -- new domain fields go in `metadata jsonb`, not new columns.
 
 create table if not exists resources (
@@ -51,7 +51,7 @@ create index if not exists idx_bookings_client_id on bookings(client_id);
 -- ===========================================================================
 -- Extended entities: providers, services, multi-slot bookings, reviews, follows
 -- (added for the frontend wiring). NEW tables only, idempotent like everything
--- else — the three base tables above stay frozen; their new domain fields live
+-- else, the three base tables above stay frozen; their new domain fields live
 -- in `metadata` (resources: service_id/capacity/active/attributes/image_url;
 -- slots: service_id; bookings: party_size/reference/price_minor_units/currency/
 -- provider_id/service_id/resource_id/change_history/slot_ids).
@@ -164,13 +164,13 @@ group by s.id, s.resource_id, s.starts_at, s.ends_at, s.capacity;
 -- reads `slot_occupancy` then inserts, so two concurrent confirmed bookings for
 -- the last seat could both pass the check and both commit (a classic TOCTOU
 -- overbook). This trigger closes it: on every path that can add confirmed load
--- to a slot — a new `booking_slots` link, and a booking flipping to
--- `confirmed` — it locks the slot row (`for update`, serialising racers) and
+-- to a slot, a new `booking_slots` link, and a booking flipping to
+-- `confirmed`, it locks the slot row (`for update`, serialising racers) and
 -- rejects the write if confirmed party-size would exceed capacity. The sum
 -- mirrors `slot_occupancy` exactly (party-weighted, confirmed only), so
 -- pending/cancelled/rejected still hold nothing and an exactly-full slot (what
 -- the seed creates) is allowed. The app maps the raised `check_violation` back
--- to a SLOT_UNAVAILABLE for the loser. A trigger, not a table change — the base
+-- to a SLOT_UNAVAILABLE for the loser. A trigger, not a table change, the base
 -- tables stay frozen.
 create or replace function public.enforce_slot_capacity(check_slot uuid)
 returns void
@@ -240,7 +240,7 @@ create trigger enforce_capacity_on_confirm
 -- ===========================================================================
 -- Supabase owns auth.users + password hashing; `profiles` holds the per-user
 -- app data (the engine role) keyed 1:1 to auth.users. Roles are engine-neutral
--- strings ('owner' | 'client') — the UI labels them via terms.admin/terms.client
+-- strings ('owner' | 'client'), the UI labels them via terms.admin/terms.client
 -- and the backend uses the same tokens for `actor`. Idempotent like everything
 -- above: only create-if-not-exists / or-replace, and `drop policy if exists`
 -- before each policy (policies are exempt from the no-DROP rule).
@@ -275,7 +275,7 @@ $$;
 
 -- Auto-provision a profile on sign-up, copying the role the user registered
 -- with (the frontend puts it in user_metadata → raw_user_meta_data). An admin
--- can later UPDATE profiles.role to promote/revoke — that becomes the trusted
+-- can later UPDATE profiles.role to promote/revoke, that becomes the trusted
 -- source of truth for is_owner().
 create or replace function public.handle_new_user()
 returns trigger
@@ -297,7 +297,7 @@ $$;
 
 -- The trigger lives on auth.users; creating it needs privileges the direct DB
 -- role may not have. Guard it so a fresh DB still gets its public tables and
--- policies (the whole file runs as one transaction — an uncaught error here
+-- policies (the whole file runs as one transaction, an uncaught error here
 -- would roll all of that back). If skipped, populate profiles via an admin.
 do $$
 begin
@@ -316,7 +316,7 @@ alter table slots     enable row level security;
 alter table bookings  enable row level security;
 
 -- profiles: a user reads only their own row. No insert/update/delete policy for
--- the API, so a client can't self-promote to owner — only the trigger, the
+-- the API, so a client can't self-promote to owner, only the trigger, the
 -- service role, or an admin (all RLS-exempt) write profiles.
 drop policy if exists profiles_select_own on profiles;
 create policy profiles_select_own on profiles
@@ -324,7 +324,7 @@ create policy profiles_select_own on profiles
 
 -- resources: public read (the landing page lists them for anon visitors); only
 -- an owner creates, and only the owning owner modifies/deletes. Ownership is
--- recorded in metadata.owner_id (schema is frozen — no new column), stamped by
+-- recorded in metadata.owner_id (schema is frozen, no new column), stamped by
 -- the backend's create_resource.
 drop policy if exists resources_select_all on resources;
 create policy resources_select_all on resources
@@ -443,7 +443,7 @@ create policy reviews_insert_own on reviews for insert
 
 -- client_reviews: public read (feeds a customer's reputation + owner screening);
 -- only an owner writes one (the router further checks they own the booking's
--- provider). No update/delete policy — a re-review deletes+inserts via the
+-- provider). No update/delete policy, a re-review deletes+inserts via the
 -- service key, like the provider-reviews flow.
 drop policy if exists client_reviews_select_all on client_reviews;
 create policy client_reviews_select_all on client_reviews for select using (true);
@@ -462,13 +462,13 @@ create policy follows_write_own on follows for all
 
 -- ===========================================================================
 -- Messaging: 1:1 conversations between a client and a provider's owner
--- (branch 40-messaging). A NEW entity, so — per the pivot design — it's added
+-- (branch 40-messaging). A NEW entity, so, per the pivot design, it's added
 -- as new tables; the frozen base tables are untouched. Live delivery rides on
 -- Supabase Realtime (postgres_changes) gated by the same RLS below.
 -- ===========================================================================
 
 -- One thread per (provider, client) pair. `owner_id` is the provider's owner,
--- denormalized so RLS / Realtime is a flat column compare (nullable — some
+-- denormalized so RLS / Realtime is a flat column compare (nullable, some
 -- seeded providers carry no owner_id). last_message_* are stamped by the
 -- trigger below so the inbox can list threads without scanning messages.
 create table if not exists conversations (
@@ -570,7 +570,7 @@ create trigger on_message_insert
 -- Publish the two tables to Supabase Realtime. Altering the managed
 -- `supabase_realtime` publication can need privileges the direct DB role lacks
 -- (same story as the auth.users trigger / storage bucket above), and re-adding a
--- table already in the publication raises duplicate_object — guard both so a
+-- table already in the publication raises duplicate_object, guard both so a
 -- re-run is a no-op and a privilege gap degrades to HTTP-only (enable the tables
 -- manually via Dashboard → Database → Replication).
 do $$
@@ -596,10 +596,10 @@ end $$;
 -- ===========================================================================
 -- Public-read bucket for user avatars, matching the existing precedent that
 -- provider avatar/cover images are already public. Objects are keyed
--- "{auth.uid()}/avatar" (no extension — Content-Type carries the format), so
+-- "{auth.uid()}/avatar" (no extension, Content-Type carries the format), so
 -- there is exactly one possible object per user; the backend uploads/deletes
 -- with the service key (ownership is enforced by deriving the key from the
--- verified JWT's user id server-side, never client input) — these policies are
+-- verified JWT's user id server-side, never client input), these policies are
 -- defense-in-depth only, same model as the rest of this file.
 --
 -- Bucket/policy DDL can need privilege the direct DB role may not have (like
@@ -634,7 +634,7 @@ end $$;
 
 -- ===========================================================================
 -- Entitlements: what a customer has BOUGHT that changes what a booking costs
--- or whether it is allowed at all — a membership, a class pass, prepaid
+-- or whether it is allowed at all, a membership, a class pass, prepaid
 -- credits. `domain.config.json` declares the PLANS (`entitlements.plans[]`);
 -- this table records who holds one. A NEW entity, so per the pivot design it
 -- is a new table and the frozen base tables are untouched.
@@ -668,7 +668,7 @@ alter table entitlements enable row level security;
 
 -- A customer sees and manages only their own entitlements. Granting one to
 -- someone else is a system/owner action and goes through the service key,
--- which bypasses RLS — exactly as bookings' owner-side writes already do.
+-- which bypasses RLS, exactly as bookings' owner-side writes already do.
 drop policy if exists entitlements_select_own on entitlements;
 create policy entitlements_select_own on entitlements for select using (user_id = auth.uid());
 
@@ -687,7 +687,7 @@ create policy entitlements_write_own on entitlements for all
 -- A NEW entity, so per the pivot design it is a new table; the frozen base
 -- tables are untouched.
 --
--- `position` is assigned at join time and never renumbered — a queue that
+-- `position` is assigned at join time and never renumbered, a queue that
 -- resequences on every departure lets someone move backwards, which is the one
 -- thing a queue must never do. Promotion reads the lowest position among
 -- 'waiting' rows, so gaps are harmless.

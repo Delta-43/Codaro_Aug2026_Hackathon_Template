@@ -4,7 +4,7 @@
   //
   // The association lives here rather than as a "$schema" key inside the config
   // itself on purpose: normalize() drops keys the engine does not declare, and
-  // test_health_config.py pins that domain.config.json is a normalize fixpoint —
+  // test_health_config.py pins that domain.config.json is a normalize fixpoint,
   // what an operator reads in the repo is exactly what the engine resolves.
   // A "$schema" key would be the one line in the file that is not true.
   //

@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -16,8 +16,8 @@ import { buttonFx } from "@/config/buttons"
 
 const buttonVariants = cva(
   // `buttonFx.press` is the platform-wide interactive feel (see config/buttons.ts).
-  // Everything that renders through these variants — <Button>, and the landing
-  // CTAs that borrow buttonVariants() on a <Link> — inherits it from that one file.
+  // Everything that renders through these variants, <Button>, and the landing
+  // CTAs that borrow buttonVariants() on a <Link>, inherits it from that one file.
   cn(
     "group/button inline-flex shrink-0 items-center justify-center rounded-2xl border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
     buttonFx.press,
