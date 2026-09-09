@@ -5,10 +5,9 @@
 "use client";
 
 /**
- * Evidence chapter. Replaces the funeral pivot's testimonials plate, which held
- * invented families reviewing invented funerals: fine as demo copy inside the
- * product, misleading on a page that markets the engine, where the same quotes
- * would read as customer endorsements.
+ * Evidence chapter. Deliberately not testimonials: invented quotes read as
+ * customer endorsements on a page that markets the engine, which would be
+ * misleading.
  *
  * Everything here is checkable instead. The counts come from the repository
  * (`scripts/check_pivots.py`, the backend suite) and the placing is the
@@ -28,13 +27,13 @@ const FACTS = [
   },
   {
     icon: Layers,
-    stat: "100",
-    title: "Businesses expressed as config",
-    body: "From ski hire to dentistry to cryogenic storage, each one a real file run through the actual validator and pricing engine.",
+    stat: "11",
+    title: "Config blocks, each overridable per service",
+    body: "Booking, pricing, payments, inventory, location, prerequisites, timing, recurrence and the rest, so one deployment can host businesses that work nothing alike.",
   },
   {
     icon: FlaskConical,
-    stat: "1,466",
+    stat: "1,260",
     title: "Backend tests",
     body: "Rules resolution, availability, pricing, payments and per-user isolation, run on every push.",
   },

@@ -160,8 +160,8 @@ def test_normalize_is_idempotent():
         assert normalize(once) == once
 
 
-def test_both_shipped_config_files_are_normalize_fixpoints_and_valid():
-    for path in (REPO_CONFIG, REPO_ROOT / "domain.config.medical.example.json"):
+def test_the_shipped_config_file_is_a_normalize_fixpoint_and_valid():
+    for path in (REPO_CONFIG,):
         raw = json.loads(path.read_text())
         assert normalize(raw) == raw, f"{path.name} is no longer an explicit v2 file"
         assert validate(raw) == [], path.name
@@ -1029,7 +1029,6 @@ def test_the_descriptor_checks_all_report_together():
 
 BACKEND_APP = REPO_ROOT / "backend" / "app"
 BACKEND_DOC = REPO_ROOT / "backend" / "CLAUDE.md"
-CHECK_PIVOTS = REPO_ROOT / "scripts" / "check_pivots.py"
 
 # Neither enforced NOR surfaced: no engine module may mention these at all.
 INERT = {
@@ -1161,44 +1160,6 @@ def test_the_doc_table_says_a_surfaced_key_is_surfaced_but_not_enforced(path):
     row = _doc_table_row(path)
     assert "surfaced" in row, (path, row)
     assert "not enforced" in row, (path, row)
-
-
-@pytest.mark.parametrize("path", sorted(INERT))
-def test_check_pivots_lists_an_inert_key_as_declared_only(path):
-    """`check_pivots.py` fails on any DEFAULTS leaf in neither map, so the two
-    maps are the machine-readable version of the same promise. An inert key
-    belongs in DECLARED_ONLY ("nothing reads it yet") and must not be claimed
-    as enforced."""
-    enforced, declared_only = _check_pivots_maps()
-    assert path in declared_only, path
-    assert path not in enforced, path
-
-
-@pytest.mark.parametrize("path", sorted(SURFACED_ONLY))
-def test_check_pivots_lists_a_surfaced_key_as_read_but_not_gated(path):
-    """A surfaced key has a real reader, so it is no longer DECLARED_ONLY
-    ("nothing reads it yet") — but its ENFORCED note must admit it is only
-    displayed, or the map would over-claim exactly what this section guards."""
-    enforced, declared_only = _check_pivots_maps()
-    assert path in enforced, path
-    assert path not in declared_only, path
-    note = enforced[path].lower()
-    assert "display" in note or "not gated" in note or "expires nothing" in note, (path, note)
-
-
-def _check_pivots_maps() -> tuple[dict, dict]:
-    """ENFORCED / DECLARED_ONLY out of `scripts/check_pivots.py`, read as source
-    rather than imported: the script pulls in `app.pricing` and shells out over
-    100 pivot files, and this suite only needs its two literal maps."""
-    module: dict = {}
-    tree = ast.parse(CHECK_PIVOTS.read_text())
-    for node in tree.body:
-        if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):
-            name = node.targets[0].id
-            if name in ("ENFORCED", "DECLARED_ONLY"):
-                module[name] = ast.literal_eval(node.value)
-    assert set(module) == {"ENFORCED", "DECLARED_ONLY"}, sorted(module)
-    return module["ENFORCED"], module["DECLARED_ONLY"]
 
 
 # --- and the behaviour: surfaced means surfaced, not enforced ---------------

@@ -11,9 +11,7 @@
  * else: the sign-in CTAs point at the source repository, and `middleware.ts`
  * sends every other route back to `/` rather than letting a visitor walk into
  * an app whose every request would fail.
- *
- * `/showcase` is excluded on purpose. Its animations are burial, cremation and
- * cryogenic suspension, which contradict a page that markets a neutral engine.
+
  *
  * Unset (the default), none of that applies and the app behaves normally. This
  * is a deployment mode, not a feature flag to build on.

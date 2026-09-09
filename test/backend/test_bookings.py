@@ -1402,7 +1402,7 @@ def test_a_declared_meta_field_written_at_create_is_readable_back(
     could collect it and never show it again. Engine-owned keys stay out of the
     echo — they have their own serialized shapes."""
     domain_config(metaFields={"bookings": [
-        {"key": "deceasedName", "label": "Name of the deceased", "type": "text"},
+        {"key": "subjectName", "label": "Name of the subject", "type": "text"},
     ]})
     auth(role="client")
     cat = make_catalog(db, price_minor_units=1000)
@@ -1412,15 +1412,15 @@ def test_a_declared_meta_field_written_at_create_is_readable_back(
         "resourceId": cat["resource"]["id"],
         "slotIds": [slot["id"]],
         "partySize": 1,
-        "metadata": {"deceasedName": "A. Kowalska"},
+        "metadata": {"subjectName": "A. Kowalska"},
     })
     assert created.status_code == 200, created.text
-    assert created.json()["metadata"] == {"deceasedName": "A. Kowalska"}
+    assert created.json()["metadata"] == {"subjectName": "A. Kowalska"}
     assert client.get(f"/bookings/{created.json()['id']}").json()["metadata"] == \
-        {"deceasedName": "A. Kowalska"}
+        {"subjectName": "A. Kowalska"}
     # The column really does hold the engine's own keys alongside it...
     stored = db.get_row("bookings", created.json()["id"])["metadata"]
-    assert stored["deceasedName"] == "A. Kowalska"
+    assert stored["subjectName"] == "A. Kowalska"
     assert stored["price_minor_units"] == 1000
     # ...and none of them leak into the echo.
     assert "price_minor_units" not in created.json()["metadata"]

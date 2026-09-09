@@ -120,10 +120,6 @@ The redirect is the point. Left reachable, the app routes load and then fail
 every request, which reads as a broken app rather than a deliberately static
 one.
 
-`/showcase` redirects too, deliberately. Its animations are burial, cremation
-and cryogenic suspension, which belong to the funeral pivot and contradict a
-landing page that markets a neutral engine.
-
 Unset the flag and everything behaves normally; this is a deployment mode, not a
 fork.
 

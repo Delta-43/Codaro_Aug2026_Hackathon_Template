@@ -65,7 +65,7 @@ export default function MessagesPage() {
   const [decided, setDecided] = useState<Record<string, Decision>>({});
   const [error, setError] = useState<string | null>(null);
   // Which card has its assign-date panel open. One at a time: two open panels
-  // both holding a date for the same chapel is a race the owner can't see.
+  // both holding a date for the same resource is a race the owner cannot see.
   const [assigning, setAssigning] = useState<string | null>(null);
   // Assigned dates, kept at page level on purpose: an assigned request is
   // `confirmed`, so `load()` drops it from the pending list and the card that

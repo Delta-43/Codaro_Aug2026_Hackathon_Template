@@ -392,7 +392,7 @@ export function BookingFlow({
   return (
     <div>
       {/* The unit the family just chose stays on screen while they pick a date.
-          Without this the chapel is a photo in a modal that closes and a name in
+          Without this the resource is a photo in a modal that closes and a name in
           a subtitle — the picture never returns. Falls back to the service's own
           tile when no single unit is bound ("any available"). */}
       <div className="mb-3 flex items-center gap-3">

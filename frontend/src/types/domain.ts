@@ -28,11 +28,11 @@ export type IsoUtc = string;
  *
  *  This no longer maps 1:1 to a `BookingModel` — the backend reports the
  *  booking model per service (`Service.bookingModel`), and a vertical is now
- *  purely a UI vocabulary bundle (`src/config/verticals.ts`). `funeral`, for
+ *  purely a UI vocabulary bundle (`src/config/verticals.ts`). `group`, for
  *  instance, shares `one_to_one` with `oneToOne` but speaks a different
  *  language and books without a date at all. Read the model off the service,
  *  never off the vertical id. */
-export type VerticalId = "fleet" | "oneToOne" | "group" | "funeral";
+export type VerticalId = "fleet" | "oneToOne" | "group";
 
 export type BookingModel =
   | "unit_selection" // many distinct resources, capacity 1 each; user picks the unit

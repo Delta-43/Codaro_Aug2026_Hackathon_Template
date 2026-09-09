@@ -40,7 +40,7 @@ export function ResourcePicker({
   );
   const list = resources.data ?? [];
   // The union view only means something when the units are interchangeable AND
-  // there is more than one of them. `allowAnyResource: false` (funerals) opts a
+  // there is more than one of them. `allowAnyResource: false` opts a
   // vertical out entirely; a single-unit service makes the option a no-op that
   // hides which unit the family is actually getting.
   const showAny = vertical.allowAnyResource && list.length > 1;
@@ -86,7 +86,7 @@ export function ResourcePicker({
               )}
             >
               {/* Landscape, not a 48px square: these are rooms and vehicles, and
-                  the crop is what tells a chapel of rest from a retort before
+                  the crop is what tells one resource from another before
                   the family has read a single word. */}
               <MediaTile
                 src={r.imageUrl}

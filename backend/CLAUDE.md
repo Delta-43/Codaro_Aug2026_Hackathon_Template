@@ -71,7 +71,7 @@ The shape used to be written three times — `DEFAULTS` (a dict literal),
 `validate()` (imperative checks) and hand-written TypeScript in
 `frontend/src/api/index.ts` — with nothing linking them. They had already
 drifted: the backend declares 17 `terms`, the frontend type declared 13, and
-`generate_pivots.py` writes three of the missing four into all 100 pivots.
+A deployment supplies these in its own `domain.config.json`.
 
 `config_models.py` is now the source, and everything else is derived:
 
@@ -197,7 +197,7 @@ next to it:
 | `pricing.currencyExponent` | rendering uses the currency's own ISO exponent via `Intl` | only a currency `Intl` cannot resolve |
 | `terms.staff`/`.subject`/`.admin` | the UI has one slot per concept, already fed by `terms.resource`/`.service` | E10 per-service vocabulary |
 
-`scripts/check_pivots.py` now **fails** if a `DEFAULTS` leaf appears in neither
+Every `DEFAULTS` leaf should appear in neither
 its `ENFORCED` nor its `DECLARED_ONLY` map. That table is the promise that no key
 looks live and does nothing; nothing had been checking it, and 43 paths had
 already slipped through — including all of `copy` and the since-removed `theme`,
@@ -233,7 +233,7 @@ yet — it needs a sold-count query, which is a database question.
   drops engine-owned keys and merges the rest **under** them — so a domain field
   can never shadow a price, an owner id or a config override block. (Only
   `resources`/`slots` had an input path before, so a `metaFields.bookings`
-  descriptor — the shipped medical example declares one — validated nothing.)
+  descriptor validated nothing.)
 - **Booking selection** (`bookings._resolve_selection`) re-checks at commit:
   slots exist, same service+resource, within min/max, **contiguous**, not past,
   capacity>0, `party_size ≤ capacity`, remaining seats ≥ party (crediting back
