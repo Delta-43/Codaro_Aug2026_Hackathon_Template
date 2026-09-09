@@ -22,7 +22,6 @@ key first.
 
 from __future__ import annotations
 
-import ast
 import copy
 import json
 from pathlib import Path
