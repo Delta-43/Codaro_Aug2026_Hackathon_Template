@@ -1,11 +1,11 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """Time primitives.
 
 `now_utc()` and `tz_or_utc()` were each written out several times across the
-routers — `_now()` in `routers/bookings.py`, `routers/messages.py`,
+routers, `_now()` in `routers/bookings.py`, `routers/messages.py`,
 `routers/owner.py` and `serialize.py`, and `_tz()` in `routers/availability.py`
 and `routers/owner.py`. Identical logic in each copy, which is exactly the kind
 of thing that drifts: a test that wants to freeze the clock has to find every

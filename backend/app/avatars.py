@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -20,7 +20,7 @@ _BUCKET = "avatars"
 # These MUST mirror the avatars bucket DDL in supabase/schema.sql
 # (file_size_limit = 5242880 and allowed_mime_types). There is no shared source
 # of truth across the SQL and Python layers, so changing one means changing the
-# other — otherwise a file passes one check and is rejected by the other.
+# other, otherwise a file passes one check and is rejected by the other.
 _MAX_BYTES = 5 * 1024 * 1024
 _ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp"}
 
@@ -36,7 +36,7 @@ async def store_avatar(file: UploadFile, key: str) -> str:
     # contiguous `bytes`. Note what this does *not* buy: by the time we run,
     # FastAPI has already awaited `request.form()`, so Starlette's MultiPartParser
     # has written the whole part to a SpooledTemporaryFile (disk past 1MB) with no
-    # size cap of its own — `max_part_size` guards only non-file parts. `file.size`
+    # size cap of its own, `max_part_size` guards only non-file parts. `file.size`
     # is knowable precisely *because* the body was already consumed. Bounding what
     # reaches disk needs a Content-Length check in middleware or a proxy body
     # limit; this only keeps an oversized upload out of RAM. When `size` is absent

@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -12,7 +12,7 @@ hard-coded payload.
 **Config v2 contract change.** `/config` no longer echoes the file verbatim: it
 serves `config_schema.normalize()`d + `validate()`d tree, so every v2 key is
 guaranteed present even for a file that declares five sections. What the
-operator typed must still *survive* that normalization untouched — that is what
+operator typed must still *survive* that normalization untouched, that is what
 these tests pin, instead of dict equality against the raw file.
 """
 
@@ -39,7 +39,7 @@ def _assert_facets(facets):
 
 def _assert_declared_survives(declared, served, path="config"):
     """Every value the pivot file declares must still be there, unchanged, in the
-    served tree. Normalization may only ADD defaults — it must never drop or
+    served tree. Normalization may only ADD defaults, it must never drop or
     rewrite what the operator actually typed. The one exception is v1's `theme`
     block, which the engine deliberately drops: the frontend owns its palette."""
     for key, value in declared.items():
@@ -68,7 +68,7 @@ def test_config_serves_the_normalized_tree_of_the_file_it_was_pointed_at(
     payload = response.json()
 
     # `search`/`discovery` facets are resolved against the live catalog, so they
-    # are deliberately not a straight read of the file — covered separately below.
+    # are deliberately not a straight read of the file, covered separately below.
     declared.pop("search", None)
     declared.pop("discovery", None)
     _assert_declared_survives(declared, payload)
@@ -134,7 +134,7 @@ def test_config_is_not_hardcoded_and_follows_a_pivot(client, domain_config):
 
 def test_config_reload_picks_up_a_file_edit_without_a_restart(client, auth):
     """POST /config/reload drops the cached config and returns the fresh file
-    — the instant-pivot mechanism. v2 made it **owner-gated**, so it runs as an
+   , the instant-pivot mechanism. v2 made it **owner-gated**, so it runs as an
     owner here.
 
     Edits the file on disk *directly* (not through the `domain_config`
@@ -257,7 +257,7 @@ def test_config_reload_of_a_malformed_json_file_is_a_422_not_a_500(client, auth)
 
 def test_config_facets_reflect_the_live_catalog(client, db):
     """An empty catalog supports neither price nor distance; seeding a priced
-    service and a provider with real coordinates flips both facets on — proving
+    service and a provider with real coordinates flips both facets on, proving
     the endpoint derives facets from live data, not a hard-coded map."""
     from helpers import make_provider, make_service
 
@@ -275,7 +275,7 @@ def test_config_override_forces_a_facet_off(client, db, domain_config):
     """A config-declared `search.facets` can only force a facet OFF: the resolved
     value is `derived AND declared` (declared defaulting to true). Seed data that
     derivation would use to enable BOTH price and distance, then declare
-    `distance: false` and assert only distance is vetoed — price, whose override
+    `distance: false` and assert only distance is vetoed, price, whose override
     is omitted (defaults true), still reflects derivation."""
     from helpers import make_provider, make_service
 
@@ -295,7 +295,7 @@ def test_config_override_forces_a_facet_off(client, db, domain_config):
 def test_config_declared_true_cannot_conjure_a_missing_dimension(client, db, domain_config):
     """The override can only subtract: a declared `true` for every facet against
     an empty catalog leaves price/distance OFF (derivation has no data to offer
-    them) — `true AND False` is False — while rating stays on."""
+    them), `true AND False` is False, while rating stays on."""
     domain_config(search={"facets": {"price": True, "distance": True, "rating": True}})
 
     facets = client.get("/config").json()["search"]["facets"]
@@ -332,7 +332,7 @@ def test_repo_config_declares_every_rule_key(client, use_real_config, rule_key):
 def test_repo_config_file_is_a_normalize_fixpoint(use_real_config):
     """`domain.config.json` is now an explicit v2 file: normalizing it is a
     no-op, so what an operator reads in the repo is exactly what the engine
-    resolves. (A v1 file still works — see test_config_schema.py — this just
+    resolves. (A v1 file still works, see test_config_schema.py, this just
     pins that the shipped file needs no filling in.)"""
     on_disk = json.loads(use_real_config.read_text())
     assert set(on_disk) == set(DEFAULTS)
@@ -364,8 +364,8 @@ def test_repo_config_declares_every_term_the_ui_uses(client, use_real_config):
 
 def test_config_reload_rejects_a_typo_in_a_descriptor_list(client, auth):
     """The new list-of-descriptor checks are wired into the load path, not just
-    callable: a fee with `kind: "percentage"` — which would otherwise price as 0
-    on every booking — stops the reload with a 422 naming the entry."""
+    callable: a fee with `kind: "percentage"`, which would otherwise price as 0
+    on every booking, stops the reload with a 422 naming the entry."""
     auth(role="owner")
     assert client.get("/config").json()["terms"]["resource"] == "Widget"
 
@@ -402,7 +402,7 @@ def test_config_reload_of_an_object_in_an_enum_position_is_a_422_not_a_500(
 ):
     """`_enum` type-guards before the membership test, so a hand-edited file that
     drops an object/array where a scalar enum belongs comes back as the
-    documented 422 — it used to raise TypeError out of `validate()` and 500."""
+    documented 422, it used to raise TypeError out of `validate()` and 500."""
     auth(role="owner")
     assert client.get("/config").json()["terms"]["resource"] == "Widget"
 

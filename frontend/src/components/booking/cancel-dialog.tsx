@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Cancel confirmation. The backend is the authority on the cutoff — this dialog
+ * Cancel confirmation. The backend is the authority on the cutoff, this dialog
  * simply asks, calls cancelBooking, and surfaces any ApiError message verbatim
  * (e.g. CUTOFF_PASSED) rather than inventing its own copy.
  */
@@ -30,7 +30,7 @@ export function CancelDialog({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // `terms.booking` — lowercase because it lands mid-sentence in every use here.
+  // `terms.booking`, lowercase because it lands mid-sentence in every use here.
   const noun = useVertical().bookingNoun.toLowerCase();
 
   async function confirm() {

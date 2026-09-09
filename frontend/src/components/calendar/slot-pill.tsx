@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -27,7 +27,7 @@ const STATUS_CLASS: Record<Slot["status"], string> = {
 
 /**
  * A slot pill for the week view. `label` is the primary text (start time for
- * hourly slots, resource name for day-length slots — the view decides). State
+ * hourly slots, resource name for day-length slots, the view decides). State
  * is derived from `slot.status`, which the API sends explicitly.
  */
 export function SlotPill({

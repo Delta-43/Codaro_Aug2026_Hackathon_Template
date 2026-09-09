@@ -1,10 +1,10 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """Build a seed spec from `domain.config.json` instead of `seed_data.VERTICALS`.
 
-`seed_vertical()` consumes a "vertical spec" — a dict of providers, services,
+`seed_vertical()` consumes a "vertical spec", a dict of providers, services,
 resources and slot grids. Until now the only source of one was `seed_data.py`,
 three hardcoded businesses, which is why a pivot changed what the engine
 believed while the demo data went on describing a car-rental company.
@@ -12,7 +12,7 @@ believed while the demo data went on describing a car-rental company.
 This module produces the same shape from the pivot file, so a reseed rebuilds
 data the loaded config actually describes: the right currency and timezone, the
 right durations, prices and cutoffs, capacity that can seat the configured
-party, and — in single-tenant mode — a provider whose `public_code` is the one
+party, and, in single-tenant mode, a provider whose `public_code` is the one
 `tenancy.providerCode` names, so the business always resolves.
 
 What is DERIVED and what is INVENTED, kept honest:
@@ -94,7 +94,7 @@ def _capacity(cfg: dict, model: str) -> int:
 
     A buyout books the whole unit, so its capacity is the unit's size, not the
     party's. A shared-capacity slot must seat `party.max` (falling back to the
-    legacy `maxBookingsPerSlot`), and never fewer than `party.min` — capacity
+    legacy `maxBookingsPerSlot`), and never fewer than `party.min`, capacity
     below the minimum party makes every booking unfillable, which is the
     failure `check_seed.py` flags on a stale seed.
     """
@@ -115,8 +115,8 @@ def _grid(cfg: dict, duration_minutes: int) -> dict:
     these in the business's own zone, so `location.timezone` is what decides
     where they land.
     """
-    # Exactly the declared window. It used to be `max(window, 14)` — plus, for
-    # long units, a six-unit floor — so the seed reached past what the config
+    # Exactly the declared window. It used to be `max(window, 14)`, plus, for
+    # long units, a six-unit floor, so the seed reached past what the config
     # said was bookable. That was harmless only while
     # `advanceBookingWindowDays` went unenforced; now that the rule dispatches,
     # seeding beyond it would lay down slots the booking path refuses. A
@@ -134,8 +134,8 @@ def _grid(cfg: dict, duration_minutes: int) -> dict:
         # placed by one would sit mid-unit on the other's grid and overlap it.
         # Ceil to at least a week so day-sized units keep their 7 days of past.
         back = step * max(1, -(-7 // step))
-        # A window measured in DAYS starves a long unit — 30 days of a monthly
-        # unit is one bookable month — but that is the CONFIG's statement to
+        # A window measured in DAYS starves a long unit, 30 days of a monthly
+        # unit is one bookable month, but that is the CONFIG's statement to
         # make, not the seeder's to override. Such a business raises
         # `advanceBookingWindowDays`; see pivots 007/019/041.
         return {"daysBack": back, "daysForward": forward, "dayStep": step,
@@ -190,7 +190,7 @@ def _duration_label(minutes: int) -> str:
 def _attributes(cfg: dict, label: str, capacity: int, duration: int) -> list[dict]:
     """The spec rows on a resource card.
 
-    Must be a LIST of `{label, value}` — that is the contract in
+    Must be a LIST of `{label, value}`, that is the contract in
     `serialize.py` and `types/domain.ts`, and the provider page maps over it.
     Values are drawn from the config so the card describes the pivoted offering.
     """
@@ -198,8 +198,8 @@ def _attributes(cfg: dict, label: str, capacity: int, duration: int) -> list[dic
     rows = [{"label": terms["service"], "value": label},
             {"label": terms["slot"], "value": _duration_label(duration)}]
     if capacity > 1:
-        # The card renders "label: value", so the party noun belongs on the left
-        # — "Whole group: 6" reads; "Capacity: 6 whole group" does not.
+        # The card renders "label: value", so the party noun belongs on the
+        # left: "Whole group: 6" reads; "Capacity: 6 whole group" does not.
         rows.insert(0, {"label": terms["party"], "value": str(capacity)})
     mode = cfg["location"].get("default")
     if mode in _LOCATION_LABELS:
@@ -240,7 +240,7 @@ def _service_specs(cfg: dict, model: str) -> list[dict]:
         resource_noun = terms["resource"]
         specs.append({
             "name": label,
-            "description": f"{label} — {cfg['copy']['landingSubtitle']}",
+            "description": f"{label}, {cfg['copy']['landingSubtitle']}",
             "slotDurationMinutes": duration,
             "minSlotsPerBooking": int(booking["duration"]["minUnits"]),
             "maxSlotsPerBooking": int(booking["duration"]["maxUnits"]),
@@ -251,7 +251,7 @@ def _service_specs(cfg: dict, model: str) -> list[dict]:
             "resources": [
                 {
                     "name": f"{resource_noun} {n + 1}",
-                    "description": f"{resource_noun} {n + 1} — {label}.",
+                    "description": f"{resource_noun} {n + 1}, {label}.",
                     "capacity": capacity,
                     "attributes": _attributes(cfg, label, capacity, duration),
                 }
@@ -291,7 +291,7 @@ def spec_from_config(cfg: dict) -> dict:
             "name": name,
             "tagline": copy_["landingSubtitle"] if i == 0
             else (f"{terms['services']} in {city}." if city else f"{terms['services']}, booked online."),
-            "bio": (f"{name} — {copy_['landingSubtitle']} "
+            "bio": (f"{name}, {copy_['landingSubtitle']} "
                     f"Book a {terms['slot'].lower()} and we'll confirm it."),
             "categoryId": categories[i % len(categories)]["id"],
             "city": city,

@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -12,9 +12,9 @@ import { cn } from "@/lib/utils";
 /**
  * A native `<select>` wearing the same skin as `<Input>`.
  *
- * Four call sites had each hand-rolled the same class string — booking's field
+ * Four call sites had each hand-rolled the same class string, booking's field
  * form, its options picker, the repeat picker on the confirm screen and the
- * owner's service form — and the copy had already drifted from `Input`: no focus
+ * owner's service form, and the copy had already drifted from `Input`: no focus
  * ring, no transition, no disabled treatment, and the browser's own arrow in a
  * shape and colour nothing else on the page uses. Height, radius, tint, ring and
  * type scale now come from here, so a select sits beside an input without
@@ -39,7 +39,7 @@ function Select({
         data-slot="select"
         className={
           // The option list is painted by the platform from the control's own
-          // colours, and the control is translucent (`bg-input/50`) — in dark
+          // colours, and the control is translucent (`bg-input/50`), in dark
           // mode that resolved to dark-on-dark text in the open popup, so the
           // options get opaque theme colours of their own.
           "h-8 w-full min-w-0 appearance-none rounded-2xl border border-transparent bg-input/50 py-1 pr-8 pl-2.5 text-base transition-[color,box-shadow] duration-200 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/30 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&>option]:bg-background [&>option]:text-foreground"

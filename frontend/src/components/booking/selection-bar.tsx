@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -23,7 +23,7 @@ export function SelectionBar({
   onClear: () => void;
 }) {
   // No total here any more. This bar renders on every slot click, so quoting it
-  // would fire a request per tap — and the only number it could compute without
+  // would fire a request per tap, and the only number it could compute without
   // one is `priceMinorUnits * slots`, the default-block formula that misprices
   // every tiered/per-person/per-hour service. The confirm screen quotes once,
   // authoritatively; a "from" rate is honest at this stage and cannot mislead.

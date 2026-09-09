@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * "What you can pivot" chapter — the config blocks that decide how the product
+ * "What you can pivot" chapter, the config blocks that decide how the product
  * behaves, which is the whole pitch. Same plate + indicator-icon pattern as the
  * other chapters; each block is an interactive tile whose hover feel comes from
  * `buttonFx.plate`, not an inline hover string (see frontend/CLAUDE.md).

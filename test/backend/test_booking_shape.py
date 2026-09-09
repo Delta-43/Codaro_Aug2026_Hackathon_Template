@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -10,7 +10,7 @@ neither the pricing engine nor the database: `pricing.quote()` documented a
 `person_units` and a `subject` in its context that no caller ever built, and the
 add-ons and the course had nowhere to be expressed at all.
 
-These pin the round trip — request body -> resolver -> price -> stored booking —
+These pin the round trip, request body -> resolver -> price -> stored booking,
 plus the two closure windows (`timing.blackouts` / `timing.seasons`) that were
 in the same state on the scheduling side.
 """
@@ -54,8 +54,8 @@ def test_bands_weight_the_head_count(domain_config):
 
 
 def test_bands_must_add_up_to_the_party_size(domain_config):
-    """Both numbers reach the engine — the party size holds capacity and the
-    bands price it — so a disagreement means one of them is wrong."""
+    """Both numbers reach the engine, the party size holds capacity and the
+    bands price it, so a disagreement means one of them is wrong."""
     svc = _service(party={"composition": COMPOSITION})
     with pytest.raises(RuleViolation):
         resolve_party_bands({"adult": 2}, 3, svc)
@@ -217,7 +217,7 @@ def test_create_prices_and_stores_the_chosen_shape(client, db, auth, domain_conf
 
 
 def test_the_quote_and_the_create_agree_on_the_same_shape(client, db, auth, domain_config):
-    """The number on the confirm screen has to be the number charged — which is
+    """The number on the confirm screen has to be the number charged, which is
     only true if the quote is given the same bands, options and subject."""
     domain_config(
         booking={"party": {"mode": "group", "composition": COMPOSITION}, "options": OPTIONS},
@@ -258,7 +258,7 @@ def test_an_undeclared_option_is_a_clean_rejection(client, db, auth, domain_conf
 
 
 # --------------------------------------------------------------------
-# timing.blackouts / timing.seasons — the closure windows
+# timing.blackouts / timing.seasons, the closure windows
 # --------------------------------------------------------------------
 
 

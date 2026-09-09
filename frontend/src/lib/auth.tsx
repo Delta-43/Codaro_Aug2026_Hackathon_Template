@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -22,11 +22,11 @@ import { getMyRole } from "@/api";
  *  attached as `Authorization: Bearer <jwt>` on every backend call (see the API
  *  seam in @/api). */
 
-/** Engine-neutral roles, labelled in the UI via the domain config's terms — never
+/** Engine-neutral roles, labelled in the UI via the domain config's terms, never
  *  a hardcoded "Owner"/"Customer". Anything other than "owner" is a client. */
 export type EngineRole = "owner" | "client";
 
-/** The caller's **trusted** role, resolved by the backend from `profiles` — the
+/** The caller's **trusted** role, resolved by the backend from `profiles`, the
  *  same value `require_owner` gates on.
  *
  *  This used to be read straight off the JWT (`user_metadata.role`). That claim
@@ -47,7 +47,7 @@ type AuthContextValue = {
   role: EngineRole;
   isOwner: boolean;
   /** False while the trusted role is still being resolved for a signed-in user.
-   *  Anything that routes on the role must wait for this — treating "not yet
+   *  Anything that routes on the role must wait for this, treating "not yet
    *  known" as "not an owner" would bounce a business straight out of business
    *  mode on every page load. */
   roleReady: boolean;
@@ -67,7 +67,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 /** One account per email address. Supabase's `auth.users` enforces that for
- *  real, so a duplicate can never actually be created — but it reports the
+ *  real, so a duplicate can never actually be created, but it reports the
  *  refusal in two different shapes depending on the project's "Confirm email"
  *  setting, and only one of them is an error. `signUp` handles both and ends on
  *  this single message, so the two sign-up forms read the same either way. */
@@ -145,7 +145,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // resolved, so an established owner rides out a blip instead of being
         // ejected from business mode mid-session. With nothing resolved yet,
         // fail closed to the customer app rather than to the token's
-        // self-asserted claim — every owner-only call would 403 anyway, so
+        // self-asserted claim, every owner-only call would 403 anyway, so
         // opening business mode on a guess only renders a screen that cannot
         // work.
         if (!cancelled) setRole((prev) => prev ?? "client");
@@ -175,7 +175,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           password,
         });
         if (error) throw new Error(error.message);
-        // The role follows from `profiles` once the session lands — never from
+        // The role follows from `profiles` once the session lands, never from
         // what this client thinks the user is.
       },
       async signUp(email, password, role: EngineRole = "client", consent = false) {
@@ -200,7 +200,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error) {
           throw new Error(isDuplicateAccount(error) ? ACCOUNT_EXISTS_MESSAGE : error.message);
         }
-        // Confirmations ON: GoTrue does NOT error on a taken address — to stop
+        // Confirmations ON: GoTrue does NOT error on a taken address, to stop
         // strangers enumerating who has an account, it answers with a decoy user
         // (blank email, `identities: []`) and no session. That shape is
         // indistinguishable from success, so it has to be caught here: without
@@ -209,7 +209,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // somebody else's existing account while the UI claims it just created a
         // new one, and a wrong one reports "Invalid login credentials" on a
         // *sign-up* form. `?? 1` keeps a missing/absent `identities` out of the
-        // check — only an explicitly empty list is the duplicate signal.
+        // check, only an explicitly empty list is the duplicate signal.
         if (!result.session && (result.user?.identities?.length ?? 1) === 0) {
           throw new Error(ACCOUNT_EXISTS_MESSAGE);
         }
@@ -270,7 +270,7 @@ function requireSupabase() {
   const supabase = getSupabase();
   if (!supabase) {
     throw new Error(
-      "Auth is not configured — set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      "Auth is not configured, set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
     );
   }
   return supabase;

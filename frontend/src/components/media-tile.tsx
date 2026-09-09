@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -31,7 +31,7 @@ export function MediaTile({
   rounded = "rounded-lg",
 }: {
   src?: string | null;
-  /** Empty string for decorative use next to a visible name — the common case
+  /** Empty string for decorative use next to a visible name, the common case
    *  here, since every tile sits beside the unit's own label. */
   alt: string;
   className?: string;

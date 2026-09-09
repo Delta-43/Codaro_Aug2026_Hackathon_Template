@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -6,7 +6,7 @@
 
 /**
  * Business bookings calendar with the three standard views (month / week / day),
- * week as the default — matching the customer calendar's language but laid out
+ * week as the default, matching the customer calendar's language but laid out
  * for a provider glancing across everything on their plate. Bookings can stack;
  * clicking one calls `onOpen`. Date math is delegated to `lib/calendar` (tz-aware,
  * DST-safe); times render via `lib/format`.
@@ -277,7 +277,7 @@ function WeekView({
                 )}
               >
                 {items.length === 0 ? (
-                  <span className="mt-2 text-center text-[10px] text-muted-foreground/60">—</span>
+                  <span className="mt-2 text-center text-[10px] text-muted-foreground/60">-</span>
                 ) : (
                   items.map((b) => (
                     <button

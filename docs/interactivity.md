@@ -1,9 +1,9 @@
-# Interactivity config — one source for how things react
+# Interactivity config, one source for how things react
 
 **Rule of thumb: no interactive element on the platform hard-codes its own
 hover/press feel. It pulls the feel from `frontend/src/config/buttons.ts`
 (`buttonFx`).** Change a value there and every button, card, chevron, star,
-heading and icon across the whole app moves with it — the same way
+heading and icon across the whole app moves with it, the same way
 `domain.config.json` pivots the *vocabulary*, `buttonFx` pivots the *feel*.
 
 This is the "landing-page interactivity, everywhere" system. The delightful
@@ -15,12 +15,12 @@ interactive surface in `frontend/` opts into the token instead of re-inventing a
 
 | Thing | File |
 |-------|------|
-| The tokens | `frontend/src/config/buttons.ts` — the `buttonFx` object |
-| Baked-in default | `frontend/src/components/ui/button.tsx` — every `<Button>` already carries `buttonFx.press` in its base, so real buttons need nothing extra |
+| The tokens | `frontend/src/config/buttons.ts`, the `buttonFx` object |
+| Baked-in default | `frontend/src/components/ui/button.tsx`, every `<Button>` already carries `buttonFx.press` in its base, so real buttons need nothing extra |
 | This rule | `docs/interactivity.md` (here) + a pointer in `frontend/CLAUDE.md` |
 
 `landing/` keeps its **own** frozen copy of `buttonFx` (it's a separate,
-air-gapped deployable — see `frontend/CLAUDE.md`). The extra roles below
+air-gapped deployable, see `frontend/CLAUDE.md`). The extra roles below
 (`heading`, `icon`, `chevron`) were added on the `frontend/` side for the app;
 mirror them into `landing/`'s copy only if `landing/` starts using them.
 
@@ -39,7 +39,7 @@ Pick the token by **what the element is**, then `cn()` it onto the element:
 | `pink` | a bare icon / label / status chip that should read as the accent colour on hover | `hover:text-primary` (the platform's "turn pink on hover"). |
 | `heading` | interactive **page/plate/section titles** & wordmarks (scroll-to-top, expand) | gentle grow, anchored left (override `origin-*` for centred/right). |
 | `icon` | a bare clickable **icon** with no button chrome (theme switch, cog, avatar) | clean grow (scale-110). |
-| `chevron` | the `>` / `⌄` glyph at the end of a clickable row | nudges toward its direction on the **row's** hover — put `group` on the row, this token on the chevron. |
+| `chevron` | the `>` / `⌄` glyph at the end of a clickable row | nudges toward its direction on the **row's** hover, put `group` on the row, this token on the chevron. |
 
 ### The two mechanics that trip people up
 
@@ -56,7 +56,7 @@ Pick the token by **what the element is**, then `cn()` it onto the element:
 ### Don't scale inline prose links
 
 A link in the middle of a sentence (a privacy-policy link, a "Create an account"
-switch) keeps `hover:underline` — growing mid-sentence text jitters the line.
+switch) keeps `hover:underline`, growing mid-sentence text jitters the line.
 `link`/`heading` are for **standalone** links and titles.
 
 ## How to apply it (the pattern)
@@ -75,7 +75,7 @@ import { cn } from "@/lib/utils";
 <button className={cn("… transition-all hover:bg-muted", buttonFx.press)}>…</button>
 ```
 
-Real `<Button>` components already have `press` — don't add it again.
+Real `<Button>` components already have `press`, don't add it again.
 
 ## For the next pivot / the next agent
 
@@ -86,7 +86,7 @@ When you build, change, or adjust **any** interactive element:
    `transition-transform … hover:scale…` at a call site, stop and reach for the
    token instead.
 2. If no token fits the *role*, **add a new token to `buttons.ts`** (with a
-   JSDoc note on when to use it) and use that — so the feel stays editable from
+   JSDoc note on when to use it) and use that, so the feel stays editable from
    one file. Don't special-case it inline.
 3. Keep the token **names** stable; tune their **values**. The whole point is
    that a future business can dial the platform's interaction feel up or down by
@@ -97,7 +97,7 @@ When you build, change, or adjust **any** interactive element:
 ## Theme note (related front-door change)
 
 Theming is `next-themes` with `defaultTheme="system"` (`frontend/src/app/layout.tsx`),
-so every page — the login front door included — follows the OS light/dark
+so every page, the login front door included, follows the OS light/dark
 preference live on first load. The explicit control (Light / Dark / **Smart** =
 system) lives in **Settings → Appearance** via the compact `AppearancePicker`;
 the login pages intentionally carry no theme control, they just inherit the

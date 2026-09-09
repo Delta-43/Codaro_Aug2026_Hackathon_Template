@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -9,7 +9,7 @@
  * focus-ring or height tweak could land on the search bar and not the filter
  * sheet sitting directly on top of it.
  *
- * Deliberately NOT shared with `code-entry.tsx` (h-10, px-3 — no leading icon)
+ * Deliberately NOT shared with `code-entry.tsx` (h-10, px-3, no leading icon)
  * or `components/ui/input.tsx` (a different, rounder design): folding those in
  * would change how they look, which is a design decision, not deduplication.
  */

@@ -1,8 +1,8 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Owner (business) dashboard API — powers the 5 business-mode tabs.
+"""Owner (business) dashboard API, powers the 5 business-mode tabs.
 
 This is the aggregation seam for the provider-facing app (Dashboard / Services /
 Requests / Calendar / Profile). Everything here is owner-gated and scoped to the
@@ -11,7 +11,7 @@ Profile a prospect browses is still served by the public `/providers/{id}`.
 
 Reads use the service key (system aggregation over the owner's own small tables,
 mirroring `discovery.py` / `resources` analytics). Booking mutations (approve /
-reject) live in `bookings.py`, not here — this router is read-only.
+reject) live in `bookings.py`, not here, this router is read-only.
 
 Shapes are additive and owner-only: standard camelCase entities (`Provider`,
 `Service`, `Booking`) plus aggregate envelopes (`stats`, `glance`, `client`).
@@ -39,7 +39,7 @@ router = APIRouter(prefix="/owner", tags=["owner"])
 
 def _month_bounds(ref: datetime, tz) -> tuple[datetime, datetime, datetime]:
     """(last-month-start, this-month-start, next-month-start) as UTC instants,
-    with the month boundaries taken in `tz` — so this month is
+    with the month boundaries taken in `tz`, so this month is
     [this_start, next_start) and last month is [last_start, this_start)."""
     local = ref.astimezone(tz)
     this_local = local.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -86,7 +86,7 @@ class _Scope:
         self.service_ids = {s["id"] for s in self.services}
 
         # Filter server-side on the jsonb path (PostgREST accepts arrow paths
-        # in filter columns) — fetching the whole table paged every tenant's
+        # in filter columns), fetching the whole table paged every tenant's
         # rows per owner request. The Python filter stays as belt-and-braces.
         all_resources = []
         # Chunked like _screening_data: hundreds of ids in one `.in_` request
@@ -101,7 +101,7 @@ class _Scope:
             if (r.get("metadata") or {}).get("service_id") in self.service_ids
         ]
 
-        # Bookings for the owner's providers — filtered in Python from the small
+        # Bookings for the owner's providers, filtered in Python from the small
         # demo tables (booking.provider_id lives in metadata jsonb; no column to
         # PostgREST-filter on). Enriched with span/slot ids + the client email.
         # Scoped server-side on metadata->>provider_id, then paged: the service
@@ -160,7 +160,7 @@ def _ratings_by_service(scope: _Scope) -> dict[str, list[int]]:
     no second scan of the bookings table."""
     booking_service = {b["id"]: b["serviceId"] for b in scope.bookings}
     out: dict[str, list[int]] = defaultdict(list)
-    # reviews carries a real, indexed provider_id column — no full-table scan.
+    # reviews carries a real, indexed provider_id column, no full-table scan.
     rows = fetch_all(
         scope.db.table("reviews").select("id,booking_id,rating")
         .in_("provider_id", scope.provider_ids)
@@ -178,8 +178,8 @@ def _ratings_by_service(scope: _Scope) -> dict[str, list[int]]:
 def _screening_data(
     db, client_ids: set[str]
 ) -> tuple[dict[str, list[dict]], dict[str, list[int]]]:
-    """Batch the two per-client screening reads — booking history and the
-    ratings businesses left each client — into one query each for the whole set
+    """Batch the two per-client screening reads, booking history and the
+    ratings businesses left each client, into one query each for the whole set
     of pending clients, grouped by client_id. Replaces the previous 2×N per-card
     round trips with 2 total. Both use `.in_` on the real `client_id` column."""
     ids = [c for c in client_ids if c]
@@ -231,7 +231,7 @@ def _client_profile(
         display_name = md.get("display_name") or md.get("displayName") or display_name
         avatar_url = md.get("avatar_url") or md.get("avatarUrl") or ""
     except Exception:
-        pass  # admin API unavailable — degrade to what we can derive
+        pass  # admin API unavailable, degrade to what we can derive
 
     total = len(booking_rows)
     with_us = [r for r in booking_rows if (r.get("metadata") or {}).get("provider_id") in provider_ids]
@@ -287,7 +287,7 @@ def _request_cards(scope: _Scope, *, limit: int | None = None) -> list[dict]:
 
 @router.get("/dashboard")
 def owner_dashboard(owner: AuthUser = Depends(require_owner)):
-    """Tab 1 — the at-a-glance overview: badge (primary provider), the three
+    """Tab 1, the at-a-glance overview: badge (primary provider), the three
     glanceable numbers, this week's bookings, and the top pending requests."""
     db = get_supabase()
     scope = _Scope(db, owner)
@@ -382,7 +382,7 @@ def owner_dashboard(owner: AuthUser = Depends(require_owner)):
 
 @router.get("/services")
 def owner_services(owner: AuthUser = Depends(require_owner)):
-    """Tab 2 — each of the owner's services with glanceable stats (price,
+    """Tab 2, each of the owner's services with glanceable stats (price,
     upcoming/past bookings, revenue, rating, pending requests)."""
     db = get_supabase()
     scope = _Scope(db, owner)
@@ -430,7 +430,7 @@ def owner_services(owner: AuthUser = Depends(require_owner)):
 
 @router.get("/requests")
 def owner_requests(owner: AuthUser = Depends(require_owner)):
-    """Tab 3 — every pending request across the owner's providers, each with the
+    """Tab 3, every pending request across the owner's providers, each with the
     requesting client's screening card. Approve/reject via /bookings/{id}/*."""
     db = get_supabase()
     scope = _Scope(db, owner)
@@ -443,7 +443,7 @@ def owner_calendar(
     to: str | None = Query(None),
     owner: AuthUser = Depends(require_owner),
 ):
-    """Tab 4 — approved (confirmed/completed) bookings across the owner's
+    """Tab 4, approved (confirmed/completed) bookings across the owner's
     resources within a window (defaults to the current calendar month), sorted
     by start. Query params: `from` / `to` (ISO-Z)."""
     db = get_supabase()

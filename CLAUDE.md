@@ -1,8 +1,8 @@
-# Codaro Booking Engine — root guide
+# Codaro Booking Engine, root guide
 
 ## Token budget (read first)
 
-Work to finish the task in as few tokens as possible — tokens are the user's
+Work to finish the task in as few tokens as possible, tokens are the user's
 usage limit. **Screenshots/images are the #1 cost**; prefer text tools and take
 at most one, only when a visual result must be shown. Read narrow (`grep` +
 `sed -n` ranges, not whole files), don't re-read after editing, batch tool
@@ -11,8 +11,8 @@ calls, verify once, and keep prose/commit messages terse. Full rules:
 
 ## What this is
 
-A generic booking engine — `provider → service → resource → slot → booking →
-user` — built so a completely different niche can be adopted via config +
+A generic booking engine, `provider → service → resource → slot → booking →
+user`, built so a completely different niche can be adopted via config +
 seed data instead of a rewrite. Multi-slot bookings, party size, reviews,
 follows, search, day-availability and month-density all ride on that neutral
 spine. Stack: **Next.js 14 + Tailwind** frontend, **FastAPI** backend, hosted
@@ -26,11 +26,11 @@ confirm/cancel bookings, view all bookings, and read per-item analytics.
 
 The pivot mechanism: `domain.config.json` (now **v2**, `configVersion: 2`) holds
 the engine's **vocabulary + global defaults**. v1's five sections (`terms`,
-`copy`, `theme`, `metaFields`, `rules`) only ever described one kind of business —
+`copy`, `theme`, `metaFields`, `rules`) only ever described one kind of business,
 a time-slot calendar with a price per slot. v2 adds the blocks that let the
 *shape* of the offering pivot too: `capabilities`, `booking`, `pricing`,
 `payments`, `inventory`, `location`, `prerequisites`, `timing`, `recurrence`,
-`entitlements`, `discovery`. It is strictly additive — `rules` and `search`
+`entitlements`, `discovery`. It is strictly additive, `rules` and `search`
 survive as deprecated aliases kept in sync with `timing` and `discovery`, so a v1
 file still boots. The one *subtractive* change: v1's `theme` block is gone. The
 frontend owns its palette (its own Tailwind tokens plus the site's light/dark
@@ -42,15 +42,15 @@ booking, and serves it at `GET /config`.
 columns (duration, min/max slots, cutoff, price, booking model) win over the
 config globals via `rules.py` `effective_service_rules`, and
 `effective_service_config` lifts the same precedence to whole blocks through
-`services.metadata.<block>` — which is what lets two businesses on one
+`services.metadata.<block>`, which is what lets two businesses on one
 marketplace deployment price and gate completely differently. The frontend renders
 vertical vocabulary from `src/config/verticals.ts` (pure UI labels/nouns/copy).
-New domain-specific data goes in each base table's `metadata jsonb` column — no
+New domain-specific data goes in each base table's `metadata jsonb` column, no
 migrations at pivot time. `supabase/schema.sql` is treated as frozen/idempotent
 once the event starts (new *entities* are added as new tables, base tables stay
 frozen). On the backend, the pivot is enforced by the per-service rule resolver,
 the legacy event-keyed rules registry (still used by `slots.py`), and a
-config-driven `metaFields` validator — see [backend/CLAUDE.md](backend/CLAUDE.md).
+config-driven `metaFields` validator, see [backend/CLAUDE.md](backend/CLAUDE.md).
 
 ### Surviving an *unknown* pivot
 
@@ -65,7 +65,7 @@ Two escape hatches absorb a surprise rule announced on-site:
 | Block | Controls |
 |-------|----------|
 | `terms` / `copy` | vocabulary, CTAs, empty states |
-| `capabilities` | on/off spine — payments, inventory, waitlist, quotes, reviews… |
+| `capabilities` | on/off spine, payments, inventory, waitlist, quotes, reviews… |
 | `booking` | unit kind, granularity, duration mode, party rules, add-on options |
 | `pricing` | rate + tiers + fees + caps + deposit (per-hour, per-night, per-person, tiered…) |
 | `payments` | flow, payer, schedule, billing cycle, no-show fee |
@@ -73,7 +73,7 @@ Two escape hatches absorb a surprise rule announced on-site:
 | `location` | on-site / at-customer / remote / delivery / pickup, **business timezone**, service area |
 | `prerequisites` | ID checks, intake forms, waivers, memberships, approvals |
 | `timing` | instant vs request-approve, waitlist, seasons, blackouts, lead time |
-| `metaFields` | custom fields per entity — **no migration** |
+| `metaFields` | custom fields per entity, **no migration** |
 
 Every block is overridable **per service** via `services.metadata.<block>`, so one
 deployment can host businesses that work completely differently.
@@ -98,7 +98,7 @@ The pivot library that used to sit alongside it (100 example configs, their
 generator and their coverage report) has been removed: the repository ships the
 engine and one neutral config, and a deployment brings its own.
 
-**The database never changes at the pivot — on purpose.** Tables are neutral and
+**The database never changes at the pivot, on purpose.** Tables are neutral and
 `schema.sql` is fully idempotent (`create table if not exists`, `create or
 replace view`, no `DROP`/`ALTER`). A backend restart re-runs it, but existing
 tables are left untouched and **no data is lost**. New domain fields go into the
@@ -107,7 +107,7 @@ frozen during the event.
 
 > The database is **hosted Supabase (remote)**, not a Docker volume.
 > `make reset` (`docker compose down -v`) only wipes the local `node_modules` /
-> `.next` volumes — it does **not** clear your Supabase data.
+> `.next` volumes, it does **not** clear your Supabase data.
 
 ## Auth (Supabase Auth)
 
@@ -118,7 +118,7 @@ sign-up + login and issues a JWT. The frontend attaches that JWT as
 `Authorization: Bearer <token>`; the backend verifies it against the project's
 **JWKS** (**ES256/RS256**, keyed by `kid`) and reads the user (`sub`, `email`)
 from the token instead of trusting the body. Symmetric **HS256** is not
-accepted — supporting it let the token header pick the weaker scheme.
+accepted, supporting it let the token header pick the weaker scheme.
 
 - **Roles stay config-driven.** The owner/client split keeps using
   `terms.admin` / `terms.client`; the `actor` concept became a *verified* role,
@@ -128,7 +128,7 @@ accepted — supporting it let the token header pick the weaker scheme.
   bookings, owners manage only their own providers/resources. Every user-owned
   read/write goes through a JWT-scoped Supabase client so RLS applies live; the
   service key is kept for system/cross-user work.
-- Auth is a cross-cutting layer on top of the engine — it does **not** change
+- Auth is a cross-cutting layer on top of the engine, it does **not** change
   the pivot design. `domain.config.json` still owns vocabulary/defaults; no
   domain term or magic number moves into auth code.
 
@@ -140,7 +140,7 @@ Each subdir's `CLAUDE.md` records what's actually implemented.
 |------|------|--------|
 | `backend/` | FastAPI engine: config + per-service rules, camelCase serialization, `/providers` `/services` `/resources` `/slots` `/availability` `/bookings` `/me` `/demo` routers, auth, three-vertical seeding | [backend/CLAUDE.md](backend/CLAUDE.md) |
 | `frontend/` | Next.js app (`frontend/src/`): public landing page at `/`, login + gated `(app)` group (search / calendar / bookings / provider / account), real HTTP API seam | [frontend/CLAUDE.md](frontend/CLAUDE.md) |
-| `supabase/` | `schema.sql` — neutral base tables + extended entities (providers/services/booking_slots/reviews/follows), occupancy view, RLS | [supabase/CLAUDE.md](supabase/CLAUDE.md) |
+| `supabase/` | `schema.sql`, neutral base tables + extended entities (providers/services/booking_slots/reviews/follows), occupancy view, RLS | [supabase/CLAUDE.md](supabase/CLAUDE.md) |
 | `test/` | Stack + API tests (owned exclusively by the `test-writer` agent, see below) | [test/CLAUDE.md](test/CLAUDE.md) |
 | `domain.config.json` | The pivot file (v2) | [docs/PIVOT-SYSTEM.md](docs/PIVOT-SYSTEM.md) |
 
@@ -158,7 +158,7 @@ backend/                    # FastAPI generic engine
   app/routers/              #  /providers /services /resources /slots /availability
                             #  /bookings /me /messages /owner /waitlist
   seed.py                   #  demo data (run `make reseed`)
-frontend/                   # Next.js 14 + Tailwind — the app lives in src/
+frontend/                   # Next.js 14 + Tailwind, the app lives in src/
   src/config/verticals.ts   #  UI vocabulary per vertical (useVertical())
   src/api/index.ts          #  typed backend client (the HTTP seam)
   src/app/page.tsx          #  public marketing landing page (root /)
@@ -170,14 +170,14 @@ frontend/                   # Next.js 14 + Tailwind — the app lives in src/
                             #  services, profile, settings
 ```
 
-`backend/`, `frontend/`, and `supabase/` are built out **independently** —
+`backend/`, `frontend/`, and `supabase/` are built out **independently**,
 each has its own `CLAUDE.md` with the requirements and conventions for that
 piece. Read this file first, then the relevant subdirectory's file, before
 working in it.
 
-## Run it (Docker — one command)
+## Run it (Docker, one command)
 
-Everything runs in two containers. Both env files must exist first — each
+Everything runs in two containers. Both env files must exist first, each
 service declares its own `env_file` in `docker-compose.yml`, so `make start`
 fails on a fresh clone without them.
 
@@ -187,20 +187,20 @@ cp frontend/.env.local.example frontend/.env.local  # NEXT_PUBLIC_API_BASE + Sup
 make start                                      # frontend :3000, backend :8000
 ```
 
-Supabase (Postgres) stays hosted — no DB container. Backend startup creates the
+Supabase (Postgres) stays hosted, no DB container. Backend startup creates the
 tables (if `SUPABASE_DB_URL` is set). It does **not** seed: run `make reseed`
 once to fill an empty database with demo data.
 
 **At pivot time:** edit `domain.config.json` (and UI files), then `make reload`
-— the backend caches config, so reload it to pick up the change. The frontend
+- the backend caches config, so reload it to pick up the change. The frontend
 hot-reloads on its own; no reload needed for UI edits.
 
-Config, `supabase/`, and both app trees are bind-mounted, so edits are live —
+Config, `supabase/`, and both app trees are bind-mounted, so edits are live,
 no rebuild. Rebuild (`docker compose up --build`) only when dependencies change.
 
 ## Run it (native, no Docker)
 
-**1. Database** — create a Supabase project. The backend creates the tables for
+**1. Database**, create a Supabase project. The backend creates the tables for
 you on startup (from `supabase/schema.sql`) if you give it `SUPABASE_DB_URL`;
 otherwise run `supabase/schema.sql` yourself in the SQL editor.
 
@@ -214,9 +214,9 @@ uvicorn app.main:app --reload   # creates tables (no seeding; see `make reseed`)
 
 Startup does two things, both idempotent and guarded (won't crash the server):
 
-1. **Create tables** — runs `supabase/schema.sql` over a direct Postgres
+1. **Create tables**: runs `supabase/schema.sql` over a direct Postgres
    connection (`SUPABASE_DB_URL`). Uses `IF NOT EXISTS`, safe every boot.
-2. **Seed demo data** — only when the DB has no resources yet.
+2. **Seed demo data**: only when the DB has no resources yet.
 
 ```bash
 cd frontend
@@ -228,7 +228,7 @@ npm run dev                 # http://localhost:3000 (landing page is the app roo
 ## Demo data and reseeding after a pivot
 
 Seeding is domain-aware: `seed_from_config()` reads the **current** config and names rows
-from it — medical config → `Doctor 1..3`, restaurant config → `Table 1..3`, each
+from it, medical config → `Doctor 1..3`, restaurant config → `Table 1..3`, each
 with upcoming slots sized by the config's duration and capacity.
 
 - **First boot:** nothing is seeded. Startup only applies `supabase/schema.sql`,
@@ -246,25 +246,25 @@ with upcoming slots sized by the config's duration and capacity.
 
 `make reseed` (backend `reseed.py`) truncates the base tables (via
 `SUPABASE_DB_URL`, cascading), then re-runs `seed_from_config()`. **It deletes all existing
-data** — run it only when you want a clean demo for the new domain. To keep real
+data**, run it only when you want a clean demo for the new domain. To keep real
 data you entered, skip it and add rows normally.
 
-## Development workflow — the 3-agent verification pipeline
+## Development workflow, the 3-agent verification pipeline
 
 To check the state of the codebase (what's built, whether it works, what's
 left) without doing that analysis by hand every time, use the three custom
 agents in `.claude/agents/`, run in this order:
 
-1. **`codebase-analyst`** (read-only, full repo) — reads the root and every
+1. **`codebase-analyst`** (read-only, full repo), reads the root and every
    nested `CLAUDE.md` plus the actual code, and reports back a structured
    understanding: architecture, config flow, implemented endpoints/routes,
    schema shape, and gaps vs. the Track B checklist below. It never edits
    anything.
-2. **`test-writer`** (reads anywhere, writes only inside `test/`) — takes the
+2. **`test-writer`** (reads anywhere, writes only inside `test/`), takes the
    analyst's findings and authors test plans/automated tests for the stack
    and the API endpoints under `test/`. It must never create or modify files
    outside `test/`.
-3. **`test-runner`** (execute-only — no `Write`/`Edit`/`NotebookEdit`) — runs
+3. **`test-runner`** (execute-only, no `Write`/`Edit`/`NotebookEdit`), runs
    whatever `test-writer` produced (`pytest`, `npm test`, etc.) and reports
    pass/fail results. It cannot modify any file, including its own results.
 
@@ -308,17 +308,17 @@ See **[DEPLOY.md](DEPLOY.md)** for hosting.
 
 ## Track B checklist (what the base covers)
 
-- [x] Resource and Slot — `resources`, `slots`
-- [x] Booking and Confirmation — `POST /bookings`, `confirmTitle`
-- [x] Change and Cancellation — `/bookings/{id}/reschedule`, `/bookings/{id}/cancel`
-- [x] Availability View — `slot_occupancy` view + `/slots/occupancy` + UI grid
-- [x] Status and History — `status` + append-only `history` jsonb
-- [x] Customer app — `src/app/(app)/` (search / calendar / book / reschedule / cancel)
-- [x] Owner dashboard — `src/app/owner/`: services, requests, calendar, analytics
-- [x] Owner: approve/reject bookings — `POST /bookings/{id}/approve`, `POST /bookings/{id}/reject`
-- [x] Owner: view all bookings + filter — `GET /bookings` (`?scope=`)
-- [x] Owner: per-item analytics — `GET /resources/{id}/analytics`
-- [x] Config-driven behavior — `GET /config` + rules actually enforced (not just returned)
+- [x] Resource and Slot: `resources`, `slots`
+- [x] Booking and Confirmation: `POST /bookings`, `confirmTitle`
+- [x] Change and Cancellation: `/bookings/{id}/reschedule`, `/bookings/{id}/cancel`
+- [x] Availability View: `slot_occupancy` view + `/slots/occupancy` + UI grid
+- [x] Status and History: `status` + append-only `history` jsonb
+- [x] Customer app: `src/app/(app)/` (search / calendar / book / reschedule / cancel)
+- [x] Owner dashboard: `src/app/owner/`: services, requests, calendar, analytics
+- [x] Owner: approve/reject bookings, `POST /bookings/{id}/approve`, `POST /bookings/{id}/reject`
+- [x] Owner: view all bookings + filter, `GET /bookings` (`?scope=`)
+- [x] Owner: per-item analytics, `GET /resources/{id}/analytics`
+- [x] Config-driven behavior, `GET /config` + rules actually enforced (not just returned)
 
 ## Commands
 

@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -9,7 +9,7 @@
  *
  * The requests list screens the person who *submitted* the request. On a
  * deployment where `booking.subject` is enabled that is not the important
- * party: the booking is about someone (or something) else — the pet, the
+ * party: the booking is about someone (or something) else, the pet, the
  * vehicle, the patient) and on a `payments.payer: "third_party"` deployment
  * the person paying can be a third one again. This block renders all three off
  * the booking the API already returns:
@@ -17,7 +17,7 @@
  * - `booking.subject`, labelled through the SERVICE's own
  *   `booking.subject.fields` descriptors, so the labels pivot with the config
  *   and an undeclared key still renders (humanised) rather than vanishing.
- * - `booking.options` — the chosen paid extras, priced server-side.
+ * - `booking.options`, the chosen paid extras, priced server-side.
  * - the payer, from the booking's `metaFields.bookings` values.
  *
  * The payer read is defensive on purpose: `serialize_booking` does not currently
@@ -30,14 +30,14 @@
 import type { Booking, SubjectField } from "@/types/domain";
 import { formatMoney } from "@/lib/format";
 
-/** `date_of_death` -> "Date of death". Last resort only — a declared field uses
+/** `date_of_death` -> "Date of death". Last resort only, a declared field uses
  *  its descriptor's label. */
 function humanise(key: string): string {
   return key.replace(/[_-]+/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
 
 function renderValue(value: unknown): string {
-  if (value === null || value === undefined || value === "") return "—";
+  if (value === null || value === undefined || value === "") return "-";
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (Array.isArray(value)) return value.map(renderValue).join(", ");
   if (typeof value === "object") return JSON.stringify(value);
@@ -56,7 +56,7 @@ function renderValue(value: unknown): string {
 }
 
 /** The booking's declared domain metadata, if the API sends it. Typed locally
- *  rather than on `Booking` — `src/types/domain.ts` is owned elsewhere. */
+ *  rather than on `Booking`, `src/types/domain.ts` is owned elsewhere. */
 type WithMetadata = Booking & { metadata?: Record<string, unknown> | null };
 
 export function ArrangementSummary({
@@ -65,9 +65,9 @@ export function ArrangementSummary({
   subjectNoun,
 }: {
   booking: Booking;
-  /** `service.subject.fields` — the label descriptors. Empty is fine. */
+  /** `service.subject.fields`, the label descriptors. Empty is fine. */
   fields: SubjectField[];
-  /** `service.subject.noun` — "The Deceased", "The Pet", "The Vehicle". */
+  /** `service.subject.noun`, "The Deceased", "The Pet", "The Vehicle". */
   subjectNoun?: string;
 }) {
   const subject = booking.subject ?? {};

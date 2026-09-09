@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -6,7 +6,7 @@ import type { VerticalId } from "@/types/domain";
 
 /**
  * The pivot surface for UI *vocabulary*. Every vertical-specific word the UI
- * renders comes from here — components read nouns/verbs/copy from the active
+ * renders comes from here, components read nouns/verbs/copy from the active
  * vertical, never a hard-coded string. The *data* per vertical lives in the
  * backend seed (the active one is served by GET /vertical); this file is only
  * the labels/nouns/copy the frontend renders.
@@ -20,7 +20,7 @@ export interface VerticalConfig {
   serviceNounPlural: string;
   resourceNoun: string; // "Vehicle"
   resourceNounPlural: string;
-  /** Whether the unit picker offers "Any available <resource>" — the option
+  /** Whether the unit picker offers "Any available <resource>", the option
    *  that leaves the unit unchosen and lets the tapped slot decide which one
    *  backs the booking. True where units are interchangeable (one Corolla is
    *  another Corolla); false where the customer is choosing a specific,
@@ -29,14 +29,14 @@ export interface VerticalConfig {
   bookingVerb: string; // primary CTA, e.g. "Reserve"
   /** Word for the party-size unit in shared_capacity verticals (else null). */
   partyNoun: string | null;
-  /** The unit of the calendar — `terms.slot`. "Billing period" for a monthly
+  /** The unit of the calendar, `terms.slot`. "Billing period" for a monthly
    *  plan, "Night" for a hotel. Capitalised; lowercase it mid-sentence. */
   slotNoun: string;
   slotNounPlural: string;
-  /** What a completed reservation is called — `terms.booking`. */
+  /** What a completed reservation is called, `terms.booking`. */
   bookingNoun: string;
   bookingNounPlural: string;
-  /** What the person booking is called — `terms.client`. */
+  /** What the person booking is called, `terms.client`. */
   clientNoun: string;
   clientNounPlural: string;
   categories: { id: string; label: string }[];
@@ -168,7 +168,7 @@ export function getVertical(id: VerticalId): VerticalConfig {
 
 /** Overlay the pivot file's `terms`/`copy` onto a static vertical.
  *
- *  The three verticals above are default UI vocabulary — they exist so the
+ *  The three verticals above are default UI vocabulary, they exist so the
  *  fleet/tutoring/yoga datasets read naturally. `domain.config.json` is the real
  *  pivot surface, and until now the UI ignored its `terms`/`copy` entirely: a
  *  config declaring `service: "Plan"`, `slot: "Billing period"` still rendered

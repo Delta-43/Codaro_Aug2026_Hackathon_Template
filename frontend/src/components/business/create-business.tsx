@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -7,8 +7,8 @@
 /**
  * First-run business creation for the owner console.
  *
- * An owner with no provider previously saw a dead end — "No business yet" with
- * nothing to act on — because `createProvider` had no client and the console
+ * An owner with no provider previously saw a dead end, "No business yet" with
+ * nothing to act on, because `createProvider` had no client and the console
  * could only create services. Seeds were the only route to a business, which
  * made the owner side undemonstrable on a fresh deployment.
  *

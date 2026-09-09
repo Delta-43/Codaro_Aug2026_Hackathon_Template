@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -150,7 +150,7 @@ def test_capacity_uses_min_of_row_capacity_and_config(
 
 
 def test_a_zero_max_bookings_per_slot_config_is_rejected_at_load(domain_config):
-    """`maxBookingsPerSlot: 0` closes bookings entirely — an unshippable config.
+    """`maxBookingsPerSlot: 0` closes bookings entirely, an unshippable config.
     v2's validator refuses to load it, so it can no longer be smuggled in through
     a config file (which is why the arithmetic below is asserted directly)."""
     config = normalize(domain_config())
@@ -184,7 +184,7 @@ def test_capacity_blocks_an_oversold_slot(domain_config):
 
 
 # --------------------------------------------------------------------
-# effective_service_rules — per-service value, else global, else hard default
+# effective_service_rules, per-service value, else global, else hard default
 # --------------------------------------------------------------------
 
 
@@ -208,7 +208,7 @@ def test_global_config_used_when_service_column_is_null(domain_config):
 
 def test_hard_default_used_when_no_service_and_no_global(domain_config):
     """Keys with no global mapping fall to the hard default when the service is
-    absent — min/max slots (1/1), price (0), currency (EUR), model (one_to_one)."""
+    absent, min/max slots (1/1), price (0), currency (EUR), model (one_to_one)."""
     domain_config()  # default fixture config has no min/max/price/currency keys
     rules = effective_service_rules(None)
     assert rules["minSlotsPerBooking"] == 1
@@ -242,7 +242,7 @@ def test_service_columns_populate_all_camelcase_keys(domain_config):
 
 
 # --------------------------------------------------------------------
-# within_cutoff — the change/cancel closing point (no clock guessing)
+# within_cutoff, the change/cancel closing point (no clock guessing)
 # --------------------------------------------------------------------
 
 _START = datetime(2026, 1, 10, 12, 0, 0, tzinfo=timezone.utc)
@@ -274,7 +274,7 @@ def test_within_cutoff_accepts_iso_string():
 
 
 # --------------------------------------------------------------------
-# effective_service_config — a service overrides a whole v2 block
+# effective_service_config, a service overrides a whole v2 block
 # --------------------------------------------------------------------
 
 
@@ -293,7 +293,7 @@ def test_effective_service_config_returns_every_overridable_block(domain_config)
         "capabilities",
     ):
         assert block in resolved, block
-    # Presentation stays global — a service may not re-word the app.
+    # Presentation stays global, a service may not re-word the app.
     for block in ("terms", "copy"):
         assert block not in resolved
 
@@ -334,7 +334,7 @@ def test_effective_service_config_does_not_mutate_the_cached_config(domain_confi
 
 
 # --------------------------------------------------------------------
-# effective_service_pricing — legacy columns fold into the pricing block
+# effective_service_pricing, legacy columns fold into the pricing block
 # --------------------------------------------------------------------
 
 
@@ -359,7 +359,7 @@ def test_global_pricing_applies_when_the_service_columns_are_null(domain_config)
 
 def test_declared_metadata_pricing_beats_the_legacy_columns(domain_config):
     """Opting into the richer model overrides the columns rather than fighting
-    them — otherwise a service could never move off per-slot pricing."""
+    them, otherwise a service could never move off per-slot pricing."""
     domain_config()
     service = {
         "price_minor_units": 4500,
@@ -376,7 +376,7 @@ def test_declared_metadata_pricing_beats_the_legacy_columns(domain_config):
 
 def test_partial_metadata_pricing_still_lets_the_columns_supply_the_rest(domain_config):
     """`metadata.pricing` that declares only `per` leaves the amount/currency to
-    the columns — a service can change the unit without restating its price."""
+    the columns, a service can change the unit without restating its price."""
     domain_config()
     service = {
         "price_minor_units": 4500,
@@ -403,7 +403,7 @@ def test_service_rule_map_reads_price_from_the_config_when_the_column_is_null(do
 
 
 # --------------------------------------------------------------------
-# effective_auto_approve — timing.confirmation is the new global default
+# effective_auto_approve, timing.confirmation is the new global default
 # --------------------------------------------------------------------
 
 
@@ -447,7 +447,7 @@ def test_service_metadata_timing_block_can_flip_auto_approve(domain_config):
 
 
 def test_lead_time_of_zero_disables_the_rule():
-    """0 is the "off" value, same convention as bufferMinutes — a slot starting
+    """0 is the "off" value, same convention as bufferMinutes, a slot starting
     right now, or one that already started, is not this rule's problem."""
     _lead_time(0, {"slot_starts_at": in_hours(0)})
     _lead_time(0, {"slot_starts_at": in_hours(-5)})
@@ -480,7 +480,7 @@ def test_lead_time_rejects_a_start_already_in_the_past():
     (1440, 48, False),
 ])
 def test_lead_time_is_driven_by_the_configured_number(minutes, hours_out, blocked, domain_config):
-    """Same code path, different verdict per config value — dispatched through
+    """Same code path, different verdict per config value, dispatched through
     `apply_rules`, exactly as the router calls it."""
     domain_config(timing={"leadTimeMinutes": minutes})
     ctx = {"slot_starts_at": in_hours(hours_out)}
@@ -515,7 +515,7 @@ def test_booking_create_dispatches_lead_time_and_the_advance_window():
     """`advanceBookingWindowDays` joined this event once `seed_config._grid`
     started seeding exactly the declared window. While the grid reached further
     than the config allowed, dispatching it made half the seeded calendar
-    unbookable — which is why it sat in UNDISPATCHED for so long.
+    unbookable, which is why it sat in UNDISPATCHED for so long.
 
     `blackouts`/`seasons` joined it when the two closure windows stopped being
     decorative: both were declared in v2, validated at load and enforced
@@ -539,7 +539,7 @@ def test_max_bookings_per_slot_is_not_dispatched_on_any_event():
 
 def test_the_undispatched_registry_is_exactly_the_two_known_keys():
     """Down from three: `advanceBookingWindowDays` is dispatched now. The two
-    that remain are deliberate — see the comments beside `UNDISPATCHED`."""
+    that remain are deliberate, see the comments beside `UNDISPATCHED`."""
     assert UNDISPATCHED == {
         "maxBookingsPerSlot": _capacity,
         "cancellationWindowHours": _cancellation_window,
@@ -592,7 +592,7 @@ def test_apply_rules_on_an_unknown_event_is_a_no_op():
 
 def test_payment_state_currency_falls_back_to_the_effective_pricing(domain_config):
     """A booking whose metadata never stored a currency (seeded/legacy rows)
-    must be labelled in the pricing block's currency — it was hard-coded EUR
+    must be labelled in the pricing block's currency, it was hard-coded EUR
     while quote/create billed the effective currency."""
     domain_config(pricing={"currency": "USD"})
     state = payment_state({"price_minor_units": 500}, None, "confirmed")

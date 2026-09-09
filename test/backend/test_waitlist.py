@@ -1,11 +1,11 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""/slots/{id}/waitlist — the queue for a full slot, plus auto-promotion.
+"""/slots/{id}/waitlist, the queue for a full slot, plus auto-promotion.
 
 `timing.waitlist` + `capabilities.waitlist` gate the whole surface (both off in
-the fixture config, so every test that wants a queue turns them on explicitly —
+the fixture config, so every test that wants a queue turns them on explicitly,
 proving the behaviour is config-driven). Promotion is exercised through the
 real cancel endpoint: freeing a seat hands it to the head of the queue as a
 PENDING booking (the customer never agreed to a specific booking, so it must
@@ -63,7 +63,7 @@ def test_join_requires_a_token(client, db):
 
 
 def test_join_refused_when_the_capability_is_off(client, db, auth):
-    """The fixture config leaves `capabilities.waitlist` off — the surface must
+    """The fixture config leaves `capabilities.waitlist` off, the surface must
     not exist there."""
     cat, _booking = _full_catalog(db)
     auth(role="client", id=USER_B, email="b@example.com")
@@ -189,7 +189,7 @@ def test_cancel_promotes_the_head_of_the_queue_as_a_pending_booking(
     made = [b for b in db.rows("bookings") if b.get("client_id") == USER_B]
     assert len(made) == 1
     promoted_booking = made[0]
-    # pending — the customer joined a queue, they never agreed to a booking.
+    # pending, the customer joined a queue, they never agreed to a booking.
     assert promoted_booking["status"] == "pending"
     assert promoted_booking["client_email"] == "b@example.com"
     md = promoted_booking["metadata"]
@@ -211,7 +211,7 @@ def test_cancel_promotes_the_head_of_the_queue_as_a_pending_booking(
 
 
 def test_no_promotion_when_auto_promote_is_off(client, db, auth, domain_config):
-    """`autoPromote: false` records the queue for the owner to work manually —
+    """`autoPromote: false` records the queue for the owner to work manually,
     a cancellation must not commit anyone."""
     _waitlist_on(domain_config, auto_promote=False)
     cat, booking = _full_catalog(db)
@@ -233,7 +233,7 @@ def test_a_skipped_promotion_leaves_the_head_waiting(client, db, auth, domain_co
     """A promotion `_book_for_entry` refuses must leave the entry WAITING.
 
     Regression: on a deployment whose `metaFields.bookings` declares a required
-    field, promotion cannot mint a schema-valid booking, so it skips — the old
+    field, promotion cannot mint a schema-valid booking, so it skips, the old
     code still stamped the entry `promoted` with `booking_id: None`, silently
     dropping the customer from the queue with nothing to show for it.
     """
@@ -248,7 +248,7 @@ def test_a_skipped_promotion_leaves_the_head_waiting(client, db, auth, domain_co
     )
     cat = make_catalog(db)
     booking = make_booking(db, slots=[cat["slot"]], service=cat["service"], user_id=USER_A)
-    # Email resolves fine — the ONLY reason to skip is the unmet booking schema.
+    # Email resolves fine, the ONLY reason to skip is the unmet booking schema.
     db.seed_auth_user(USER_B, email="b@example.com")
     auth(role="client", id=USER_B, email="b@example.com")
     assert client.post(f"/slots/{cat['slot']['id']}/waitlist").status_code == 200
@@ -285,7 +285,7 @@ def test_promotion_respects_the_heads_party_size(client, db, auth, domain_config
     assert resp.status_code == 200
     assert resp.json()["partySize"] == 3
 
-    # Only ONE seat frees — not enough for the head's party of three.
+    # Only ONE seat frees, not enough for the head's party of three.
     auth(role="client", id=USER_C, email="c@example.com")
     assert client.post(f"/bookings/{small['id']}/cancel").status_code == 200
 

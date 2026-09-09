@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -136,8 +136,8 @@ def test_demo_user_has_seeded_bookings(api, vertical):
     """The demo user opens the app on a real history, not an empty list.
 
     Deliberately a floor, not an exact count. `seed._seed_bookings` documents
-    itself as "the 5-6 lifecycle bookings" — the number depends on where the
-    slot grid falls relative to now — and `scope=all` also counts anything an
+    itself as "the 5-6 lifecycle bookings", the number depends on where the
+    slot grid falls relative to now, and `scope=all` also counts anything an
     earlier test in this suite created and cancelled, since cancelling is not
     deleting. Pinning it to one number made a green suite go red for two
     reasons that are both correct behaviour."""
@@ -183,8 +183,8 @@ def _find_available_slots(api, service_id, *, min_start_hours, count=1):
 def _find_contiguous_run(api, service_id, *, min_start_hours, count):
     """`count` back-to-back available slots on ONE resource, or None.
 
-    A multi-slot booking is a contiguous span on a single resource — that is what
-    `_resolve_selection` enforces — so picking any two available slots is not
+    A multi-slot booking is a contiguous span on a single resource, that is what
+    `_resolve_selection` enforces, so picking any two available slots is not
     enough on a deployment whose `booking.duration` demands more than one. Which
     is most of the interesting ones: `minUnits: 2` alone made this test book a
     single slot and be told "select between 2 and 12".
@@ -205,8 +205,8 @@ def _find_contiguous_run(api, service_id, *, min_start_hours, count):
 def _sample_value(field: dict):
     """A plausible value for one config-declared field descriptor.
 
-    The live config decides what a booking must carry — `booking.subject.fields`
-    and `metaFields.bookings` are both pivot-owned — so a smoke test cannot hard
+    The live config decides what a booking must carry, `booking.subject.fields`
+    and `metaFields.bookings` are both pivot-owned, so a smoke test cannot hard
     code a body. It fills what the deployment asks for and lets the engine judge
     it, which is the only version of this test that survives a pivot.
     """
@@ -264,7 +264,7 @@ def test_create_reschedule_cancel_lifecycle(api, config):
     # Pick a service with enough far-future availability for TWO bookings of
     # whatever size it demands: one to make, one to move to. The size comes from
     # the service (`booking.duration` resolves to minSlotsPerBooking), never from
-    # this test — a deployment selling two-hour blocks does not sell one.
+    # this test, a deployment selling two-hour blocks does not sell one.
     chosen = None
     for svc in services:
         span = max(1, svc["minSlotsPerBooking"])

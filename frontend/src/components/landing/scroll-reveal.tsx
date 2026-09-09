@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -10,7 +10,7 @@
  * - `useScrollMotion` used to dim each chapter as it scrolled away from centre.
  *   That opacity (applied to the chapter's wrapper) forced the plate into an
  *   isolated compositing group, which changed how its liquid-glass
- *   `backdrop-filter` sampled the page behind it — so those plates frosted the
+ *   `backdrop-filter` sampled the page behind it, so those plates frosted the
  *   background differently (weaker) than the footer, which never dimmed. To make
  *   every plate blur the backdrop the *same*, footer-perfect way, the dimming is
  *   gone; the hook is now inert and just hands back a ref (kept so the call
@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 
 export function useScrollMotion<T extends HTMLElement>() {
   const ref = useRef<T>(null);
-  // No dimming — a full-opacity plate keeps its backdrop-filter out of a
+  // No dimming, a full-opacity plate keeps its backdrop-filter out of a
   // compositing group, so the glass frosts the background exactly like the footer.
   return { ref, style: {} as CSSProperties };
 }
@@ -38,7 +38,7 @@ export function GlassPanel({
   return (
     <div
       className={cn(
-        // Liquid-glass plate — the footer's clean, uniform treatment used across
+        // Liquid-glass plate, the footer's clean, uniform treatment used across
         // every chapter: highly translucent, blurred + saturated (via
         // `.liquid-glass`), a bright rim, and a single soft drop shadow. No
         // diagonal sheen or inner bevels, so the glass reads the same calm, flat

@@ -1,8 +1,8 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""/services — public reads. A service carries per-service rule columns and a
+"""/services, public reads. A service carries per-service rule columns and a
 derived `resourceIds` link array (its active resources)."""
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ SERVICE_KEYS = {
     "waitlist",
     "resourceIds",
     # The v2 offer-shape blocks. Every one was declared in the config, resolved
-    # per service, and served to nobody — so the client could not render (let
+    # per service, and served to nobody, so the client could not render (let
     # alone collect) a party band, an add-on, a subject, a course or a payment
     # schedule.
     "unitKind",
@@ -157,7 +157,7 @@ def test_create_service_with_auto_approve_false_persists_to_metadata(client, db,
     assert resp.status_code == 200
     body = resp.json()
     assert body["autoApprove"] is False
-    # auto_approve is NOT a column — it rides in services.metadata like image_url.
+    # auto_approve is NOT a column, it rides in services.metadata like image_url.
     stored = db.get_row("services", body["id"])
     assert stored["metadata"]["auto_approve"] is False
     assert "auto_approve" not in stored  # never a column
@@ -337,7 +337,7 @@ def test_prerequisites_only_serialized_when_the_capability_is_on(
 ):
     """Enforcement (create/approve) ANDs `capabilities.prerequisites`, so
     serving the declared list on a capability-off deployment advertised a step
-    the API never enforced — it must serialize as []."""
+    the API never enforced, it must serialize as []."""
     prereqs = [{
         "key": "licence", "kind": "licence", "label": "Licence",
         "required": True, "blocksConfirmation": True,

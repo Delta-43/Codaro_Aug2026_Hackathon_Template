@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Tab 1 — Search. Three ways to lock in a provider: text/category/location
+ * Tab 1: Search. Three ways to lock in a provider: text/category/location
  * search, a provider code, and a demo QR scan. Followed providers pin to the
  * top. Tapping a result opens a preview (Follow / Open); Open moves to Tab 2.
  */
@@ -37,7 +37,7 @@ export default function SearchPage() {
   const { user, singleBusiness, ready } = useApp();
   const router = useRouter();
 
-  // Provider discovery doesn't exist in single-business mode — the sole business
+  // Provider discovery doesn't exist in single-business mode, the sole business
   // is implicit. Bounce any stray link/bookmark to the catalog.
   useEffect(() => {
     if (singleBusiness) router.replace("/provider");
@@ -72,12 +72,12 @@ export default function SearchPage() {
   );
 
   // QR targets come from an unfiltered fetch so the scanner always has codes.
-  // Fetched once on mount — the demo targets don't depend on filters or follow
+  // Fetched once on mount, the demo targets don't depend on filters or follow
   // ordering, so there's no reason to refetch when those change.
   const allProviders = useAsync(() => searchProviders({}), []);
   const qrTargets = useMemo(() => (allProviders.data ?? []).slice(0, 3), [allProviders.data]);
 
-  // Which filter/sort dimensions this vertical supports — derived server-side
+  // Which filter/sort dimensions this vertical supports, derived server-side
   // from the catalog (GET /config). A free niche → no price; a remote niche →
   // no distance. Defaults to all-on while loading. Sort keys share the facet
   // names, so a disabled facet drops its sort option too.
@@ -124,7 +124,7 @@ export default function SearchPage() {
 
   // Filter (range sliders) then order the results client-side. Followed pinned to
   // the top (unchanged), then the chosen key/direction; providers with no value
-  // for the sort key sink to the bottom. Instant — no refetch on filter/sort.
+  // for the sort key sink to the bottom. Instant, no refetch on filter/sort.
   const providers = useMemo(() => {
     const { value } = ORDER_META[orderBy];
     const sign = dir === "asc" ? 1 : -1;
@@ -173,7 +173,7 @@ export default function SearchPage() {
   };
 
   // Badge on the Filter button counts the panel's active filters (location +
-  // the three range sliders) — category is a visible inline chip, not counted.
+  // the three range sliders), category is a visible inline chip, not counted.
   const activeFilterCount =
     (near !== "" ? 1 : 0) +
     (maxPrice !== null ? 1 : 0) +
@@ -209,7 +209,7 @@ export default function SearchPage() {
         </div>
       </div>
 
-      {/* Filters line: Filter button (opens the panel — location + sort) followed
+      {/* Filters line: Filter button (opens the panel, location + sort) followed
           by the category quick-filters. Provider-code entry lives in the
           search-bar icon → dialog. */}
       <div className="flex items-center gap-2">
@@ -246,7 +246,7 @@ export default function SearchPage() {
         </div>
       </div>
 
-      {/* Result count / clear — slim meta line above the list. */}
+      {/* Result count / clear, slim meta line above the list. */}
       {results.data && !results.error ? (
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>

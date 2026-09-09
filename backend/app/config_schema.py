@@ -1,29 +1,29 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Domain config v2 — defaults, v1 aliasing, and validation.
+"""Domain config v2, defaults, v1 aliasing, and validation.
 
 `domain.config.json` is the pivot file. v1 shipped five sections
 (`terms`/`rules`/`copy`/`metaFields`) that between them expressed exactly
 one kind of business: a time-slot calendar with a price per slot. v2 adds the
-blocks that let the *shape* of the offering pivot too — pricing, payments,
+blocks that let the *shape* of the offering pivot too, pricing, payments,
 inventory, location, prerequisites, timing.
 
 Three jobs live here, and nothing else. This module is pure dict work: no
 database, no FastAPI, no imports from `app.*`, so the CI validator can import it
 directly.
 
-* **DEFAULTS** — the complete v2 tree. A pivot file declares only what it
+* **DEFAULTS**: the complete v2 tree. A pivot file declares only what it
   changes; everything else resolves from here, so a half-written config still
   boots.
-* **normalize()** — deep-merges a raw file over DEFAULTS, then keeps the v1
+* **normalize()**: deep-merges a raw file over DEFAULTS, then keeps the v1
   aliases (`rules` <-> `timing`, `search` <-> `discovery`) consistent in *both*
   directions, so a v1 file runs unchanged. Note the engine itself now reads only
-  the v2 keys — `routers/slots.py` and `rules.apply_rules` both go through
+  the v2 keys, `routers/slots.py` and `rules.apply_rules` both go through
   `timing`, and the frontend reads `search.facets`. The `rules` mirror is kept
   purely for a v1 *reader*; nothing in this repo consumes it.
-* **validate()** — turns a typo into a load-time error instead of a 500 on
+* **validate()**: turns a typo into a load-time error instead of a 500 on
   whichever request happens to read the bad key first. The whole premise of this
   file is that it gets hand-edited under time pressure; failing loudly at the
   edit is the point.
@@ -54,7 +54,7 @@ UNIT_KINDS = frozenset(
 GRANULARITIES = frozenset({"minute", "hour", "day", "night", "week", "month", "none"})
 
 # How long one `booking.granularity` unit lasts, in minutes. This is the DEFAULT
-# slot length for a config that does not state one — `booking.granularity`
+# slot length for a config that does not state one, `booking.granularity`
 # already says what the business sells (a night, a day, a month), so making the
 # calendar contradict it takes a deliberate `timing.slotDurationMinutes`.
 #
@@ -73,7 +73,7 @@ GRANULARITY_SLOT_MINUTES = {
     "day": 1440,
     "night": 1440,
     "week": 10080,
-    "month": 43200,  # 30 days — calendar months vary; the grid needs one number
+    "month": 43200,  # 30 days, calendar months vary; the grid needs one number
     "none": 1440,
 }
 DURATION_MODES = frozenset({"fixed", "variable", "customer_chosen", "open_ended"})
@@ -129,7 +129,7 @@ DEFAULTS: dict[str, Any] = {
     "tenancy": {
         "mode": "multi",
         "providerCode": None,
-        # Defaults to `mode == "multi"` in normalize() when the file omits it —
+        # Defaults to `mode == "multi"` in normalize() when the file omits it,
         # a marketplace onboards businesses, a single-business site does not.
         "selfOnboarding": None,
         "tenantVerification": {"required": False, "credentials": []},
@@ -137,7 +137,7 @@ DEFAULTS: dict[str, Any] = {
     },
 
     # The on/off spine. A false capability means the UI hides the surface AND the
-    # backend refuses the write — not one without the other. That held for
+    # backend refuses the write, not one without the other. That held for
     # `reviews` and `follows` only once they were actually gated (they are, in
     # bookings.py / providers.py); the rest name surfaces that do not exist yet,
     # so there is nothing to refuse and scripts/check_pivots.py lists them as
@@ -163,7 +163,7 @@ DEFAULTS: dict[str, Any] = {
             "mode": "individual",
             "min": 1,
             "max": None,          # null => the resource's own capacity is the ceiling
-            "composition": None,  # [{key, label, priceFactor}] — age bands etc.
+            "composition": None,  # [{key, label, priceFactor}], age bands etc.
             "matchResourceCapacity": False,
         },
         "sequence": {"enabled": False, "steps": 1, "minGapHours": 0, "maxGapHours": None},
@@ -179,7 +179,7 @@ DEFAULTS: dict[str, Any] = {
         "secondaryRate": None,
         "tiers": [],
         # True reproduces the v1 formula (price x slots x party). Set false where
-        # the party shares one unit — a tennis court costs the same for 2 or 4.
+        # the party shares one unit, a tennis court costs the same for 2 or 4.
         "chargePerPerson": True,
         # perBookingMinorUnits is enforced by pricing.quote(). perDayMinorUnits is
         # NOT: it needs the customer's other bookings that day, which is a query,
@@ -194,7 +194,7 @@ DEFAULTS: dict[str, Any] = {
         "payer": "customer",
         "schedule": [],
         "billingCycle": "none",
-        # NOT YET ENFORCED — needs the payments layer (no payments table exists).
+        # NOT YET ENFORCED, needs the payments layer (no payments table exists).
         "noShowFee": {"enabled": False, "amountMinorUnits": 0},
         "usageMetered": False,
         # No PSP exists in this repo. "manual" = the owner marks a booking paid,
@@ -219,7 +219,7 @@ DEFAULTS: dict[str, Any] = {
         # visitor always saw availability grouped in UTC.
         "timezone": "UTC",
         "distanceUnit": "km",
-        "origin": None,  # {city, lat, lng} — the distance-from point
+        "origin": None,  # {city, lat, lng}, the distance-from point
         "serviceArea": {"radiusKm": None, "travelBufferMinutes": 0, "feeBands": []},
         "remote": {"meetingLinkMode": "none"},
         "fulfilment": {"windowMinutes": 60, "cutoffHoursBefore": 0},
@@ -229,7 +229,7 @@ DEFAULTS: dict[str, Any] = {
 
     "timing": {
         "confirmation": "instant",
-        # NOT YET ENFORCED — auto-expiring a stale request needs a scheduled job.
+        # NOT YET ENFORCED, auto-expiring a stale request needs a scheduled job.
         "approvalWindowHours": 48,
         # Enforced on booking.create via the rules registry (`rules._lead_time`).
         "leadTimeMinutes": 0,
@@ -309,7 +309,7 @@ DEFAULTS: dict[str, Any] = {
 
 def deep_merge(base: dict, override: Any) -> dict:
     """Recursively merge `override` onto `base`, IN PLACE. Lists replace
-    wholesale — a config that declares `pricing.tiers` means *those* tiers, not
+    wholesale, a config that declares `pricing.tiers` means *those* tiers, not
     those plus the defaults.
 
     Public because `rules.py` had a second, identical implementation that only
@@ -335,7 +335,7 @@ def normalize(raw: dict | None) -> dict:
     raw = raw or {}
     cfg = deep_merge(_copy.deepcopy(DEFAULTS), raw)
     # v1's `theme` block (primaryColor/radius) is gone: the frontend owns its own
-    # palette. Dropped rather than rejected so an old pivot file still boots — it
+    # palette. Dropped rather than rejected so an old pivot file still boots, it
     # simply has no effect on the UI.
     cfg.pop("theme", None)
 
@@ -352,7 +352,7 @@ def normalize(raw: dict | None) -> dict:
             # An explicit value on either path still wins (both branches above).
             #
             # `normalize` runs before `validate`, so `granularity` here may still
-            # be any JSON value — including an unhashable list/dict, which would
+            # be any JSON value, including an unhashable list/dict, which would
             # make a bare `.get()` raise TypeError and escape as a 500 instead of
             # the ConfigError the caller expects. Non-strings fall through to the
             # default and let `validate` report the real problem.
@@ -392,14 +392,14 @@ def check_shape(raw: dict, expected: dict | None = None, prefix: str = "") -> li
 
     `normalize()` and `validate()` both assume a block is the shape DEFAULTS says
     it is. A hand-edited `"timing": []` or `"tenancy": "single"` therefore raised
-    TypeError/AttributeError out of the load path instead of being reported —
+    TypeError/AttributeError out of the load path instead of being reported,
     which turned a typo into a 500 from /config/reload and a traceback at
     startup, exactly what load-time validation exists to prevent.
 
     It recurses, because the top level was never where the assumption lived:
     `validate()` indexes `booking["duration"]["mode"]` and `pricing["rate"]["per"]`,
     so a nested `"duration": 5` escaped the top-level check and hit the same
-    AttributeError. Only keys DEFAULTS declares are inspected — an unknown key is
+    AttributeError. Only keys DEFAULTS declares are inspected, an unknown key is
     the extension point and passes through, exactly as before.
     """
     errors: list[str] = []
@@ -433,7 +433,7 @@ def _enum(errors: list[str], value: Any, allowed: frozenset, path: str) -> None:
     # `value not in frozenset` raises TypeError on a dict/list, and a hand-edited
     # config puts objects in scalar positions all the time
     # (`patterns: [{"every": "week"}]`). That must be a listed problem, not a
-    # traceback — an unhandled error here would surface as a 500 from
+    # traceback, an unhandled error here would surface as a 500 from
     # /config/reload instead of the 422 the endpoint promises.
     if isinstance(value, (dict, list, set, bytearray)) or value not in allowed:
         errors.append(f"{path} must be one of {sorted(allowed)}, got {value!r}")
@@ -458,7 +458,7 @@ def _bool(errors: list[str], value: Any, path: str) -> None:
 def validate(cfg: dict) -> list[str]:
     """Check a NORMALIZED config. Returns a list of human-readable problems;
     empty means good. Only checks things that would corrupt data or hard-crash a
-    request — a silly colour is not this function's business."""
+    request, a silly colour is not this function's business."""
     errors: list[str] = []
 
     _enum(errors, cfg["tenancy"].get("mode"), TENANCY_MODES, "tenancy.mode")
@@ -548,7 +548,7 @@ def validate(cfg: dict) -> list[str]:
             _int(errors, fee.get("amountMinorUnits"), f"pricing.fees[{i}].amountMinorUnits", minimum=0)
     _enum(errors, (pricing.get("deposit") or {}).get("kind"), DEPOSIT_KINDS, "pricing.deposit.kind")
     # These three reach pricing arithmetic through `pricing._int`, which coerces
-    # junk to 0 — an unvalidated cap of "free" would zero every price at quote
+    # junk to 0, an unvalidated cap of "free" would zero every price at quote
     # time instead of failing here at the edit.
     _int(errors, (pricing.get("deposit") or {}).get("value"),
          "pricing.deposit.value", minimum=0)
@@ -565,7 +565,7 @@ def validate(cfg: dict) -> list[str]:
     if cfg["capabilities"]["payments"] is False and payments["flow"] != "none":
         errors.append(
             "capabilities.payments is false, so payments.flow must be 'none' "
-            f"(got {payments['flow']!r}) — otherwise the UI hides a step the API still enforces"
+            f"(got {payments['flow']!r}), otherwise the UI hides a step the API still enforces"
         )
 
     for i, step in enumerate(payments.get("schedule") or []):
@@ -662,7 +662,7 @@ def validate(cfg: dict) -> list[str]:
 
 
 def validate_overrides(overrides: dict, base: dict | None = None) -> list[str]:
-    """Validate a PARTIAL config — the blocks one service overrides.
+    """Validate a PARTIAL config, the blocks one service overrides.
 
     `validate()` only ever ran on the global file at load, so per-service
     overrides (`services.metadata.<block>`) reached the pricing and scheduling
@@ -670,7 +670,7 @@ def validate_overrides(overrides: dict, base: dict | None = None) -> list[str]:
     descriptor that silently validates nothing, except it applies to money.
 
     The trick is to merge the overrides onto a known-good base and then keep only
-    the errors belonging to a block the caller actually declared — otherwise a
+    the errors belonging to a block the caller actually declared, otherwise a
     service overriding `pricing` would be blamed for the deployment's unrelated
     `tenancy` settings.
 

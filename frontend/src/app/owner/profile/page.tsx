@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Business tab 5 — Profile. The public-facing showcase a customer sees when
+ * Business tab 5: Profile. The public-facing showcase a customer sees when
  * deciding whether to book: hero, bio, links/socials and reviews. Identity is
  * the owner's real provider (name/tagline/bio/rating/links) and the reviews are
  * the real ones left on their bookings (/providers/{id}/reviews). Editing lives
@@ -51,7 +51,7 @@ export default function ProfilePage() {
 
   return (
     <section className="space-y-6 py-2">
-      {/* Hero — the same header Settings edits in place. */}
+      {/* Hero, the same header Settings edits in place. */}
       <BusinessHero
         provider={p}
         scene={scene}
@@ -105,7 +105,7 @@ export default function ProfilePage() {
         <h2 className="mb-2 text-sm font-semibold">Reviews</h2>
         {reviews.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-xs text-muted-foreground">
-            No reviews yet — they show up here as customers rate their bookings.
+            No reviews yet, they show up here as customers rate their bookings.
           </p>
         ) : (
           <ul className="space-y-3">

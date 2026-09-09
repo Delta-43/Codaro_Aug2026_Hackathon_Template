@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -54,7 +54,7 @@ export function WeekView({
             </div>
             <div className="space-y-1">
               {slots.length === 0 ? (
-                <div className="py-1 text-center text-[10px] text-muted-foreground/40">—</div>
+                <div className="py-1 text-center text-[10px] text-muted-foreground/40">-</div>
               ) : (
                 slots.map((slot) => (
                   <SlotPill

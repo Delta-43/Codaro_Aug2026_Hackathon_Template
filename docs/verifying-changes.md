@@ -1,4 +1,4 @@
-# Verifying changes — the local CI recipe
+# Verifying changes, the local CI recipe
 
 These checks mirror `.github/workflows/ci.yml`. Run the ones that touch what you
 changed, or all of them before opening a PR. Passing them locally means the PR's
@@ -16,7 +16,7 @@ python3 .github/scripts/validate_domain_config.py
 ```
 
 Confirms `domain.config.json` still has every required section/key with the
-right types. Run it after **any** edit to `domain.config.json` — a typo there
+right types. Run it after **any** edit to `domain.config.json`, a typo there
 breaks the backend at startup and every UI label.
 
 ## 2. Lint
@@ -56,12 +56,12 @@ npm run build
 this deploy" (it also lints and prerenders). Run after any `frontend/` change.
 
 > **Footgun:** don't run `npm run build` while a `next dev` server is live on the
-> same checkout — it overwrites the dev server's `.next` and the running page
+> same checkout, it overwrites the dev server's `.next` and the running page
 > stops hydrating. Stop the dev server first (or use the Docker preview, whose
 > `.next` is an isolated volume).
 
 ## Frontend-only changes
 
 A change confined to `frontend/` (e.g. the landing page) only needs check **3**.
-Checks 1–2 cover the backend/config and are unaffected — but running all three
+Checks 1–2 cover the backend/config and are unaffected, but running all three
 before a PR is the safe default.

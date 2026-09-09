@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -132,7 +132,7 @@ export function CalendarView({
 
   return (
     <div>
-      {/* Zoom control — scrolls horizontally rather than overflowing when the
+      {/* Zoom control, scrolls horizontally rather than overflowing when the
           viewport is too narrow for month/week/day side by side. */}
       <div className="no-scrollbar mb-3 flex w-fit max-w-full overflow-x-auto rounded-lg border border-border bg-card p-0.5">
         {(["month", "week", "day"] as Zoom[]).map((z) => (

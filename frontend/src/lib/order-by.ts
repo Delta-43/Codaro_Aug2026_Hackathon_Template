@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -7,7 +7,7 @@
  * Filter panel (which renders the picker). Each key maps a provider to one
  * sortable number and declares the direction that reads as "best" (rating
  * high-first, distance/price low-first). `value` returns null when the provider
- * has no data for that key — those always sink to the bottom, either direction.
+ * has no data for that key, those always sink to the bottom, either direction.
  */
 import { ArrowDown, ArrowUp, MapPin, Star, Tag, type LucideIcon } from "lucide-react";
 import type { Provider } from "@/types/domain";

@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/resources", tags=["resources"])
 def delete_resources_for_services(uc, db, service_ids: set[str]) -> None:
     """Delete every resource whose `metadata.service_id` is in `service_ids`.
     Resources are linked to a service via metadata (no FK), so a provider/service
-    delete does NOT cascade to them — this closes that gap. Each resource delete
+    delete does NOT cascade to them, this closes that gap. Each resource delete
     *does* cascade (FK) to its slots → bookings → booking_slots/reviews. Deletes
     go through the RLS-scoped user client, so only the owner's own units go."""
     if not service_ids:
@@ -57,7 +57,7 @@ def list_resources(service_id: str | None = None):
 @router.post("")
 def create_resource(payload: ResourceCreate, owner: AuthUser = Depends(require_owner)):
     validate_metadata("resources", payload.metadata)
-    # Stamp ownership in metadata (the schema is frozen — no owner column). This
+    # Stamp ownership in metadata (the schema is frozen, no owner column). This
     # is what the resources RLS policies key on, and it records who created it.
     metadata = {**payload.metadata, "owner_id": owner.id}
     row = {
@@ -122,7 +122,7 @@ def delete_resource(resource_id: str, owner: AuthUser = Depends(require_owner)):
 
 @router.get("/{resource_id}/analytics")
 def resource_analytics(resource_id: str, owner: AuthUser = Depends(require_owner)):
-    """Owner analytics, computed in Python from slot_occupancy + bookings —
+    """Owner analytics, computed in Python from slot_occupancy + bookings,
     no new SQL/view (the schema stays frozen). Scoped to the owner's resource."""
     db = get_supabase()
     _owned_resource(db, resource_id, owner)
@@ -158,7 +158,7 @@ def resource_analytics(resource_id: str, owner: AuthUser = Depends(require_owner
 
 @router.get("/{resource_id}/bookings")
 def resource_bookings(resource_id: str, owner: AuthUser = Depends(require_owner)):
-    """Bookings on the owner's resource (who booked what) — the owner-side
+    """Bookings on the owner's resource (who booked what), the owner-side
     counterpart to the customer /bookings list. Includes the client email.
     Read via the service key (owner viewing their own resource's activity)."""
     db = get_supabase()

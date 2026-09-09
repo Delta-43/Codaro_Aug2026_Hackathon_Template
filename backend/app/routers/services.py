@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -30,8 +30,8 @@ def _service_metadata(base: dict | None = None, *, custom: dict | None = None, *
     unset (None) so a PATCH stays partial.
 
     `custom` is the client's `metaFields.services` data. It goes UNDER everything
-    the engine owns — the `_META_FIELDS` keys and the `OVERRIDABLE_BLOCKS` config
-    blocks — so a domain field can never shadow a config override; `config` stays
+    the engine owns, the `_META_FIELDS` keys and the `OVERRIDABLE_BLOCKS` config
+    blocks, so a domain field can never shadow a config override; `config` stays
     the only way to declare one."""
     md = dict(base or {})
     md.update(
@@ -48,7 +48,7 @@ def _config_overrides(config: dict | None) -> dict:
 
     The global config is validated at load; these were not, so until now a
     service could carry a `pricing` block the engine would happily use to quote
-    real money. Rejected here rather than silently dropped at read time — a
+    real money. Rejected here rather than silently dropped at read time, a
     business that mistypes its own pricing should be told, not quietly billed at
     the platform default.
     """
@@ -125,7 +125,7 @@ def update_service(
         raise api_error(NOT_FOUND, "That service no longer exists.")
 
     patch = payload.model_dump(exclude_none=True, by_alias=False)
-    # image_url / auto_approve aren't columns — pull them out of the column patch
+    # image_url / auto_approve aren't columns, pull them out of the column patch
     # and merge into metadata instead (leaving the rest as real column updates).
     meta_patch = {k: patch.pop(k) for k in _META_FIELDS if k in patch}
     custom = patch.pop("metadata", None)

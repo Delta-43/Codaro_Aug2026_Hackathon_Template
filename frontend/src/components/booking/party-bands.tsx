@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Party split by band — `booking.party.composition`.
+ * Party split by band: `booking.party.composition`.
  *
  * The block declares what a party is made of (adult / child / senior) and what
  * each band costs as a multiple of the base rate (`priceFactor`). It shipped in
@@ -13,7 +13,7 @@
  * no way to say how many of each: the app offered one flat number, so a family
  * of two adults and two children paid four adult fares.
  *
- * The counts ARE the party size — the total is reported upward rather than
+ * The counts ARE the party size: the total is reported upward rather than
  * edited separately, because the server rejects a party size that disagrees with
  * its bands (both numbers reach the engine; a mismatch means one is wrong).
  */
@@ -29,7 +29,7 @@ export function PartyBands({
 }: {
   bands: PartyBand[];
   counts: Record<string, number>;
-  /** Remaining capacity across the selection — the whole party must fit. */
+  /** Remaining capacity across the selection, the whole party must fit. */
   max: number;
   onChange: (next: Record<string, number>) => void;
 }) {

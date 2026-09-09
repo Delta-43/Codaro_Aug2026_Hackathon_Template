@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Live delivery for one conversation, over Supabase Realtime — the repo's first
+ * Live delivery for one conversation, over Supabase Realtime, the repo's first
  * `.channel()` usage. It layers on top of the HTTP seam (which owns the durable
  * send/read/delete): this hook only *receives* changes and surfaces the typing
  * indicator.
@@ -19,7 +19,7 @@
  *
  * RLS on the user's own session gates exactly what Realtime delivers, so there
  * are no extra grants. When `getSupabase()` is null (env unset) the hook no-ops
- * gracefully — the thread still works over HTTP, just not live.
+ * gracefully, the thread still works over HTTP, just not live.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -27,7 +27,7 @@ import type { ID, Message } from "@/types/domain";
 import { getSupabase } from "@/lib/supabase";
 
 /** Map a raw `messages` DB row (snake_case, from a Realtime payload) to the
- *  domain `Message`, deriving `mine` from the viewer — mirrors the backend
+ *  domain `Message`, deriving `mine` from the viewer, mirrors the backend
  *  serializer, including blanking a soft-deleted body. */
 function toMessage(row: Record<string, unknown>, meId: ID): Message {
   const deleted = row.deleted_at != null;
@@ -63,7 +63,7 @@ export function useConversationRealtime({
   const [typing, setTyping] = useState(false);
 
   // Latest callbacks in refs so the subscription effect depends only on the
-  // conversation id / viewer — not on every parent re-render's new closures.
+  // conversation id / viewer, not on every parent re-render's new closures.
   const onInsertRef = useRef(onInsert);
   const onUpdateRef = useRef(onUpdate);
   onInsertRef.current = onInsert;

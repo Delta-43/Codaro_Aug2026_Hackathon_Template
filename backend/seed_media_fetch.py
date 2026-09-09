@@ -10,7 +10,7 @@ depends on it succeeding:
 
 * Files already on disk are never re-downloaded, so re-running is cheap and
   offline-safe once the cache is warm.
-* Every fetch is wrapped individually — a 404, a DNS failure or a dead CDN is
+* Every fetch is wrapped individually: a 404, a DNS failure or a dead CDN is
   logged and skipped, never raised. ``ensure_media`` cannot fail a reseed.
 * A slug with no file on disk simply makes ``seed_media`` return ``None``, and
   ``seed.py`` falls back to its generated SVG gradient.
@@ -36,7 +36,7 @@ DEFAULT_ROOT = Path(__file__).resolve().parents[1] / "frontend" / "public" / "me
 _USER_AGENT = "CodaroSeedMedia/1.0 (booking-engine demo seed; +https://example.com/codaro)"
 _TIMEOUT = 30
 # Wikimedia throttles bursts with a 429. Pace the requests and back off rather
-# than hammering — a rate-limited run leaves gaps, and gaps become gradients.
+# than hammering, a rate-limited run leaves gaps, and gaps become gradients.
 _DELAY = 1.2
 _RETRIES = 4
 
@@ -225,7 +225,7 @@ def _fetch_one(url: str, dest: Path) -> tuple[bool, str]:
                 blob = resp.read()
             break
         except urllib.error.HTTPError as exc:
-            # 429/503 are transient throttling, not a dead URL — back off.
+            # 429/503 are transient throttling, not a dead URL, back off.
             if exc.code not in (429, 503) or attempt == _RETRIES - 1:
                 raise
             time.sleep(_DELAY * (2 ** attempt) + 2)
@@ -253,7 +253,7 @@ def _downscale(path: Path) -> str:
     Optional on purpose: this module is stdlib-only so `ensure_media` can run
     inside the backend image without adding a dependency for a maintenance
     script. Without Pillow the file is kept at full size, which costs disk and
-    nothing else — the browser crops it to the same circle either way.
+    nothing else, the browser crops it to the same circle either way.
     """
     if path.parent.name != "avatars":
         return ""

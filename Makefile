@@ -25,7 +25,7 @@ logs:
 # overrides for the case where the lock is stale.
 reload:
 	@if [ "$(RELOAD_FORCE)" != "1" ] && docker compose exec -T backend python /workspace/scripts/seed_in_progress.py; then \
-		echo "A seed is in progress — restarting now would kill it and leave partial data."; \
+		echo "A seed is in progress, restarting now would kill it and leave partial data."; \
 		echo "Wait for it to finish, or override with: make reload RELOAD_FORCE=1"; \
 		exit 1; \
 	fi
@@ -38,7 +38,7 @@ reset:
 reseed:
 	docker compose exec backend python reseed.py
 
-# DESTRUCTIVE — wipes and reseeds the hand-written demo dataset for one
+# DESTRUCTIVE, wipes and reseeds the hand-written demo dataset for one
 # vertical (rich catalogue + real photography), rather than the generic rows
 # `reseed` derives from domain.config.json. Override with VERTICAL=<id>.
 VERTICAL ?= funeral
@@ -54,7 +54,7 @@ checkseed:
 # Download the demo photography into frontend/public/media. Runs on the HOST
 # (plain python3 + urllib, no deps) because the target directory is the
 # frontend bind mount. Already-present files are skipped, and a failed fetch is
-# reported but never fatal — seeding falls back to generated SVG gradients for
+# reported but never fatal, seeding falls back to generated SVG gradients for
 # anything missing.
 fetchmedia:
 	python3 backend/seed_media_fetch.py

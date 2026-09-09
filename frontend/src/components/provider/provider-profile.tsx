@@ -1,16 +1,17 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * One business's public profile — cover, avatar, meta, follow + message actions,
+ * One business's public profile, cover, avatar, meta, follow + message actions,
  * bio, links, and its bookable services. Extracted from the old Services tab so
  * it can be reused as both the "quick view" under the followed strip (bio
  * clamped, with a Show full bio affordance) and the full-screen bio view. Booking
- * a service locks this provider in as the active one, then routes to the calendar
- * — so it works even when the profile shown isn't the one currently locked in.
+ * a service locks this provider in as the active one, then routes to the
+ * calendar, so it works even when the profile shown isn't the one currently
+ * locked in.
  */
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -81,7 +82,7 @@ export function ProviderProfile({
   }, [p.id]);
 
   function handleSelect(service: Service) {
-    lockInProvider(p); // the calendar reads the active provider — make it this one
+    lockInProvider(p); // the calendar reads the active provider, make it this one
     selectService(service);
     if (service.bookingModel === "unit_selection") {
       setPicker(service);
@@ -102,7 +103,7 @@ export function ProviderProfile({
       {/* Cover + avatar. The banner keeps the page's own padding instead of
           bleeding past it, so its edges line up with the meta row, the bio and
           the service cards below; the avatar overlaps its bottom-left corner and
-          the name sits *under* it — same stack as the owner-side hero — so name,
+          the name sits *under* it, same stack as the owner-side hero, so name,
           tagline and every row that follows share one left edge. */}
       <div
         className="h-32 rounded-xl bg-muted bg-cover bg-center"
@@ -129,7 +130,7 @@ export function ProviderProfile({
         </span>
       </div>
 
-      {/* Actions — follow + message the business. Follow is additionally gated on
+      {/* Actions, follow + message the business. Follow is additionally gated on
           `capabilities.follows`, which the backend already refuses, so the button
           would otherwise 404. */}
       <div className="mt-4 flex flex-wrap gap-2">
@@ -230,7 +231,7 @@ export function ProviderProfile({
                       <span>{spots} spots per session</span>
                     </>
                   ) : null}
-                  {/* `discovery.facets.unitKind` — a marketplace that mixes
+                  {/* `discovery.facets.unitKind`, a marketplace that mixes
                       rooms, staff and equipment says which is which; one that
                       sells a single kind says nothing, which is why it is a
                       facet and not a permanent chip. */}

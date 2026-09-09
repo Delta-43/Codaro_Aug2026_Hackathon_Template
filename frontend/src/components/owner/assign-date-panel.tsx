@@ -1,17 +1,17 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Assign-date panel — the owner-side half of a `booking.granularity: "none"`
+ * Assign-date panel, the owner-side half of a `booking.granularity: "none"`
  * service.
  *
  * On such a service the customer picks nothing: they submit a request, it lands
  * as a `pending` booking against a placeholder slot, and the BUSINESS names the
  * day afterwards (`timing.confirmation: "request_approve"`). Nothing in the
- * console did that job — a request could only be approved onto the placeholder
+ * console did that job, a request could only be approved onto the placeholder
  * date it arrived with. This panel is where the real date is chosen and
  * announced.
  *
@@ -21,13 +21,13 @@
  *    from the booking's stored metadata and `_resolve_selection` rejects any
  *    slot that doesn't match it ("All times must be for the same option").
  *    So availability is fetched pinned to `request.resourceId` and no
- *    resource switch is offered — there is no such move to make.
+ *    resource switch is offered, there is no such move to make.
  * 2. **Approve first.** `reschedule` requires status `confirmed`; `approve`
  *    is the only thing that gets it there. The order is not cosmetic.
  * 3. **Prerequisites gate the approve.** With `capabilities.prerequisites`
  *    on, `approve_booking` refuses while any *blocking* prerequisite is
  *    unmet and answers `Still outstanding: <labels>.` So the checklist comes
- *    first and the assign action stays disabled until it is clear — the
+ *    first and the assign action stays disabled until it is clear, the
  *    owner clears the paperwork, then names the day.
  *
  * The announcement is drafted for the owner, not sent for them: it is a normal
@@ -56,7 +56,7 @@ import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
 /** How far ahead to look for an assignable date. The backend clamps to its own
- *  `timing.advanceBookingWindowDays` regardless — this is only how much of that
+ *  `timing.advanceBookingWindowDays` regardless, this is only how much of that
  *  window we ask for, and asking for more than exists costs nothing. */
 const HORIZON_DAYS = 60;
 /** Fallback for `timing.approvalWindowHours` on a backend too old to send it.
@@ -65,7 +65,7 @@ const FALLBACK_APPROVAL_WINDOW_HOURS = 168;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** "Friday, 5 September" — a date said out loud, for the announcement and the
+/** "Friday, 5 September", a date said out loud, for the announcement and the
  *  picker. `format.ts` has no long-weekday variant and this is the only caller. */
 function longDate(iso: string, timeZone: string): string {
   return new Intl.DateTimeFormat("en-GB", {
@@ -87,7 +87,7 @@ function shortTime(iso: string, timeZone: string): string {
 
 /** The name the announcement addresses. The subject's first text-ish field is
  *  the deployment's own idea of "who this is about": `full_name` on one
- *  config — so it is read by descriptor order, never by a hardcoded key. */
+ *  config, so it is read by descriptor order, never by a hardcoded key. */
 function subjectName(request: OwnerRequest, service?: OwnerServiceSummary | null): string {
   const subject = request.subject ?? {};
   const ordered = service?.subject?.fields ?? [];
@@ -118,7 +118,7 @@ export function AssignDatePanel({
   onAssigned,
 }: {
   request: OwnerRequest;
-  /** The request's service — supplies the prerequisite descriptors (labels) and
+  /** The request's service, supplies the prerequisite descriptors (labels) and
    *  the subject noun. Absent only if the owner's service list failed to load,
    *  in which case the checklist falls back to the raw pending keys. */
   service?: OwnerServiceSummary | null;
@@ -283,7 +283,7 @@ export function AssignDatePanel({
       await sendMessage(convo.id, draft.trim());
       setPhase("done");
       await onAssigned(
-        `${name || request.serviceName} — ${longDate(selected.startUtc, tz)} at ${shortTime(selected.startUtc, tz)}. The family has been notified.`,
+        `${name || request.serviceName}, ${longDate(selected.startUtc, tz)} at ${shortTime(selected.startUtc, tz)}. The family has been notified.`,
       );
     } catch (e) {
       const message = e instanceof ApiError ? e.message : "That didn't go through. Try again.";
@@ -293,14 +293,14 @@ export function AssignDatePanel({
         setPhase("done");
         setWarning(`Date assigned, but the message didn't send: ${message} Send it from the inbox below.`);
         await onAssigned(
-          `${name || request.serviceName} — ${longDate(selected.startUtc, tz)} at ${shortTime(selected.startUtc, tz)}. The family was NOT notified.`,
+          `${name || request.serviceName}, ${longDate(selected.startUtc, tz)} at ${shortTime(selected.startUtc, tz)}. The family was NOT notified.`,
         );
         return;
       }
       setPhase("idle");
       setError(
         approved
-          ? `Approved, but the date didn't take: ${message} The request is confirmed on its placeholder date — pick another.`
+          ? `Approved, but the date didn't take: ${message} The request is confirmed on its placeholder date, pick another.`
           : message,
       );
     }
@@ -346,7 +346,7 @@ export function AssignDatePanel({
         </Button>
       </div>
 
-      {/* Step 1 — the paperwork. Nothing below is reachable until it is clear. */}
+      {/* Step 1, the paperwork. Nothing below is reachable until it is clear. */}
       {checklist.length > 0 ? (
         <div>
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -391,7 +391,7 @@ export function AssignDatePanel({
         </div>
       ) : null}
 
-      {/* Step 2 — the date itself. */}
+      {/* Step 2, the date itself. */}
       <div className={cn(checklist.length > 0 && !cleared && "pointer-events-none opacity-40")}>
         <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Open dates</p>
         {slots === null ? (
@@ -433,7 +433,7 @@ export function AssignDatePanel({
         )}
       </div>
 
-      {/* Step 3 — the announcement, drafted but not sent. */}
+      {/* Step 3, the announcement, drafted but not sent. */}
       {selected ? (
         <div>
           <label
@@ -481,7 +481,7 @@ export function AssignDatePanel({
 }
 
 /** Split the open dates at the response window the config gives the business
- *  (`timing.approvalWindowHours`) — the premise is that the date lands inside
+ *  (`timing.approvalWindowHours`), the premise is that the date lands inside
  *  it, so the ones that honour that are shown first and named as such. */
 function groupByWeek(slots: Slot[], windowHours: number): { label: string; slots: Slot[] }[] {
   const edge = Date.now() + windowHours * 60 * 60 * 1000;

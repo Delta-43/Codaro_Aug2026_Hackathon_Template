@@ -6,7 +6,7 @@
 
 /*
  * Theme tokens from the `b51rk9THs` shadcn preset (aria base). Colours are raw
- * OKLCH values (Tailwind v4 convention) — the @theme inline block below maps
+ * OKLCH values (Tailwind v4 convention), the @theme inline block below maps
  * each one onto a Tailwind colour/radius utility.
  */
 :root {

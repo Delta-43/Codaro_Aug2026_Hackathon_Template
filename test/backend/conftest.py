@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -9,7 +9,7 @@ Everything here is offline: no Supabase project, no network, no real
 test:
 
 1. `app.db.get_supabase` (and the already-imported copies inside each
-   router module — the routers do `from app.db import get_supabase`, so
+   router module, the routers do `from app.db import get_supabase`, so
    patching only `app.db` would be a no-op) -> an in-memory `FakeSupabase`.
 2. The FastAPI startup hook (`create_tables_if_configured`) -> a no-op, so
    `TestClient`'s lifespan never tries to reach Postgres. (`seed_if_empty` is no
@@ -90,7 +90,7 @@ def _clear_caches() -> None:
     """Drop both lru_caches.
 
     Guarded with getattr: `_isolated_env` is autouse, so it is set up before
-    the `db` fixture and torn down *after* it — at teardown time
+    the `db` fixture and torn down *after* it, at teardown time
     `app.db.get_supabase` may still be the monkeypatched plain function,
     which has no `cache_clear`.
     """
@@ -205,10 +205,10 @@ def client(db):
 # --- auth override ---------------------------------------------------------
 #
 # Real JWT verification needs the project's JWT secret and (for asymmetric
-# tokens) a network JWKS fetch — neither is available offline. Instead we
+# tokens) a network JWKS fetch, neither is available offline. Instead we
 # override the FastAPI dependencies `require_user` / `optional_user` so a test
 # runs "as" a chosen user. `require_owner` depends on `require_user`, so the
-# override cascades and the real owner-gating (`is_owner`) still executes —
+# override cascades and the real owner-gating (`is_owner`) still executes,
 # that behaviour is exercised, only the token verification is stubbed.
 
 DEFAULT_USER_ID = "11111111-1111-1111-1111-111111111111"

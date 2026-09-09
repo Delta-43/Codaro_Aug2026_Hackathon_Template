@@ -1,7 +1,7 @@
 """The cast for the demo seed: the people who appear in it, and the
 prose that passes between them.
 
-Pure data + tiny helpers — no DB, no config, no imports from `seed.py`. The
+Pure data + tiny helpers, no DB, no config, no imports from `seed.py`. The
 assembler in `seed.py` turns these into Supabase auth users, `profiles` rows,
 bookings, reviews and message threads.
 
@@ -15,7 +15,7 @@ frontend's one-tap sign-in buttons and the README all name them:
 Every name in `CAST` is also a key in `seed_media.PEOPLE`, which maps it to a
 real portrait under `frontend/public/media/avatars/`. **Adding a name here that
 is not in that map gives that person a generated initials gradient instead of a
-face** — harmless, but the demo is poorer for it. Keep the two lists together.
+face**, harmless, but the demo is poorer for it. Keep the two lists together.
 
 Tone note for anyone editing the strings below: the copy is written straight.
 These are real bereavements handled by professionals, and the funnier the
@@ -43,7 +43,7 @@ def _person(name: str, email: str, *, role: str = "client", verified: bool = Tru
             title: str = "") -> dict:
     """One seeded person. `role` is the config-driven owner/client split; the
     backend re-derives it from the `profiles` row, so this is seed input only.
-    `title` is prose only — a staff job description, never a permission."""
+    `title` is prose only, a staff job description, never a permission."""
     parts = [p for p in name.split() if p]
     return {
         "name": name,
@@ -62,17 +62,17 @@ def _person(name: str, email: str, *, role: str = "client", verified: bool = Tru
 # The business owner, who owns the demo provider.
 OWNER = _person("Henryk Walczak", OWNER_EMAIL, role="owner", title="Owner")
 
-# The established family — has arranged with the home before, so their history,
+# The established family, has arranged with the home before, so their history,
 # reviews and reputation are populated.
 DEMO = _person("Mara Lindqvist", DEMO_EMAIL)
 
-# The new family — one pending request, no history. The counterpart to DEMO.
+# The new family, one pending request, no history. The counterpart to DEMO.
 PROSPECT = _person("Tomasz Wiśniewski", PROSPECT_EMAIL, verified=False)
 
 
 # --- the cast ---------------------------------------------------------------
 # APPEND rather than reorder: `seed_media.PEOPLE` is keyed by display name and
-# the message threads below are keyed by email, so neither cares about order —
+# the message threads below are keyed by email, so neither cares about order,
 # but a reader diffing two seeds does.
 
 CAST = [
@@ -115,7 +115,7 @@ STAFF = [p for p in CAST if p["role"] == "staff"]
 def client_by_email(email: str) -> dict | None:
     return next((p for p in CAST if p["email"] == email), None)
 # --- booking prose ----------------------------------------------------------
-# The values for `metaFields.bookings`. The payer is never the subject — that
+# The values for `metaFields.bookings`. The payer is never the subject, that
 # separation is the entire premise of this pivot, so it is expressed in data
 # rather than assumed by the code.
 
@@ -125,7 +125,7 @@ def client_by_email(email: str) -> dict | None:
 
 # --- prose: reviews the DEMO family left ------------------------------------
 # `demo@codaro.app` is the account the demonstration is given from, so its own
-# completed arrangements carry reviews written in its own voice — a customer
+# completed arrangements carry reviews written in its own voice, a customer
 # whose history shows "no review" on every past booking has no reputation and
 # nothing for the account page to render. Same (rating, days_ago, text) shape as
 # `PROVIDER_REVIEWS`; the seeder derives the real date from the booking.
@@ -136,7 +136,7 @@ def client_by_email(email: str) -> dict | None:
 # --- prose: what the home thinks of the DEMO family -------------------------
 # The demonstration account's own reputation. `GET /me/reputation` averages
 # every `client_reviews` row for a person, so the account page needs several
-# against different arrangements rather than one against one — a single review
+# against different arrangements rather than one against one, a single review
 # renders as "5.0 (1)", which reads as an empty profile with a number on it.
 
 # --- prose: the inbox -------------------------------------------------------
@@ -145,7 +145,7 @@ def client_by_email(email: str) -> dict | None:
 # `hours_ago` anchors the FIRST message; the rest follow at plausible gaps.
 #
 # Thread 0 deliberately ENDS on the home assigning a date. The demo's core
-# mechanic — the business picks the date, the family confirms — must be legible
+# mechanic, the business picks the date, the family confirms, must be legible
 # from the inbox before anyone clicks anything. Two later threads carry the same
 # announcement, so the inbox reads that way wherever you land in it.
 
@@ -154,7 +154,7 @@ def client_by_email(email: str) -> dict | None:
 # by hand, and the same name appearing on two bookings is the one detail that
 # makes a demo read as fake. Past the hand-written entries above, the seeder
 # draws a fresh name from these pools and dresses it in an earlier entry's
-# circumstances — the prose stays real, the roll of the dead stays distinct.
+# circumstances, the prose stays real, the roll of the dead stays distinct.
 
 _EXTRA_FIRST = [
     "Wacław", "Bożena", "Ryszarda", "Ludwik", "Jolanta", "Sławomir", "Grażyna",

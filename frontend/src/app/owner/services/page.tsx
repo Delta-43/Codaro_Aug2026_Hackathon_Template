@@ -1,15 +1,15 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Business tab 2 — Services. An editable overview of every offer the business
+ * Business tab 2: Services. An editable overview of every offer the business
  * runs, backed by the real owner API: glanceable stats per offer (upcoming/past
  * bookings, revenue, rating) from /owner/services, a per-offer auto-approve
  * toggle, a drill-in editor (PATCH /services/{id}), and add/remove
- * (POST/DELETE /services) — each destructive/edit action gated behind the
+ * (POST/DELETE /services), each destructive/edit action gated behind the
  * full-screen "are you sure?" confirm.
  */
 import { useCallback, useEffect, useState, type FormEvent, type ReactNode } from "react";
@@ -59,7 +59,7 @@ export default function ServicesPage() {
   }, [activeProviderId]);
 
   useEffect(() => {
-    // Back to the skeleton on a provider switch — never render business A's
+    // Back to the skeleton on a provider switch, never render business A's
     // offers under business B's header while the refetch is in flight.
     setLoading(true);
     void load();
@@ -67,7 +67,7 @@ export default function ServicesPage() {
 
   const currency = services[0]?.currency ?? configCurrency;
 
-  /** Resolves `true` on success — callers must not close/unmount a form on
+  /** Resolves `true` on success, callers must not close/unmount a form on
    *  failure, or the owner's input is lost behind the error banner. */
   async function run(action: () => Promise<unknown>): Promise<boolean> {
     setError(null);
@@ -127,7 +127,7 @@ export default function ServicesPage() {
 
       {services.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border px-4 py-10 text-center text-sm text-muted-foreground">
-          No {vocab.serviceNounPlural.toLowerCase()} yet — add your first offer.
+          No {vocab.serviceNounPlural.toLowerCase()} yet, add your first offer.
         </p>
       ) : (
         <ul className="space-y-3">
@@ -198,7 +198,7 @@ function ServiceCard({
                     {s.stats.avgRating.toFixed(1)}
                   </span>
                 ) : (
-                  "—"
+                  "-"
                 )
               }
             />
@@ -392,7 +392,7 @@ interface CreateInput {
   currency: string;
   cancellationCutoffHours: number;
   autoApprove: boolean;
-  /** `metaFields.services` — validated server-side against the same descriptors
+  /** `metaFields.services`, validated server-side against the same descriptors
    *  the form renders from. */
   metadata?: Record<string, unknown>;
 }
@@ -415,7 +415,7 @@ function OfferForm({
   const [maxSlots, setMaxSlots] = useState(1);
   const [cutoff, setCutoff] = useState(24);
   const [autoApprove, setAutoApprove] = useState(true);
-  // `metaFields.services` — the deployment's own declared fields. The backend
+  // `metaFields.services`, the deployment's own declared fields. The backend
   // has validated these on write since v2 and no form ever offered them, so an
   // owner could not fill in a field their own config demanded.
   const [meta, setMeta] = useState<FieldValues>({});
@@ -423,7 +423,7 @@ function OfferForm({
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    // Cleared number inputs coerce to 0 — refuse zero/negative durations and
+    // Cleared number inputs coerce to 0, refuse zero/negative durations and
     // negative money rather than creating an unbookable offer.
     if (!name.trim() || !(duration >= 1) || !(priceMajor >= 0) || !(cutoff >= 0)) return;
     onCreate({

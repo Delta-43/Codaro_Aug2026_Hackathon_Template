@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -57,7 +57,7 @@ export function formatDate(
  *  are only hundredths in currencies that have two decimal places: JPY has none
  *  (¥4200 is 4200 minor units, not ¥42) and KWD has three, so every price on a
  *  pivot outside the two-decimal world rendered wrong by two orders of
- *  magnitude. `Intl` already knows each currency's exponent — which is also why
+ *  magnitude. `Intl` already knows each currency's exponent, which is also why
  *  `pricing.currencyExponent` stays a config-side declaration and is not plumbed
  *  through every call site to get this right. */
 const exponentOf = (currency: string): number => {
@@ -67,12 +67,12 @@ const exponentOf = (currency: string): number => {
         .maximumFractionDigits ?? 2
     );
   } catch {
-    return 2; // an unknown/invalid code — assume the common case
+    return 2; // an unknown/invalid code, assume the common case
   }
 };
 
 /** Minor units → the major amount a person types into a price field, and back.
- *  Same exponent rule as `formatMoney` — the owner's price editor did its own
+ *  Same exponent rule as `formatMoney`, the owner's price editor did its own
  *  `/100` and `Math.round(x * 100)`, so on a zero-decimal currency it displayed
  *  a hundredth of the price and then SAVED a hundred times what was typed. */
 export function toMajorUnits(minorUnits: number, currency: string): number {
@@ -112,7 +112,7 @@ export function formatSpan(slotCount: number, slotDurationMinutes: number): stri
 /**
  * One-line "when" summary for a booking span. Same local day → date + time
  * range with zone; multi-day → date range. `endUtc` is exclusive (the instant
- * the last slot ends), so the last calendar day is `endUtc − 1ms` — this keeps
+ * the last slot ends), so the last calendar day is `endUtc − 1ms`, this keeps
  * full-day slots from reading one day long.
  */
 export function formatBookingWhen(startUtc: string, endUtc: string, timeZone: string): string {
@@ -175,7 +175,7 @@ export function timeAgo(iso: string, timeZone = "UTC"): string {
   return formatDate(iso, timeZone);
 }
 
-/** A short calendar date in the VIEWER's own locale and zone — deliberately
+/** A short calendar date in the VIEWER's own locale and zone, deliberately
  *  unlike `formatDate`, which pins en-GB and takes an explicit `timeZone`.
  *  Used for profile/member-since style dates where the exact zone is noise.
  *  Empty string for null or unparseable input, so callers can render it raw.
@@ -197,7 +197,7 @@ export function browserTz(): string {
 
 /** How a service's price should READ in a catalogue, before any selection.
  *
- * `service.priceMinorUnits` is only `pricing.rate.amountMinorUnits` — the base
+ * `service.priceMinorUnits` is only `pricing.rate.amountMinorUnits`, the base
  * rate. Rendering it bare as "€40" was wrong for most of the pricing models the
  * engine supports: a tiered service starts at one of several tier prices, a
  * per-hour rate is not a total, a quote has no number at all, and a free class
@@ -218,7 +218,7 @@ export function formatOffer(service: {
   // nothing a duration line does not already say.
   const per = service.rateUnit && service.rateUnit !== "slot" ? ` / ${service.rateUnit}` : "";
   // Models whose final total is arrived at from this number rather than being
-  // it — so the catalogue promises a floor, not a price.
+  // it, so the catalogue promises a floor, not a price.
   const FROM = ["tiered", "per_hour", "per_person", "per_unit", "deposit_balance", "subscription"];
   return `${FROM.includes(service.pricingModel) ? "from " : ""}${money}${per}`;
 }

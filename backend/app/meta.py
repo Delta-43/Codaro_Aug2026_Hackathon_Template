@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -7,12 +7,12 @@
 Built from ``get_config()["metaFields"][entity]`` *at request time*, so a
 pivot that adds/removes a domain field needs no code change. Semantics:
 
-* **Lenient on undeclared keys** — the ``metadata jsonb`` column is the
+* **Lenient on undeclared keys**: the ``metadata jsonb`` column is the
   extension point, so unknown keys pass through untouched.
-* **Strict on declared keys** — a declared field present with the wrong type
+* **Strict on declared keys**: a declared field present with the wrong type
   is a 422 carrying the frontend ``ApiError`` envelope (``VALIDATION_ERROR``
   with ``{field, label, expected}`` in ``details``).
-* **Optional by default** — a declared field may set ``"required": true`` to
+* **Optional by default**: a declared field may set ``"required": true`` to
   force its presence; otherwise its absence is fine.
 
 Type map: ``text → str``, ``number → int|float`` (not ``bool``),
@@ -21,7 +21,7 @@ pass through unchecked (their contents are a UI concern, not a data one).
 
 Declared types are resolved through ``config_schema.META_FIELD_TYPE_ALIASES``
 first. The alias table was added to the load-time validator so a ``"string"``
-field would stop silently validating nothing — but this map was left keyed on
+field would stop silently validating nothing, but this map was left keyed on
 the canonical names only, so ``"string"`` passed validation at load and then
 matched no check at request time: the same silent-no-op, one layer down.
 """
@@ -39,7 +39,7 @@ def _is_date(value) -> bool:
 
     Parsing `value[:10]` accepted anything that merely STARTED with a date, so
     `"2026-08-18 or whenever"` validated and was stored verbatim in the
-    `metadata jsonb` column — the same declared-type-that-checks-nothing this
+    `metadata jsonb` column, the same declared-type-that-checks-nothing this
     module's alias handling exists to prevent. Both parses read the whole
     string, so trailing junk is rejected while datetimes still pass.
     """
@@ -98,7 +98,7 @@ def merged_metadata(entity: str, supplied: dict | None, *, reserved: tuple[str, 
     """Validate a client-supplied `metadata` blob and return it ready to merge.
 
     `metaFields` is billed as the no-migration extension point for every base
-    table, but only `resources` and `slots` ever accepted a `metadata` body — so
+    table, but only `resources` and `slots` ever accepted a `metadata` body, so
     a `metaFields.bookings` / `.providers` / `.services` descriptor (the shipped
     medical example declares one) had no input path and validated nothing. The
     routers merge this UNDER their own engine-owned keys, and `reserved` drops

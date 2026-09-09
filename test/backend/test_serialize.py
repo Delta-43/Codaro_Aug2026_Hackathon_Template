@@ -1,8 +1,8 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Pure unit tests for `app.serialize` — the row → camelCase wire mappers.
+"""Pure unit tests for `app.serialize`, the row → camelCase wire mappers.
 
 These are offline and config-independent: none of the serializers touch
 `get_config()` or the database, so they run without any fixture. They pin the
@@ -119,7 +119,7 @@ def test_pending_passes_through_even_in_the_future():
 
 def test_pending_past_is_not_auto_completed():
     # A pending request whose slot elapsed is still 'pending' (the owner acts on
-    # it) — it is NOT silently completed by elapsed time.
+    # it), it is NOT silently completed by elapsed time.
     assert S.effective_booking_status("pending", PAST, now=NOW) == "pending"
 
 
@@ -222,7 +222,7 @@ def test_provider_price_from_carries_min_price_and_currency():
 
 
 def test_provider_price_from_zero_currency_still_defaults_empty():
-    # A falsy currency ("") stays "", never None — the wire contract is str.
+    # A falsy currency ("") stays "", never None, the wire contract is str.
     out = S.serialize_provider(_provider_row(), price_from=0, currency="")
     assert out["priceFromMinorUnits"] == 0
     assert out["currency"] == ""
@@ -301,7 +301,7 @@ def test_discovery_price_from_picks_cheapest_service_currency():
 def test_discovery_price_from_resolves_a_metadata_pricing_override():
     """A service priced ONLY through `metadata.pricing` must drive the provider's
     `priceFromMinorUnits`. Reading `price_minor_units` reported 0 for it while
-    `serialize_service` and `quote()` used the real amount — the provider card
+    `serialize_service` and `quote()` used the real amount, the provider card
     and the price facet were computed from a number nothing else in the engine
     used. This is also the only coverage of `_resolved_price`'s override branch;
     every other price test builds rows from plain columns."""
@@ -325,7 +325,7 @@ def test_discovery_price_fast_path_agrees_with_the_full_resolver():
     """`_resolved_price` skips `effective_service_pricing` for any row with no
     `metadata.pricing` block. That shortcut is only equivalent because
     `price_minor_units`/`currency` are NOT NULL DEFAULT and the resolver folds
-    them over the global block unconditionally — facts in schema.sql and
+    them over the global block unconditionally, facts in schema.sql and
     rules.py that nothing else pins. Make the columns nullable, or reorder the
     fold-in, and discovery silently starts reporting a different price from
     `quote()`; this is what fails when that happens."""
@@ -379,10 +379,10 @@ SERVICE_KEYS = {
     "autoApprove",
     "capabilities",
     # The shape of the offer, so the UI can describe it before a selection
-    # exists — `priceMinorUnits` alone is only the base rate.
+    # exists, `priceMinorUnits` alone is only the base rate.
     "pricingModel",
     "rateUnit",
-    # `pricing.chargePerPerson` — whether the rate is multiplied by heads. The
+    # `pricing.chargePerPerson`, whether the rate is multiplied by heads. The
     # client previews a total with the engine's own formula; without it a
     # shared court/table read as per-head.
     "chargePerPerson",
@@ -393,15 +393,15 @@ SERVICE_KEYS = {
     "waitlist",
     "resourceIds",
     # The v2 offer-shape blocks. Every one was declared in the config, resolved
-    # per service, and served to nobody — so the client could not render (let
+    # per service, and served to nobody, so the client could not render (let
     # alone collect) a party band, an add-on, a subject, a course or a payment
     # schedule.
     "unitKind",
-    # `booking.granularity` — `none` means the customer picks NO date at all
+    # `booking.granularity`, `none` means the customer picks NO date at all
     # (the business assigns one afterwards), so the client needs this to choose
     # between a date picker and a "we will contact you" form.
     "granularity",
-    # `timing.approvalWindowHours` — DISPLAY ONLY: how fast the business says it
+    # `timing.approvalWindowHours`, DISPLAY ONLY: how fast the business says it
     # answers a request. Nothing expires a stale request server-side (pinned in
     # test_config_schema.py's surfaced-but-unenforced inventory).
     "approvalWindowHours",
@@ -542,7 +542,7 @@ def test_service_granularity_round_trips_from_the_global_block(domain_config, gr
 
 def test_service_granularity_none_is_the_no_date_request_flow(domain_config):
     """`booking.granularity: "none"` is the seam that tells the client the
-    customer picks NO date — the business assigns one afterwards. It must
+    customer picks NO date, the business assigns one afterwards. It must
     survive as a per-service override beside a normal calendar service, which is
     the whole point of a marketplace deployment."""
     domain_config(booking={"granularity": "minute"})
@@ -566,7 +566,7 @@ def test_service_approval_window_hours_comes_from_timing(domain_config):
 
 
 def test_service_charge_per_person_mirrors_the_pricing_block():
-    """The wire flag must equal the flag `pricing.quote` bills with — this is
+    """The wire flag must equal the flag `pricing.quote` bills with, this is
     the number the client multiplies a preview by."""
     shared = _service_row()
     shared["metadata"] = {"pricing": {"chargePerPerson": False}}
@@ -867,7 +867,7 @@ def test_booking_metadata_echoes_only_the_declared_meta_fields():
     """`bookings.metadata` is a shared jsonb column: it carries the deployment's
     own `metaFields.bookings` values NEXT TO engine-owned keys (price, ids,
     prerequisite state), each of which already has its own serialized shape.
-    Echoing the column wholesale would duplicate — and leak — all of that, so
+    Echoing the column wholesale would duplicate, and leak, all of that, so
     the echo is filtered to the DECLARED descriptors.
 
     The fixture config declares exactly one booking field, `note`."""
@@ -910,7 +910,7 @@ def test_booking_metadata_follows_the_config_not_the_row(domain_config):
 
 
 def test_booking_metadata_omits_a_declared_field_the_row_never_stored():
-    """Declared-but-absent is omitted, not stamped as None — the client can tell
+    """Declared-but-absent is omitted, not stamped as None, the client can tell
     "not provided" from "provided as empty"."""
     row = _booking_row()
     row["metadata"].pop("note", None)
@@ -965,7 +965,7 @@ def test_user_display_name_falls_back_to_email_local_part():
 
 def test_serialize_can_be_imported_on_its_own_without_a_circular_import():
     """`serialize_service` reaches into `app.rules` for `effective_auto_approve`,
-    and `app.rules` imports `app.config`/`app.config_schema` — a cycle here would
+    and `app.rules` imports `app.config`/`app.config_schema`, a cycle here would
     only show up as an ImportError on the first module to be imported in a fresh
     process (never in this suite, where conftest has already imported both). Pin
     it in a subprocess so the claim is actually tested.

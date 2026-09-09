@@ -17,7 +17,7 @@ node_modules/
 .next/
 *.tsbuildinfo
 
-# Env — generic, so a root or per-package .env can never be committed by
+# Env, generic, so a root or per-package .env can never be committed by
 # accident. The checked-in *.example templates are the exception.
 .env
 .env.*
@@ -32,7 +32,7 @@ sandbox/
 
 # Snapshots from the 3-agent verification pipeline (see CLAUDE.md). Generated
 # on demand and stale within a commit or two, so they are regenerated rather
-# than tracked — real work belongs in GitHub issues.
+# than tracked, real work belongs in GitHub issues.
 REPORT.md
 TODO.md
 

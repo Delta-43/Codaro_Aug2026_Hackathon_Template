@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * "Filters" panel — opened by the Filter button in the search toolbar. Holds the
+ * "Filters" panel, opened by the Filter button in the search toolbar. Holds the
  * controls kept off the main surface: location (city), the range sliders (max
  * price, minimum rating, max distance), and sort order. Category stays a visible
  * inline quick-filter, so it isn't repeated here. Binds directly to the search
@@ -73,7 +73,7 @@ export function FilterSheet({
 
   return (
     <Modal open={open} onClose={onClose} title="Filters">
-      {/* Location — only for verticals with a physical place. */}
+      {/* Location, only for verticals with a physical place. */}
       {showLocation ? (
         <>
           <label htmlFor="filter-location" className="mb-1.5 block text-sm font-medium">
@@ -130,7 +130,7 @@ export function FilterSheet({
         />
       ) : null}
 
-      {/* Sort — a vertical, scrollable list of options (not horizontal pills).
+      {/* Sort, a vertical, scrollable list of options (not horizontal pills).
           Hidden when the vertical's facets leave only one dimension. */}
       {orderKeys.length > 1 ? (
         <>

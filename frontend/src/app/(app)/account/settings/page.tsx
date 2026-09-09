@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * User Settings Panel — the shared Settings template configured for the customer
+ * User Settings Panel: the shared Settings template configured for the customer
  * persona. It is what the shell's Settings tab opens, mirroring the owner
  * console's Settings tab. The profile page above it (reputation, membership,
  * reviews) is reached from the top-right avatar on desktop and from the row this

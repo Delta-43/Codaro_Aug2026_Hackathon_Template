@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -6,7 +6,7 @@
  * Calendar date math, all anchored to the user's timezone. Day boundaries,
  * week ranges, and month grids are computed as wall-clock local dates and
  * converted to true UTC instants (DST-aware) for the availability API. Never
- * do `+ 86400000` arithmetic — day length varies at DST.
+ * do `+ 86400000` arithmetic, day length varies at DST.
  */
 
 const WEEKDAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

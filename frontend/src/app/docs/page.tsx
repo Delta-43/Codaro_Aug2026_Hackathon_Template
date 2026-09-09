@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -9,13 +9,13 @@ import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
 /**
- * Public setup guide for `domain.config.json` — the pivot file. Ungated (sits
+ * Public setup guide for `domain.config.json`, the pivot file. Ungated (sits
  * outside the `(app)` group, like `privacy/`), linked from the landing nav pill.
  *
  * This is a *configuration* reference, not an architecture tour: every block,
  * its real defaults, what each value is allowed to be, and the order to fill
  * them in. Source of truth is `backend/app/config_schema.py` (DEFAULTS +
- * validate) and `backend/app/pricing.py` — when either changes, change this.
+ * validate) and `backend/app/pricing.py`, when either changes, change this.
  * Defaults quoted here are copied from DEFAULTS, not from the prose docs.
  */
 export const metadata = {
@@ -45,10 +45,10 @@ export default function ConfigDocsPage() {
   return (
     <DocShell
       title="Setting up domain.config.json"
-      subtitle="The pivot file, field by field: every block, its real default, what each value is allowed to be, and the order to fill them in. You declare only what you change — everything you leave out falls back to a built-in default, so a three-line file boots."
+      subtitle="The pivot file, field by field: every block, its real default, what each value is allowed to be, and the order to fill them in. You declare only what you change, everything you leave out falls back to a built-in default, so a three-line file boots."
       sections={SECTIONS}
     >
-      {/* Mobile TOC — the sidebar is desktop-only. */}
+      {/* Mobile TOC, the sidebar is desktop-only. */}
       <nav aria-label="On this page" className="lg:hidden">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           On this page
@@ -94,7 +94,7 @@ export default function ConfigDocsPage() {
         <H3 id="start-minimal">Declare only what you change</H3>
         <p>
           Every key has a default in <C>app/config_schema.py</C>. A file that
-          declares three keys is complete and valid — the other ~120 resolve
+          declares three keys is complete and valid, the other ~120 resolve
           underneath it. This is the smallest useful file:
         </p>
 
@@ -138,7 +138,7 @@ export default function ConfigDocsPage() {
       <Section
         id="tenancy"
         step="Step 1"
-        title="Tenancy — one business, or a marketplace?"
+        title="Tenancy, one business, or a marketplace?"
         lede="Set this first. It changes the shape of the whole app, so every later choice reads differently depending on it."
       >
         <Table
@@ -154,7 +154,7 @@ export default function ConfigDocsPage() {
               <C key="a">providerCode</C>,
               "string | null",
               <C key="c">null</C>,
-              "Required in single mode — it is how the app resolves its one business. Leaving it out is a load error",
+              "Required in single mode, it is how the app resolves its one business. Leaving it out is a load error",
             ],
             [
               <C key="a">selfOnboarding</C>,
@@ -203,7 +203,7 @@ export default function ConfigDocsPage() {
       <Section
         id="capabilities"
         step="Step 2"
-        title="Capabilities — switch features on"
+        title="Capabilities, switch features on"
         lede="Ten booleans. Off means the UI hides the surface and the API refuses the write."
       >
         <Table
@@ -218,7 +218,7 @@ export default function ConfigDocsPage() {
         />
 
         <p>
-          Switching a capability on does not configure it — it only unlocks the
+          Switching a capability on does not configure it, it only unlocks the
           block. Turning on <C>inventory</C> still leaves{" "}
           <C>inventory.mode</C> at <C>none</C> until you set it.
         </p>
@@ -237,7 +237,7 @@ export default function ConfigDocsPage() {
       <Section
         id="booking"
         step="Step 3"
-        title="Booking — what one booking actually is"
+        title="Booking, what one booking actually is"
         lede="What is being reserved, in what units, for how long, and for how many people."
       >
         <Table
@@ -291,7 +291,7 @@ export default function ConfigDocsPage() {
               <C key="a">party.max</C>,
               "int >= 1, or null",
               <span key="c">
-                <C>null</C> — the resource&apos;s own capacity is the ceiling
+                <C>null</C>, the resource&apos;s own capacity is the ceiling
               </span>,
             ],
             [
@@ -320,7 +320,7 @@ export default function ConfigDocsPage() {
 
         <H3 id="booking-shapes">Four businesses, four setups</H3>
 
-        <Code label="30-minute appointments — this is the default, write nothing">{`"booking": { "unitKind": "time_slot", "granularity": "minute" }`}</Code>
+        <Code label="30-minute appointments, this is the default, write nothing">{`"booking": { "unitKind": "time_slot", "granularity": "minute" }`}</Code>
 
         <Code label="a court booked by the hour, 1-4 hours, 2-4 players">{`"booking": {
   "unitKind": "asset",
@@ -369,7 +369,7 @@ export default function ConfigDocsPage() {
       <Section
         id="pricing"
         step="Step 4"
-        title="Pricing — what to charge"
+        title="Pricing, what to charge"
         lede="The block with the most levers, and the one where a mistake costs real money."
       >
         <Note tone="warn" title="pricing.model does not price anything">
@@ -399,7 +399,7 @@ export default function ConfigDocsPage() {
             [
               <C key="a">unit</C>,
               <span key="b">the booking&apos;s <C>unit_count</C></span>,
-              "quantities — pallets, bikes, covers",
+              "quantities, pallets, bikes, covers",
             ],
             [<C key="a">hour</C>, "fractional hours", "90 minutes is genuinely 1.5"],
             [
@@ -418,11 +418,11 @@ export default function ConfigDocsPage() {
         </p>
         <List>
           <Item>
-            <C>true</C> (the default) — <C>amount × quantity × party</C>. Each
+            <C>true</C> (the default), <C>amount × quantity × party</C>. Each
             person is buying their own thing.
           </Item>
           <Item>
-            <C>false</C> — the party shares one unit. A tennis court costs the
+            <C>false</C>, the party shares one unit. A tennis court costs the
             same for two players or four.
           </Item>
         </List>
@@ -437,7 +437,7 @@ export default function ConfigDocsPage() {
   "chargePerPerson": false
 }`}</Code>
 
-        <H3 id="pricing-tiers">Tiers — a different price in some circumstance</H3>
+        <H3 id="pricing-tiers">Tiers, a different price in some circumstance</H3>
         <p>
           Tiers are checked <strong className="text-foreground">in the order
           you write them and the first match wins</strong>, so put the most
@@ -489,8 +489,8 @@ export default function ConfigDocsPage() {
         <Note tone="warn" title="An unknown clause never matches">
           <p>
             Misspell <C>partySize</C> as <C>partysize</C> and the tier silently
-            applies to nobody. That is deliberate — the alternative is a typo
-            widening a discount to every customer — but it means a tier that
+            applies to nobody. That is deliberate, the alternative is a typo
+            widening a discount to every customer, but it means a tier that
             &quot;does nothing&quot; is usually a misspelled clause.
           </p>
         </Note>
@@ -504,7 +504,7 @@ export default function ConfigDocsPage() {
           head={["kind", "Required field", "Effect"]}
           rows={[
             [<C key="a">flat</C>, <C key="b">amountMinorUnits</C>, "added as-is"],
-            [<C key="a">percent</C>, <C key="b">rateBps</C>, "basis points of the subtotal — 250 is 2.5%"],
+            [<C key="a">percent</C>, <C key="b">rateBps</C>, "basis points of the subtotal, 250 is 2.5%"],
             [
               <C key="a">distanceBand</C>,
               <C key="b">{"bands[{maxKm, feeMinorUnits}]"}</C>,
@@ -528,7 +528,7 @@ export default function ConfigDocsPage() {
           </Item>
           <Item>
             <C>caps.perDayMinorUnits</C> is accepted but{" "}
-            <strong className="text-foreground">not enforced</strong> — it needs
+            <strong className="text-foreground">not enforced</strong>, it needs
             the customer&apos;s other bookings that day, which is a database
             question, not arithmetic. Do not rely on it.
           </Item>
@@ -544,7 +544,7 @@ export default function ConfigDocsPage() {
         <H3 id="pricing-order">The order it all runs in</H3>
         <Code>{`1. a matching tier replaces rate.amountMinorUnits
 2. base      = amount × quantity(rate.per) × party factor
-3. + secondaryRate   (an independent axis, ADDED — see below)
+3. + secondaryRate   (an independent axis, ADDED, see below)
 4. + fees            (flat, percent of subtotal, distance band)
 5. clamp to caps.perBookingMinorUnits
 6. derive the deposit from the final total`}</Code>
@@ -554,7 +554,7 @@ export default function ConfigDocsPage() {
             <Item>
               <C>secondaryRate</C> is <strong className="text-foreground">added,
               never multiplied</strong>. &quot;20 pallets × 4 weeks&quot; cannot
-              be expressed — you get 20 pallets <em>plus</em> 4 weeks.
+              be expressed, you get 20 pallets <em>plus</em> 4 weeks.
             </Item>
             <Item>
               A tier is matched once, against the booking&apos;s{" "}
@@ -564,7 +564,7 @@ export default function ConfigDocsPage() {
               cross.
             </Item>
             <Item>
-              <C>tiers[].quantityCap</C> validates but does not gate — an
+              <C>tiers[].quantityCap</C> validates but does not gate, an
               early-bird pool needs a count of what has been sold.
             </Item>
           </List>
@@ -575,7 +575,7 @@ export default function ConfigDocsPage() {
       <Section
         id="payments"
         step="Step 5"
-        title="Payments — when the money moves"
+        title="Payments, when the money moves"
         lede="Who pays, at what point, and on what cycle."
       >
         <Table
@@ -638,7 +638,7 @@ export default function ConfigDocsPage() {
       <Section
         id="timing"
         step="Step 6"
-        title="Timing — the scheduling rules"
+        title="Timing, the scheduling rules"
         lede="Slot length, notice, cutoffs, and whether a booking is instant or has to be approved."
       >
         <Table
@@ -650,20 +650,20 @@ export default function ConfigDocsPage() {
                 <C>instant</C> <C>request_approve</C>
               </span>,
               <C key="c">instant</C>,
-              "Yes — the default behind each service's auto-approve toggle",
+              "Yes, the default behind each service's auto-approve toggle",
             ],
-            [<C key="a">leadTimeMinutes</C>, "int >= 0", <C key="c">0</C>, "Yes — minimum notice on booking"],
+            [<C key="a">leadTimeMinutes</C>, "int >= 0", <C key="c">0</C>, "Yes, minimum notice on booking"],
             [<C key="a">slotDurationMinutes</C>, "int >= 1", <C key="c">30</C>, "Yes"],
             [<C key="a">maxBookingsPerSlot</C>, "int >= 1", <C key="c">1</C>, "Yes, via slot capacity"],
-            [<C key="a">cancellationWindowHours</C>, "int >= 0", <C key="c">24</C>, "Yes — on change/cancel"],
-            [<C key="a">bufferMinutes</C>, "int >= 0", <C key="c">0</C>, "Yes — on slot creation"],
+            [<C key="a">cancellationWindowHours</C>, "int >= 0", <C key="c">24</C>, "Yes, on change/cancel"],
+            [<C key="a">bufferMinutes</C>, "int >= 0", <C key="c">0</C>, "Yes, on slot creation"],
             [
               <C key="a">advanceBookingWindowDays</C>,
               "int >= 0",
               <C key="c">30</C>,
-              "No — the demo seed lays slots further out than this allows",
+              "No, the demo seed lays slots further out than this allows",
             ],
-            [<C key="a">approvalWindowHours</C>, "int", <C key="c">48</C>, "No — expiring a stale request needs a scheduled job"],
+            [<C key="a">approvalWindowHours</C>, "int", <C key="c">48</C>, "No, expiring a stale request needs a scheduled job"],
             [
               <C key="a">waitlist</C>,
               <C key="b">{"{enabled, autoPromote, maxPerSlot}"}</C>,
@@ -674,13 +674,13 @@ export default function ConfigDocsPage() {
               <C key="a">seasons</C> ,
               <C key="b">{"[{startDate, endDate}]"}</C>,
               <C key="c">[]</C>,
-              "No — but both dates are required if you declare one",
+              "No, but both dates are required if you declare one",
             ],
             [
               <C key="a">blackouts</C>,
               <C key="b">{"[{startDate, endDate}]"}</C>,
               <C key="c">[]</C>,
-              "No — same shape rule",
+              "No, same shape rule",
             ],
           ]}
         />
@@ -694,9 +694,9 @@ export default function ConfigDocsPage() {
 
         <Note title="The old rules block still works">
           <p>
-            Five of these keys — <C>slotDurationMinutes</C>,{" "}
+            Five of these keys, <C>slotDurationMinutes</C>,{" "}
             <C>maxBookingsPerSlot</C>, <C>cancellationWindowHours</C>,{" "}
-            <C>advanceBookingWindowDays</C>, <C>bufferMinutes</C> — also live
+            <C>advanceBookingWindowDays</C>, <C>bufferMinutes</C>, also live
             under a deprecated <C>rules</C> block, and the loader keeps the two
             in sync in both directions. An old file still boots. In a new file,
             write them under <C>timing</C>; if you write both, <C>timing</C>{" "}
@@ -709,7 +709,7 @@ export default function ConfigDocsPage() {
       <Section
         id="location"
         step="Step 7"
-        title="Location — where it happens"
+        title="Location, where it happens"
         lede="Set the timezone even if you change nothing else in this block."
       >
         <Table
@@ -725,12 +725,12 @@ export default function ConfigDocsPage() {
             ],
             [
               <C key="a">default</C>,
-              "one of your own modes — this is checked",
+              "one of your own modes, this is checked",
               <C key="c">on_site</C>,
             ],
             [
               <C key="a">timezone</C>,
-              "a valid IANA zone — this is checked",
+              "a valid IANA zone, this is checked",
               <C key="c">UTC</C>,
             ],
             [
@@ -770,7 +770,7 @@ export default function ConfigDocsPage() {
         <Note title="Two of these have visible consequences today">
           <p>
             <C>timezone</C> is how availability is grouped for a visitor who is
-            not signed in — leave it at <C>UTC</C> and an evening slot can show
+            not signed in, leave it at <C>UTC</C> and an evening slot can show
             up on the wrong day. <C>origin</C> and <C>distanceUnit</C> are the
             point and unit every &quot;near me&quot; distance is measured with.
           </p>
@@ -872,7 +872,7 @@ appliesTo ∈ customer | tenant | subject`}</Code>
           ]}
         />
         <p>
-          <C>discovery.facets</C> is the search filter row — the one part of
+          <C>discovery.facets</C> is the search filter row, the one part of
           these three that is wired up today.
         </p>
       </Section>
@@ -884,7 +884,7 @@ appliesTo ∈ customer | tenant | subject`}</Code>
         title="Words, copy, and your own fields"
         lede="Rename every noun in the product, and add fields the engine has never heard of."
       >
-        <H3 id="vocab-terms">terms — 17 nouns</H3>
+        <H3 id="vocab-terms">terms, 17 nouns</H3>
         <p>
           Each must be a non-empty string. Singular and plural are separate keys.
         </p>
@@ -899,7 +899,7 @@ appliesTo ∈ customer | tenant | subject`}</Code>
   "staff":    "Clinician","subject":   "Patient", "party": "Guests"
 }`}</Code>
 
-        <H3 id="vocab-copy">copy — 10 strings</H3>
+        <H3 id="vocab-copy">copy, 10 strings</H3>
         <p>
           <C>landingTitle</C>, <C>landingSubtitle</C>, <C>confirmTitle</C>,{" "}
           <C>emptyStateSlots</C>, <C>emptyStateBookings</C>,{" "}
@@ -907,11 +907,11 @@ appliesTo ∈ customer | tenant | subject`}</Code>
           <C>depositDue</C>, <C>prerequisiteBlocked</C>. All must be non-empty.
         </p>
 
-        <H3 id="vocab-meta">metaFields — your own data</H3>
+        <H3 id="vocab-meta">metaFields, your own data</H3>
         <p>
           Six entities take custom fields: <C>providers</C>, <C>services</C>,{" "}
           <C>resources</C>, <C>slots</C>, <C>bookings</C>, <C>subjects</C>. This
-          is the extension point that needs no migration — the values live in
+          is the extension point that needs no migration, the values live in
           each table&apos;s <C>metadata</C> column.
         </p>
         <Code>{`"metaFields": {
@@ -928,7 +928,7 @@ appliesTo ∈ customer | tenant | subject`}</Code>
             [
               "Required on every field",
               <span key="a">
-                <C>key</C>, <C>label</C>, <C>type</C> — each a non-empty string
+                <C>key</C>, <C>label</C>, <C>type</C>, each a non-empty string
               </span>,
             ],
             [
@@ -945,7 +945,7 @@ appliesTo ∈ customer | tenant | subject`}</Code>
             ],
             [
               "Undeclared keys",
-              "always pass — you can put anything in metadata without declaring it. Declaring a field is how you opt into validation for it",
+              "always pass, you can put anything in metadata without declaring it. Declaring a field is how you opt into validation for it",
             ],
           ]}
         />
@@ -981,7 +981,7 @@ appliesTo ∈ customer | tenant | subject`}</Code>
         </p>
         <p>
           <C>tenancy</C>, <C>prerequisites</C>, <C>discovery</C>, <C>terms</C>,{" "}
-          <C>copy</C> and <C>metaFields</C> stay global —
+          <C>copy</C> and <C>metaFields</C> stay global,
           presentation and platform terms are not a single service&apos;s to
           change.
         </p>
@@ -998,7 +998,7 @@ a built-in default                            ← never null`}</Code>
         <p>
           Overrides go through{" "}
           <strong className="text-foreground">the same validator as the
-          global file</strong>, against your deployment&apos;s resolved config —
+          global file</strong>, against your deployment&apos;s resolved config,
           so a service cannot set <C>payments.flow: &quot;prepay&quot;</C> on a
           deployment where <C>capabilities.payments</C> is off. An invalid
           override is rejected on write with the problem list, not silently
@@ -1018,7 +1018,7 @@ make reseed    # rebuild the demo catalog to match`}</Code>
 
         <p>
           <C>make reload</C> re-reads the file. <C>make reseed</C> is only
-          needed when the <em>data</em> should change too — renaming your nouns
+          needed when the <em>data</em> should change too, renaming your nouns
           does not require it, switching what you sell does.
         </p>
 
@@ -1037,8 +1037,8 @@ make reseed    # rebuild the demo catalog to match`}</Code>
   - pricing.currency must be a 3-letter ISO 4217 code, got 'EURO'
   - location.timezone must be a valid IANA zone, got 'Europe/Warsawww'
   - capabilities.payments is false, so payments.flow must be 'none'
-    (got 'prepay') — otherwise the UI hides a step the API still enforces
-This is the file a pivot edits — fix the keys above.`}</Code>
+    (got 'prepay'), otherwise the UI hides a step the API still enforces
+This is the file a pivot edits, fix the keys above.`}</Code>
 
         <H3 id="apply-common">The mistakes that actually happen</H3>
         <Table
@@ -1050,7 +1050,7 @@ This is the file a pivot edits — fix the keys above.`}</Code>
             ],
             [
               <span key="a"><C>mode: &quot;single&quot;</C> with no <C>providerCode</C></span>,
-              "Rejected — nothing can resolve the business",
+              "Rejected, nothing can resolve the business",
             ],
             [
               <span key="a"><C>location.default</C> not in <C>location.modes</C></span>,
@@ -1066,7 +1066,7 @@ This is the file a pivot edits — fix the keys above.`}</Code>
             ],
             [
               <span key="a">a fee with <C>kind: &quot;percentage&quot;</C></span>,
-              "Rejected — the valid kinds are flat, percent, distanceBand",
+              "Rejected, the valid kinds are flat, percent, distanceBand",
             ],
             [
               <span key="a">a misspelled <C>appliesWhen</C> clause</span>,
@@ -1092,14 +1092,14 @@ This is the file a pivot edits — fix the keys above.`}</Code>
         </p>
         <List>
           <Item>
-            <C>pricing.*</C> — the whole quote pipeline, except the three
+            <C>pricing.*</C>, the whole quote pipeline, except the three
             exceptions called out in{" "}
             <a href="#pricing" className="text-primary underline underline-offset-4">
               step 4
             </a>
           </Item>
           <Item>
-            <C>timing</C> — <C>slotDurationMinutes</C>,{" "}
+            <C>timing</C>, <C>slotDurationMinutes</C>,{" "}
             <C>maxBookingsPerSlot</C>, <C>cancellationWindowHours</C>,{" "}
             <C>bufferMinutes</C>, <C>leadTimeMinutes</C>, <C>confirmation</C>
           </Item>
@@ -1119,8 +1119,8 @@ This is the file a pivot edits — fix the keys above.`}</Code>
           </Item>
         </List>
         <p>
-          Everything else — inventory, waitlist, prerequisites, recurrence,
-          entitlements, the payment flows — is configurable and validated, and
+          Everything else, inventory, waitlist, prerequisites, recurrence,
+          entitlements, the payment flows, is configurable and validated, and
           waiting on its reader. Configure it if you want the file to describe
           your business honestly; do not expect it to gate a booking yet.
         </p>
@@ -1212,9 +1212,9 @@ This is the file a pivot edits — fix the keys above.`}</Code>
 }`}</Code>
 
         <p>
-          Everything not named here — <C>discovery</C>, <C>recurrence</C>,{" "}
+          Everything not named here, <C>discovery</C>, <C>recurrence</C>,{" "}
           <C>entitlements</C>, <C>copy</C>, the rest of{" "}
-          <C>booking</C> and <C>payments</C> — resolves from the defaults, which
+          <C>booking</C> and <C>payments</C>, resolves from the defaults, which
           is why a file this short is a complete configuration.
         </p>
 
