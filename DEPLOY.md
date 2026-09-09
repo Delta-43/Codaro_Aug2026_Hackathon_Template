@@ -1,6 +1,14 @@
-# Deployment — Vercel (frontend) + Railway (backend) + Supabase
+# Deployment
 
-The app splits across three managed platforms:
+Three ways to run this, covered in order below.
+
+| | What it is | Where |
+|---|---|---|
+| **Managed** | Vercel + Railway + Supabase, the full app | [sections 0-3](#0-prerequisites--a-production-supabase-project) |
+| **Showcase-only** | the landing page alone, no backend at all | [Showcase-only](#showcase-only-the-landing-page-on-its-own) |
+| **Self-hosted** | both containers on your own host or VPS | [Self-hosting](#self-hosting) |
+
+The managed split:
 
 | Layer | Platform | Source |
 |-------|----------|--------|
