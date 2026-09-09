@@ -94,10 +94,9 @@ taking the running app down.
 **Reference:** [docs/PIVOT-SYSTEM.md](docs/PIVOT-SYSTEM.md) documents every block,
 the precedence model, and exactly which keys the engine enforces today versus
 which are declared-and-validated but still waiting on a reader.
-[docs/PIVOT-COVERAGE.md](docs/PIVOT-COVERAGE.md) is the evidence: 100 deliberately
-different businesses expressed as real configs and run through the validator and
-pricing engine (`python3 scripts/check_pivots.py`), plus every issue that
-exercise found and how it was resolved.
+The pivot library that used to sit alongside it (100 example configs, their
+generator and their coverage report) has been removed: the repository ships the
+engine and one neutral config, and a deployment brings its own.
 
 **The database never changes at the pivot — on purpose.** Tables are neutral and
 `schema.sql` is fully idempotent (`create table if not exists`, `create or
@@ -144,12 +143,9 @@ Each subdir's `CLAUDE.md` records what's actually implemented.
 | `supabase/` | `schema.sql` — neutral base tables + extended entities (providers/services/booking_slots/reviews/follows), occupancy view, RLS | [supabase/CLAUDE.md](supabase/CLAUDE.md) |
 | `test/` | Stack + API tests (owned exclusively by the `test-writer` agent, see below) | [test/CLAUDE.md](test/CLAUDE.md) |
 | `domain.config.json` | The pivot file (v2) | [docs/PIVOT-SYSTEM.md](docs/PIVOT-SYSTEM.md) |
-| `scripts/check_pivots.py` | 100 pivots run through the real validator + pricing engine | [docs/PIVOT-COVERAGE.md](docs/PIVOT-COVERAGE.md) |
-| `pivots/` | The same 100 pivots as complete, drop-in `domain.config.json` files (generated) | [pivots/CLAUDE.md](pivots/CLAUDE.md) |
 
 ```
 domain.config.json          # THE pivot file (edit only this at pivot time)
-domain.config.medical.example.json
 supabase/schema.sql         # neutral tables + occupancy view + RLS
 backend/                    # FastAPI generic engine
   app/config.py             #  loads the pivot file (+ POST /config/reload)

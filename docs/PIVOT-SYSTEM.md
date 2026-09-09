@@ -3,10 +3,8 @@
 How `domain.config.json` works, what every field controls, and what is actually
 wired up behind it.
 
-This is the reference. For evidence that it holds — 100 businesses expressed as
-real configs and run through the engine — see [PIVOT-COVERAGE.md](PIVOT-COVERAGE.md).
-Those 100 also exist as whole, drop-in config files in
-[`pivots/`](../pivots/index.md); `python3 scripts/use_pivot.py <n>` loads one.
+This is the reference for every config block, the precedence model, and which
+keys the engine enforces today.
 
 ---
 
@@ -183,7 +181,7 @@ unknown clause fails closed** — a typo must not widen a discount to everyone.
 > time, and applied to the whole booking. A 17:00-19:00 booking under a
 > 17:00-18:00 happy-hour tier bills entirely at the happy-hour rate. Time-banded
 > pricing that must *split* a booking across bands is not supported — see
-> [PIVOT-COVERAGE.md](PIVOT-COVERAGE.md#what-batch-2-found) (#83).
+> issue #83.
 
 A deposit clamps differently depending on `refundable`: non-refundable is a
 prepayment and never exceeds the total; refundable is a bond and may.
@@ -280,8 +278,7 @@ Enforced end to end today: `pricing.*` (the whole quote pipeline),
 
 Everything else is declared and validated but has no reader yet. The exact list,
 with what each one needs, is in
-[PIVOT-COVERAGE.md](PIVOT-COVERAGE.md#what-is-declared-but-not-enforced) and in
-`scripts/check_pivots.py`, which is the machine-checkable version.
+the table below, which lists what is wired end to end.
 
 ## 7. Adding a field
 
@@ -290,7 +287,7 @@ with what each one needs, is in
 2. Add a `validate()` check **only if a wrong value would corrupt data** — a
    silly colour is not the validator's business, an invalid timezone is.
 3. Wire a reader. If you cannot yet, add it to the declared-only table in
-   `scripts/check_pivots.py` and to `backend/CLAUDE.md` with what it needs.
+   `backend/CLAUDE.md` with what it needs.
 4. Add coverage under `test/` (owned by the `test-writer` agent).
 
 Step 3 is not optional. v1's real failure was ten leaf fields that looked live

@@ -17,7 +17,7 @@ These tests are what notices:
   first differing dotted path so a drift names itself;
 * **enum agreement** — every `Literal` alias covers exactly the matching
   frozenset in `config_schema`, one test id per enum;
-* **every shipped config validates** — `domain.config.json`, the medical example
+* **every shipped config validates** — `domain.config.json`
   and all 100 files in `pivots/` (a model too narrow for a real pivot would
   publish a schema that rejects the repo's own data);
 * **strictness holds** — the models reject what `config_schema._int`/`_bool`
@@ -46,12 +46,10 @@ from app.config_models import DomainConfig, config_dump
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 REPO_CONFIG = REPO_ROOT / "domain.config.json"
-MEDICAL_CONFIG = REPO_ROOT / "domain.config.medical.example.json"
-PIVOTS_DIR = REPO_ROOT / "pivots"
+
 
 # `pivots/manifest.json` is an index, not a config — glob the numbered files only.
-PIVOT_CONFIGS = sorted(PIVOTS_DIR.glob("[0-9]*.json"))
-SHIPPED_CONFIGS = [REPO_CONFIG, MEDICAL_CONFIG, *PIVOT_CONFIGS]
+SHIPPED_CONFIGS = [REPO_CONFIG]
 
 # Keys a shipped config declares that `config_schema.DEFAULTS` does not, so the
 # models (blocks are `extra="ignore"`, matching `check_shape`) drop them on a
@@ -249,12 +247,10 @@ def test_meta_field_type_accepts_the_string_alias_only_on_the_field():
 
 
 def test_the_shipped_config_set_is_what_we_think_it_is():
-    """Guard the glob: a renamed pivot directory would make the suite below pass
-    by covering nothing."""
+    """Guard the set: a renamed or missing config would make the suite below
+    pass by covering nothing."""
     assert REPO_CONFIG.is_file()
-    assert MEDICAL_CONFIG.is_file()
-    assert len(PIVOT_CONFIGS) == 100
-    assert PIVOTS_DIR / "manifest.json" not in PIVOT_CONFIGS
+    assert SHIPPED_CONFIGS == [REPO_CONFIG]
 
 
 @pytest.mark.parametrize("path", SHIPPED_CONFIGS, ids=lambda p: p.name)

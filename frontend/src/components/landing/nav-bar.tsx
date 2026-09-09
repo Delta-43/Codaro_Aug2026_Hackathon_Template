@@ -28,11 +28,12 @@ import { buttonFx } from "@/config/buttons";
 import { ScrollTopLink } from "@/components/landing/scroll-top-link";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/lib/utils";
+import { SHOWCASE_ONLY, SOURCE_URL } from "@/config/showcase";
 
 const LINKS = [
-  { href: "#services", label: "Services" },
+  { href: "#services", label: "Pivot" },
   { href: "#calendar", label: "Calendar" },
-  { href: "#reviews", label: "Families" },
+  { href: "#proof", label: "Evidence" },
 ];
 
 const LINK_CLASS =
@@ -149,16 +150,19 @@ export function NavBar() {
           )}
         </div>
 
-        {/* Far right — primary button (pinned): Dashboard when signed in, else Login */}
+        {/* Far right — primary button (pinned): Dashboard when signed in, else
+            Login. In a showcase-only build there is no app to sign in to, so it
+            becomes the source link and ignores `signedIn` entirely: a stale
+            Supabase session must not offer a Dashboard that redirects to `/`. */}
         <Link
-          href={signedIn ? dashboardHref : "/login"}
+          href={SHOWCASE_ONLY ? SOURCE_URL : signedIn ? dashboardHref : "/login"}
           className={cn(
             buttonVariants({ size: "sm" }),
             buttonFx.pill,
             "shrink-0 px-4",
           )}
         >
-          {signedIn ? "Dashboard" : "Login"}
+          {SHOWCASE_ONLY ? "View source" : signedIn ? "Dashboard" : "Login"}
         </Link>
       </div>
     </nav>

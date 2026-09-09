@@ -10,7 +10,7 @@
  * The requests list screens the person who *submitted* the request. On a
  * deployment where `booking.subject` is enabled that is not the important
  * party: the booking is about someone (or something) else — the pet, the
- * vehicle, the deceased — and on a `payments.payer: "third_party"` deployment
+ * vehicle, the patient) and on a `payments.payer: "third_party"` deployment
  * the person paying can be a third one again. This block renders all three off
  * the booking the API already returns:
  *

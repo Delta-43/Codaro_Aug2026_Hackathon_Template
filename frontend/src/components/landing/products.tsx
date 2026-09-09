@@ -5,48 +5,49 @@
 "use client";
 
 /**
- * "What we offer" chapter for the funeral-home pivot — a liquid-glass plate of
- * the farewells and keepsakes families reach for most, from the plain (cremation
- * and burial) to the gloriously deadpan (a diamond, a tree, a star, a chatbot).
- * Same plate + indicator-icon pattern as the other chapters; each product is an
- * interactive tile whose hover feel comes from `buttonFx.plate`, not an inline
- * hover string (see frontend/CLAUDE.md).
+ * "What you can pivot" chapter — the config blocks that decide how the product
+ * behaves, which is the whole pitch. Same plate + indicator-icon pattern as the
+ * other chapters; each block is an interactive tile whose hover feel comes from
+ * `buttonFx.plate`, not an inline hover string (see frontend/CLAUDE.md).
+ *
+ * Fixed page copy, deliberately: this markets the engine, so it must read the
+ * same whatever `domain.config.json` currently says.
  */
-import { Flame, Flower, Gem, Heart, MessageCircle, Sparkles, TreePine } from "lucide-react";
+import { Blocks, Boxes, CalendarClock, Coins, CreditCard, MapPin, ShieldCheck } from "lucide-react";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";
 import { buttonFx } from "@/config/buttons";
 import { cn } from "@/lib/utils";
 
 const PRODUCTS = [
   {
-    icon: Flame,
-    title: "Cremation & Burial",
-    body: "The traditional farewells, arranged start to finish. Chapel, hearse, and director included.",
+    icon: CalendarClock,
+    title: "Booking",
+    body: "Unit kind, granularity, duration, party size and add-ons. A 30-minute appointment and a seven-night stay are the same row with different config.",
   },
   {
-    icon: Gem,
-    title: "Ashes-to-Diamond",
-    body: "We press the ashes into a certified diamond, so you can keep them close. Available up to one carat.",
+    icon: Coins,
+    title: "Pricing",
+    body: "Per hour, per night, per person, per unit, tiered, quoted or free. Fees, caps and deposits ride along.",
   },
   {
-    icon: TreePine,
-    title: "Memorial Tree",
-    body: "Seed a loved one into a living tree and watch them grow. They give back more oxygen than most did in life.",
+    icon: CreditCard,
+    title: "Payments",
+    body: "Prepay, pay on site, invoice after, split or none. Deposit schedules and no-show fees included.",
   },
   {
-    icon: Flower,
-    title: "Eternal Flowers",
-    body: "3D-printed blooms for the service that never wilt, never brown, and never need watering.",
+    icon: Boxes,
+    title: "Inventory",
+    body: "None, finite, rentable, consumable or serialised. A hire fleet and a hair salon need different answers.",
   },
   {
-    icon: Sparkles,
-    title: "A Star in Their Name",
-    body: "Name a star after them. When the grandchildren say grandpa is watching from above, they won't be lying.",
+    icon: MapPin,
+    title: "Location",
+    body: "On-site, at the customer, remote, delivery or pickup, plus the business timezone and service area.",
   },
   {
-    icon: MessageCircle,
-    title: "AI Voice Companion",
-    body: "A gentle chatbot built from real recordings, so you can still hear from them on the hard days.",
+    icon: ShieldCheck,
+    title: "Prerequisites",
+    body: "ID checks, intake forms, waivers, memberships and owner approval, gated per service rather than globally.",
   },
 ];
 
@@ -61,14 +62,14 @@ export function Products() {
         <GlassPanel className="px-6 py-12 sm:px-10 sm:py-14">
           <div className="mb-6 flex justify-center">
             <span className="flex size-12 origin-center cursor-pointer items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-sm transition-all duration-200 ease-out hover:scale-[1.4] hover:-translate-y-1 hover:bg-primary hover:text-primary-foreground hover:shadow-xl">
-              <Heart className="size-6" aria-hidden />
+              <Blocks className="size-6" aria-hidden />
             </span>
           </div>
           <h2 className="text-center text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
-            What families choose most.
+            Change the file. Not the code.
           </h2>
           <p className="mx-auto mt-3 max-w-md text-center text-foreground/80">
-            From the simple to the celestial. Every farewell, your way.
+            Eleven config blocks decide how the engine behaves, and every one can be overridden per service. One deployment can host businesses that work nothing alike.
           </p>
 
           <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -90,7 +91,7 @@ export function Products() {
           </div>
 
           <p className="mx-auto mt-8 max-w-lg text-center text-sm text-foreground/60">
-            …and more, from cryogenic suspension to an orbital committal among the stars.
+            The database never changes at the pivot. New domain fields go in a metadata JSON column, so switching business needs no migration.
           </p>
         </GlassPanel>
       </div>

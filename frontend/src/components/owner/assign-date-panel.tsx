@@ -86,7 +86,7 @@ function shortTime(iso: string, timeZone: string): string {
 }
 
 /** The name the announcement addresses. The subject's first text-ish field is
- *  the deployment's own idea of "who this is about" — `full_name` on the funeral
+ *  the deployment's own idea of "who this is about": `full_name` on one
  *  config — so it is read by descriptor order, never by a hardcoded key. */
 function subjectName(request: OwnerRequest, service?: OwnerServiceSummary | null): string {
   const subject = request.subject ?? {};
@@ -259,7 +259,7 @@ export function AssignDatePanel({
   }
 
   // The resource name lands a beat after the slots (two requests), so an
-  // untouched draft written before it arrived is re-composed with the chapel in.
+  // untouched draft written before it arrived is re-composed with the resource in.
   useEffect(() => {
     if (selected && !draftEdited) setDraft(composeDraft(selected));
   }, [selected, draftEdited, composeDraft]);

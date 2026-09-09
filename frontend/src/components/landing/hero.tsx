@@ -12,11 +12,11 @@ import { cn } from "@/lib/utils";
 import { PipelineTerminal } from "@/components/landing/pipeline-terminal";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";
 import { ScrollCue } from "@/components/landing/scroll-cue";
+import { SHOWCASE_ONLY, SOURCE_URL } from "@/config/showcase";
 
 /**
- * Above-the-fold pitch for the funeral-home pivot: Arbor keeps its name and leaf
- * mark, the deadpan tagline sells the farewell. One liquid-glass plate (copy +
- * arrangement terminal) over the scene, plus a scroll cue to the next plate.
+ * Above-the-fold pitch for the engine itself. One liquid-glass plate (copy +
+ * pipeline terminal) over the scene, plus a scroll cue to the next plate.
  */
 export function Hero() {
   const { ref, style } = useScrollMotion<HTMLDivElement>();
@@ -33,22 +33,23 @@ export function Hero() {
               </span>
             </p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
-              Don&apos;t worry, be sad.
+              One engine. Any booking business.
             </h1>
             <p className="mx-auto mt-4 max-w-md text-foreground/80">
-              Less stress for you, we&apos;ll take it from here. Arrange the farewell in minutes;
-              you don&apos;t even choose the date. A director sets it with you within the week.
+              Provider, service, resource, slot, booking, user: one neutral spine. Edit a single
+              JSON file and the same deployment becomes a clinic, a garage, a climbing gym or a
+              funeral home. No rewrite. No migration.
             </p>
             <div className="mt-8 flex justify-center">
               <Link
-                href="/login"
+                href={SHOWCASE_ONLY ? SOURCE_URL : "/login"}
                 className={cn(
                   buttonVariants({ size: "lg" }),
                   buttonFx.pill,
                   "gap-1.5 px-6",
                 )}
               >
-                Arrange a farewell
+                Read the source
                 <ArrowRight className="size-4" aria-hidden />
               </Link>
             </div>

@@ -1,4 +1,4 @@
-"""Real photography for the funeral-home seed — a thin, optional override layer.
+"""Real photography for the seed, as a thin, optional override layer.
 
 `seed.py` builds every image itself: `avatar_uri`, `cover_uri` and `tile_uri`
 render deterministic inline-SVG gradients from a hash of the row's name, so a
@@ -22,8 +22,8 @@ so it cannot fail either.
 Paths mirror the directory layout under `frontend/public/media/`:
 
     /media/avatars/<slug>.jpg        people (directors and families)
-    /media/homes/<slug>.jpg          a funeral home, square
-    /media/homes/<slug>-cover.jpg    a funeral home, wide banner
+    /media/homes/<slug>.jpg          a business, square
+    /media/homes/<slug>-cover.jpg    a business, wide banner
     /media/arrangements/<slug>.jpg   a service or a resource tile
 
 Keys are the **seed display names** exactly as they appear in `seed_data.py` and
@@ -61,49 +61,20 @@ PEOPLE: dict[str, str] = {
     "Natalia Krawczyk": "natalia-krawczyk",
 }
 
-# --- funeral homes (seed_data VERTICALS["funeral"]["providers"] names) -----
+# --- businesses (seed_data VERTICALS[...]["providers"] names) --------------
 
-PROVIDERS: dict[str, str] = {
-    "Wieczny Spokój": "wieczny-spokoj",
-    "Kaplica Lipowa": "kaplica-lipowa",
-    "Dom Żałoby Bursztyn": "dom-zaloby-bursztyn",
-    "Odra Pamięć": "odra-pamiec",
-    "Cichy Dom": "cichy-dom",
-    "Ostatnia Granica": "ostatnia-granica",
-}
+# Empty by default: the shipped verticals ship no photography, so `_media()`
+# misses and the seeder falls back to its generated SVG tiles. Add slugs here
+# alongside files in `frontend/public/media/homes/` to use real images.
+PROVIDERS: dict[str, str] = {}
 
 # --- service + resource tiles ----------------------------------------------
 # `seed.py` asks for a tile twice per row: once with the service name and once
 # with the resource name, so both kinds of key live in one dict.
 
-TILES: dict[str, str] = {
-    # services
-    "Traditional Funeral Service": "traditional-funeral",
-    "Cremation": "cremation",
-    "Burial": "burial",
-    "Memorial Gathering": "memorial-gathering",
-    "Direct Committal": "direct-committal",
-    "Pre-Need Arrangement": "pre-need-arrangement",
-    "Cryogenic Suspension": "cryogenic-suspension",
-    "Orbital Committal": "orbital-committal",
-    "Nocturnal Aftercare Programme": "nocturnal-aftercare",
-    "Discreet Arrangement": "discreet-arrangement",
-    "Adjacent Plot Reservation": "adjacent-plot",
-    # the fallback service the non-demo homes get
-    "Funeral Arrangement": "traditional-funeral",
-    # resources
-    "Chapel of Rest A": "chapel-a",
-    "Chapel of Rest B": "chapel-b",
-    "Chapel of Rest": "chapel-a",
-    "Hearse — Mercedes S-Class": "hearse-mercedes",
-    "Hearse — Rolls-Royce Phantom": "hearse-rolls-royce",
-    "Hearse — Horse-Drawn": "hearse-horse-drawn",
-    "Retort 1": "retort-1",
-    "Retort 2": "retort-2",
-    "Preparation Suite": "preparation-suite",
-    "Cryo-Vault Bay 3": "cryo-vault",
-    "Launch Pad 4": "launch-pad",
-}
+# Same: empty until a deployment adds its own tiles under
+# `frontend/public/media/arrangements/`.
+TILES: dict[str, str] = {}
 
 
 def person_avatar(name: str) -> str | None:
@@ -113,13 +84,13 @@ def person_avatar(name: str) -> str | None:
 
 
 def provider_avatar(name: str) -> str | None:
-    """Square image for a funeral home, or None → caller uses `avatar_uri`."""
+    """Square image for a business, or None → caller uses `avatar_uri`."""
     slug = PROVIDERS.get(name)
     return f"/media/homes/{slug}.jpg" if slug else None
 
 
 def provider_cover(name: str) -> str | None:
-    """Wide banner for a funeral home, or None → caller uses `cover_uri`."""
+    """Wide banner for a business, or None → caller uses `cover_uri`."""
     slug = PROVIDERS.get(name)
     return f"/media/homes/{slug}-cover.jpg" if slug else None
 
