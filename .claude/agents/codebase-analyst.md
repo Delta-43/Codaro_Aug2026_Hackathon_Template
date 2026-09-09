@@ -16,9 +16,9 @@ Do this in order:
 1. Read the root `CLAUDE.md`, then `backend/CLAUDE.md`, `frontend/CLAUDE.md`,
    `supabase/CLAUDE.md`, and `test/CLAUDE.md`, these define what *should*
    exist and the conventions in play (the `domain.config.json` pivot
-   mechanism, the neutral schema, the `<Term>`/`useDomain()` pattern, etc.).
+   mechanism, the neutral schema, the `useVertical()` pattern, etc.).
 2. Read the actual code: `domain.config.json`, `supabase/schema.sql`,
-   `backend/app/**`, `frontend/app/**` + `frontend/lib/**`.
+   `backend/app/**`, `frontend/src/app/**` + `frontend/src/lib/**`.
 3. Cross-reference against the root `CLAUDE.md` Track B checklist (resource/slot,
    booking/confirmation, change/cancellation, availability view, status/history)
    and note what's implemented, what's stubbed, and what's absent.

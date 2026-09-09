@@ -557,7 +557,7 @@ class Copy(_Block):
 class MetaField(_Item):
     key: str
     type: MetaFieldType | Literal["string"] = Field(
-        description="'string' is accepted as an alias for 'text', it shipped in domain.config.medical.example.json and matched nothing in the v1 validator."
+        description="'string' is accepted as an alias for 'text', it shipped in domain.config.json and matched nothing in the v1 validator."
     )
     label: str | None = None
     required: StrictBool | None = None

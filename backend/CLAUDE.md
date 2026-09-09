@@ -13,7 +13,7 @@ the frontend's exact contract (`frontend/src/types/domain.ts`). See root
 
 | File | Responsibility |
 |------|-----------------|
-| `app/main.py` | App wiring, lifespan (schema setup + seed), `GET /health`, `GET /config`, `POST /config/reload`, router mounts |
+| `app/main.py` | App wiring, lifespan (schema setup only, no seeding), `GET /health`, `GET /config`, `POST /config/reload`, router mounts |
 | `app/config.py` | Loads → normalizes → **validates** → `lru_cache`s `domain.config.json`; `load_config()` (uncached, raises `ConfigError`), `get_raw_config()` |
 | `app/config_schema.py` | Config **v2**: `DEFAULTS`, `normalize()` (defaults + v1 `rules`/`search` aliasing), `validate()`, the enum vocabularies |
 | `app/config_models.py` | Pydantic models describing the whole v2 tree, the source the published JSON Schema and the frontend's TS types are generated from. **Not yet the validator**, see below |
@@ -27,7 +27,7 @@ the frontend's exact contract (`frontend/src/types/domain.ts`). See root
 | `app/models.py` | Pydantic envelopes; the new request models accept camelCase (`CamelModel`) |
 | `app/meta.py` | Config-driven `metaFields` validator |
 | `app/discovery.py`, `app/users.py` | Aggregation helpers (rating/link arrays) and `User` assembly |
-| `app/routers/*.py` | `providers`, `services`, `resources`, `slots`, `availability`, `bookings`, `me`, `owner` |
+| `app/routers/*.py` | `providers`, `services`, `resources`, `slots`, `availability`, `bookings`, `me`, `messages`, `owner`, `waitlist` |
 | `app/routers/owner.py` | Business-mode aggregation: `/owner/dashboard` `/owner/services` `/owner/requests` `/owner/calendar` (owner-gated, scoped to the caller's providers) |
 | `seed.py`, `seed_data.py` | Three-vertical demo seeding; `seed_vertical(id)`, `active_vertical()`, `seed_if_empty()` |
 
@@ -70,8 +70,8 @@ the offering pivot, not just its vocabulary. Three rules hold:
 The shape used to be written three times, `DEFAULTS` (a dict literal),
 `validate()` (imperative checks) and hand-written TypeScript in
 `frontend/src/api/index.ts`, with nothing linking them. They had already
-drifted: the backend declares 17 `terms`, the frontend type declared 13, and
-A deployment supplies these in its own `domain.config.json`.
+drifted: the backend declares 17 `terms` and the frontend type declared 13. A
+deployment supplies whatever it needs in its own `domain.config.json`.
 
 `config_models.py` is now the source, and everything else is derived:
 
@@ -195,10 +195,10 @@ next to it:
 | `pricing.tiers[].quantityCap` | needs a sold-count | a query |
 | `capabilities.quotes` / `.cart` | those surfaces have no backend yet | the feature, plus its write gate |
 | `pricing.currencyExponent` | rendering uses the currency's own ISO exponent via `Intl` | only a currency `Intl` cannot resolve |
-| `terms.staff`/`.subject`/`.admin` | the UI has one slot per concept, already fed by `terms.resource`/`.service` | E10 per-service vocabulary |
+| `terms.staff`/`.subject` | the UI has one slot per concept, already fed by `terms.resource`/`.service` | E10 per-service vocabulary |
 
 Every `DEFAULTS` leaf should appear in neither
-its `ENFORCED` nor its `DECLARED_ONLY` map. That table is the promise that no key
+the enforcement table below. That table is the promise that no key
 looks live and does nothing; nothing had been checking it, and 43 paths had
 already slipped through, including all of `copy` and the since-removed `theme`,
 the very keys the

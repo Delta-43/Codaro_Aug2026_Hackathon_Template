@@ -5,7 +5,7 @@
 `schema.sql` defines the tables that back the booking engine. The **neutral base
 tables**, `resources`, `slots`, `bookings`, plus the `slot_occupancy` view are
 the frozen spine; on top of them sit the **extended entities** the richer domain
-needs (`providers`, `services`, `booking_slots`, `reviews`, `follows`) and the
+needs (`providers`, `services`, `booking_slots`, `reviews`, `follows`, `conversations`, `messages`, `entitlements`, `waitlist_entries`) and the
 auth layer (`profiles`). This is the only file in this directory, the database
 itself is hosted Supabase (Postgres), not a local container.
 

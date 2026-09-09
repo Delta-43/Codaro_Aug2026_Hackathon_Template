@@ -11,7 +11,6 @@
  * else: the sign-in CTAs point at the source repository, and `middleware.ts`
  * sends every other route back to `/` rather than letting a visitor walk into
  * an app whose every request would fail.
-
  *
  * Unset (the default), none of that applies and the app behaves normally. This
  * is a deployment mode, not a feature flag to build on.
@@ -29,4 +28,4 @@ export const SOURCE_URL = "https://github.com/kaveOO/Arbor";
  * static asset, and redirecting it means a scraper fetches the card, follows a
  * 307 to `/`, and shows no image at all.
  */
-export const PUBLIC_ROUTES = ["/", "/privacy", "/opengraph-image"];
+export const PUBLIC_ROUTES = ["/", "/docs", "/privacy", "/opengraph-image"];

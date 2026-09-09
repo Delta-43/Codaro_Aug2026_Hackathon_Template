@@ -8,7 +8,7 @@ help:
 	@echo "make reset   - stop and remove local node_modules/.next volumes, then start fresh"
 	@echo "make reseed  - wipe + rebuild demo data from the current domain.config.json"
 	@echo "make checkseed - report where the seeded data and domain.config.json disagree"
-	@echo "make demoseed   - DESTRUCTIVE: wipe + seed the hand-written demo vertical (VERTICAL=funeral)"
+	@echo "make demoseed   - DESTRUCTIVE: wipe + seed one vertical (VERTICAL=fleet|oneToOne|group)"
 	@echo "make fetchmedia - download demo imagery into frontend/public/media (skips cached files)"
 
 start:
@@ -41,7 +41,7 @@ reseed:
 # DESTRUCTIVE, wipes and reseeds the hand-written demo dataset for one
 # vertical (rich catalogue + real photography), rather than the generic rows
 # `reseed` derives from domain.config.json. Override with VERTICAL=<id>.
-VERTICAL ?= funeral
+VERTICAL ?= fleet
 demoseed:
 	docker compose exec backend python -c "import seed; seed.seed_vertical('$(VERTICAL)')"
 

@@ -86,8 +86,9 @@ class _Scope:
         self.service_ids = {s["id"] for s in self.services}
 
         # Filter server-side on the jsonb path (PostgREST accepts arrow paths
-        # in filter columns), fetching the whole table paged every tenant's
-        # rows per owner request. The Python filter stays as belt-and-braces.
+        # in filter columns) rather than fetching the whole table, which paged
+        # every tenant's rows per owner request. The Python filter stays as
+        # belt-and-braces.
         all_resources = []
         # Chunked like _screening_data: hundreds of ids in one `.in_` request
         # line 414 outright, where the pre-filter code merely paged slowly.

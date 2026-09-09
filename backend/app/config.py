@@ -38,7 +38,7 @@ def load_config(path: Path | None = None) -> dict:
         with path.open() as f:
             raw = json.load(f)
     except FileNotFoundError as e:
-        raise ConfigError(f"{path} does not exist, the pivot file must be present.") from e
+        raise ConfigError(f"{path} does not exist. The pivot file must be present.") from e
     except json.JSONDecodeError as e:
         raise ConfigError(f"{path} is not valid JSON: {e}") from e
 
@@ -61,7 +61,7 @@ def load_config(path: Path | None = None) -> dict:
         listed = "\n  - ".join(errors)
         raise ConfigError(
             f"{path} is not a usable domain config:\n  - {listed}\n"
-            "This is the file a pivot edits, fix the keys above."
+            "This is the file a pivot edits. Fix the keys above."
         )
     return config
 

@@ -1,8 +1,27 @@
 # Verifying changes, the local CI recipe
 
-These checks mirror `.github/workflows/ci.yml`. Run the ones that touch what you
-changed, or all of them before opening a PR. Passing them locally means the PR's
-CI will pass too.
+These are the checks `.github/workflows/ci.yml` runs. Run the ones that touch
+what you changed, or all of them before opening a PR.
+
+CI has five jobs and more gates than the four sections below spell out in
+detail. The full list, any one of which fails the build:
+
+| Gate | Command |
+|---|---|
+| Config valid | `python3 .github/scripts/validate_domain_config.py` |
+| Schema current | `python3 scripts/gen_config_schema.py --check` |
+| Lint (Python) | `ruff check .` |
+| Backend tests | `python -m pytest test -q` |
+| Config types current | `cd frontend && npm run codegen:config` then `git diff --exit-code src/api/config.generated.ts` |
+| Lint (JS) | `cd frontend && npm run lint` |
+| Typecheck | `cd frontend && npm run typecheck` |
+| Build | `cd frontend && npm run build` |
+| Unused code | `cd frontend && npx knip` |
+| Dependency audit | `pip-audit`, `npm audit` |
+| Images build | `docker build` for both Dockerfiles |
+
+The two easiest to forget are the schema/codegen pair, because they fail only
+when a *generated* file drifts from its source, and `knip`.
 
 **Run the lint over the whole repository, not just the directory you edited.**
 CI runs a bare `ruff check .`, so a stray import left in `test/` fails the build
@@ -48,12 +67,17 @@ Expected: all `test/backend` pass; `test/e2e` skips unless `SUPABASE_URL` +
 ```bash
 cd frontend
 npm ci
-npx tsc --noEmit
+npm run codegen:config && git diff --exit-code src/api/config.generated.ts
+npm run lint
+npm run typecheck
 npm run build
+npx knip
 ```
 
-`tsc` catches type errors fast; `npm run build` is the closest thing to "would
-this deploy" (it also lints and prerenders). Run after any `frontend/` change.
+Use `npm run typecheck`, not a bare `tsc --noEmit`: the script points at
+`tsconfig.typecheck.json`, so a bare run checks a different file set than CI
+does. `npm run build` is the closest thing to "would this deploy". Run these
+after any `frontend/` change.
 
 > **Footgun:** don't run `npm run build` while a `next dev` server is live on the
 > same checkout, it overwrites the dev server's `.next` and the running page
@@ -62,6 +86,7 @@ this deploy" (it also lints and prerenders). Run after any `frontend/` change.
 
 ## Frontend-only changes
 
-A change confined to `frontend/` (e.g. the landing page) only needs check **3**.
-Checks 1–2 cover the backend/config and are unaffected, but running all three
-before a PR is the safe default.
+A change confined to `frontend/` needs check **4**, all of it, including the
+codegen diff and `knip`. Checks 1 to 3 cover the backend and config and are
+unaffected. Running everything before a PR is still the safe default, and takes
+a couple of minutes.

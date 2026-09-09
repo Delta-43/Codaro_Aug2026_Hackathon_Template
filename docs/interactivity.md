@@ -19,10 +19,9 @@ interactive surface in `frontend/` opts into the token instead of re-inventing a
 | Baked-in default | `frontend/src/components/ui/button.tsx`, every `<Button>` already carries `buttonFx.press` in its base, so real buttons need nothing extra |
 | This rule | `docs/interactivity.md` (here) + a pointer in `frontend/CLAUDE.md` |
 
-`landing/` keeps its **own** frozen copy of `buttonFx` (it's a separate,
-air-gapped deployable, see `frontend/CLAUDE.md`). The extra roles below
-(`heading`, `icon`, `chevron`) were added on the `frontend/` side for the app;
-mirror them into `landing/`'s copy only if `landing/` starts using them.
+There is one copy of `buttonFx`, in `frontend/src/config/buttons.ts`, and every
+surface reads from it. A `landing/` app was briefly split out with a frozen copy
+of its own; that split was reverted, so there is nothing to mirror into.
 
 ## The tokens (roles)
 
@@ -35,11 +34,12 @@ Pick the token by **what the element is**, then `cn()` it onto the element:
 | `link` | standalone text/nav links (not inline prose) | stronger grow (scale-110). |
 | `surface` | clickable **cards / list rows** (a booking, a provider, a service, a search result) | full-strength muted fill + primary-tinted border on hover. |
 | `tile` | small pickable **calendar day cells** | pink hover tint ("you're on this one"). |
-| `star` | **rating** stars that are the hover target (review input, rate-customer) | lively grow (scale-150), matching the landing testimonials. |
+| `star` | **rating** stars that are the hover target (review input, rate-customer) | lively grow (scale-150). |
 | `pink` | a bare icon / label / status chip that should read as the accent colour on hover | `hover:text-primary` (the platform's "turn pink on hover"). |
 | `heading` | interactive **page/plate/section titles** & wordmarks (scroll-to-top, expand) | gentle grow, anchored left (override `origin-*` for centred/right). |
 | `icon` | a bare clickable **icon** with no button chrome (theme switch, cog, avatar) | clean grow (scale-110). |
 | `chevron` | the `>` / `⌄` glyph at the end of a clickable row | nudges toward its direction on the **row's** hover, put `group` on the row, this token on the chevron. |
+| `plate` | interactive **info plates** (the landing "three steps" cards and similar) | slight grow (scale-1.03) with a primary-tinted border and fill. |
 
 ### The two mechanics that trip people up
 
@@ -91,8 +91,8 @@ When you build, change, or adjust **any** interactive element:
 3. Keep the token **names** stable; tune their **values**. The whole point is
    that a future business can dial the platform's interaction feel up or down by
    editing one file.
-4. If you touch the shared `buttonFx` behaviour (not just add a role), apply the
-   same change to `landing/`'s frozen copy.
+4. Touching the shared `buttonFx` behaviour (not just adding a role) changes
+   every surface at once, which is the point of it being one file.
 
 ## Theme note (related front-door change)
 

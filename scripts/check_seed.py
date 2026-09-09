@@ -15,9 +15,9 @@ mismatches instead of a guess.
 
 Two things it deliberately keeps apart:
 
-  RESET , did the wipe leave a clean, consistent dataset?
+  RESET: did the wipe leave a clean, consistent dataset?
            (`seed_vertical()` truncates and rebuilds; this checks the result.)
-  MATCH , does that dataset correspond to the config now loaded?
+  MATCH: does that dataset correspond to the config now loaded?
 
 RESET failures are bugs. MATCH failures mostly are not: `seed.py` seeds from
 `seed_data.VERTICALS`, never from the config, and a seeded service COLUMN
@@ -217,7 +217,7 @@ def check_match(cfg: dict, data: dict) -> None:
     stamped = [(p.get("metadata") or {}).get("seeded") for p in data["providers"]]
     stamped_tz = {s["tz"] for s in stamped if isinstance(s, dict) and s.get("tz")}
     # Fall back to the canned vertical's zone for data seeded before provenance
-    # was recorded (or by `POST /demo/vertical`).
+    # was recorded.
     seed_tz = stamped_tz.pop() if len(stamped_tz) == 1 else VERTICALS[active_vertical()]["baseTz"]
     tz = ZoneInfo(config_tz)
     starts = Counter()
@@ -273,7 +273,7 @@ def main() -> int:
         failed = [r for r in group if r[1] == "FAIL"]
         head = "did the wipe leave a clean dataset?" if kind == RESET \
             else "does that dataset match the config now loaded?"
-        print(f"{kind} , {head}")
+        print(f"{kind}: {head}")
         for _k, status, title, detail in group:
             if status == "FAIL" or VERBOSE:
                 mark = "  ok  " if status == "ok" else "  FAIL"
@@ -289,7 +289,7 @@ def main() -> int:
         print("The wipe is clean; the data just does not describe this config.")
         print("`make reseed` rebuilds from domain.config.json (seed_config.py), so this")
         print("usually means the data predates the current config, reseed and re-check.")
-        print("Data loaded by `POST /demo/vertical` comes from seed_data.VERTICALS")
+        print("Data loaded by `seed.seed_vertical()` comes from seed_data.VERTICALS")
         print("instead and will not match any pivot.")
     if reset_failed:
         print("RESET failures are real bugs, the rebuild left inconsistent data.")

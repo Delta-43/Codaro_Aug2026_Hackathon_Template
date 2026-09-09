@@ -445,7 +445,7 @@ export interface MetaFields {
 export interface MetaField {
   key: string;
   /**
-   * 'string' is accepted as an alias for 'text', it shipped in domain.config.medical.example.json and matched nothing in the v1 validator.
+   * 'string' is accepted as an alias for 'text', it shipped in domain.config.json and matched nothing in the v1 validator.
    */
   type: ("text" | "number" | "boolean" | "date" | "select" | "file") | "string";
   label?: string | null;

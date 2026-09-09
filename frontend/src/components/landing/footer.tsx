@@ -26,6 +26,7 @@ const EXPLORE = [
   { href: "#services", label: "What you can pivot", anchor: true },
   { href: "#calendar", label: "Calendar", anchor: true },
   { href: "#proof", label: "Evidence", anchor: true },
+  { href: "/docs", label: "Config reference" },
 ];
 
 const LINK_CLASS = "text-sm text-muted-foreground transition-colors hover:text-foreground";

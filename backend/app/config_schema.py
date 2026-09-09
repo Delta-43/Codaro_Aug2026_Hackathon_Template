@@ -4,8 +4,9 @@
 
 """Domain config v2, defaults, v1 aliasing, and validation.
 
-`domain.config.json` is the pivot file. v1 shipped five sections
-(`terms`/`rules`/`copy`/`metaFields`) that between them expressed exactly
+`domain.config.json` is the pivot file. v1 shipped four surviving sections
+(`terms`/`rules`/`copy`/`metaFields`, plus a `theme` block since dropped) that
+between them expressed exactly
 one kind of business: a time-slot calendar with a price per slot. v2 adds the
 blocks that let the *shape* of the offering pivot too, pricing, payments,
 inventory, location, prerequisites, timing.
@@ -106,7 +107,7 @@ DEPOSIT_KINDS = frozenset({"percent", "flat"})
 OPTION_TYPES = frozenset({"boolean", "select"})
 RECURRENCE_PATTERNS = frozenset({"weekly", "biweekly", "monthly"})
 
-# `metaFields[].type: "string"` shipped in domain.config.medical.example.json and
+# `metaFields[].type: "string"` shipped in domain.config.json and
 # matched nothing in the v1 validator, so it silently validated nothing. Accept it
 # as an alias for "text" rather than breaking a config that is already in the repo.
 META_FIELD_TYPE_ALIASES = {"string": "text"}
@@ -140,7 +141,7 @@ DEFAULTS: dict[str, Any] = {
     # backend refuses the write, not one without the other. That held for
     # `reviews` and `follows` only once they were actually gated (they are, in
     # bookings.py / providers.py); the rest name surfaces that do not exist yet,
-    # so there is nothing to refuse and scripts/check_pivots.py lists them as
+    # so there is nothing to refuse and they are documented as
     # unbuilt. Wiring a new capability means writing its gate at the same time.
     "capabilities": {
         "payments": True,
@@ -639,9 +640,10 @@ def validate(cfg: dict) -> list[str]:
     _int(errors, timing.get("advanceBookingWindowDays"), "timing.advanceBookingWindowDays", minimum=0)
     _int(errors, timing.get("bufferMinutes"), "timing.bufferMinutes", minimum=0)
     _int(errors, timing.get("leadTimeMinutes"), "timing.leadTimeMinutes", minimum=0)
-    # These MUST carry a dotted path: `validate_overrides` filters errors by their
-    # leading path segment, so a pathless message is silently dropped and a
-    # malformed window sails through the per-service write gate.
+    # These carry a dotted path so an error names the key it came from.
+    # `validate_overrides` set-diffs against the baseline's own errors rather
+    # than filtering on the leading path segment, which was the earlier design
+    # and got the nested cases wrong.
     for key in ("seasons", "blackouts"):
         for i, window in enumerate(timing.get(key) or []):
             if not isinstance(window, dict) or not window.get("startDate") or not window.get("endDate"):

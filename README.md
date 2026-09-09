@@ -193,8 +193,8 @@ Three layers, each deployable independently.
 | Postgres + Auth | Supabase hosted | Supabase self-hosted stack |
 
 The landing page also runs **on its own**, with no backend at all
-(`NEXT_PUBLIC_SHOWCASE_ONLY=1`), which is how this repository's own demo link is
-served now that the hackathon backend is retired.
+(`NEXT_PUBLIC_SHOWCASE_ONLY=1`). The hackathon backend is retired, so that is
+how the landing page can stay live without one.
 
 Every environment variable, both topologies, the VPS and reverse-proxy setup and
 the auth caveat: **[DEPLOY.md](DEPLOY.md)**.

@@ -67,7 +67,9 @@ def _norm_ts(value: str) -> str:
 
 
 def _resource_ids(db, service_id: str, resource_id: str | None) -> list[str]:
-    rows = db.table("resources").select("id,metadata").execute().data or []
+    # Paged: a truncated scan drops resources silently, and the calendar then
+    # renders an empty grid rather than an error.
+    rows = fetch_all(db.table("resources").select("id,metadata"))
     ids = [r["id"] for r in rows if (r.get("metadata") or {}).get("service_id") == service_id]
     if resource_id:
         ids = [rid for rid in ids if rid == resource_id]

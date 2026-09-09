@@ -100,7 +100,7 @@ def merged_metadata(entity: str, supplied: dict | None, *, reserved: tuple[str, 
     `metaFields` is billed as the no-migration extension point for every base
     table, but only `resources` and `slots` ever accepted a `metadata` body, so
     a `metaFields.bookings` / `.providers` / `.services` descriptor (the shipped
-    medical example declares one) had no input path and validated nothing. The
+    a config can declare one) had no input path and validated nothing. The
     routers merge this UNDER their own engine-owned keys, and `reserved` drops
     the names the engine writes itself, so a domain field can never shadow a
     price, an owner id or a config override block.

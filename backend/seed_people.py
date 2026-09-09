@@ -1,26 +1,25 @@
+# Arbor: a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """The cast for the demo seed: the people who appear in it, and the
-prose that passes between them.
+people who appear in it.
 
 Pure data + tiny helpers, no DB, no config, no imports from `seed.py`. The
 assembler in `seed.py` turns these into Supabase auth users, `profiles` rows,
 bookings, reviews and message threads.
 
-Three logins are contractual and must not change; the demo script, the
-frontend's one-tap sign-in buttons and the README all name them:
+Three logins are contractual and must not change; the demo script and the
+frontend's one-tap sign-in buttons both name them:
 
-    demo@codaro.app      the established bereaved family (owns the seed bookings)
+    demo@codaro.app      the established customer (owns the seed bookings)
     owner@codaro.app     the business owner (owns the demo provider)
-    prospect@codaro.app  a fresh family whose request waits in the Requests tab
+    prospect@codaro.app  a fresh customer whose request waits in the Requests tab
 
 Every name in `CAST` is also a key in `seed_media.PEOPLE`, which maps it to a
 real portrait under `frontend/public/media/avatars/`. **Adding a name here that
 is not in that map gives that person a generated initials gradient instead of a
 face**, harmless, but the demo is poorer for it. Keep the two lists together.
-
-Tone note for anyone editing the strings below: the copy is written straight.
-These are real bereavements handled by professionals, and the funnier the
-service being arranged, the more sincere the sentence about it should be.
-Nobody in this file is ever in on the joke.
 """
 from __future__ import annotations
 
@@ -105,68 +104,11 @@ CAST = [
     OWNER,
 ]
 
-# Everyone in the cast who is a bereaved family rather than the home's own
+# Everyone in the cast who is a customer rather than the business's own
 # people. Seeded bookings, reviews, follows and message threads draw from here.
 ALL_CLIENTS = [p for p in CAST if p["role"] == "client"]
 
-STAFF = [p for p in CAST if p["role"] == "staff"]
-
-
-def client_by_email(email: str) -> dict | None:
-    return next((p for p in CAST if p["email"] == email), None)
 # --- booking prose ----------------------------------------------------------
 # The values for `metaFields.bookings`. The payer is never the subject, that
 # separation is the entire premise of this pivot, so it is expressed in data
 # rather than assumed by the code.
-
-# --- prose: reviews families left about the home ----------------------------
-# (rating, days_ago, text). Attached by `seed.py` to completed bookings, one
-# each, so a review always has a booking behind it.
-
-# --- prose: reviews the DEMO family left ------------------------------------
-# `demo@codaro.app` is the account the demonstration is given from, so its own
-# completed arrangements carry reviews written in its own voice, a customer
-# whose history shows "no review" on every past booking has no reputation and
-# nothing for the account page to render. Same (rating, days_ago, text) shape as
-# `PROVIDER_REVIEWS`; the seeder derives the real date from the booking.
-
-# --- prose: reviews the home left about a family ----------------------------
-# (rating, text). These become the customer's reputation on the owner side.
-
-# --- prose: what the home thinks of the DEMO family -------------------------
-# The demonstration account's own reputation. `GET /me/reputation` averages
-# every `client_reviews` row for a person, so the account page needs several
-# against different arrangements rather than one against one, a single review
-# renders as "5.0 (1)", which reads as an empty profile with a number on it.
-
-# --- prose: the inbox -------------------------------------------------------
-# (client_email, hours_ago, [(from_client, body), ...]).
-# `from_client=True` means the family wrote it; False means the home did.
-# `hours_ago` anchors the FIRST message; the rest follow at plausible gaps.
-#
-# Thread 0 deliberately ENDS on the home assigning a date. The demo's core
-# mechanic, the business picks the date, the family confirms, must be legible
-# from the inbox before anyone clicks anything. Two later threads carry the same
-# announcement, so the inbox reads that way wherever you land in it.
-
-# --- more of the dead -------------------------------------------------------
-# A home this size buries more people in four months than anyone wants to write
-# by hand, and the same name appearing on two bookings is the one detail that
-# makes a demo read as fake. Past the hand-written entries above, the seeder
-# draws a fresh name from these pools and dresses it in an earlier entry's
-# circumstances, the prose stays real, the roll of the dead stays distinct.
-
-_EXTRA_FIRST = [
-    "Wacław", "Bożena", "Ryszarda", "Ludwik", "Jolanta", "Sławomir", "Grażyna",
-    "Bogusław", "Aleksandra", "Kazimiera", "Jerzy", "Wiesława", "Zenon", "Iwona",
-    "Mirosław", "Krystian", "Longin", "Emilia", "Tadeusza", "Olgierd", "Janina",
-    "Alfred", "Melania", "Sylwester", "Regina", "Konrad", "Otylia", "Rafał",
-]
-
-_EXTRA_LAST = [
-    "Borowiec", "Jastrzębski", "Głowacka", "Tomczyk", "Wilk", "Sowa", "Baranowski",
-    "Czerwińska", "Wesołowski", "Poniatowska", "Sikorski", "Lewicka", "Brzeziński",
-    "Nawrocka", "Stasiak", "Wieczorek", "Domagała", "Kołodziej", "Trojanowska",
-    "Zielonka", "Piechota", "Rybak", "Śliwińska", "Antczak", "Górniak", "Owczarek",
-]
-
