@@ -699,7 +699,7 @@ def create_booking(payload: BookingCreateReq, user: AuthUser = Depends(require_u
     )
 
     metadata = {
-        # `metaFields.bookings` domain data (the shipped medical example declares
+        # `metaFields.bookings` domain data (a config can declare
         # a `reason` field) merged UNDER every engine-owned key below, which
         # always win, a domain field must never be able to rewrite a price.
         **merged_metadata("bookings", payload.metadata, reserved=_ENGINE_BOOKING_KEYS),
@@ -949,7 +949,7 @@ def reschedule_booking(
         raise api_error(CUTOFF_PASSED, "Only upcoming bookings can be moved.")
     cutoff = rules["cancellationCutoffHours"]
     if not acting_as_owner and cur_start and within_cutoff(cur_start, cutoff):
-        raise api_error(CUTOFF_PASSED, f"Changes closed, within {cutoff}h of the start.")
+        raise api_error(CUTOFF_PASSED, f"Changes are closed within {cutoff}h of the start.")
 
     party = int(md.get("party_size", 1))
     resource_id = md.get("resource_id")
@@ -1092,13 +1092,13 @@ def cancel_booking(booking_id: str, user: AuthUser = Depends(require_user)):
     if booking["status"] == "rejected":
         # The owner already declined it (and any credit was refunded then);
         # flipping it to cancelled would overwrite that decision.
-        raise api_error(INVALID_RANGE, "This request was declined, there is nothing to cancel.")
+        raise api_error(INVALID_RANGE, "This request was declined, so there is nothing to cancel.")
     if effective_booking_status(booking["status"], cur_end) == "completed":
         raise api_error(CUTOFF_PASSED, "Completed bookings can't be cancelled.")
     if not acting_as_owner:
         cutoff = effective_service_rules(service)["cancellationCutoffHours"]
         if cur_start and within_cutoff(cur_start, cutoff):
-            raise api_error(CUTOFF_PASSED, f"Changes closed, within {cutoff}h of the start.")
+            raise api_error(CUTOFF_PASSED, f"Changes are closed within {cutoff}h of the start.")
 
     md = dict(booking.get("metadata") or {})
     md["cancelled_at_utc"] = iso_utc(now_utc())
@@ -1128,7 +1128,7 @@ def cancel_booking(booking_id: str, user: AuthUser = Depends(require_user)):
                 service=service, **_names_for(db, _cancel_md),
             )
         if current["status"] == "rejected":
-            raise api_error(INVALID_RANGE, "This request was declined, there is nothing to cancel.")
+            raise api_error(INVALID_RANGE, "This request was declined, so there is nothing to cancel.")
         updated = enforce_rls_write(updated, entity="booking")
     # Refund only AFTER the transition committed: decrementing first meant a
     # failed write refunded with no stamp, so a retried cancel refunded twice.
@@ -1297,7 +1297,7 @@ def record_payment(booking_id: str, amount: int | None = None,
     updated = q.execute().data
     if not updated:
         raise api_error(
-            INVALID_RANGE, "The payment state just changed, refresh and retry.", status=409
+            INVALID_RANGE, "The payment state just changed. Refresh and retry.", status=409
         )
     return serialize_booking(
         updated[0], slot_ids=cur_ids, start_utc=cur_start, end_utc=cur_end,

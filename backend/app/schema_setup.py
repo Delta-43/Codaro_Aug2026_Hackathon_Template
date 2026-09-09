@@ -23,7 +23,7 @@ def create_tables_if_configured() -> None:
         # Loud on purpose: without a DB URL there is no way to run DDL, so
         # tables are NOT auto-created and seeding will find nothing to seed.
         logger.warning(
-            "SUPABASE_DB_URL not set, tables will NOT be auto-created. Set it "
+            "SUPABASE_DB_URL not set, so tables will NOT be auto-created. Set it "
             "to the Supabase session-pooler connection string, or apply "
             "supabase/schema.sql by hand in the Supabase SQL editor."
         )

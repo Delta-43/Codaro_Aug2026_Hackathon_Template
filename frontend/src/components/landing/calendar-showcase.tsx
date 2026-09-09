@@ -572,7 +572,7 @@ export function CalendarShowcase() {
                 <CheckIcon />
               </span>
               <div className="min-w-0 text-sm">
-                <p className="font-medium text-foreground">Date reserved</p>
+                <p className="font-medium text-foreground">Slot booked</p>
                 {bookSlot && (
                   <p className="truncate text-xs text-muted-foreground">
                     {formatTimeRange(bookSlot.startUtc, bookSlot.endUtc, TZ)} · Resource A
@@ -590,11 +590,11 @@ export function CalendarShowcase() {
               }}
               className={cn(buttonVariants({ size: "lg" }), buttonFx.pill, "w-full")}
             >
-              Reserve this date
+              Book this slot
             </button>
           ) : (
             <p className="px-1 py-3 text-center text-xs text-muted-foreground">
-              Pick a date to reserve.
+              Pick a time to book.
             </p>
           )}
         </div>

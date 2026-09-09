@@ -30,6 +30,7 @@ import logging
 
 from app.auth import OWNER_ROLE, AuthUser
 from app.avatars import remove_avatar
+from app.db import fetch_all
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +65,11 @@ def _delete_owned_businesses(db, owner_id: str) -> None:
     # Bookings under these providers (provider_id is in metadata jsonb, no column
     # to filter on, so scan and match in Python, like owner.py's _Scope), then a
     # single batched delete rather than one round trip per row.
-    all_bookings = db.table("bookings").select("id,metadata").execute().data or []
+    # Paged: PostgREST caps an unbounded select at 1000 rows with no error and
+    # no flag, so a raw `.execute()` here erased only the first 1000 bookings
+    # and still returned 204. `owner.py` pages the identical scan for the same
+    # reason.
+    all_bookings = fetch_all(db.table("bookings").select("id,metadata"))
     doomed_bookings = [
         b["id"] for b in all_bookings if (b.get("metadata") or {}).get("provider_id") in provider_ids
     ]
@@ -76,7 +81,7 @@ def _delete_owned_businesses(db, owner_id: str) -> None:
 
     # Resources under these services (service_id is in metadata jsonb too).
     if service_ids:
-        all_resources = db.table("resources").select("id,metadata").execute().data or []
+        all_resources = fetch_all(db.table("resources").select("id,metadata"))
         doomed_resources = [
             r["id"] for r in all_resources if (r.get("metadata") or {}).get("service_id") in service_ids
         ]

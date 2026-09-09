@@ -49,7 +49,7 @@ export function Hero() {
                   "gap-1.5 px-6",
                 )}
               >
-                Read the source
+                {SHOWCASE_ONLY ? "Read the source" : "Get started"}
                 <ArrowRight className="size-4" aria-hidden />
               </Link>
             </div>

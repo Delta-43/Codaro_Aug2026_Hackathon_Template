@@ -4,7 +4,7 @@
 
 """Domain-aware seeding for the three demo verticals (fleet / oneToOne / group).
 
-Ports `frontend/src/api/seed/*` to the backend: it turns the declarative
+Turns the declarative
 `seed_data.VERTICALS` config into real DB rows, providers, services, resources,
 DST-aware slot grids, edge-case occupancy (a blocked day, a fully-booked day, a
 one-seat-left slot), plus a demo user's seed bookings + a review + a follow.
@@ -116,7 +116,6 @@ PROSPECT_PASSWORD = "Codaro-Prospect-2026"
 _HOLDS_EMAIL = "holds@codaro.app"
 _HOLDS_PASSWORD = secrets.token_urlsafe(18)
 
-_MINUTE = 60
 _HOUR = 3600
 
 BOOKING_MODEL_TO_VERTICAL = {
@@ -950,7 +949,7 @@ def _pick_options(block: dict, rng) -> tuple[list[dict], int]:
             choice = rng.choice(choices)
             lines.append({
                 "key": key,
-                "label": f"{label}, {choice.get('label') or choice['key']}",
+                "label": f"{label}: {choice.get('label') or choice['key']}",
                 "choice": choice["key"],
                 "amountMinorUnits": int(choice.get("priceMinorUnits") or 0),
             })
@@ -1228,18 +1227,6 @@ def _seed_demand(db, services: list[dict], provider_id: str, clients: list[dict]
     return {"count": len(inserted), "completed": completed}
 
 
-# Where each of the demo family's states sits relative to today. Wider than the
-# trade's window: this is a family with a long history, and their bookings list
-# is the screen a viewer scrolls furthest down.
-_DEMO_WINDOW = {
-    "completed": (-74, -3),
-    "confirmed": (2, 55),
-    "pending": (5, 58),
-    "cancelled": (-30, 40),
-    "rejected": (6, 50),
-}
-
-
 _PROVIDER_REVIEW_LINES = [
     (5, 0, "Exactly as described. Smooth from start to finish."),
     (4, 0, "Professional throughout, and everything arrived when they said it would."),
@@ -1431,8 +1418,8 @@ def _seed_messages(db, provider_id, people: dict[str, dict], owner_uid) -> tuple
 
 
 def _inject_edge_cases(db, primary, tz, holds_uid, provider_id, currency) -> tuple[int, set[str]]:
-    """A blocked day (capacity 0), a fully-booked day, and, for shared capacity
-   , a one-seat-left slot. Occupancy is made real via holds bookings."""
+    """A blocked day (capacity 0), a fully-booked day, and (for shared
+    capacity) a one-seat-left slot. Occupancy is made real via holds bookings."""
     service_id = primary["id"]
     price = primary["spec"]["priceMinorUnits"]
     now = datetime.now(timezone.utc)

@@ -1,3 +1,7 @@
+# Arbor: a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Fetch royalty-free portrait imagery for the demo seed.
 
 Every image is a Wikimedia Commons file, addressed by its direct
@@ -16,12 +20,11 @@ depends on it succeeding:
   ``seed.py`` falls back to its generated SVG gradient.
 
 Run it directly (``python3 backend/seed_media_fetch.py``) or via ``make
-fetchmedia``. Seeding calls it only when ``SEED_FETCH_MEDIA=1`` is set.
+fetchmedia``. Nothing calls it during seeding.
 """
 from __future__ import annotations
 
 import logging
-import os
 import time
 import urllib.error
 import urllib.request
@@ -327,17 +330,6 @@ def ensure_media(root: Path | None = None) -> dict:
             len(summary["misses"]), "; ".join(summary["misses"][:5]),
         )
     return summary
-
-
-def maybe_ensure_media(root: Path | None = None) -> dict | None:
-    """`ensure_media` gated on ``SEED_FETCH_MEDIA=1``. Safe to call from seeding."""
-    if os.getenv("SEED_FETCH_MEDIA", "").strip() not in ("1", "true", "yes", "on"):
-        return None
-    try:
-        return ensure_media(root)
-    except Exception as exc:  # belt and braces - a reseed must never die here
-        logger.warning("seed media: fetch skipped (%s)", exc)
-        return None
 
 
 def write_credits(root: Path | None = None) -> Path:

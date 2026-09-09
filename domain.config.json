@@ -2,8 +2,8 @@
   "configVersion": 2,
   "domain": "generic",
   "tenancy": {
-    "mode": "single",
-    "providerCode": "WIECZNY-1889",
+    "mode": "multi",
+    "providerCode": null,
     "selfOnboarding": false,
     "tenantVerification": {
       "required": false,
@@ -29,17 +29,17 @@
   },
   "booking": {
     "unitKind": "room",
-    "granularity": "none",
+    "granularity": "minute",
     "duration": {
-      "mode": "open_ended",
+      "mode": "fixed",
       "minUnits": 1,
       "maxUnits": 1,
       "incrementUnits": 1
     },
     "party": {
-      "mode": "buyout",
+      "mode": "individual",
       "min": 1,
-      "max": 1,
+      "max": null,
       "composition": null,
       "matchResourceCapacity": false
     },
@@ -61,8 +61,8 @@
     "currency": "EUR",
     "currencyExponent": 2,
     "rate": {
-      "per": "booking",
-      "amountMinorUnits": 285000
+      "per": "slot",
+      "amountMinorUnits": 5000
     },
     "secondaryRate": null,
     "tiers": [],
@@ -71,43 +71,7 @@
       "perBookingMinorUnits": null,
       "perDayMinorUnits": null
     },
-    "fees": [
-      {
-        "key": "out_of_hours_collection",
-        "label": "Out-of-hours collection",
-        "kind": "flat",
-        "amountMinorUnits": 18000,
-        "appliesWhen": {
-          "timeOfDay": {
-            "from": "18:00",
-            "to": "08:00"
-          }
-        }
-      },
-      {
-        "key": "mileage",
-        "label": "Mileage",
-        "kind": "distanceBand",
-        "bands": [
-          {
-            "maxKm": 25,
-            "feeMinorUnits": 0
-          },
-          {
-            "maxKm": 75,
-            "feeMinorUnits": 9000
-          },
-          {
-            "maxKm": 150,
-            "feeMinorUnits": 21000
-          },
-          {
-            "maxKm": null,
-            "feeMinorUnits": 48000
-          }
-        ]
-      }
-    ],
+    "fees": [],
     "deposit": {
       "enabled": true,
       "kind": "percent",
@@ -116,24 +80,9 @@
     }
   },
   "payments": {
-    "flow": "invoice_after",
-    "payer": "third_party",
-    "schedule": [
-      {
-        "key": "deposit",
-        "label": "Deposit",
-        "kind": "percent",
-        "value": 30,
-        "dueOffsetHours": 0
-      },
-      {
-        "key": "balance",
-        "label": "Balance",
-        "kind": "percent",
-        "value": 70,
-        "dueOffsetHours": 336
-      }
-    ],
+    "flow": "prepay",
+    "payer": "customer",
+    "schedule": [],
     "billingCycle": "none",
     "noShowFee": {
       "enabled": false,
@@ -157,14 +106,9 @@
       "at_customer"
     ],
     "default": "on_site",
-    "timezone": "Europe/Warsaw",
+    "timezone": "UTC",
     "distanceUnit": "km",
-    "origin": {
-      "city": "Warsaw",
-      "country": "Poland",
-      "lat": 52.2297,
-      "lng": 21.0122
-    },
+    "origin": null,
     "serviceArea": {
       "radiusKm": null,
       "travelBufferMinutes": 0,

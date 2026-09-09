@@ -1,4 +1,4 @@
-# Codaro Booking Engine, root guide
+# Arbor, root guide
 
 ## Token budget (read first)
 
@@ -82,7 +82,8 @@ deployment can host businesses that work completely differently.
 defaults, folds in the deprecated v1 `rules`/`search` aliases, **validates** the
 result, and caches it (`app/config.py` + `app/config_schema.py`). It exposes that
 resolved tree at `GET /config`. The frontend fetches it on load and renders every
-label through `<Term>` and every number from the config. So editing the file →
+label through `useVertical()` (`src/config/verticals.ts`) and every number from
+the config. So editing the file →
 `make reload` → refresh the browser = the whole app speaks the new domain.
 Nothing in code hard-codes a term or a magic number.
 
@@ -138,8 +139,8 @@ Each subdir's `CLAUDE.md` records what's actually implemented.
 
 | Path | Owns | Detail |
 |------|------|--------|
-| `backend/` | FastAPI engine: config + per-service rules, camelCase serialization, `/providers` `/services` `/resources` `/slots` `/availability` `/bookings` `/me` `/demo` routers, auth, three-vertical seeding | [backend/CLAUDE.md](backend/CLAUDE.md) |
-| `frontend/` | Next.js app (`frontend/src/`): public landing page at `/`, login + gated `(app)` group (search / calendar / bookings / provider / account), real HTTP API seam | [frontend/CLAUDE.md](frontend/CLAUDE.md) |
+| `backend/` | FastAPI engine: config + per-service rules, camelCase serialization, `/providers` `/services` `/resources` `/slots` `/availability` `/bookings` `/me` `/messages` `/owner` routers, auth, three-vertical seeding | [backend/CLAUDE.md](backend/CLAUDE.md) |
+| `frontend/` | Next.js app (`frontend/src/`): public landing page at `/`, login + gated `(app)` group (search / provider / messaging / bookings / settings), real HTTP API seam | [frontend/CLAUDE.md](frontend/CLAUDE.md) |
 | `supabase/` | `schema.sql`, neutral base tables + extended entities (providers/services/booking_slots/reviews/follows), occupancy view, RLS | [supabase/CLAUDE.md](supabase/CLAUDE.md) |
 | `test/` | Stack + API tests (owned exclusively by the `test-writer` agent, see below) | [test/CLAUDE.md](test/CLAUDE.md) |
 | `domain.config.json` | The pivot file (v2) | [docs/PIVOT-SYSTEM.md](docs/PIVOT-SYSTEM.md) |
@@ -164,8 +165,8 @@ frontend/                   # Next.js 14 + Tailwind, the app lives in src/
   src/app/page.tsx          #  public marketing landing page (root /)
   src/components/landing/   #  landing page sections (hero, nav, footer, …)
   src/app/login/page.tsx    #  Supabase Auth sign-in / sign-up
-  src/app/(app)/            #  gated customer tabs: search / provider / calendar
-                            #  / bookings / account
+  src/app/(app)/            #  gated customer tabs: search / provider / messaging
+                            #  / bookings / settings
   src/app/owner/            #  business mode: dashboard, calendar, requests,
                             #  services, profile, settings
 ```
@@ -285,13 +286,18 @@ Work lands through pull requests: a branch is PR'd into `develop` (staging), and
 `develop` is PR'd into `main` (production). Squash-merge into `develop`, but use
 a **merge commit** for a back-merge of `main` into `develop` and for the
 `develop` into `main` release, or `main` drops out of `develop`'s ancestry and
-the next release conflicts. CI runs three gates, worth running before you push:
+the next release conflicts. CI runs five jobs. The ones worth running before you push:
 
 ```bash
+ruff check .
 python -m pytest test -q
 python .github/scripts/validate_domain_config.py
-cd frontend && npm ci && npx tsc --noEmit && npm run build
+python scripts/gen_config_schema.py --check
+cd frontend && npm ci && npm run typecheck && npm run build
 ```
+
+The full list, including the generated-file diffs and `knip`, is in
+[docs/verifying-changes.md](docs/verifying-changes.md).
 
 Two rules the codebase lives by, and the reason most review comments exist:
 

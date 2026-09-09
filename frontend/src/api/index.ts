@@ -914,9 +914,12 @@ export function deleteService(id: ID): Promise<void> {
 }
 
 // --- dev convenience -------------------------------------------------------
-// Makes the seams pokeable from the browser console. Dev only; harmless in prod.
+// Makes the seams pokeable from the browser console. The guard is a browser
+// check, not a dev check, so this ships in production too: it exposes read and
+// write helpers that all go through the same auth the UI uses, and grants
+// nothing a signed-in user could not already do from the app.
 if (typeof window !== "undefined") {
-  (window as unknown as { codaro?: unknown }).codaro = {
+  (window as unknown as { arbor?: unknown }).arbor = {
     searchProviders,
     getProvider,
     getProviderByCode,

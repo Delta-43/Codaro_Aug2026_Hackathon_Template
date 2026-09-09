@@ -9,9 +9,8 @@
  * customer endorsements on a page that markets the engine, which would be
  * misleading.
  *
- * Everything here is checkable instead. The counts come from the repository
- * (`scripts/check_pivots.py`, the backend suite) and the placing is the
- * hackathon result. Fixed page copy, not engine data.
+ * Everything here is checkable instead. The counts come from the repository (the config
+ * blocks, the backend suite) and the placing is the hackathon result. Fixed page copy, not engine data.
  */
 import { Award, DatabaseZap, FlaskConical, Layers } from "lucide-react";
 import { GlassPanel, useScrollMotion } from "@/components/landing/scroll-reveal";

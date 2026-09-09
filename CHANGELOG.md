@@ -23,9 +23,13 @@ the repository ships the engine and one generic config.
 - Showcase-only deployment mode (`NEXT_PUBLIC_SHOWCASE_ONLY=1`), which serves
   the landing page with no backend. See [DEPLOY.md](DEPLOY.md).
 - An Open Graph card, generated at build time from the page's own wording.
-While the major version is `0`, minor bumps may contain breaking changes.
+- A backend-free config reference at `/docs`, linked from the landing footer.
 
-## [Unreleased]
+### Changed
+
+- The README leads with the project rather than its maintenance status, and the
+  self-hosting detail moved into [DEPLOY.md](DEPLOY.md).
+- Every em dash in the repository was replaced with ordinary punctuation.
 
 ## [0.1.0], 2026-09-08
 
@@ -68,5 +72,5 @@ developed further since.
 - The Supabase service key is confined to system and cross-user work; every
   user-owned read and write goes through a JWT-scoped client so RLS applies.
 
-[Unreleased]: https://github.com/kaveOO/Arbor/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/kaveOO/Arbor/releases/tag/v0.1.0
+[Unreleased]: https://github.com/kaveOO/Arbor/commits/main
+[0.1.0]: https://github.com/kaveOO/Arbor/commits/main

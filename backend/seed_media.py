@@ -1,3 +1,7 @@
+# Arbor: a config-driven booking engine
+# Copyright (C) 2026 Alban Billiette and the Arbor contributors
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 """Real photography for the seed, as a thin, optional override layer.
 
 `seed.py` builds every image itself: `avatar_uri`, `cover_uri` and `tile_uri`

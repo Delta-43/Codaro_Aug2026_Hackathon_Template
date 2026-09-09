@@ -138,7 +138,7 @@ export default function ConfigDocsPage() {
       <Section
         id="tenancy"
         step="Step 1"
-        title="Tenancy, one business, or a marketplace?"
+        title="Tenancy: one business, or a marketplace?"
         lede="Set this first. It changes the shape of the whole app, so every later choice reads differently depending on it."
       >
         <Table
@@ -203,7 +203,7 @@ export default function ConfigDocsPage() {
       <Section
         id="capabilities"
         step="Step 2"
-        title="Capabilities, switch features on"
+        title="Capabilities: switch features on"
         lede="Ten booleans. Off means the UI hides the surface and the API refuses the write."
       >
         <Table
@@ -237,7 +237,7 @@ export default function ConfigDocsPage() {
       <Section
         id="booking"
         step="Step 3"
-        title="Booking, what one booking actually is"
+        title="Booking: what one booking actually is"
         lede="What is being reserved, in what units, for how long, and for how many people."
       >
         <Table
@@ -369,7 +369,7 @@ export default function ConfigDocsPage() {
       <Section
         id="pricing"
         step="Step 4"
-        title="Pricing, what to charge"
+        title="Pricing: what to charge"
         lede="The block with the most levers, and the one where a mistake costs real money."
       >
         <Note tone="warn" title="pricing.model does not price anything">
@@ -437,7 +437,7 @@ export default function ConfigDocsPage() {
   "chargePerPerson": false
 }`}</Code>
 
-        <H3 id="pricing-tiers">Tiers, a different price in some circumstance</H3>
+        <H3 id="pricing-tiers">Tiers: a different price in some circumstance</H3>
         <p>
           Tiers are checked <strong className="text-foreground">in the order
           you write them and the first match wins</strong>, so put the most
@@ -575,7 +575,7 @@ export default function ConfigDocsPage() {
       <Section
         id="payments"
         step="Step 5"
-        title="Payments, when the money moves"
+        title="Payments: when the money moves"
         lede="Who pays, at what point, and on what cycle."
       >
         <Table
@@ -638,7 +638,7 @@ export default function ConfigDocsPage() {
       <Section
         id="timing"
         step="Step 6"
-        title="Timing, the scheduling rules"
+        title="Timing: the scheduling rules"
         lede="Slot length, notice, cutoffs, and whether a booking is instant or has to be approved."
       >
         <Table
@@ -709,7 +709,7 @@ export default function ConfigDocsPage() {
       <Section
         id="location"
         step="Step 7"
-        title="Location, where it happens"
+        title="Location: where it happens"
         lede="Set the timezone even if you change nothing else in this block."
       >
         <Table
@@ -881,10 +881,10 @@ appliesTo ∈ customer | tenant | subject`}</Code>
       <Section
         id="vocabulary"
         step="Step 9"
-        title="Words, copy, and your own fields"
+        title="Words: copy, and your own fields"
         lede="Rename every noun in the product, and add fields the engine has never heard of."
       >
-        <H3 id="vocab-terms">terms, 17 nouns</H3>
+        <H3 id="vocab-terms">terms: 17 nouns</H3>
         <p>
           Each must be a non-empty string. Singular and plural are separate keys.
         </p>
@@ -899,7 +899,7 @@ appliesTo ∈ customer | tenant | subject`}</Code>
   "staff":    "Clinician","subject":   "Patient", "party": "Guests"
 }`}</Code>
 
-        <H3 id="vocab-copy">copy, 10 strings</H3>
+        <H3 id="vocab-copy">copy: 10 strings</H3>
         <p>
           <C>landingTitle</C>, <C>landingSubtitle</C>, <C>confirmTitle</C>,{" "}
           <C>emptyStateSlots</C>, <C>emptyStateBookings</C>,{" "}
@@ -907,7 +907,7 @@ appliesTo ∈ customer | tenant | subject`}</Code>
           <C>depositDue</C>, <C>prerequisiteBlocked</C>. All must be non-empty.
         </p>
 
-        <H3 id="vocab-meta">metaFields, your own data</H3>
+        <H3 id="vocab-meta">metaFields: your own data</H3>
         <p>
           Six entities take custom fields: <C>providers</C>, <C>services</C>,{" "}
           <C>resources</C>, <C>slots</C>, <C>bookings</C>, <C>subjects</C>. This

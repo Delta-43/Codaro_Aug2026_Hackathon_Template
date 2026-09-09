@@ -1134,7 +1134,7 @@ def test_an_inert_key_carries_a_comment_saying_so(path, key):
 # --- the promise the repo makes about itself, in the two places it makes it --
 #
 # `backend/CLAUDE.md`'s "Declared but NOT enforced" table and
-# `scripts/check_pivots.py`'s ENFORCED/DECLARED_ONLY maps are the human-readable
+# `backend/CLAUDE.md`'s enforcement table is the human-readable
 # half of this inventory. They are only worth keeping if they agree with the
 # code, so the classification above is cross-checked against both.
 

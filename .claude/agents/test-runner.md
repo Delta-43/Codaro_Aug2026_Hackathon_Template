@@ -13,7 +13,7 @@ start it via `Bash` for the duration of the run, but do not change any
 source file to make tests pass.
 
 Read `test/CLAUDE.md` to find the test suites and how to invoke them (e.g.
-`pytest test/backend`, `npm test --prefix test/frontend`), then:
+`pytest test/backend`, `npm run typecheck --prefix frontend`), then:
 
 1. Run each suite.
 2. Capture full pass/fail output, including failure messages/tracebacks.

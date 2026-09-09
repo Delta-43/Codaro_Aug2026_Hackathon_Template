@@ -8,8 +8,10 @@
 `domain.config.json` is the file a pivot edits, and until now editing it was
 blind: no autocomplete, no inline documentation, and a typo surfaced only when
 the backend refused to boot. A published JSON Schema fixes all three, VS Code,
-JetBrains and every other editor that speaks JSON Schema read it automatically
-via the `$schema` key the config file now carries.
+JetBrains and every other editor that speaks JSON Schema can be pointed at it.
+The config file carries no `$schema` key on purpose: `normalize()` drops
+undeclared keys and the tests pin the file as a normalize fixpoint, so the
+mapping lives in the editor config instead (see `.vscode/settings.json`).
 
 The schema is DERIVED, never hand-written. `backend/app/config_models.py` is the
 single source of truth; the descriptions in this schema are the `Field(...)`

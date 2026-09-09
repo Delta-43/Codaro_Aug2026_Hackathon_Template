@@ -103,7 +103,7 @@ class BookingCreateReq(CamelModel):
     # Domain-specific fields, validated at request time from
     # `domain.config.json` metaFields.{entity}. Only `resources`/`slots` ever
     # accepted one, so a `metaFields.providers|services|bookings` descriptor (the
-    # shipped medical example declares one) had no input path and validated
+    # a config can declare one) had no input path and validated
     # nothing. Merged UNDER the engine's own keys, which always win.
     metadata: dict | None = None
 
@@ -171,7 +171,7 @@ class ProviderCreate(CamelModel):
     # Domain-specific fields, validated at request time from
     # `domain.config.json` metaFields.{entity}. Only `resources`/`slots` ever
     # accepted one, so a `metaFields.providers|services|bookings` descriptor (the
-    # shipped medical example declares one) had no input path and validated
+    # a config can declare one) had no input path and validated
     # nothing. Merged UNDER the engine's own keys, which always win.
     metadata: dict | None = None
 
@@ -189,7 +189,7 @@ class ProviderUpdate(CamelModel):
     # Domain-specific fields, validated at request time from
     # `domain.config.json` metaFields.{entity}. Only `resources`/`slots` ever
     # accepted one, so a `metaFields.providers|services|bookings` descriptor (the
-    # shipped medical example declares one) had no input path and validated
+    # a config can declare one) had no input path and validated
     # nothing. Merged UNDER the engine's own keys, which always win.
     metadata: dict | None = None
 
@@ -224,7 +224,7 @@ class ServiceCreate(CamelModel):
     # Domain-specific fields, validated at request time from
     # `domain.config.json` metaFields.{entity}. Only `resources`/`slots` ever
     # accepted one, so a `metaFields.providers|services|bookings` descriptor (the
-    # shipped medical example declares one) had no input path and validated
+    # a config can declare one) had no input path and validated
     # nothing. Merged UNDER the engine's own keys, which always win.
     metadata: dict | None = None
 
@@ -245,7 +245,7 @@ class ServiceUpdate(CamelModel):
     # Domain-specific fields, validated at request time from
     # `domain.config.json` metaFields.{entity}. Only `resources`/`slots` ever
     # accepted one, so a `metaFields.providers|services|bookings` descriptor (the
-    # shipped medical example declares one) had no input path and validated
+    # a config can declare one) had no input path and validated
     # nothing. Merged UNDER the engine's own keys, which always win.
     metadata: dict | None = None
 
