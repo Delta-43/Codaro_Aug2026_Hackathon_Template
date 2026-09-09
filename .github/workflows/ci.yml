@@ -92,22 +92,6 @@ jobs:
           python -m pytest test -q \
             --cov=backend/app --cov-report=term-missing --cov-report=xml
 
-      # The 100-pivot harnesses (validator + pricing, then load→spec→rules→
-      # serialize). They import backend/app, hence they live in this job where
-      # the deps are already installed. Without this, pivot regressions were
-      # only visible via `make checkstates` locally.
-      - name: Pivot coverage checks
-        env:
-          SUPABASE_URL: http://localhost:54321
-          SUPABASE_SERVICE_KEY: ci-dummy-key
-        run: |
-          python scripts/check_pivots.py
-          python scripts/check_pivot_states.py
-          # The 100 pivots/*.json are generated from fragments in
-          # scripts/generate_pivots.py. Any DEFAULTS change desynchronizes
-          # them silently, so verify the committed files are current.
-          python scripts/generate_pivots.py --check
-
   frontend:
     name: Frontend typecheck + build
     runs-on: ubuntu-latest
@@ -154,13 +138,6 @@ jobs:
         working-directory: frontend
         run: npm run build
 
-      # Runs all 100 pivots/*.json through the real frontend parsers in
-      # src/api/index.ts. Catches the case where the backend adds a config
-      # key the hand-written TS types do not know about — which has already
-      # happened once with terms.staff/subject/admin.
-      - name: Pivot configs parse in the frontend
-        working-directory: frontend
-        run: npx tsx ../scripts/check_pivot_frontend.mts
 
   # Known-vulnerable dependencies. Split from the build jobs so an advisory
   # published overnight is reported as its own red X rather than looking like a

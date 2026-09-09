@@ -20,11 +20,12 @@ import Link from "next/link";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { GlassPanel } from "@/components/landing/scroll-reveal";
 import { ScrollTopLink } from "@/components/landing/scroll-top-link";
+import { SHOWCASE_ONLY, SOURCE_URL } from "@/config/showcase";
 
 const EXPLORE = [
-  { href: "#services", label: "What we offer", anchor: true },
+  { href: "#services", label: "What you can pivot", anchor: true },
   { href: "#calendar", label: "Calendar", anchor: true },
-  { href: "#reviews", label: "Families", anchor: true },
+  { href: "#proof", label: "Evidence", anchor: true },
 ];
 
 const LINK_CLASS = "text-sm text-muted-foreground transition-colors hover:text-foreground";
@@ -46,8 +47,8 @@ export function Footer() {
                 Arbor
               </ScrollTopLink>
               <p className="mt-3 text-sm leading-relaxed text-foreground/70">
-                The farewell, arranged with care. You don&apos;t lift a finger, or choose the
-                date, we take it from here.
+                A config-driven booking engine. One neutral spine, one JSON file, and the
+                same deployment becomes a different business.
               </p>
             </div>
 
@@ -68,8 +69,8 @@ export function Footer() {
               </nav>
               <nav aria-label="More" className="flex flex-col gap-2.5">
                 <h3 className={COL_HEAD}>More</h3>
-                <Link href="/login" className={LINK_CLASS}>
-                  Login
+                <Link href={SHOWCASE_ONLY ? SOURCE_URL : "/login"} className={LINK_CLASS}>
+                  {SHOWCASE_ONLY ? "Source on GitHub" : "Login"}
                 </Link>
                 <Link href="/privacy" className={LINK_CLASS}>
                   Data handling &amp; privacy policy

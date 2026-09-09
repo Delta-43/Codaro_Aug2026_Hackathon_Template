@@ -1,9 +1,7 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
-    "src/app/**/{page,layout,template,loading,error,not-found,route,default}.{ts,tsx}",
-    "../scripts/check_pivot_frontend.mts",
-    "../scripts/check_pivot_live_frontend.mts"
+    "src/app/**/{page,layout,template,loading,error,not-found,route,default}.{ts,tsx}"
   ],
   "project": [
     "src/**/*.{ts,tsx}"

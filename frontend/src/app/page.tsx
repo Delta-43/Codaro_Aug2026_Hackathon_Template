@@ -10,28 +10,28 @@
  * renders the logged-out-shaped CTAs and links (via next/link) to /login and
  * /privacy.
  *
- * The deployment this markets is the funeral-home pivot (issue 109): Arbor keeps
- * its name and leaf mark, but every plate now speaks the funeral business —
- * arrangements, chapels, and the farewell products families actually buy. Full
- * page: Hero → Calendar showcase → Popular products → Reviews → Footer.
+ * This markets the engine itself rather than any one pivot of it: the plates
+ * describe the config blocks, the booking pipeline and the evidence behind the
+ * claim, so the page reads the same whatever `domain.config.json` currently
+ * says. Full page: Hero → Pivot blocks → Calendar showcase → Evidence → Footer.
  */
 import { SceneBackground } from "@/components/landing/scene-background";
 import { NavBar } from "@/components/landing/nav-bar";
 import { Hero } from "@/components/landing/hero";
 import { CalendarShowcase } from "@/components/landing/calendar-showcase";
 import { Products } from "@/components/landing/products";
-import { Testimonials } from "@/components/landing/testimonials";
+import { Proof } from "@/components/landing/proof";
 import { Footer } from "@/components/landing/footer";
 
 export default function RootPage() {
   return (
-    <main className="relative h-dvh snap-y snap-mandatory overflow-y-auto scroll-smooth [scrollbar-gutter:stable_both-edges]">
+    <main className="relative h-dvh snap-y snap-proximity overflow-y-auto scroll-smooth [scrollbar-gutter:stable_both-edges]">
       <SceneBackground />
       <NavBar />
       <Hero />
-      <CalendarShowcase />
       <Products />
-      <Testimonials />
+      <CalendarShowcase />
+      <Proof />
       <Footer />
     </main>
   );

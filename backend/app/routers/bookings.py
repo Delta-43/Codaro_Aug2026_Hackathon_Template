@@ -515,7 +515,7 @@ def _refund_credit(db, md: dict) -> bool:
     `_consume_credit` (a counter must not 500 the cancel). Known limit: there
     is no per-booking consume receipt, so a booking whose best-effort consume
     failed can still refund (the entitlement drifts one credit rich) — a real
-    ledger row per spend, keyed by booking_id, is the fix (TODO.md).
+    ledger row per spend, keyed by booking_id, is the fix.
     """
     ent_id = (md or {}).get("entitlement_id")
     if not ent_id or md.get("credit_refunded"):
@@ -1134,7 +1134,7 @@ def cancel_booking(booking_id: str, user: AuthUser = Depends(require_user)):
     # failed write refunded with no stamp, so a retried cancel refunded twice.
     # The stamp is written on top of the row as just persisted. A crash between
     # the decrement and the stamp remains a narrow window — closing it fully
-    # needs an entitlement ledger row (tracked in TODO.md).
+    # needs an entitlement ledger row.
     if _refund_credit(db, md):
         md = dict(updated[0].get("metadata") or md)
         md["credit_refunded"] = True

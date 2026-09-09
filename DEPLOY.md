@@ -83,6 +83,46 @@ tables. Startup logs `Schema applied from …` on success, or a loud
 
 ---
 
+## Showcase-only: the landing page on its own
+
+Arbor's hosted demo is retired. If you want the project *visitable* without
+paying for a backend, deploy the frontend alone in showcase-only mode: the
+landing page is presentational and renders with no API behind it.
+
+On Vercel, set one variable and redeploy:
+
+```
+NEXT_PUBLIC_SHOWCASE_ONLY=1
+```
+
+`NEXT_PUBLIC_API_BASE` is then unused and can be dropped. No backend, no
+Supabase, no `CORS_ORIGINS`.
+
+Set the site URL too, so the social card resolves against a stable hostname:
+
+```
+NEXT_PUBLIC_SITE_URL=https://your-domain.vercel.app
+```
+
+Without it the Open Graph tags fall back to `VERCEL_URL`, which is the
+*per-deployment* hostname. The card still works, but its image URL changes with
+every deploy, and previously scraped cards point at an old one.
+
+What the flag changes ([`src/config/showcase.ts`](frontend/src/config/showcase.ts)):
+
+| | Normal | Showcase-only |
+|---|---|---|
+| Served routes | all of them | `/` and `/privacy` |
+| Sign-in CTAs | `/login` | the source repository |
+| everything else | served | redirects to `/` |
+
+The redirect is the point. Left reachable, the app routes load and then fail
+every request, which reads as a broken app rather than a deliberately static
+one.
+
+Unset the flag and everything behaves normally; this is a deployment mode, not a
+fork.
+
 ## Continuous deployment
 
 Both platforms watch GitHub:

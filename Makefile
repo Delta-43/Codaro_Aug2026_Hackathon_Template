@@ -1,4 +1,4 @@
-.PHONY: help start stop logs reload reset reseed demoseed checkseed checkstates checkfront checklive fetchmedia
+.PHONY: help start stop logs reload reset reseed demoseed checkseed fetchmedia
 
 help:
 	@echo "make start   - build (if needed) and start frontend :3000 + backend :8000"
@@ -10,9 +10,6 @@ help:
 	@echo "make checkseed - report where the seeded data and domain.config.json disagree"
 	@echo "make demoseed   - DESTRUCTIVE: wipe + seed the hand-written demo vertical (VERTICAL=funeral)"
 	@echo "make fetchmedia - download demo imagery into frontend/public/media (skips cached files)"
-	@echo "make checkstates - run every pivots/*.json through load -> spec -> rules -> serialize"
-	@echo "make checkfront  - run every pivots/*.json through the frontend's own parsers"
-	@echo "make checklive   - DESTRUCTIVE: seed+book a sample of pivots for real (ARGS=\"3 7 11\")"
 
 start:
 	docker compose up -d --build
@@ -51,15 +48,8 @@ demoseed:
 checkseed:
 	docker compose exec backend python /workspace/scripts/check_seed.py $(ARGS)
 
-checkstates:
-	docker compose exec backend python /workspace/scripts/check_pivot_states.py $(ARGS)
 
-checkfront:
-	cd frontend && npx tsx ../scripts/check_pivot_frontend.mts $(ARGS)
 
-# DESTRUCTIVE — wipes and reseeds the demo dataset once per pivot.
-checklive:
-	./scripts/check_pivot_live.sh $(ARGS)
 
 # Download the demo photography into frontend/public/media. Runs on the HOST
 # (plain python3 + urllib, no deps) because the target directory is the

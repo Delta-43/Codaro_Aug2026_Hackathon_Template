@@ -11,7 +11,7 @@
  * it clicks Month and glides across a few open days, switches to Week then Day
  * lighting up example slots, picks one and books it on the real booking
  * control. When the tour finishes the calendar zooms out a little and an
- * "Arrange in three steps" note reveals underneath it, one line at a time.
+ * "Book in three steps" note reveals underneath it, one line at a time.
  *
  * The show plays once each time the section enters view (it does not loop);
  * scrolling away and back replays it. The moment a visitor clicks any control
@@ -80,9 +80,9 @@ const SERVICE: Service = {
 
 // Dash-free, matching the rest of the landing copy.
 const STEPS: [string, string][] = [
-  ["Choose a chapel", "See which chapels and dates are open at a glance."],
-  ["Hold a date", "Reserve a day for the service, or let a director set it with you."],
-  ["Leave the rest to us", "Confirm the details and a director takes it from there."],
+  ["Pick a resource", "Day availability and month density come off one occupancy view."],
+  ["Hold a slot", "Book outright or send a request the owner approves. Config decides which."],
+  ["Change your mind", "Reschedule and cancel obey the same per-service cutoff rules."],
 ];
 
 function slot(date: string, hour: number, status: Slot["status"], booked: number): Slot {
@@ -145,7 +145,18 @@ export function CalendarShowcase() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [booked, setBooked] = useState(false);
   const [finished, setFinished] = useState(false); // tour done → zoom out + reveal steps
-  const [cursor, setCursor] = useState({ x: 40, y: 40 });
+  // Which of the three steps the tour is currently demonstrating (-1 before it
+  // starts). On wide screens the steps sit beside the calendar and light up in
+  // time with the cursor, so the note narrates the tour instead of arriving
+  // after it.
+  const [stage, setStage] = useState(-1);
+  // `ms` travels with the position so each hop can time itself: a fixed
+  // duration makes a 20px nudge take as long as a glide across the plate,
+  // which is most of what read as robotic.
+  const [cursor, setCursor] = useState({ x: 40, y: 40, ms: 620 });
+  // Mirrors `cursor` for the tour's own maths, which runs outside React's
+  // render cycle and would otherwise close over a stale position.
+  const cursorRef = useRef({ x: 40, y: 40 });
   const [down, setDown] = useState(false);
   const [ready, setReady] = useState(false); // cursor has moved at least once
   const [inView, setInView] = useState(false);
@@ -176,8 +187,15 @@ export function CalendarShowcase() {
       if (!natural) return;
       const avail = window.innerHeight - 56; // section py-6 + a small buffer
       const scale = Math.max(0.55, Math.min(1, avail / natural));
+      const h = Math.round(natural * scale);
+      // Sub-pixel churn from the ResizeObserver would otherwise re-render (and
+      // visibly nudge) the plate for changes nobody asked to see.
+      setFit((prev) =>
+        Math.abs(prev.scale - scale) < 0.005 && prev.h !== null && Math.abs(prev.h - h) < 2
+          ? prev
+          : { scale, h },
+      );
       scaleRef.current = scale;
-      setFit({ scale, h: Math.round(natural * scale) });
     };
     recompute();
     const ro = new ResizeObserver(recompute);
@@ -311,9 +329,22 @@ export function CalendarShowcase() {
       if (!alive()) return;
       const at = aimAt(el);
       if (!el || !at) return;
-      setCursor(at);
+
+      // Time the hop by how far it actually is, the way a hand does: short
+      // corrections are quick, long crossings take longer, both clamped so
+      // nothing snaps or drags.
+      const from = cursorRef.current;
+      const dist = Math.hypot(at.x - from.x, at.y - from.y);
+      const ms = Math.round(Math.min(760, Math.max(240, dist * 1.15)));
+      cursorRef.current = at;
+      setCursor({ ...at, ms });
       setReady(true);
-      await sleep(400, timerRef);
+
+      // Wait for the cursor to ARRIVE, plus a beat to settle. This used to be a
+      // flat 400ms against a 620ms transition, so every click and highlight
+      // fired while the pointer was still a third of the way short of its
+      // target, hitting things it had visibly not reached.
+      await sleep(ms + 90, timerRef);
       if (!alive() || !el.isConnected) return;
       if (opts.click) {
         setDown(true);
@@ -327,24 +358,29 @@ export function CalendarShowcase() {
     }
 
     async function run() {
-      await sleep(450, timerRef);
+      setStage(-1);
+      // Dwell times below are trimmed to pay for the longer, distance-timed
+      // hops, so the tour reads smoother without running noticeably longer.
+      await sleep(350, timerRef);
       if (!alive()) return;
 
       // 1) Month — sweep a few open days.
+      setStage(0);
       await point(await waitFor('[data-demo-view="Month"]'), { click: true });
       for (const d of sweepDates.slice(0, 3)) {
         if (!alive()) return;
-        await point(q(`[aria-label="${d}"]`), { hl: true, hold: 240 });
+        await point(q(`[aria-label="${d}"]`), { hl: true, hold: 200 });
       }
 
       // 2) Week — light up the example slots.
       if (!alive()) return;
+      setStage(1);
       await point(q('[data-demo-view="Week"]'), { click: true });
       setZoom("Week");
       await waitFor('[data-demo-view="Week"][aria-pressed="true"]');
       for (const b of viewButtons().slice(0, 3)) {
         if (!alive()) return;
-        await point(b, { hl: true, hold: 220 });
+        await point(b, { hl: true, hold: 190 });
       }
 
       // 3) Day — glide the times, then select one.
@@ -355,16 +391,17 @@ export function CalendarShowcase() {
       const dayBtns = viewButtons();
       for (const b of dayBtns.slice(0, 2)) {
         if (!alive()) return;
-        await point(b, { hl: true, hold: 220 });
+        await point(b, { hl: true, hold: 190 });
       }
       let didSelect = false;
+      setStage(2);
       if (bookSlot) {
         const target = await waitFor(`[data-demo-slot="${bookSlot.id}"]`);
         if (target) {
           await point(target, { click: true, hold: 300 });
           setSelectedId(bookSlot.id);
           didSelect = true;
-          await sleep(560, timerRef);
+          await sleep(430, timerRef);
         }
       }
 
@@ -411,13 +448,27 @@ export function CalendarShowcase() {
           chapters, floating over the shared particle backdrop. Holds the real
           calendar and, once the tour ends (or a visitor takes over), the
           "Book in three steps" note beneath it. */}
-      <div className="mx-auto w-full max-w-4xl" style={{ height: fit.h ?? undefined }}>
-        <div ref={fitRef} className="origin-top" style={{ transform: `scale(${fit.scale})` }}>
+      <div
+        className="mx-auto w-full max-w-4xl transition-[height] duration-300 ease-out"
+        style={{ height: fit.h ?? undefined }}
+      >
+        <div
+          ref={fitRef}
+          className="origin-top transition-transform duration-300 ease-out"
+          style={{ transform: `scale(${fit.scale})` }}
+        >
         <GlassPanel className="px-6 py-4 sm:px-10 sm:py-6">
           {/* Calendar on the glass; when the tour ends (or a visitor takes over)
               the "three steps" note reveals underneath it — full-width plates so
               nothing crowds or overlaps. The calendar stays compact so the whole
               chapter still fits one screen. */}
+          {/* Two columns from `lg`: the calendar is only 20rem wide, so on a
+              max-w-4xl plate it used to sit as a narrow strip in the middle of a
+              mostly empty card. The steps take the space beside it instead of
+              stacking underneath, which fills the plate AND keeps the chapter
+              short enough that the fit-scale rarely has to shrink it. Below
+              `lg` it stacks exactly as before. */}
+          <div className="lg:grid lg:grid-cols-[20rem_minmax(0,1fr)] lg:items-center lg:gap-10">
           <div ref={plateRef} className="relative mx-auto w-full max-w-[20rem]">
             {/* Segmented control */}
             <div className="mb-3 inline-flex rounded-lg border border-border bg-card p-0.5">
@@ -456,7 +507,13 @@ export function CalendarShowcase() {
         </div>
 
         {/* Views */}
-        <div ref={viewsRef} className="min-h-[13rem]">
+        {/* Tall enough for Month, which is the tallest of the three: a 20rem
+            column of `aspect-square` cells is ~322px once the weekday header and
+            the openness legend are counted, and Day needs a touch more again. Without this the box sized to each
+            view in turn, so the plate jumped ~50px every time the tour switched
+            Month → Week → Day, and the fit-scale then rescaled the whole card on
+            top of that. Week and Day simply sit in a taller box. */}
+        <div ref={viewsRef} className="min-h-[22rem]">
           {zoom === "Month" ? (
             // Narrower, centred month grid: its cells are aspect-square, so a
             // narrower width makes the whole month shorter — bringing the plate
@@ -481,7 +538,7 @@ export function CalendarShowcase() {
               byDate={byDate}
               tz={TZ}
               isDaySlot={false}
-              nameFor={() => "Chapel of Rest A"}
+              nameFor={() => "Resource A"}
               selectedIds={selectedIds}
               onSelect={(s) => {
                 takeOver();
@@ -505,7 +562,10 @@ export function CalendarShowcase() {
 
         {/* Booking control — the real button design; appears once a slot is
             picked, then flips to a confirmation, exactly like the app. */}
-        <div className="mt-4 min-h-[3.25rem]">
+        {/* Tall enough for the confirmation panel, which is two lines and so
+            taller than the button it replaces. Sized for the larger of the two
+            states, or booking nudged the whole plate down by ~9px. */}
+        <div className="mt-4 min-h-[4.25rem]">
           {booked ? (
             <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3">
               <span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
@@ -515,7 +575,7 @@ export function CalendarShowcase() {
                 <p className="font-medium text-foreground">Date reserved</p>
                 {bookSlot && (
                   <p className="truncate text-xs text-muted-foreground">
-                    {formatTimeRange(bookSlot.startUtc, bookSlot.endUtc, TZ)} · Chapel of Rest A
+                    {formatTimeRange(bookSlot.startUtc, bookSlot.endUtc, TZ)} · Resource A
                   </p>
                 )}
               </div>
@@ -546,7 +606,9 @@ export function CalendarShowcase() {
             className="pointer-events-none absolute left-0 top-0 z-30"
             style={{
               transform: `translate(${cursor.x}px, ${cursor.y}px)`,
-              transition: "transform 620ms cubic-bezier(0.4, 0, 0.2, 1)",
+              // Longer tail than the standard curve: the pointer leaves
+              // decisively and settles gently, which is what reads as smooth.
+              transition: `transform ${cursor.ms}ms cubic-bezier(0.4, 0, 0.15, 1)`,
             }}
           >
             <div className={cn("transition-transform duration-150", down ? "scale-90" : "scale-100")}>
@@ -566,41 +628,63 @@ export function CalendarShowcase() {
           <div
             className={cn(
               "grid transition-[grid-template-rows] duration-[900ms] ease-out",
-              revealed ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+              // Always open in the side column; the grow-in is for the stacked
+              // layout, where collapsing keeps the plate short until the payoff.
+              revealed ? "grid-rows-[1fr]" : "grid-rows-[0fr] lg:grid-rows-[1fr]",
             )}
           >
             <div className="overflow-hidden">
-              <div className="w-full px-1 pt-4 text-center">
+              <div className="w-full px-1 pt-4 text-center lg:pt-0 lg:text-left">
                 <h3
                   className={cn(
                     "text-lg font-semibold tracking-tight text-foreground transition-all duration-[800ms] ease-out sm:text-xl",
+                    "lg:translate-y-0 lg:opacity-100",
                     revealed ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0",
                   )}
                 >
-                  Arrange in three steps
+                  Book in three steps
                 </h3>
                 <div
                   className={cn(
-                    "mt-2 flex justify-center transition-all duration-[800ms] ease-out",
+                    "mt-2 flex justify-center transition-all duration-[800ms] ease-out lg:hidden",
                     revealed ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0",
                   )}
                   style={{ transitionDelay: revealed ? "150ms" : "0ms" }}
                 >
                   <ChevronDown className="size-5 animate-bounce text-primary" aria-hidden />
                 </div>
-                <ol className="mx-auto mt-2 flex w-full max-w-lg flex-col gap-2 text-left">
-                  {STEPS.map(([title, body], i) => (
+                <ol className="mx-auto mt-2 flex w-full max-w-lg flex-col gap-2 text-left lg:mx-0">
+                  {STEPS.map(([title, body], i) => {
+                    // Lit either because the tour has reached this step, or
+                    // because the whole note was revealed at the end / on
+                    // take-over. The staggered delay belongs only to the second
+                    // case; a step the cursor just demonstrated should answer
+                    // immediately.
+                    const reached = stage >= i;
+                    const lit = revealed || reached;
+                    return (
                     <li
                       key={title}
                       className={cn(
                         "transition-all duration-[800ms] ease-out",
-                        revealed ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0",
+                        // In the side column the steps are present from the
+                        // first frame: they are what fills the plate, and a
+                        // column that stays blank until the tour reaches it
+                        // leaves the card looking half-empty on arrival. When
+                        // stacked they still ease in as the payoff.
+                        "lg:translate-y-0 lg:opacity-100",
+                        lit ? "translate-y-0 opacity-100" : "translate-y-6 opacity-0",
                       )}
-                      style={{ transitionDelay: revealed ? `${300 + i * 450}ms` : "0ms" }}
+                      style={{ transitionDelay: lit && !reached ? `${300 + i * 450}ms` : "0ms" }}
                     >
                       <div
                         className={cn(
-                          "flex cursor-pointer items-center gap-3 rounded-xl border border-border/60 bg-background/40 px-4 py-2",
+                          "flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-2 transition-colors duration-500",
+                          // The cursor and the note stay in step: whichever the
+                          // tour is demonstrating is the one picked out here.
+                          reached && !revealed
+                            ? "border-primary/50 bg-primary/5"
+                            : "border-border/60 bg-background/40",
                           buttonFx.plate,
                         )}
                       >
@@ -613,10 +697,12 @@ export function CalendarShowcase() {
                         </div>
                       </div>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ol>
               </div>
             </div>
+          </div>
           </div>
         </GlassPanel>
         </div>
@@ -653,7 +739,7 @@ function DemoDayView({
         tz={TZ}
         service={SERVICE}
         isDaySlot={false}
-        nameFor={() => "Chapel of Rest A"}
+        nameFor={() => "Resource A"}
         selectedIds={selectedIds}
         onSelect={onSelect}
       />

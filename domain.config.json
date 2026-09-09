@@ -1,6 +1,6 @@
 {
   "configVersion": 2,
-  "domain": "funeral-homes",
+  "domain": "generic",
   "tenancy": {
     "mode": "single",
     "providerCode": "WIECZNY-1889",
@@ -50,305 +50,11 @@
       "maxGapHours": null
     },
     "subject": {
-      "enabled": true,
-      "noun": "The Deceased",
-      "fields": [
-        {
-          "key": "full_name",
-          "label": "Full name",
-          "type": "text",
-          "required": true,
-          "helpText": "As it should appear on the order of service."
-        },
-        {
-          "key": "date_of_birth",
-          "label": "Date of birth",
-          "type": "date",
-          "required": false
-        },
-        {
-          "key": "date_of_death",
-          "label": "Date of death",
-          "type": "date",
-          "required": true
-        },
-        {
-          "key": "pronouns",
-          "label": "Pronouns",
-          "type": "text",
-          "required": false,
-          "helpText": "Used throughout the service and in all printed material."
-        },
-        {
-          "key": "faith_or_rite",
-          "label": "Faith or rite",
-          "type": "select",
-          "required": false,
-          "options": [
-            "Secular",
-            "Catholic",
-            "Orthodox",
-            "Protestant",
-            "Jewish",
-            "Muslim",
-            "Humanist",
-            "Other"
-          ]
-        },
-        {
-          "key": "manner_of_death",
-          "label": "Manner of death",
-          "type": "select",
-          "required": false,
-          "options": [
-            "Natural causes",
-            "Accident",
-            "Mysterious circumstances — no questions asked",
-            "Undisclosed"
-          ],
-          "helpText": "Certain answers require discreet handling, which is chargeable."
-        },
-        {
-          "key": "height_cm",
-          "label": "Height (cm)",
-          "type": "number",
-          "required": false,
-          "helpText": "Required for casket sizing. An estimate within 5 cm is sufficient."
-        },
-        {
-          "key": "pacemaker_present",
-          "label": "Pacemaker present",
-          "type": "boolean",
-          "required": false,
-          "helpText": "Must be removed prior to cremation."
-        },
-        {
-          "key": "preferred_attire",
-          "label": "Preferred attire",
-          "type": "text",
-          "required": false,
-          "helpText": "Please deliver the garments to the chapel at least 48 hours beforehand."
-        }
-      ]
+      "enabled": false,
+      "noun": "Subject",
+      "fields": []
     },
-    "options": [
-      {
-        "key": "mortician_preparation",
-        "label": "Mortician preparation",
-        "type": "boolean",
-        "priceMinorUnits": 45000,
-        "helpText": "Full embalming and presentation by a licensed mortician."
-      },
-      {
-        "key": "ritual_washing",
-        "label": "Ritual washing",
-        "type": "boolean",
-        "priceMinorUnits": 28000,
-        "helpText": "Performed according to the declared rite."
-      },
-      {
-        "key": "eternal_flowers",
-        "label": "Eternal flowers",
-        "type": "boolean",
-        "priceMinorUnits": 19000,
-        "helpText": "3D-printed — they never wilt."
-      },
-      {
-        "key": "livestream",
-        "label": "Livestream",
-        "type": "boolean",
-        "priceMinorUnits": 15000,
-        "helpText": "Private link for mourners who cannot attend in person."
-      },
-      {
-        "key": "memorial_tree",
-        "label": "Memorial tree",
-        "type": "boolean",
-        "priceMinorUnits": 12000,
-        "helpText": "One tree, planted in the regional grove, with a small plaque."
-      },
-      {
-        "key": "star_naming",
-        "label": "Star naming",
-        "type": "boolean",
-        "priceMinorUnits": 8900,
-        "helpText": "Buy a star in their name. Certificate included."
-      },
-      {
-        "key": "dove_release",
-        "label": "Dove release",
-        "type": "boolean",
-        "priceMinorUnits": 24000,
-        "helpText": "Twelve doves, released at the graveside. Weather permitting."
-      },
-      {
-        "key": "ai_storyteller",
-        "label": "AI Storyteller & Eulogy",
-        "type": "boolean",
-        "priceMinorUnits": 39000,
-        "helpText": "A complete life story and eulogy, drafted from the details you provide."
-      },
-      {
-        "key": "professional_mourners",
-        "label": "Professional mourners",
-        "type": "boolean",
-        "priceMinorUnits": 60000,
-        "helpText": "Left too much money in your will? Pay to entertain the crowd."
-      },
-      {
-        "key": "memorial_ring",
-        "label": "Memorial ring",
-        "type": "boolean",
-        "priceMinorUnits": 89000,
-        "helpText": "Forged from the iron in the body."
-      },
-      {
-        "key": "casket",
-        "label": "Casket",
-        "type": "select",
-        "choices": [
-          {
-            "key": "pine",
-            "label": "Pine",
-            "priceMinorUnits": 0
-          },
-          {
-            "key": "oak",
-            "label": "Oak",
-            "priceMinorUnits": 95000
-          },
-          {
-            "key": "bronze",
-            "label": "Bronze",
-            "priceMinorUnits": 240000
-          },
-          {
-            "key": "lacquered_mahogany",
-            "label": "Lacquered Mahogany",
-            "priceMinorUnits": 480000
-          }
-        ]
-      },
-      {
-        "key": "music",
-        "label": "Music",
-        "type": "select",
-        "choices": [
-          {
-            "key": "kazoo_ensemble",
-            "label": "Kazoo ensemble",
-            "priceMinorUnits": 12000
-          },
-          {
-            "key": "solo_cellist",
-            "label": "Solo cellist",
-            "priceMinorUnits": 35000
-          },
-          {
-            "key": "string_quartet",
-            "label": "String quartet",
-            "priceMinorUnits": 78000
-          },
-          {
-            "key": "full_orchestra",
-            "label": "Full orchestra",
-            "priceMinorUnits": 320000
-          }
-        ]
-      },
-      {
-        "key": "makeup_beauty",
-        "label": "Makeup & beauty",
-        "type": "select",
-        "choices": [
-          {
-            "key": "natural",
-            "label": "Natural",
-            "priceMinorUnits": 9000
-          },
-          {
-            "key": "formal",
-            "label": "Formal",
-            "priceMinorUnits": 18000
-          },
-          {
-            "key": "screen_ready",
-            "label": "Screen-Ready",
-            "priceMinorUnits": 42000
-          }
-        ],
-        "helpText": "Screen-Ready is recommended where a livestream is booked."
-      },
-      {
-        "key": "souvenir",
-        "label": "Souvenir",
-        "type": "select",
-        "choices": [
-          {
-            "key": "paperweight",
-            "label": "Paperweight",
-            "priceMinorUnits": 6500
-          },
-          {
-            "key": "vinyl_record",
-            "label": "Vinyl record",
-            "priceMinorUnits": 14000
-          },
-          {
-            "key": "hourglass",
-            "label": "Hourglass",
-            "priceMinorUnits": 22000
-          }
-        ],
-        "helpText": "A portion of the ashes is incorporated into the item."
-      },
-      {
-        "key": "voice_chatbot",
-        "label": "Voice chatbot",
-        "type": "select",
-        "choices": [
-          {
-            "key": "one_year",
-            "label": "1 year",
-            "priceMinorUnits": 24000
-          },
-          {
-            "key": "five_years",
-            "label": "5 years",
-            "priceMinorUnits": 96000
-          },
-          {
-            "key": "perpetual",
-            "label": "Perpetual",
-            "priceMinorUnits": 250000
-          }
-        ],
-        "helpText": "An AI trained on their voice recordings."
-      },
-      {
-        "key": "ashes_diamond",
-        "label": "Ashes diamond",
-        "type": "select",
-        "choices": [
-          {
-            "key": "quarter_ct",
-            "label": "0.25 ct",
-            "priceMinorUnits": 180000
-          },
-          {
-            "key": "half_ct",
-            "label": "0.50 ct",
-            "priceMinorUnits": 340000
-          },
-          {
-            "key": "one_ct",
-            "label": "1.00 ct",
-            "priceMinorUnits": 720000
-          }
-        ],
-        "helpText": "Laboratory-grown from the carbon in the remains. Allow ten weeks."
-      }
-    ]
+    "options": []
   },
   "pricing": {
     "model": "fixed",
@@ -359,19 +65,7 @@
       "amountMinorUnits": 285000
     },
     "secondaryRate": null,
-    "tiers": [
-      {
-        "key": "discreet",
-        "label": "Discreet handling",
-        "amountMinorUnits": 405000,
-        "appliesWhen": {
-          "subjectField": {
-            "key": "manner_of_death",
-            "equals": "Mysterious circumstances — no questions asked"
-          }
-        }
-      }
-    ],
+    "tiers": [],
     "chargePerPerson": false,
     "caps": {
       "perBookingMinorUnits": null,
@@ -484,40 +178,7 @@
       "cutoffHoursBefore": 0
     }
   },
-  "prerequisites": [
-    {
-      "key": "death_certificate",
-      "kind": "id_check",
-      "label": "Death certificate",
-      "appliesTo": "subject",
-      "required": true,
-      "blocksConfirmation": true
-    },
-    {
-      "key": "next_of_kin",
-      "kind": "approval",
-      "label": "Next-of-kin authorisation",
-      "appliesTo": "customer",
-      "required": true,
-      "blocksConfirmation": true
-    },
-    {
-      "key": "cremation_authority",
-      "kind": "waiver",
-      "label": "Cremation authority",
-      "appliesTo": "customer",
-      "required": false,
-      "blocksConfirmation": false
-    },
-    {
-      "key": "coroner_release",
-      "kind": "licence",
-      "label": "Coroner's release",
-      "appliesTo": "subject",
-      "required": false,
-      "blocksConfirmation": false
-    }
-  ],
+  "prerequisites": [],
   "timing": {
     "confirmation": "request_approve",
     "approvalWindowHours": 168,
@@ -564,121 +225,42 @@
     }
   },
   "terms": {
-    "provider": "Funeral Home",
-    "providers": "Funeral Homes",
-    "service": "Arrangement",
-    "services": "Arrangements",
-    "staff": "Director",
-    "subject": "The Deceased",
-    "party": "Mourners",
-    "resource": "Chapel",
-    "resources": "Chapels",
-    "slot": "Date",
-    "slots": "Dates",
-    "booking": "Arrangement",
-    "bookings": "Arrangements",
-    "client": "Family",
-    "clients": "Families",
-    "admin": "Funeral Home",
-    "admins": "Funeral Homes"
+    "provider": "Provider",
+    "providers": "Providers",
+    "service": "Service",
+    "services": "Services",
+    "staff": "Staff member",
+    "subject": "Subject",
+    "party": "Guests",
+    "resource": "Resource",
+    "resources": "Resources",
+    "slot": "Time",
+    "slots": "Times",
+    "booking": "Booking",
+    "bookings": "Bookings",
+    "client": "Customer",
+    "clients": "Customers",
+    "admin": "Owner",
+    "admins": "Owners"
   },
   "copy": {
-    "landingTitle": "Don't Worry, Be Sad",
-    "landingSubtitle": "Less stress for you. We'll take it from here.",
-    "confirmTitle": "The arrangement is confirmed",
-    "emptyStateSlots": "No dates published. We set the date with you.",
-    "emptyStateBookings": "No arrangements yet. We hope it stays that way.",
-    "requestPending": "Received, with our condolences. A director will contact you within seven days to set the date.",
-    "waitlistJoined": "You are on the waiting list. A date will free up. They always do.",
-    "quoteRequested": "Your estimate request has been logged. A written schedule of charges follows by post.",
-    "depositDue": "A 30% deposit secures the arrangement. The balance falls due fourteen days after the service.",
-    "prerequisiteBlocked": "The paperwork is incomplete. Nothing proceeds until the documentation is in order."
+    "landingTitle": "Book it in a couple of clicks",
+    "landingSubtitle": "See what is free, pick a time, and you are done.",
+    "confirmTitle": "Your booking is confirmed",
+    "emptyStateSlots": "No times published yet. Check back soon.",
+    "emptyStateBookings": "No bookings yet.",
+    "requestPending": "Your request is with the owner.",
+    "waitlistJoined": "You are on the waitlist. We will let you know if a time frees up.",
+    "quoteRequested": "Your quote request has been sent.",
+    "depositDue": "A deposit is needed to hold this booking.",
+    "prerequisiteBlocked": "Something is still needed before this can be confirmed."
   },
   "metaFields": {
-    "providers": [
-      {
-        "key": "licence_number",
-        "label": "Licence number",
-        "type": "text"
-      },
-      {
-        "key": "on_call_24h",
-        "label": "24-hour call-out",
-        "type": "boolean"
-      },
-      {
-        "key": "founded",
-        "label": "Established",
-        "type": "number"
-      }
-    ],
-    "services": [
-      {
-        "key": "rite",
-        "label": "Rite",
-        "type": "text"
-      }
-    ],
-    "resources": [
-      {
-        "key": "vehicle_plate",
-        "label": "Hearse registration",
-        "type": "text"
-      },
-      {
-        "key": "capacity_note",
-        "label": "Capacity note",
-        "type": "text"
-      }
-    ],
+    "providers": [],
+    "services": [],
+    "resources": [],
     "slots": [],
-    "bookings": [
-      {
-        "key": "payer_name",
-        "label": "Payer name",
-        "type": "text",
-        "required": true
-      },
-      {
-        "key": "payer_relationship",
-        "label": "Relationship to the deceased",
-        "type": "select",
-        "options": [
-          "Spouse",
-          "Child",
-          "Sibling",
-          "Parent",
-          "Executor",
-          "Friend",
-          "Other"
-        ]
-      },
-      {
-        "key": "estate_reference",
-        "label": "Estate reference",
-        "type": "text"
-      },
-      {
-        "key": "attendee_estimate",
-        "label": "Estimated mourners",
-        "type": "number"
-      },
-      {
-        "key": "procession_route",
-        "label": "Procession route",
-        "type": "text"
-      },
-      {
-        "key": "eulogy_speaker",
-        "label": "Eulogy speaker",
-        "type": "text"
-      },
-      {
-        "key": "will_surplus_note",
-        "label": "Left too much money in the will?",
-        "type": "text"
-      }
-    ],
+    "bookings": [],
     "subjects": []
   },
   "rules": {

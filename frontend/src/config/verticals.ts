@@ -121,48 +121,6 @@ export const VERTICALS: Record<VerticalId, VerticalConfig> = {
       noAvailability: "No open hours in this period.",
     },
   },
-  funeral: {
-    id: "funeral",
-    label: "Funeral homes",
-    providerNoun: "Funeral home",
-    providerNounPlural: "Funeral homes",
-    serviceNoun: "Arrangement",
-    serviceNounPlural: "Arrangements",
-    resourceNoun: "Chapel",
-    resourceNounPlural: "Chapels",
-    // The catalogue's units are not interchangeable — a retort, a hearse and a
-    // chapel of rest all sit behind the same noun, and a family choosing where
-    // to hold a service will not accept whichever one the calendar picked.
-    allowAnyResource: false,
-    // The reason this vertical exists as code rather than as config: the pivot
-    // file has no `terms` key for the CTA verb (see applyPivotVocabulary), so
-    // "Arrange" is only reachable from a real VerticalConfig.
-    bookingVerb: "Arrange",
-    partyNoun: null,
-    // The customer never picks one of these — the home assigns the date after
-    // the request is reviewed (`booking.granularity: "none"`). The noun is
-    // still needed wherever a date is NAMED rather than chosen.
-    slotNoun: "Date",
-    slotNounPlural: "Dates",
-    bookingNoun: "Arrangement",
-    bookingNounPlural: "Arrangements",
-    clientNoun: "Family",
-    clientNounPlural: "Families",
-    // Ids must match the categoryIds the backend seed writes.
-    categories: [
-      { id: "burial", label: "Burial" },
-      { id: "cremation", label: "Cremation" },
-      { id: "memorial", label: "Memorial" },
-      { id: "aftercare", label: "Aftercare" },
-      { id: "eternal", label: "Eternal" },
-    ],
-    searchPlaceholder: "Search funeral homes",
-    copy: {
-      noProviderTitle: "No funeral home selected",
-      noProviderBody: "Find a funeral home in Search to see the arrangements it offers.",
-      noAvailability: "Dates are assigned by the home.",
-    },
-  },
   group: {
     id: "group",
     label: "Group classes",

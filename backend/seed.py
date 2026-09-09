@@ -601,7 +601,7 @@ def _seed_vertical_locked(vertical_id: str, spec: dict | None = None) -> dict:
                     # The vertical by NAME, so `active_vertical()` can read it
                     # back instead of guessing from `booking_model` — a mapping
                     # that can only ever name the three canned verticals and
-                    # therefore cannot express a fourth (e.g. `funeral`).
+                    # therefore cannot express a fourth.
                     "verticalId": vertical_id,
                     "tz": tz,
                     "currency": currency,
@@ -655,46 +655,32 @@ def _seed_vertical_locked(vertical_id: str, spec: dict | None = None) -> dict:
              (prospect_uid, PROSPECT_EMAIL, people[PROSPECT_EMAIL]["name"])], tz,
         )
         # ONE pool, shared by every booking seeder below. A venue holds one
-        # funeral a day (`booking.party.max` is 1, every venue is capacity 1,
+        # booking a day (`booking.party.max` is 1, every venue is capacity 1,
         # and `enforce_slot_capacity` rejects the second confirmed booking), so
         # the demo family and the trade have to draw their dates out of the same
         # hat or they collide. Built here, after the edge cases and the
         # requests, so it reads their occupancy out of `booking_slots` instead
         # of trying to predict it.
         pool = _SlotPool(db, tz, [r["id"] for s in demo_services for r in s["resources"]])
-        # The demonstration account's own history: thirty arrangements across
-        # the catalogue and the whole lifecycle. This is the screen the demo is
-        # given from, so it is seeded before the anonymous trade gets the dates.
-        demo_family = _seed_demo_family(
-            db, demo_services, demo_provider_id, demo_uid, DEMO_EMAIL,
-            people[DEMO_EMAIL]["name"], currency, tz, pool,
+        # The demonstration account's own history: the six-booking lifecycle, so
+        # the demo login is never empty. Seeded before the anonymous demand
+        # below so it gets first pick of the dates.
+        counts["bookings"] += _seed_bookings(
+            db, primary_service, demo_provider_id, demo_uid, DEMO_EMAIL, model, currency, tz,
+            people[DEMO_EMAIL]["name"], reserved=edge_slots,
         )
-        if not demo_family["count"]:
-            # No hand-written arrangements for this vertical (any pivot other
-            # than the funeral demo): fall back to the generic six-booking
-            # lifecycle so the demo login is never empty.
-            counts["bookings"] += _seed_bookings(
-                db, primary_service, demo_provider_id, demo_uid, DEMO_EMAIL, model, currency, tz,
-                people[DEMO_EMAIL]["name"], reserved=edge_slots,
-            )
-        counts["bookings"] += demo_family["count"]
-        # The rest of the trade: a hundred-odd arrangements across the whole
-        # catalogue, every status the engine has, and ten weeks either side of
-        # today. The demo family is left OUT of the client rotation — their
-        # funerals are the hand-written ones above, and a second, anonymous set
-        # under the same login would contradict them.
+        # The rest of the trade: bookings across the whole catalogue, every
+        # status the engine has, and ten weeks either side of today. The demo
+        # account is left OUT of the client rotation so its own history above is
+        # not contradicted by a second, anonymous set under the same login.
         trade = [c for c in _client_pool(people) if c.get("email") != DEMO_EMAIL]
         demand = _seed_demand(db, demo_services, demo_provider_id, trade, currency, tz, pool)
         counts["bookings"] += demand["count"]
-        # Reviews hang off completed arrangements — a review with no funeral
-        # behind it would not survive the first click into it.
+        # Reviews hang off completed bookings: a review with nothing behind it
+        # would not survive the first click into it.
         counts["reviews"] = _seed_provider_reviews(db, demo_provider_id, demand["completed"])
-        counts["reviews"] += _seed_demo_reviews(db, demo_provider_id, demo_family["completed"])
-        # The families' reputations: reviews the home left about them.
+        # Customer reputations: reviews the business left about them.
         counts["clientReviews"] = _seed_client_reviews(db, demo_provider_id, demand["completed"])
-        counts["clientReviews"] += _seed_demo_reputation(
-            db, demo_provider_id, demo_family["completed"]
-        )
         # Working chat threads so every demo login lands on a populated inbox.
         threads = _seed_messages(db, demo_provider_id, people, owner_uid)
         counts["conversations"], counts["messages"] = threads
@@ -802,7 +788,7 @@ def _hold(db, slot, service_id, provider_id, resource_id, party, holds_uid, curr
           *, index: int = 0, tz: str = "UTC") -> None:
     """A confirmed booking by the holds user, consuming `party` seats on `slot`.
 
-    It carries a deceased and a payer like any other arrangement: these rows are
+    It carries a subject and a payer like any other booking: these rows are
     what makes a day read as full, and the owner's calendar opens them."""
     service_date = _parse_utc(slot["starts_at"]).astimezone(ZoneInfo(tz)).date()
     extras, add_ons = _arrangement_extras(320 + index, service_date, "Another family",
@@ -894,7 +880,7 @@ def _seed_requests(db, primary, provider_id, model, currency, requesters, tz: st
 # --- the rest of the trade -------------------------------------------------
 # Everything above seeds the *demonstration*: one family's lifecycle, two
 # pending requests, three occupancy edge cases. What it does not seed is a
-# business. A funeral home with ten bookings on one of its eleven services and
+# business. A provider with ten bookings on one of its eleven services and
 # a single conversation reads as a prototype no matter how good the copy is, so
 # the seeders below fill the other four months of trade.
 
@@ -924,7 +910,7 @@ _DEMAND_WINDOW = {
 # `pricing.tiers[0]` charges 405 000 rather than the 285 000 base when the
 # manner of death is the awkward one — a supplement of 1 200 EUR for handling
 # nobody asks questions about. The base differs per service (a direct committal
-# is not a full funeral), so the seed applies the DIFFERENCE rather than the
+# is not a full booking), so the seed applies the DIFFERENCE rather than the
 # tier's absolute figure: what the tier actually expresses is the cost of
 # discretion, and that cost does not depend on which arrangement it rides on.
 _DISCREET_SURCHARGE = 120000
@@ -979,11 +965,11 @@ def _pick_options(block: dict, rng) -> tuple[list[dict], int]:
 
 
 def _subject_for(block: dict, person: dict, service_date) -> dict:
-    """One deceased, filtered to the fields the config actually declares.
+    """One subject, filtered to the fields the config actually declares.
 
     The date of death is derived from the date of the service rather than
     stored, so the gap between the two stays days-not-years however far the
-    seed places the funeral. Filtering through the declared field list is what
+    seed places the booking. Filtering through the declared field list is what
     makes this survive a pivot: a config that drops `pacemaker_present` gets a
     subject without one instead of a stray key the UI never renders.
     """
@@ -1001,27 +987,27 @@ def _arrangement_extras(index: int, service_date, payer_name: str, rng,
     """The domain half of a booking's metadata, and what the add-ons cost.
 
     Everything this vertical's config declares and the engine's own keys do not:
-    the `subject` (the deceased — nine fields), the chosen `booking.options`,
+    the `subject` fields the config declares, the chosen `booking.options`,
     and the `metaFields.bookings` values. One helper because EVERY booking needs
-    them: a funeral with no deceased on it renders as an empty intake panel, and
+    them: a booking with no subject on it renders as an empty intake panel, and
     the demo user's own bookings are the first ones anybody opens.
 
-    `index` selects the deceased and must be unique across all callers — the
+    `index` selects the subject and must be unique across all callers; the
     same person buried twice is the detail that gives a seeded demo away.
     """
     block = _live_booking_block() if block is None else block
-    dead_for = getattr(seed_people, "deceased", None) or (lambda i: {"full_name": f"Subject {i + 1}"})
+    subject_for = getattr(seed_people, "subject", None) or (lambda i: {"full_name": f"Subject {i + 1}"})
     relationships = list(getattr(seed_people, "PAYER_RELATIONSHIPS", None) or ["Executor"])
     routes = list(getattr(seed_people, "PROCESSION_ROUTES", None) or [""])
     speakers = list(getattr(seed_people, "EULOGY_SPEAKERS", None) or [""])
     surplus = list(getattr(seed_people, "WILL_SURPLUS_NOTES", None) or [""])
 
-    subject = _subject_for(block, dead_for(index), service_date)
+    subject = _subject_for(block, subject_for(index), service_date)
     options, options_total = _pick_options(block, rng)
     extras = {
         "subject": subject,
         "options": options,
-        # `metaFields.bookings`. The payer is never the deceased — that
+        # `metaFields.bookings`. The payer is never the subject, and that
         # separation is the premise of the whole pivot, so it is expressed as
         # data rather than assumed by the code that reads it.
         "payer_name": payer_name,
@@ -1038,7 +1024,7 @@ def _arrangement_extras(index: int, service_date, payer_name: str, rng,
 class _SlotPool:
     """Every bookable date for the demo home, indexed by (resource, local date).
 
-    A funeral is a whole-day, exclusive booking: `booking.party.max` is 1, every
+    This vertical books a whole day exclusively: `booking.party.max` is 1, every
     venue has capacity 1, and `enforce_slot_capacity` rejects a second confirmed
     booking on the same slot. So the pool hands each slot out exactly ONCE —
     including to pending/cancelled/rejected bookings, which hold no capacity but
@@ -1110,8 +1096,8 @@ def _seed_demand(db, services: list[dict], provider_id: str, clients: list[dict]
     """The home's actual trade: ~80 arrangements across the whole catalogue.
 
     Every row carries what this vertical's config declares — a `subject` (the
-    deceased, nine fields), the `metaFields.bookings` values (the payer, who is
-    always somebody OTHER than the deceased, plus the estate reference and the
+    subject fields the config declares), the `metaFields.bookings` values (the
+    payer, who is always somebody OTHER than the subject, plus the reference and the
     mourner estimate), and a basket of `booking.options` add-ons. That is the
     entire point of the pivot expressed in data rather than in a schema.
 
@@ -1119,7 +1105,7 @@ def _seed_demand(db, services: list[dict], provider_id: str, clients: list[dict]
     screenshot taken on Monday still matches on Tuesday.
 
     Returns `{"count": n, "completed": [...]}`; the completed list is what the
-    review seeders hang off, newest funeral first.
+    review seeders hang off, newest booking first.
     """
     if not services or not clients:
         return {"count": 0, "completed": []}
@@ -1242,27 +1228,6 @@ def _seed_demand(db, services: list[dict], provider_id: str, clients: list[dict]
     return {"count": len(inserted), "completed": completed}
 
 
-# --- the demonstration account's own history --------------------------------
-# Everything the demo is actually GIVEN from is `demo@codaro.app`. A customer
-# with six bookings reads as a fixture; a returning family of a Warsaw funeral
-# home has buried people for years, so this seeder writes thirty arrangements
-# across the whole catalogue and the whole lifecycle — completed with reviews,
-# confirmed upcoming (one inside the cancellation cutoff so the locked state is
-# visible), pending with no date yet, cancelled, rejected.
-#
-# The order is FIXED rather than shuffled: `seed_people.DEMO_ARRANGEMENTS` is
-# hand-written, index 8 and index 19 carry the awkward manner of death, and both
-# are placed on a completed arrangement on purpose so the €1,200 discreet tier
-# appears in the demo account's own paid history rather than only in the
-# anonymous trade behind it.
-_DEMO_PLAN = [
-    "completed", "confirmed", "completed", "pending",   "completed", "confirmed",
-    "completed", "cancelled", "completed", "completed", "confirmed", "pending",
-    "completed", "confirmed", "completed", "pending",   "rejected",  "completed",
-    "confirmed", "completed", "pending",   "completed", "confirmed", "cancelled",
-    "completed", "pending",   "confirmed", "completed", "pending",
-]
-
 # Where each of the demo family's states sits relative to today. Wider than the
 # trade's window: this is a family with a long history, and their bookings list
 # is the screen a viewer scrolls furthest down.
@@ -1275,210 +1240,6 @@ _DEMO_WINDOW = {
 }
 
 
-def _demo_extras(index: int, dead: dict, relationship: str, service_date,
-                 payer_name: str, rng, block: dict) -> tuple[dict, int]:
-    """`_arrangement_extras` for one hand-written demo arrangement.
-
-    Same metadata shape, but the deceased and the payer's relationship to them
-    come from `seed_people.DEMO_ARRANGEMENTS` rather than from the anonymous
-    roll — the demo family buries *its own* relatives, and the relationship is
-    what makes a list of thirty funerals legible as one person's life.
-    """
-    routes = list(getattr(seed_people, "PROCESSION_ROUTES", None) or [""])
-    speakers = list(getattr(seed_people, "EULOGY_SPEAKERS", None) or [""])
-    surplus = list(getattr(seed_people, "WILL_SURPLUS_NOTES", None) or [""])
-    options, options_total = _pick_options(block, rng)
-    extras = {
-        "subject": _subject_for(block, dead, service_date),
-        "options": options,
-        "payer_name": payer_name,
-        "payer_relationship": relationship,
-        "estate_reference": f"EST-{service_date.year}-{2000 + index * 13 % 7999:04d}",
-        "attendee_estimate": rng.choice([0, 8, 14, 20, 26, 34, 45, 60, 75, 90, 120]),
-        "procession_route": routes[index % len(routes)],
-        "eulogy_speaker": speakers[(index * 3) % len(speakers)],
-        "will_surplus_note": surplus[(index * 5) % len(surplus)],
-    }
-    return extras, options_total
-
-
-def _seed_demo_family(db, services: list[dict], provider_id: str, client_id: str,
-                      client_email: str, client_name: str, currency: str, tz: str,
-                      pool: "_SlotPool") -> dict:
-    """The demo login's own thirty arrangements. Returns `{count, completed}`.
-
-    Draws slots from the SAME `_SlotPool` as the trade, because a funeral is an
-    exclusive booking on a venue-day: two confirmed bookings on one slot are
-    rejected outright by `enforce_slot_capacity`, and a pending one sharing a
-    date would still make the owner's calendar read as double-booked.
-    """
-    arrangements = list(getattr(seed_people, "DEMO_ARRANGEMENTS", None) or [])
-    if not services or not arrangements:
-        return {"count": 0, "completed": []}
-    rng = random.Random(0x0DEA1)
-    block = _live_booking_block()
-    now = datetime.now(timezone.utc)
-    today = datetime.now(ZoneInfo(tz)).date()
-
-    rows: list[dict] = []
-    links: list[tuple[str, str]] = []
-    completed: list[dict] = []
-    plan = _DEMO_PLAN[: len(arrangements)]
-
-    for i, status in enumerate(plan):
-        dead, relationship = arrangements[i]
-        service = services[i % len(services)]
-        spec = service["spec"]
-        lo, hi = _DEMO_WINDOW[status]
-
-        slot_id = date = resource = None
-        for _ in range(10):
-            candidate = today + timedelta(days=rng.randint(lo, hi))
-            resource = rng.choice(service["resources"])
-            slot_id = pool.take(service["id"], resource["id"], candidate)
-            if slot_id:
-                date = candidate
-                break
-        if not slot_id:
-            continue
-
-        extras, add_ons = _demo_extras(i, dead, relationship, date, client_name, rng, block)
-        total = _arrangement_price(spec["priceMinorUnits"], extras, add_ons)
-        deposit = round(total * 0.30)
-        reference = booking_reference()
-        service_start = _wall_to_utc(date.year, date.month, date.day, 0, 0, tz)
-        requested = service_start - timedelta(days=rng.randint(4, 18), hours=rng.randint(0, 20))
-        decided = requested + timedelta(hours=rng.randint(3, 36))
-
-        if status in ("completed", "confirmed"):
-            stored = "confirmed"
-            history = [{"status": "pending", "at": _iso(requested)},
-                       {"status": "confirmed", "at": _iso(decided)}]
-            paid = total if status == "completed" else deposit
-        elif status == "pending":
-            stored, history, paid = "pending", [{"status": "pending", "at": _iso(requested)}], 0
-        elif status == "rejected":
-            stored, paid = "rejected", 0
-            history = [{"status": "pending", "at": _iso(requested)},
-                       {"status": "rejected", "at": _iso(decided)}]
-        else:
-            cancelled_at = min(decided + timedelta(days=rng.randint(1, 5)), now)
-            stored, paid = "cancelled", 0
-            history = [{"status": "pending", "at": _iso(requested)},
-                       {"status": "confirmed", "at": _iso(decided)},
-                       {"status": "cancelled", "at": _iso(cancelled_at)}]
-
-        md = {
-            "party_size": 1,
-            "reference": reference,
-            "price_minor_units": total,
-            "deposit_minor_units": deposit,
-            "amount_paid_minor_units": paid,
-            "currency": currency,
-            "provider_id": provider_id,
-            "service_id": service["id"],
-            "resource_id": resource["id"],
-            "user_id": client_id,
-            "slot_ids": [slot_id],
-            "change_history": [],
-            **extras,
-        }
-        if stored == "cancelled":
-            md["cancelled_at_utc"] = history[-1]["at"]
-        rows.append({
-            "slot_id": slot_id,
-            "client_email": client_email,
-            "client_id": client_id,
-            "status": stored,
-            "history": history,
-            "metadata": md,
-            "created_at": _iso(requested),
-        })
-        links.append((reference, slot_id))
-        if status == "completed":
-            completed.append({
-                "reference": reference,
-                "client_id": client_id,
-                "client_email": client_email,
-                "ended": service_start + timedelta(days=1),
-            })
-
-    if not rows:
-        return {"count": 0, "completed": []}
-    inserted = _chunked_insert(db, "bookings", rows)
-    by_reference = {(r.get("metadata") or {}).get("reference"): r["id"] for r in inserted}
-    _chunked_insert(db, "booking_slots", [
-        {"booking_id": by_reference[ref], "slot_id": sid}
-        for ref, sid in links if ref in by_reference
-    ])
-    for row in completed:
-        row["id"] = by_reference.get(row["reference"])
-    completed = [r for r in completed if r.get("id")]
-    completed.sort(key=lambda r: r["ended"], reverse=True)
-    return {"count": len(inserted), "completed": completed}
-
-
-def _seed_demo_reviews(db, provider_id: str, completed: list[dict]) -> int:
-    """Reviews written BY the demo family, on their own completed arrangements.
-
-    Separate from `_seed_provider_reviews` only because the voice is: these are
-    one family writing about eleven funerals, and `/bookings` renders the review
-    inline against the booking it belongs to. A history where every past funeral
-    says "not reviewed" reads as an account nobody has ever used.
-    """
-    lines = list(getattr(seed_people, "DEMO_REVIEWS", None) or [])
-    if not lines or not completed:
-        return 0
-    now = datetime.now(timezone.utc)
-    rows = []
-    for i, booking in enumerate(completed[: len(lines)]):
-        rating, _days_ago, text = lines[i]
-        written = min(booking["ended"] + timedelta(days=1 + (i % 4)), now - timedelta(hours=3))
-        rows.append({
-            "booking_id": booking["id"],
-            "provider_id": provider_id,
-            "rating": rating,
-            "text": text,
-            "created_at": _iso(written),
-        })
-    try:
-        return len(_chunked_insert(db, "reviews", rows))
-    except Exception:
-        logger.exception("Could not seed the demo family's reviews.")
-        return 0
-
-
-def _seed_demo_reputation(db, provider_id: str, completed: list[dict]) -> int:
-    """What the home has written about the demo family → their reputation.
-
-    `GET /me/reputation` averages every `client_reviews` row for a person, so
-    the account page needs SEVERAL against different arrangements: one review
-    renders as "5.0 (1)", which reads as an empty profile with a number on it.
-    `uq_client_reviews_booking` is unique on the booking, so each hangs off a
-    different completed funeral.
-    """
-    lines = list(getattr(seed_people, "DEMO_CLIENT_REVIEWS", None) or [])
-    if not lines or not completed:
-        return 0
-    now = datetime.now(timezone.utc)
-    rows = []
-    for i, booking in enumerate(completed[: len(lines)]):
-        rating, text = lines[i]
-        rows.append({
-            "booking_id": booking["id"],
-            "client_id": booking["client_id"],
-            "provider_id": provider_id,
-            "rating": rating,
-            "text": text,
-            "created_at": _iso(min(booking["ended"] + timedelta(days=2), now - timedelta(hours=1))),
-        })
-    try:
-        return len(_chunked_insert(db, "client_reviews", rows))
-    except Exception:
-        logger.warning("Could not seed the demo family's reputation.")
-        return 0
-
-
 _PROVIDER_REVIEW_LINES = [
     (5, 0, "Exactly as described. Smooth from start to finish."),
     (4, 0, "Professional throughout, and everything arrived when they said it would."),
@@ -1489,10 +1250,10 @@ def _seed_provider_reviews(db, provider_id: str, completed: list[dict]) -> int:
     """Reviews the families left about the home, one per completed arrangement.
 
     `reviews.booking_id` is `not null`, so a review is only ever as real as the
-    funeral under it — which is also why these are seeded after the demand and
+    booking under it, which is also why these are seeded after the demand and
     not from a standalone list of dates. The written date is derived from the
     service (a day or three after it), never from the review's own `days_ago`:
-    a five-star review dated before the funeral it praises is the kind of detail
+    a five-star review dated before the booking it praises is the kind of detail
     that unravels a demo.
     """
     lines = list(getattr(seed_people, "PROVIDER_REVIEWS", None) or _PROVIDER_REVIEW_LINES)

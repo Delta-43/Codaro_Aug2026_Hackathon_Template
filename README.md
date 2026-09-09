@@ -55,11 +55,12 @@ code hard-codes a term or a magic number.
 
 ## Screenshots
 
-Every noun, label and price below is rendered from `domain.config.json`. This
-deployment is configured as a funeral home, so the engine's neutral
-`provider / service / resource / slot` spine surfaces as Funeral Home,
-Arrangement, Chapel and Date. Point it at a different config and the same
-screens speak a different business.
+Every noun, label and price below is rendered from `domain.config.json`, which
+is why these are worth looking at: they were captured from one example
+deployment, and the vocabulary you can read in them came from that file rather
+than from the code. The engine's neutral `provider / service / resource / slot`
+spine takes whatever names the config gives it. The repository now ships a
+generic config, so a fresh clone will not look exactly like these.
 
 | Browse a business | Availability |
 |---|---|
@@ -95,6 +96,13 @@ cd frontend && npm install && npm run dev
 
 Config, `supabase/`, and both app trees are bind-mounted, so edits are live with
 no rebuild. Rebuild only when dependencies change.
+
+**On the demo credentials.** `make reseed` creates demo accounts with fixed
+passwords, and the sign-in page lists them (`src/components/demo-logins.tsx`,
+`backend/seed.py`). That is deliberate, so anyone can open the app and look
+around. They are seed data for a throwaway database and grant nothing anywhere
+else, but do not point a real Supabase project at this seeder and then leave it
+public.
 
 ## The pivot system
 
@@ -135,9 +143,10 @@ win over the config globals, and `services.metadata.<block>` lifts that preceden
 to whole blocks, which is how one deployment hosts businesses that price and gate
 completely differently.
 
-Proof it pivots: 100 deliberately different businesses live in [`pivots/`](pivots/)
-as complete, drop-in config files, each run through the real validator and pricing
-engine (`python3 scripts/check_pivots.py`).
+Every block is overridable per service, so a single deployment can host
+businesses that price, gate and schedule completely differently. See
+[docs/PIVOT-SYSTEM.md](docs/PIVOT-SYSTEM.md) for what each block controls and
+which keys the engine enforces today.
 
 ## Architecture
 
@@ -391,7 +400,6 @@ frontend/                   # Next.js 14 + Tailwind
   src/app/page.tsx          #   public landing page
   src/app/(app)/            #   gated customer tabs
   src/app/owner/            #   business mode
-pivots/                     # 100 ready-made domain.config.json files
 test/                       # stack + API tests
 ```
 
@@ -416,7 +424,6 @@ Run `make` with no arguments for the full list.
 | [CLAUDE.md](CLAUDE.md) | The architectural guide. Read this first. |
 | [DEPLOY.md](DEPLOY.md) | Vercel, Railway and Supabase, step by step |
 | [docs/PIVOT-SYSTEM.md](docs/PIVOT-SYSTEM.md) | Every config block and the precedence model |
-| [docs/PIVOT-COVERAGE.md](docs/PIVOT-COVERAGE.md) | The 100-pivot evidence run |
 | [backend/CLAUDE.md](backend/CLAUDE.md), [frontend/CLAUDE.md](frontend/CLAUDE.md), [supabase/CLAUDE.md](supabase/CLAUDE.md) | Per-layer conventions |
 | [CHANGELOG.md](CHANGELOG.md) | What changed in each release |
 

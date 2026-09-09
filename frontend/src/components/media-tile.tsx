@@ -9,7 +9,7 @@ import { ImageIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
- * The one photo surface for *things* — a chapel, a hearse, a vehicle, a room.
+ * The one photo surface for *things*: a room, a vehicle, a court, a chair.
  * The counterpart to `AvatarImg`, which is for faces: this one stays
  * rectangular and never invents initials or a colour for an object.
  *

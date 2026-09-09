@@ -394,10 +394,10 @@ export const FALLBACK_PIVOT_CONFIG: PivotConfig = {
   currency: "EUR",
 };
 
-/** The pure half of `getPivotConfig` — a raw `/config` payload in, the parsed
- *  shape out, no transport. Split out so `scripts/check_pivot_frontend.mts` can
- *  run every `pivots/*.json` through the SAME parsers the app uses, rather than
- *  a reimplementation that could drift from them. */
+/** The pure half of `getPivotConfig`: a raw `/config` payload in, the parsed
+ *  shape out, no transport. Split out so a config file can be run through the
+ *  SAME parsers the app uses, rather than a reimplementation that could drift
+ *  from them. */
 export function parsePivotConfig(cfg: unknown): PivotConfig {
   return {
     tenancy: tenancyFromConfig(cfg),
