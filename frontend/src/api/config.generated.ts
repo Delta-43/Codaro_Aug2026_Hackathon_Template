@@ -9,7 +9,7 @@
  * The complete `domain.config.json` tree, after normalization.
  *
  * Every block is also overridable per service through
- * `services.metadata.<block>`: see `rules.effective_service_config`. The
+ * `services.metadata.<block>`, see `rules.effective_service_config`. The
  * service row wins over these globals.
  */
 export interface DomainConfig {
@@ -109,7 +109,7 @@ export interface Party {
    */
   max?: number | null;
   /**
-   * Age bands and similar: each with its own priceFactor.
+   * Age bands and similar, each with its own priceFactor.
    */
   composition?: CompositionBand[] | null;
   matchResourceCapacity?: boolean;
@@ -256,7 +256,7 @@ export interface ScheduleStep {
   [k: string]: unknown;
 }
 /**
- * NOT YET ENFORCED: needs the payments layer (no payments table exists).
+ * NOT YET ENFORCED, needs the payments layer (no payments table exists).
  */
 export interface NoShowFee {
   enabled?: boolean;
@@ -329,7 +329,7 @@ export interface PrereqField {
 export interface Timing {
   confirmation?: "instant" | "request_approve";
   /**
-   * NOT YET ENFORCED: auto-expiring a stale request needs a scheduled job.
+   * NOT YET ENFORCED, auto-expiring a stale request needs a scheduled job.
    */
   approvalWindowHours?: number;
   leadTimeMinutes?: number;
