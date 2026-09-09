@@ -5,6 +5,7 @@
 "use client";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { SHOWCASE_ONLY } from "@/config/showcase";
 
 /** Browser-side Supabase client. Supabase owns email/password auth and stores
  *  the session (localStorage, auto-refreshed), so the app never hand-rolls a
@@ -23,10 +24,16 @@ let client: SupabaseClient | null = null;
 export function getSupabase(): SupabaseClient | null {
   if (typeof window === "undefined") return null;
   if (!url || !anonKey) {
-    console.warn(
-      "Supabase auth is not configured — set NEXT_PUBLIC_SUPABASE_URL and " +
-        "NEXT_PUBLIC_SUPABASE_ANON_KEY in frontend/.env.local",
-    );
+    // Silent in a showcase-only build: there is no app to sign in to, so the
+    // absence is the intended configuration rather than a mistake, and a
+    // warning on the landing page reads as a broken deployment to anyone who
+    // opens devtools.
+    if (!SHOWCASE_ONLY) {
+      console.warn(
+        "Supabase auth is not configured — set NEXT_PUBLIC_SUPABASE_URL and " +
+          "NEXT_PUBLIC_SUPABASE_ANON_KEY in frontend/.env.local",
+      );
+    }
     return null;
   }
   if (!client) client = createClient(url, anonKey);
