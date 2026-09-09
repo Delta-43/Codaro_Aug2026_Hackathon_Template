@@ -17,22 +17,9 @@
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
 [![Status: not actively maintained](https://img.shields.io/badge/status-not_actively_maintained-lightgrey.svg)](#project-status)
 
-[Quick start](#quick-start-local) | [The pivot system](#the-pivot-system) | [Architecture](#architecture) | [Self-hosting](#self-hosting) | [Team](#team) | [Docs](#documentation)
+[What it is](#what-this-is) | [The pivot system](#the-pivot-system) | [Architecture](#architecture) | [Quick start](#quick-start-local) | [Docs](#documentation) | [Team](#team)
 
 </div>
-
-## Project status
-
-**Finished showcase project. Not actively maintained.**
-
-Arbor was built for a hackathon and is kept public as a working reference, not
-as a maintained product. There is no issue tracker, no contribution process and
-no support channel. Nothing here is watched for a reply, and pull requests
-opened against this repository will not be reviewed.
-
-To change anything, fork it. The AGPL-3.0 licence gives you that right and the
-fork is yours to take wherever you want. That applies to security problems too:
-the fix will come from your fork, not from here.
 
 ## What this is
 
@@ -55,12 +42,9 @@ code hard-codes a term or a magic number.
 
 ## Screenshots
 
-Every noun, label and price below is rendered from `domain.config.json`, which
-is why these are worth looking at: they were captured from one example
-deployment, and the vocabulary you can read in them came from that file rather
-than from the code. The engine's neutral `provider / service / resource / slot`
-spine takes whatever names the config gives it. The repository now ships a
-generic config, so a fresh clone will not look exactly like these.
+Every noun, label and price below came from `domain.config.json`, not from the
+code. These were captured from one example deployment, so a fresh clone ships a
+generic config and reads differently: that difference is the point.
 
 | Browse a business | Availability |
 |---|---|
@@ -71,38 +55,6 @@ generic config, so a fresh clone will not look exactly like these.
 |---|---|
 | ![Business owner dashboard with bookings and analytics](docs/screenshots/05-owner-dashboard.png) | ![Public marketing landing page](docs/screenshots/01-landing.png) |
 | The business side: requests, calendar, services and per-item analytics. | The public front door at `/`. |
-
-
-## Quick start (local)
-
-Both env files must exist before `make start`. Each service declares its own
-`env_file`, so a fresh clone fails without them.
-
-```bash
-cp backend/.env.example backend/.env
-cp frontend/.env.local.example frontend/.env.local
-make start
-```
-
-Prefer no Docker? Run the two halves natively:
-
-```bash
-cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && uvicorn app.main:app --reload
-```
-
-```bash
-cd frontend && npm install && npm run dev
-```
-
-Config, `supabase/`, and both app trees are bind-mounted, so edits are live with
-no rebuild. Rebuild only when dependencies change.
-
-**On the demo credentials.** `make reseed` creates demo accounts with fixed
-passwords, and the sign-in page lists them (`src/components/demo-logins.tsx`,
-`backend/seed.py`). That is deliberate, so anyone can open the app and look
-around. They are seed data for a throwaway database and grant nothing anywhere
-else, but do not point a real Supabase project at this seeder and then leave it
-public.
 
 ## The pivot system
 
@@ -143,10 +95,8 @@ win over the config globals, and `services.metadata.<block>` lifts that preceden
 to whole blocks, which is how one deployment hosts businesses that price and gate
 completely differently.
 
-Every block is overridable per service, so a single deployment can host
-businesses that price, gate and schedule completely differently. See
-[docs/PIVOT-SYSTEM.md](docs/PIVOT-SYSTEM.md) for what each block controls and
-which keys the engine enforces today.
+See [docs/PIVOT-SYSTEM.md](docs/PIVOT-SYSTEM.md) for what every block controls
+and which keys the engine enforces today.
 
 ## Architecture
 
@@ -201,188 +151,53 @@ Three moving parts, one seam each:
 - **Database** never changes at pivot time. New domain fields go into each
   table's `metadata jsonb` column, so a pivot needs no migration.
 
-## Where the stack runs
+## Quick start (local)
 
-The three layers are deliberately decoupled, so each one can live wherever you
-want it. Two topologies are documented and supported.
-
-### Option A: managed platforms (the default deployment)
-
-```mermaid
-flowchart TB
-    U([Users])
-
-    subgraph V["Vercel"]
-        FE["Next.js frontend<br/><i>Root Directory: frontend/</i>"]
-    end
-
-    subgraph R["Railway"]
-        BE["FastAPI backend<br/><i>backend/Dockerfile, healthcheck /health</i>"]
-    end
-
-    subgraph S["Supabase (hosted)"]
-        DB[("Postgres + RLS")]
-        AU["Auth (GoTrue)"]
-    end
-
-    GH["GitHub, main branch"]
-
-    U --> FE
-    FE -->|"NEXT_PUBLIC_API_BASE"| BE
-    FE -.->|"anon key"| AU
-    BE -->|"service key, REST"| DB
-    BE -->|"SUPABASE_DB_URL, DDL + seed"| DB
-    BE -.->|"JWKS verify"| AU
-    GH -.->|"auto-deploy on merge"| FE
-    GH -.->|"auto-deploy on merge"| BE
-
-    classDef v fill:#f1f1f4,stroke:#111111,color:#111111
-    classDef r fill:#ede9fb,stroke:#5b3fd0,color:#1e1440
-    classDef s fill:#e7f8ee,stroke:#2b9e5f,color:#0e2b1a
-    classDef g fill:#f4f2fa,stroke:#6e5494,color:#241a33
-    class V,FE v
-    class R,BE r
-    class S,DB,AU s
-    class GH g
-```
-
-| Layer | Platform | Source | Notes |
-|---|---|---|---|
-| Frontend | **Vercel** | `frontend/` | Root Directory = `frontend` |
-| Backend | **Railway** | repo root + `backend/Dockerfile` | Root Directory stays **empty**, the image needs repo-root files |
-| Postgres + Auth | **Supabase** | hosted project | Schema applied automatically on first boot |
-
-Full walkthrough with every environment variable: **[DEPLOY.md](DEPLOY.md)**.
-
-### Option B: self-hosted (your machine, your VPS, your rules)
-
-```mermaid
-flowchart TB
-    U([Users])
-
-    subgraph HOST["Your host, Docker Compose"]
-        FEC["frontend container<br/>:3000"]
-        BEC["backend container<br/>:8000"]
-        CFGV["domain.config.json<br/>bind-mounted, live"]
-    end
-
-    subgraph DATAOPT["Data layer, pick one"]
-        SH["Supabase hosted<br/><i>free tier is enough</i>"]
-        SS["Self-hosted Supabase<br/><i>supabase/docker, own box</i>"]
-    end
-
-    U --> FEC
-    FEC -->|"http://localhost:8000"| BEC
-    CFGV --> BEC
-    BEC --> SH
-    BEC --> SS
-
-    classDef host fill:#eef1fb,stroke:#3d5bcc,color:#111c3d
-    classDef data fill:#e7f8ee,stroke:#2b9e5f,color:#0e2b1a
-    classDef cfg fill:#fdf3e0,stroke:#c48a1c,color:#3a2a06
-    class HOST,FEC,BEC host
-    class DATAOPT,SH,SS data
-    class CFGV cfg
-```
-
-Both app layers ship as containers and start with one command. The only piece you
-cannot avoid is a Supabase-compatible data layer: the engine uses Supabase both
-for Postgres and for Auth (JWT issuance plus JWKS verification), so it expects a
-Supabase project, hosted or self-hosted.
-
-## Self-hosting
-
-### What you control
-
-| Piece | Self-hostable | How |
-|---|---|---|
-| Frontend (Next.js) | Yes | `frontend/Dockerfile`, any Node 20 host |
-| Backend (FastAPI) | Yes | `backend/Dockerfile`, any Docker host |
-| Postgres | Yes | Supabase self-hosted (`supabase/docker`) or any Postgres reachable via `SUPABASE_DB_URL` |
-| Auth | Supabase-flavoured | Supabase Auth (GoTrue), hosted or self-hosted. See the caveat below. |
-| Config and vocabulary | Yes | `domain.config.json`, bind-mounted and live-editable |
-
-> **Auth caveat.** The backend verifies access tokens against the project's JWKS
-> endpoint (`/auth/v1/.well-known/jwks.json`) using ES256 or RS256. Symmetric
-> HS256 is deliberately rejected, because letting the token header pick the
-> algorithm lets an attacker pick the weaker one. If you self-host Supabase, run
-> a version new enough to sign with asymmetric JWT keys and expose a JWKS
-> endpoint. Otherwise logins verify against nothing and protected endpoints will
-> refuse the token.
-
-### 1. Self-host the app, use a hosted Supabase project
-
-The shortest path, and the one every command in this repo assumes.
+Both env files must exist before `make start`. Each service declares its own
+`env_file`, so a fresh clone fails without them.
 
 ```bash
-git clone git@github.com:kaveOO/CodaroHackathon.git && cd CodaroHackathon
 cp backend/.env.example backend/.env
 cp frontend/.env.local.example frontend/.env.local
 make start
 ```
 
-Frontend on **:3000**, backend on **:8000**. On first boot the backend applies
-[`supabase/schema.sql`](supabase/schema.sql) over `SUPABASE_DB_URL`. It is
-idempotent, so restarts are safe. Seeding is a separate, explicit step: run
-`make reseed` once to fill an empty database with demo data.
-
-### 2. Self-host everything, including Supabase
-
-Run the [Supabase self-hosted Docker stack](https://supabase.com/docs/guides/self-hosting/docker)
-on your box, then point this app at it. The variable names do not change, only
-the values:
+Prefer no Docker? Run the two halves natively:
 
 ```bash
-# backend/.env
-SUPABASE_URL=http://supabase-kong:8000
-SUPABASE_SERVICE_KEY=<your service_role key>
-SUPABASE_ANON_KEY=<your anon key>
-SUPABASE_DB_URL=postgresql://postgres:<pw>@supabase-db:5432/postgres
-CORS_ORIGINS=https://booking.example.com
-WEB_CONCURRENCY=1
+cd backend && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt && uvicorn app.main:app --reload
 ```
 
 ```bash
-# frontend/.env.local
-NEXT_PUBLIC_API_BASE=https://api.example.com
-NEXT_PUBLIC_SUPABASE_URL=https://supabase.example.com
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<your anon key>
+cd frontend && npm install && npm run dev
 ```
 
-If both stacks run on the same host, put them on a shared Docker network so the
-backend can reach Kong and Postgres by container name.
+Config, `supabase/`, and both app trees are bind-mounted, so edits are live with
+no rebuild. Rebuild only when dependencies change.
 
-### 3. Self-host on a VPS behind your own reverse proxy
+**On the demo credentials.** `make reseed` creates demo accounts with fixed
+passwords, and the sign-in page lists them (`src/components/demo-logins.tsx`,
+`backend/seed.py`). That is deliberate, so anyone can open the app and look
+around. They are seed data for a throwaway database and grant nothing anywhere
+else, but do not point a real Supabase project at this seeder and then leave it
+public.
 
-Terminate TLS at nginx, Caddy or Traefik and route by hostname:
+## Deployment
 
-| Hostname | Routes to | Health probe |
+Three layers, each deployable independently.
+
+| Layer | Managed | Self-hosted |
 |---|---|---|
-| `booking.example.com` | `frontend:3000` | `/` |
-| `api.example.com` | `backend:8000` | `GET /health` |
+| Frontend (Next.js) | Vercel, root directory `frontend/` | `frontend/Dockerfile`, any Node 20 host |
+| Backend (FastAPI) | Railway, `backend/Dockerfile` | any Docker host |
+| Postgres + Auth | Supabase hosted | Supabase self-hosted stack |
 
-Then set `CORS_ORIGINS=https://booking.example.com` on the backend and
-`NEXT_PUBLIC_API_BASE=https://api.example.com` on the frontend, and add the
-frontend URL to **Supabase, Authentication, URL Configuration** so auth
-redirects resolve.
+The landing page also runs **on its own**, with no backend at all
+(`NEXT_PUBLIC_SHOWCASE_ONLY=1`), which is how this repository's own demo link is
+served now that the hackathon backend is retired.
 
-> **Production note on the frontend image.** The shipped
-> [`frontend/Dockerfile`](frontend/Dockerfile) starts Next.js in dev mode
-> (`npm run dev`), which is what `docker compose` uses for hot-reload. For a real
-> deployment, build and serve instead (`npm ci && npm run build && npm start`), or
-> let Vercel do it. The backend image already defaults to its production command
-> (`uvicorn` binding `$PORT`, no `--reload`).
-
-> **Keep `WEB_CONCURRENCY=1`.** Schema setup runs in the FastAPI lifespan, that
-> is, once per worker, so more than one worker applies the DDL concurrently on a
-> cold start. To scale out, move schema setup into a pre-deploy step first.
-
-### Data safety
-
-The database is remote Supabase, not a Docker volume. `make reset` removes only
-the local `node_modules` and `.next` volumes; it never touches your data. The one
-destructive command is `make reseed`, which truncates the base tables and rebuilds
-demo data from the current config.
+Every environment variable, both topologies, the VPS and reverse-proxy setup and
+the auth caveat: **[DEPLOY.md](DEPLOY.md)**.
 
 ## Repo layout
 
@@ -422,7 +237,7 @@ Run `make` with no arguments for the full list.
 | Doc | What's in it |
 |---|---|
 | [CLAUDE.md](CLAUDE.md) | The architectural guide. Read this first. |
-| [DEPLOY.md](DEPLOY.md) | Vercel, Railway and Supabase, step by step |
+| [DEPLOY.md](DEPLOY.md) | Managed and self-hosted deployment, every variable |
 | [docs/PIVOT-SYSTEM.md](docs/PIVOT-SYSTEM.md) | Every config block and the precedence model |
 | [backend/CLAUDE.md](backend/CLAUDE.md), [frontend/CLAUDE.md](frontend/CLAUDE.md), [supabase/CLAUDE.md](supabase/CLAUDE.md) | Per-layer conventions |
 | [CHANGELOG.md](CHANGELOG.md) | What changed in each release |
@@ -431,6 +246,18 @@ Run `make` with no arguments for the full list.
 stack and open <http://localhost:8000/docs> (Swagger UI), <http://localhost:8000/redoc>,
 or fetch the spec at `/openapi.json`. There is no hand-written endpoint list to
 fall out of date.
+
+## Project status
+
+**Finished showcase project. Not actively maintained.**
+
+Built for a hackathon and kept public as a working reference rather than a
+maintained product. There is no issue tracker and no contribution process, and
+pull requests opened here will not be reviewed.
+
+To change anything, fork it. The AGPL-3.0 licence gives you that right and the
+fork is yours to take wherever you want. That applies to security problems too:
+the fix will come from your fork, not from here.
 
 ## Team
 
