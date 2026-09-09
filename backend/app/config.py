@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -6,7 +6,7 @@
 
 v1 loaded `domain.config.json` with a bare `json.load` and handed the raw dict
 to every caller. That made a typo in the pivot file a 500 on whichever request
-first read the bad key — the worst possible time to find out, given this file is
+first read the bad key, the worst possible time to find out, given this file is
 meant to be hand-edited live during a pivot.
 
 Now the load path is: read -> `config_schema.normalize()` (defaults + v1
@@ -32,13 +32,13 @@ def _config_path() -> Path:
 
 def load_config(path: Path | None = None) -> dict:
     """Read + normalize + validate. Raises ConfigError on anything that would
-    break the engine. Not cached — call `get_config()` for the hot path."""
+    break the engine. Not cached, call `get_config()` for the hot path."""
     path = path or _config_path()
     try:
         with path.open() as f:
             raw = json.load(f)
     except FileNotFoundError as e:
-        raise ConfigError(f"{path} does not exist — the pivot file must be present.") from e
+        raise ConfigError(f"{path} does not exist, the pivot file must be present.") from e
     except json.JSONDecodeError as e:
         raise ConfigError(f"{path} is not valid JSON: {e}") from e
 
@@ -61,7 +61,7 @@ def load_config(path: Path | None = None) -> dict:
         listed = "\n  - ".join(errors)
         raise ConfigError(
             f"{path} is not a usable domain config:\n  - {listed}\n"
-            "This is the file a pivot edits — fix the keys above."
+            "This is the file a pivot edits, fix the keys above."
         )
     return config
 

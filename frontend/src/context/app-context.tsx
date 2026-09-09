@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -12,7 +12,7 @@
  *    this; nothing locked in → those tabs show a purposeful empty state).
  *
  * All persistence is in-memory: a hard refresh resets to seed, by design.
- * Everything reads through the API seam (@/api) — never the store directly.
+ * Everything reads through the API seam (@/api), never the store directly.
  */
 import {
   createContext,
@@ -52,18 +52,18 @@ interface AppContextValue {
 
   verticalId: VerticalId;
   /** The active vertical's vocabulary with the pivot file's `terms`/`copy`
-   *  overlaid — so a config that renames `service` to "Plan" renames it on every
+   *  overlaid, so a config that renames `service` to "Plan" renames it on every
    *  screen. Falls back to the static vertical for anything the config omits. */
   vertical: VerticalConfig;
   /** The pivot file's `copy` block verbatim, for the named moments that have no
    *  vertical equivalent (`confirmTitle`, `requestPending`, the empty states). */
   copy: ConfigCopy;
-  /** `metaFields.{entity}` — the domain fields this deployment declares. The
+  /** `metaFields.{entity}`, the domain fields this deployment declares. The
    *  backend validates them on write; the booking form renders them. */
   metaFields: MetaFields;
-  /** `discovery.facets` — which search dimensions this deployment offers. */
+  /** `discovery.facets`, which search dimensions this deployment offers. */
   facets: SearchFacets;
-  /** `tenancy` — self-onboarding, tenant verification and the platform's cut.
+  /** `tenancy`, self-onboarding, tenant verification and the platform's cut.
    *  Owner-facing: the business needs to see the terms it trades under. */
   tenancyTerms: TenancyTerms;
   user: User | null;
@@ -73,7 +73,7 @@ interface AppContextValue {
    *  hidden. False = the multi-provider marketplace. */
   singleBusiness: boolean;
 
-  /** Re-run the whole boot — profile, vertical AND the pivot config. Each leg
+  /** Re-run the whole boot, profile, vertical AND the pivot config. Each leg
    *  degrades independently, so recovering only one leaves the others on their
    *  fallbacks with nothing on screen to say so. */
   reload: () => Promise<void>;
@@ -106,7 +106,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [user, setUserState] = useState<User | null>(null);
 
   // The tenancy mode + sole-business code from `GET /config`. In single mode the
-  // provider is never chosen by the user — it's resolved from this code (or, if
+  // provider is never chosen by the user, it's resolved from this code (or, if
   // the code isn't in the active vertical, the catalog's first provider).
   const [singleBusiness, setSingleBusiness] = useState(false);
   const [capabilities, setCapabilities] = useState<Capabilities>({});
@@ -128,7 +128,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Re-arm on every mount, not just the first. Strict Mode (on by default in
     // Next's App Router) runs effects mount -> cleanup -> mount again on the
-    // same instance, and refs survive that cycle — so without this the cleanup
+    // same instance, and refs survive that cycle, so without this the cleanup
     // latched `mounted.current` to false before the second mount and the guard
     // in `resolveSoleProvider` bailed for the rest of the dev session, leaving
     // single-business deployments stuck on the "no business" empty state.
@@ -144,7 +144,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Resolve the one implicit business. The configured code is *authoritative*: it
   // must point at the platform's own business so the customer catalog and the
-  // owner console never diverge — a code that fails to resolve yields the empty
+  // owner console never diverge, a code that fails to resolve yields the empty
   // state (a visible misconfiguration) rather than silently substituting an
   // unrelated, highest-rated provider. Only when no code is configured do we
   // best-effort the catalog's first provider.
@@ -166,7 +166,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Extracted from the mount effect so a retry can re-run EVERY leg. Only the
   // profile leg is visible when it fails, so a retry that re-fetched just that
   // one cleared the error screen while tenancy, vertical and capabilities stayed
-  // on their fallbacks for the life of the mount — search exposed on a
+  // on their fallbacks for the life of the mount, search exposed on a
   // single-business site, default vocabulary, and every capability reading ON
   // because an empty block means "nothing disabled".
   const boot = useCallback(

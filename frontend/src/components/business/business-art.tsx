@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -11,7 +11,7 @@
  * "logically follow the business offer" (a flashy car, a muddy 4x4, a
  * graduation cap, a yogini at sunset…). This environment has no raster
  * image-generation tool, so instead each offer gets a hand-built, deterministic
- * SVG *scene* — self-contained, theme-agnostic, and CSP-safe (no network). The
+ * SVG *scene*, self-contained, theme-agnostic, and CSP-safe (no network). The
  * scene key is chosen by vertical in `business-view.ts`; swap `<BusinessArt>`
  * for real photography whenever assets exist.
  */

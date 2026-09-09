@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 /**
  * A multi-line field wearing the same skin as `<Input>` and `<Select>`.
  *
- * Both textareas in the app — the review note and the owner's announcement —
+ * Both textareas in the app: the review note and the owner's announcement,
  * had been hand-styled to `rounded-lg border-input bg-background ring-2`, which
  * is the shape and tint the single-line fields stopped using: a review box sat
  * on the same card as a `rounded-2xl bg-input/50` input and read as a different

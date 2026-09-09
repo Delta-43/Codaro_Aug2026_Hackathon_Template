@@ -1,15 +1,15 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Business tab 4 — Bookings. Calendar + list merged into one panel: every
+ * Business tab 4: Bookings. Calendar + list merged into one panel: every
  * approved (confirmed/completed) booking laid out across the three standard
  * views (month / week / day, week by default) on top, then an Upcoming / Past
  * list of the same feed below. Tapping either opens a booking for detail,
- * messaging the customer, and cancellation. The feed is real — /owner/calendar
+ * messaging the customer, and cancellation. The feed is real, /owner/calendar
  * across all the owner's resources; cancel hits /bookings/{id}.
  */
 import { useEffect, useMemo, useState } from "react";
@@ -89,7 +89,7 @@ export default function BookingsPage() {
   const activeProviderId = activeProvider?.id ?? null;
   useEffect(() => {
     let cancel = false;
-    // Back to the skeleton while switching businesses — without this the
+    // Back to the skeleton while switching businesses, without this the
     // previous provider's bookings render under the new provider's header
     // for the whole refetch round-trip.
     setLoading(true);
@@ -115,7 +115,7 @@ export default function BookingsPage() {
   // Prefer the per-service value; fall back to the global block for any service
   // the map does not cover. `getOwnerServices()` swallows its own failure, so
   // without the fallback a failed services call left the map empty and every
-  // booking read as reviewable — showing a control the API then refuses.
+  // booking read as reviewable, showing a control the API then refuses.
   const reviewable = useMemo(
     () =>
       Object.fromEntries(
@@ -380,7 +380,7 @@ function Row({ icon, children }: { icon: React.ReactNode; children: React.ReactN
   );
 }
 
-/** Rate the customer after a completed booking — feeds their reputation. */
+/** Rate the customer after a completed booking, feeds their reputation. */
 function RateClient({ bookingId, clientName }: { bookingId: string; clientName: string }) {
   const [rating, setRating] = useState(0);
   const [hover, setHover] = useState(0);
@@ -403,7 +403,7 @@ function RateClient({ bookingId, clientName }: { bookingId: string; clientName: 
   if (done) {
     return (
       <p className="rounded-xl border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary">
-        Thanks — you rated {clientName} {rating}★. It shows on their customer profile.
+        Thanks, you rated {clientName} {rating}★. It shows on their customer profile.
       </p>
     );
   }

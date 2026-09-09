@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -6,7 +6,7 @@
 
 /**
  * The three-dot "typing…" bubble, styled like a received message. The dots are
- * driven by Tailwind's built-in bounce with staggered delays — purely ephemeral
+ * driven by Tailwind's built-in bounce with staggered delays, purely ephemeral
  * (fed by a Realtime broadcast, never persisted).
  */
 export function TypingIndicator() {

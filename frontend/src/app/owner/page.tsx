@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Business tab 1 — Dashboard. The one-tap overview: who you are (verified badge),
+ * Business tab 1: Dashboard. The one-tap overview: who you are (verified badge),
  * the three numbers that matter (with tap/hover explanations), this week's
  * bookings, and the requests still waiting on you. All numbers are real,
  * aggregated server-side from the owner's own providers (/owner/dashboard).
@@ -132,7 +132,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* `tenancy.tenantVerification` — what this marketplace requires of a
+      {/* `tenancy.tenantVerification`, what this marketplace requires of a
           business before it trades. Declared in the config since v2 and shown
           nowhere, so an owner could not find out what was being asked of them.
           Informational: the engine does not yet gate trading on it, and saying
@@ -162,7 +162,7 @@ export default function DashboardPage() {
         </div>
       ) : null}
 
-      {/* Bookings — this week */}
+      {/* Bookings, this week */}
       <div>
         <SectionHeader title={vocab.bookingNounPlural} href="/owner/bookings" cta="Full calendar" />
         <BookingCalendar bookings={week} timezone={tz} defaultView="week" compact onOpen={() => {}} />
@@ -201,7 +201,7 @@ function RequestChecklist({ requests, tz }: { requests: OwnerRequest[]; tz: stri
   if (requests.length === 0) {
     return (
       <p className="rounded-2xl border border-dashed border-border px-4 py-6 text-center text-xs text-muted-foreground">
-        No requests waiting — all caught up 🎉
+        No requests waiting, all caught up 🎉
       </p>
     );
   }

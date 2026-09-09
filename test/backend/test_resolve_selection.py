@@ -1,8 +1,8 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Pure unit tests for `bookings._resolve_selection` — the commit-time slot
+"""Pure unit tests for `bookings._resolve_selection`, the commit-time slot
 validator that every booking create/reschedule funnels through.
 
 `_resolve_selection(rules, occ, slot_ids, resource_id, party_size, credit)` is a

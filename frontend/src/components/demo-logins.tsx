@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -12,7 +12,7 @@ import { useAuth } from "@/lib/auth";
 /**
  * One-tap sign-in for the two seeded demo accounts, shown on both sign-in
  * doors. Either door takes either account (see the note in `login/page.tsx`),
- * so both buttons render on both pages — the parent's redirect effect routes on
+ * so both buttons render on both pages, the parent's redirect effect routes on
  * the resolved role once the session lands.
  *
  * These credentials are seeded by `backend/seed.py` and ship in the client
@@ -43,7 +43,7 @@ export function DemoLogins({
   onError: (message: string | null) => void;
 }) {
   const { signIn, configured } = useAuth();
-  // Which account is mid-flight — so only the tapped button shows the pending
+  // Which account is mid-flight, so only the tapped button shows the pending
   // label while both stay disabled.
   const [pending, setPending] = useState<string | null>(null);
 

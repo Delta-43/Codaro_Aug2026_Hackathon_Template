@@ -1,8 +1,8 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""/bookings — the reworked, auth-gated booking loop, through the real endpoints.
+"""/bookings, the reworked, auth-gated booking loop, through the real endpoints.
 
 A booking spans one-or-more contiguous same-resource slots, carries a party
 size, and is scoped to the verified user (identity from the token, never the
@@ -222,7 +222,7 @@ def test_create_on_manual_approve_service_is_pending(client, db, auth):
     assert resp.status_code == 200
     booking = resp.json()
     assert booking["status"] == "pending"
-    # pending holds no capacity — slot_occupancy counts only confirmed.
+    # pending holds no capacity, slot_occupancy counts only confirmed.
     occ = client.get("/slots/occupancy").json()[0]
     assert occ["booked_count"] == 0
 
@@ -415,7 +415,7 @@ def test_reschedule_to_full_slot_is_slot_unavailable(client, db, auth):
 
 def test_reschedule_to_same_slot_credits_back_capacity(client, db, auth):
     """A capacity-1 slot the booking already holds looks full, but its own party
-    is credited back — re-selecting it succeeds (the credit path)."""
+    is credited back, re-selecting it succeeds (the credit path)."""
     auth(role="client")
     cat = make_catalog(db, capacity=1, slot_capacity=1, cancellation_cutoff_hours=24)
     slot = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=100, capacity=1)
@@ -493,7 +493,7 @@ def test_approve_rechecks_capacity_and_can_fail(client, db, auth):
     resp = client.post(f"/bookings/{pending['id']}/approve")
     assert resp.status_code == 409
     assert _detail_code(resp) == "SLOT_UNAVAILABLE"
-    # left pending — not confirmed.
+    # left pending, not confirmed.
     assert db.get_row("bookings", pending["id"])["status"] == "pending"
 
 
@@ -585,7 +585,7 @@ def test_reject_by_other_owner_is_403(client, db, auth):
 
 
 def _completed(db, cat, *, client_email="guest@example.com"):
-    """A confirmed booking whose slot end is in the past — the router treats this
+    """A confirmed booking whose slot end is in the past, the router treats this
     as `completed`, the only state that can be rated."""
     past = make_slot(db, cat["resource"]["id"], service_id=cat["service"]["id"], hours_ahead=-5)
     return make_booking(
@@ -667,7 +667,7 @@ def test_client_review_replaces_prior_one(client, db, auth):
     )
     assert second.status_code == 200
     assert second.json()["rating"] == 5
-    # still a single row for the booking — the prior review was replaced.
+    # still a single row for the booking, the prior review was replaced.
     rows = [r for r in db.rows("client_reviews") if r["booking_id"] == booking["id"]]
     assert len(rows) == 1
     assert rows[0]["rating"] == 5
@@ -733,7 +733,7 @@ def test_a_service_can_price_per_night_via_metadata_pricing(client, db, auth):
 
 
 def test_charge_per_person_false_stops_the_party_multiplying(client, db, auth):
-    """A shared unit — the court costs the same for two players or four."""
+    """A shared unit, the court costs the same for two players or four."""
     auth(role="client")
     cat = make_catalog(
         db,
@@ -789,7 +789,7 @@ def test_the_global_pricing_block_applies_when_the_service_has_no_columns(
     client, db, auth, domain_config
 ):
     """A service with null price/currency columns prices from
-    `domain.config.json` — v1 had no global default for either."""
+    `domain.config.json`, v1 had no global default for either."""
     auth(role="client")
     domain_config(
         pricing={"currency": "PLN", "rate": {"per": "booking", "amountMinorUnits": 7500}}
@@ -896,7 +896,7 @@ def test_a_service_toggle_still_overrides_request_approve_confirmation(
 
 
 # ---------------------------------------------------------------------------
-# timing.leadTimeMinutes — minimum notice, enforced on POST /bookings
+# timing.leadTimeMinutes, minimum notice, enforced on POST /bookings
 # ---------------------------------------------------------------------------
 #
 # `create_booking` dispatches `apply_rules("booking.create", ...)` right after
@@ -915,7 +915,7 @@ def _book_body(cat, slot, party=1):
 
 
 def test_a_soon_slot_books_fine_on_the_default_config(client, db, auth, domain_config):
-    """The shipped default is `leadTimeMinutes: 0` — off. A slot ten minutes out
+    """The shipped default is `leadTimeMinutes: 0`, off. A slot ten minutes out
     must still be bookable, or the rule would be a silent behaviour change for
     every existing deployment."""
     domain_config()
@@ -1040,8 +1040,8 @@ def test_the_slot_capacity_and_not_the_config_number_is_the_ceiling(client, db, 
 #
 # The block's contract is that a false capability hides the surface AND refuses
 # the write. It shipped gating only the customer-facing review, so an owner
-# could still write `client_reviews` — rows that feed the customer's public
-# reputation — on a deployment with reviews turned off.
+# could still write `client_reviews`, rows that feed the customer's public
+# reputation, on a deployment with reviews turned off.
 
 
 def test_customer_review_refused_when_reviews_capability_is_off(
@@ -1093,7 +1093,7 @@ def test_both_review_directions_work_when_the_capability_is_on(client, db, auth,
 # RLS's is_owner() lets ANY owner update any booking on the platform, so the
 # routes narrow owner powers with `_assert_owns_booking`. Cancel and reschedule
 # skipped that check for a while: any signed-in owner could cancel or move any
-# customer's booking anywhere on the marketplace — with the cutoff waived.
+# customer's booking anywhere on the marketplace, with the cutoff waived.
 
 
 def test_cancel_by_an_unrelated_owner_is_403(client, db, auth):
@@ -1325,7 +1325,7 @@ def test_payment_currency_falls_back_to_the_service_pricing(client, db, auth):
 
 
 def test_payment_payer_reaches_the_wire_from_the_config(client, db, auth, domain_config):
-    """`payments.payer` says WHO settles the bill — the customer, or a third
+    """`payments.payer` says WHO settles the bill, the customer, or a third
     party (an estate, an insurer, an employer). It is display-only, but the
     client cannot address an invoice without it, so it has to survive the whole
     create -> read path, not just `payment_state`."""
@@ -1367,7 +1367,7 @@ def test_payment_payer_is_resolved_per_service(client, db, auth, domain_config):
 
 def test_bookings_list_embeds_the_provider_avatar(client, db, auth):
     """The list path resolves it in ONE batched query (`_provider_avatar_map`),
-    which is the reason it is embedded at all — a bookings list must not fetch
+    which is the reason it is embedded at all, a bookings list must not fetch
     each provider by id to show a face."""
     auth(role="client")
     provider = make_provider(db, "Acme Fleet", metadata={"avatar_url": "http://img/acme.png"})
@@ -1400,7 +1400,7 @@ def test_a_declared_meta_field_written_at_create_is_readable_back(
     """The round trip the `metadata` key exists for: a pivot's custom booking
     field was writable (`meta.merged_metadata`) but not readable, so the app
     could collect it and never show it again. Engine-owned keys stay out of the
-    echo — they have their own serialized shapes."""
+    echo, they have their own serialized shapes."""
     domain_config(metaFields={"bookings": [
         {"key": "subjectName", "label": "Name of the subject", "type": "text"},
     ]})
@@ -1428,7 +1428,7 @@ def test_a_declared_meta_field_written_at_create_is_readable_back(
 
 def test_bookings_metadata_echoes_the_declared_key_and_drops_the_rest(client, db, auth):
     """Present on every booking regardless of the pivot, so the wire shape does
-    not change between deployments — and filtered to what the config declares.
+    not change between deployments, and filtered to what the config declares.
     The fixture config declares exactly one booking field, `note`."""
     auth(role="client")
     cat = make_catalog(db)
@@ -1453,7 +1453,7 @@ def test_reschedule_keeps_the_credit_receipt_and_the_plan_discount(
 
     Regression: reschedule re-resolved the customer's entitlements from
     scratch. A booking that consumed the pass's LAST credit then resolved to
-    nothing — the `entitlement_id` receipt was nulled (so cancel could never
+    nothing, the `entitlement_id` receipt was nulled (so cancel could never
     refund the credit) and the booking was silently repriced at list price.
     """
     domain_config(
@@ -1538,7 +1538,7 @@ def test_partial_payments_accumulate_and_settle(client, db, auth):
 
 
 def test_return_twice_is_refused_not_restamped(client, db, auth, domain_config):
-    """A second `/return` is a 400, and the original timestamp survives —
+    """A second `/return` is a 400, and the original timestamp survives,
     re-stamping it would shrink a computed overdue fee."""
     domain_config(capabilities={"inventory": True}, inventory={"returnRequired": True})
     cat = make_catalog(db)
@@ -1560,7 +1560,7 @@ def test_return_twice_is_refused_not_restamped(client, db, auth, domain_config):
 
 def test_list_bookings_includes_a_legacy_metadata_keyed_row(client, db, auth):
     """A row with `client_id` NULL and only `metadata.user_id` (pre-auth legacy)
-    still shows up in the caller's GET /bookings — and nobody else's."""
+    still shows up in the caller's GET /bookings, and nobody else's."""
     cat = make_catalog(db)
     booking = make_booking(db, slots=[cat["slot"]], service=cat["service"])
     db.table("bookings").update({"client_id": None}).eq("id", booking["id"]).execute()

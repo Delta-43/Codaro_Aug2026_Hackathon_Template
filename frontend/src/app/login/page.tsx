@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -21,7 +21,7 @@ import { InlineMessage } from "@/components/ui/inline-message";
 import { DemoLogins } from "@/components/demo-logins";
 
 /**
- * Customer sign-in — the default front door. Business owners tap "I'm a
+ * Customer sign-in, the default front door. Business owners tap "I'm a
  * business!" to go to the dedicated business sign-in page (`/login/business`).
  */
 export default function LoginPage() {
@@ -39,7 +39,7 @@ function LoginForm() {
 
   // Single-business pivot: no public "become a business" signup, and customers
   // land on the catalog rather than the (nonexistent) discovery search. Tenancy
-  // resolves async, so `tenancyReady` gates the redirect below — otherwise an
+  // resolves async, so `tenancyReady` gates the redirect below, otherwise an
   // already-authenticated customer would redirect to the stale "/search" default
   // before tenancy loads and then bounce to "/provider" (a visible flash).
   const [singleBusiness, setSingleBusiness] = useState(false);
@@ -52,7 +52,7 @@ function LoginForm() {
   }, []);
 
   // `next` is attacker-controllable via the query string, and it feeds
-  // router.replace below — so only honour a same-origin absolute PATH. A crafted
+  // router.replace below, so only honour a same-origin absolute PATH. A crafted
   // `?next=https://evil.com` (or the protocol-relative `//evil.com`) would
   // otherwise turn the post-login redirect into an open redirect / phishing hop.
   const rawNext = params.get("next");
@@ -185,7 +185,7 @@ function LoginForm() {
         <DemoLogins disabled={busy} onError={setError} />
 
         {/* Full redirect to the dedicated business sign-in. Hidden in
-            single-business mode — there is no public business onboarding (the
+            single-business mode, there is no public business onboarding (the
             operator console is reached directly, not advertised to customers). */}
         {!singleBusiness ? (
           <Link

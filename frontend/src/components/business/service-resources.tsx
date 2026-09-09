@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -8,7 +8,7 @@
  * Resources and availability for one service, inside the owner console.
  *
  * The console could create a service but never the resources it is booked on,
- * nor the slots that make it bookable — so a service created through the UI was
+ * nor the slots that make it bookable, so a service created through the UI was
  * inert and only the seed could produce a working catalogue. This closes that:
  * add a unit, then open a run of times on it.
  *
@@ -89,7 +89,7 @@ export function ServiceResources({ service }: { service: Service }) {
         <Skeleton className="mt-2 h-16 w-full" />
       ) : resources.length === 0 ? (
         <p className="mt-1 text-sm text-muted-foreground">
-          No {vocab.resourceNounPlural.toLowerCase()} yet — this {vocab.serviceNoun.toLowerCase()}{" "}
+          No {vocab.resourceNounPlural.toLowerCase()} yet, this {vocab.serviceNoun.toLowerCase()}{" "}
           cannot be booked until it has one.
         </p>
       ) : (
@@ -149,7 +149,7 @@ export function ServiceResources({ service }: { service: Service }) {
                         count,
                         capacity: r.capacity,
                       });
-                      // Partial success is the normal case — a run that overlaps
+                      // Partial success is the normal case, a run that overlaps
                       // existing availability opens the rest. Say so rather than
                       // reporting a flat success the calendar contradicts.
                       setNote(

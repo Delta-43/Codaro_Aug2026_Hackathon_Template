@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Tab 2 — Services. In the marketplace this is the customer's followed-businesses
+ * Tab 2: Services. In the marketplace this is the customer's followed-businesses
  * home (top-3 strip + quick view + drill-in), handled by <FollowingServices>. In
  * single-business mode, or before the customer follows anyone, it falls back to a
  * single business profile. Booking a service still locks that provider in and
@@ -45,7 +45,7 @@ export default function ProviderPage() {
       body={
         singleBusiness
           ? vertical.copy.noProviderBody
-          : "Search for a business and follow it — the ones you follow show up here."
+          : "Search for a business and follow it, the ones you follow show up here."
       }
       actionHref={singleBusiness ? undefined : "/search"}
       actionLabel={singleBusiness ? undefined : "Go to Search"}

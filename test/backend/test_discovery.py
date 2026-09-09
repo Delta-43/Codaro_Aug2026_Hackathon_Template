@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -10,10 +10,10 @@ with no hand-kept flags (see `main._config_with_facets`, which threads this onto
 `GET /config`). These tests exercise the helper in isolation against the offline
 `FakeSupabase`:
 
-* `price`  — True iff **any** service has `price_minor_units > 0`.
-* `distance` — True iff **any** provider's `metadata.location` has a non-zero
+* `price` , True iff **any** service has `price_minor_units > 0`.
+* `distance`: True iff **any** provider's `metadata.location` has a non-zero
   `lat` or `lng`.
-* `rating`  — always True (every provider carries one).
+* `rating` , always True (every provider carries one).
 """
 
 from __future__ import annotations
@@ -56,7 +56,7 @@ def test_all_free_services_disable_the_price_facet():
 
 
 def test_a_single_priced_service_among_free_ones_enables_price():
-    """`price` is an *any* over the catalog — one paid service is enough."""
+    """`price` is an *any* over the catalog, one paid service is enough."""
     db = FakeSupabase()
     provider = make_provider(db)
     make_service(db, provider["id"], name="Free", price_minor_units=0)
@@ -121,7 +121,7 @@ def test_rating_is_always_true():
 
 def test_null_price_minor_units_is_treated_as_free():
     """A service row whose price_minor_units is None (nullable column) counts as
-    0, not a crash — mirrors `int(s.get(...) or 0)`."""
+    0, not a crash, mirrors `int(s.get(...) or 0)`."""
     db = FakeSupabase()
     provider = make_provider(db)
     make_service(db, provider["id"], price_minor_units=None)

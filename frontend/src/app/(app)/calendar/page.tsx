@@ -1,10 +1,10 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
-// Tab 3 — Calendar / availability + booking. Browsable Month · Week · Day with
+// Tab 3, Calendar / availability + booking. Browsable Month · Week · Day with
 // density and slot states; selecting availability runs the confirm → create →
 // result flow (Phase 6).
 import { CalendarDays } from "lucide-react";

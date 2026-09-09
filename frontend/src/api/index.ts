@@ -1,10 +1,10 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /**
  * ============================================================================
- * THE API SEAM — now real HTTP to the FastAPI backend.
+ * THE API SEAM: now real HTTP to the FastAPI backend.
  * ============================================================================
  *
  * Every component/hook/page goes through these functions; none touch transport
@@ -84,7 +84,7 @@ async function toApiError(res: Response, method: string, path: string): Promise<
     const body = await res.json();
     const d = (body as { detail?: unknown })?.detail;
     if (Array.isArray(d)) {
-      // FastAPI/Pydantic 422: [{loc, msg, type}, ...] — surface the first
+      // FastAPI/Pydantic 422: [{loc, msg, type}, ...], surface the first
       // problem instead of discarding the whole list as "an object".
       const first = d[0] as { msg?: string; loc?: unknown[] } | undefined;
       if (typeof first?.msg === "string") {
@@ -102,7 +102,7 @@ async function toApiError(res: Response, method: string, path: string): Promise<
       message = d; // FastAPI's plain HTTPException detail (401/403/etc.)
     }
   } catch {
-    /* non-JSON body — keep the status-derived fallback */
+    /* non-JSON body, keep the status-derived fallback */
   }
   return new ApiError(code, message, details);
 }
@@ -127,7 +127,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-/** Like `request`, but for a `FormData` body — the browser must set its own
+/** Like `request`, but for a `FormData` body, the browser must set its own
  *  multipart boundary, so `Content-Type` is deliberately omitted here. */
 async function requestForm<T>(path: string, method: string, body?: FormData): Promise<T> {
   const token = await getAccessToken();
@@ -160,7 +160,7 @@ const del = (path: string) => request(path, { method: "DELETE" });
  *
  *  Reads `discovery` FIRST and falls back to `search`: `normalize()` mirrors the
  *  two, but the v1 `search.facets` mirror is deliberately trimmed to the three
- *  keys v1 declared — so reading it, as this did, made `availability` and
+ *  keys v1 declared, so reading it, as this did, made `availability` and
  *  `unitKind` unreachable no matter what the pivot file said. */
 export type SearchFacets = {
   price: boolean;
@@ -219,7 +219,7 @@ export async function getTenancy(): Promise<Tenancy> {
 }
 
 /** The pivot's location settings. `origin` is the point search distances are
- *  measured from and `distanceUnit` the unit they render in — both were
+ *  measured from and `distanceUnit` the unit they render in, both were
  *  hardcoded to Warsaw/km in `lib/geo.ts` before v2 of the config. `timezone` is
  *  the business's own zone, used as the availability fallback for a visitor who
  *  has not signed in (who previously always got UTC). */
@@ -250,7 +250,7 @@ function locationFromConfig(cfg: unknown): LocationConfig {
 }
 
 /** The on/off spine from the pivot file. A false capability must hide the UI
- *  surface AND make the backend refuse the write — the backend half was wired
+ *  surface AND make the backend refuse the write, the backend half was wired
  *  first, so the client read none of this and showed surfaces that 404'd.
  *  Unknown keys pass through: the client only ever asks about ones it gates. */
 export type Capabilities = Record<string, boolean>;
@@ -264,11 +264,11 @@ function capabilitiesFromConfig(cfg: unknown): Capabilities {
   return out;
 }
 
-/** The pivot file's `terms` block — the vocabulary the engine is configured with.
+/** The pivot file's `terms` block, the vocabulary the engine is configured with.
  *  Served since v1 and read by nothing: the UI rendered `config/verticals.ts`, a
  *  static three-vertical file, so pivoting `service` to "Plan" and `slot` to
  *  "Billing period" changed the seed data and left every label saying "Subject"
- *  and "session". Every key is optional — a term the config omits falls back to
+ *  and "session". Every key is optional, a term the config omits falls back to
  *  the static vertical's word rather than rendering an empty label.
  *
  *  The key set is DERIVED from the backend's own models via
@@ -277,7 +277,7 @@ function capabilitiesFromConfig(cfg: unknown): Capabilities {
  *  pivot sets three of the four it was missing. */
 export type ConfigTerms = Partial<Record<keyof GeneratedTerms, string>>;
 
-/** The pivot file's `copy` block — whole sentences the UI shows at named moments.
+/** The pivot file's `copy` block, whole sentences the UI shows at named moments.
  *  Same story as `terms`: served, never read. Optional per key for the same
  *  reason. `waitlistJoined` / `quoteRequested` / `depositDue` /
  *  `prerequisiteBlocked` belong to surfaces that have no backend yet; they are
@@ -295,7 +295,7 @@ function stringsOnly<T extends string>(raw: unknown): Partial<Record<T, string>>
   return out;
 }
 
-/** `metaFields.{entity}` — the no-migration extension point. The backend has
+/** `metaFields.{entity}`, the no-migration extension point. The backend has
  *  validated these on write since v2 (a booking's `metadata` is checked against
  *  `metaFields.bookings`), but nothing ever RENDERED them, so a declared domain
  *  field had no input on any screen and could only be filled by curl. */
@@ -365,9 +365,9 @@ export type PivotConfig = {
   copy: ConfigCopy;
   /** Declared domain fields per entity, so a form can render them. */
   metaFields: MetaFields;
-  /** `discovery.facets` — which search dimensions this deployment offers. */
+  /** `discovery.facets`, which search dimensions this deployment offers. */
   facets: SearchFacets;
-  /** `pricing.currency` — the deployment's default currency, so a first offer
+  /** `pricing.currency`, the deployment's default currency, so a first offer
    *  on an empty catalogue isn't created under a hardcoded fallback. */
   currency: string;
 };
@@ -466,7 +466,7 @@ export function markReturned(bookingId: ID): Promise<Booking> {
 }
 
 /** Take a place in the queue for a full slot (`timing.waitlist`). Refused by the
- *  server when the slot still has room — booking it is strictly better. The
+ *  server when the slot still has room, booking it is strictly better. The
  *  party travels with the entry so a promotion books the seats actually needed. */
 export function joinWaitlist(slotId: ID, partySize = 1): Promise<WaitlistEntry> {
   return post(`/slots/${slotId}/waitlist${qs({ party_size: partySize })}`, undefined) as Promise<WaitlistEntry>;
@@ -551,13 +551,13 @@ export function getMonthDensity(q: {
  *  Sent identically by the quote and the create, because the price the customer
  *  sees has to be the price for the thing they are actually booking. */
 export type BookingShape = {
-  /** `booking.party.composition` — heads per band ({adult: 2, child: 1}). Must
+  /** `booking.party.composition`, heads per band ({adult: 2, child: 1}). Must
    *  add up to `partySize`; the server weights them by `priceFactor`. */
   partyBands?: Record<string, number>;
-  /** `booking.options` — {optionKey: true | "choiceKey"}. Prices are resolved
+  /** `booking.options`, {optionKey: true | "choiceKey"}. Prices are resolved
    *  server-side; a key or choice the config never declared is rejected. */
   options?: Record<string, string | boolean>;
-  /** `booking.subject` — the pet/vehicle/child the booking is about. */
+  /** `booking.subject`, the pet/vehicle/child the booking is about. */
   subject?: Record<string, unknown>;
 };
 
@@ -567,11 +567,11 @@ export function createBooking(input: {
   slotIds: ID[];
   partySize: number;
   /** Optional repeat (`recurrence`). `count` INCLUDES this booking, and the
-   *  server clamps it to `recurrence.maxOccurrences` — the client never sets
+   *  server clamps it to `recurrence.maxOccurrences`, the client never sets
    *  the ceiling. Later occurrences are best-effort and the response's
    *  `series.skipped` names any that could not be booked. */
   repeat?: { pattern: string; count: number };
-  /** `metaFields.bookings` — domain fields the deployment declares. Merged
+  /** `metaFields.bookings`, domain fields the deployment declares. Merged
    *  UNDER the engine's own keys server-side, so a domain field can never
    *  rewrite a price. */
   metadata?: Record<string, unknown>;
@@ -636,7 +636,7 @@ export function deleteMessage(id: ID, messageId: ID): Promise<Message> {
 
 /** Find-or-create a thread with a provider. Client path: pass just `providerId`
  *  ("message this business"). Owner path: also pass the customer's `clientId`
- *  ("message this customer") — the caller must own the provider. */
+ *  ("message this customer"), the caller must own the provider. */
 export function startConversation(providerId: ID, clientId?: ID): Promise<Conversation> {
   return post("/conversations", { providerId, clientId }) as Promise<Conversation>;
 }
@@ -648,14 +648,14 @@ export function getCurrentUser(): Promise<User> {
 }
 
 /** How long to wait for the role lookup before giving up. This call gates the
- *  whole app — nothing can decide which shell to render until it settles — so a
+ *  whole app, nothing can decide which shell to render until it settles, so a
  *  backend that accepts the connection and then never answers must not leave the
  *  UI wedged on a promise that neither resolves nor rejects. The timeout turns
  *  that into an ordinary rejection the caller already handles. */
 const ROLE_TIMEOUT_MS = 8000;
 
 /** The signed-in user's **trusted** engine role, resolved by the backend from
- *  `profiles` — never from the JWT, whose `user_metadata.role` the user can
+ *  `profiles`: never from the JWT, whose `user_metadata.role` the user can
  *  write themselves.
  *
  *  The token is passed explicitly rather than picked up from the current session
@@ -683,7 +683,7 @@ export function deleteAvatar(): Promise<User> {
   return del("/me/avatar") as Promise<User>;
 }
 
-/** GDPR erasure — permanently delete the signed-in user's account and all their
+/** GDPR erasure, permanently delete the signed-in user's account and all their
  *  data. The caller should sign out and redirect afterwards. */
 export function deleteAccount(): Promise<void> {
   return del("/me") as Promise<void>;
@@ -713,7 +713,7 @@ export function getMyProviders(): Promise<Provider[]> {
 // --- business-mode aggregation (the five owner tabs) -----------------------
 
 /** Dashboard: badge provider, the three glanceable numbers, this week's
- *  bookings, and the top pending requests — all scoped to the owner's own
+ *  bookings, and the top pending requests, all scoped to the owner's own
  *  providers, aggregated server-side (/owner/dashboard). */
 export function getOwnerDashboard(): Promise<OwnerDashboard> {
   return request("/owner/dashboard");
@@ -838,12 +838,12 @@ export function createSlot(input: {
   return post("/slots", input) as Promise<Slot>;
 }
 
-/** Open a run of slots back-to-back — what "add a day of availability" means.
+/** Open a run of slots back-to-back, what "add a day of availability" means.
  *
  *  Issued sequentially, not in parallel: `slot.create` enforces
  *  `timing.bufferMinutes` against the slots that already exist, so two
  *  concurrent creates can both pass a check the pair then violates. Returns
- *  what was opened and what the engine refused, rather than failing the batch —
+ *  what was opened and what the engine refused, rather than failing the batch,
  *  a run that collides with existing availability should still open the rest.
  */
 export async function createSlotRun(input: {
@@ -885,7 +885,7 @@ export function createService(input: {
   currency: string;
   cancellationCutoffHours: number;
   autoApprove?: boolean;
-  /** `metaFields.services` — the deployment's own declared fields, validated
+  /** `metaFields.services`, the deployment's own declared fields, validated
    *  server-side against the same descriptors the form is built from. */
   metadata?: Record<string, unknown>;
 }): Promise<Service> {

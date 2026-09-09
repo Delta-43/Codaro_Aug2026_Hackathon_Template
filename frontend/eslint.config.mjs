@@ -1,9 +1,9 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Flat config. Like the ruff config on the backend, this is scoped to catching
-// dead code rather than enforcing a style — `no-unused-vars` is the rule that
+// dead code rather than enforcing a style, `no-unused-vars` is the rule that
 // pays for this file's existence. Next's own configs come along because
 // disabling its correctness rules to add one of ours would be a bad trade.
 //
@@ -21,7 +21,7 @@ export default [
   // Generated from domain.config.schema.json by `npm run codegen:config`, and
   // gated in CI so it cannot go stale. Excluded because the generator's banner
   // is an unconditional `eslint-disable`, which then warns as an unused
-  // directive — there is no version of this file for a human to fix.
+  // directive, there is no version of this file for a human to fix.
   { ignores: ["src/api/config.generated.ts"] },
   ...nextCoreWebVitals,
   ...nextTypeScript,
@@ -39,7 +39,7 @@ export default [
       ],
 
       // eslint-config-next@16 ships React-19-compiler-era rules. This app is on
-      // React 18, and acting on these means changing runtime behaviour — out of
+      // React 18, and acting on these means changing runtime behaviour, out of
       // scope for a dead-code pass. Kept as warnings so they stay visible and
       // can be worked through deliberately, rather than switched off and lost.
       "react-hooks/set-state-in-effect": "warn",

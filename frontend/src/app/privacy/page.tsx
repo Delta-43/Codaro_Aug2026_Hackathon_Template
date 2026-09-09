@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -6,7 +6,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
 /**
- * Public data-handling & privacy policy — ungated (sits outside the `(app)`
+ * Public data-handling & privacy policy, ungated (sits outside the `(app)`
  * group like `login/`), linked from the sign-up consent checkbox. Plain server
  * component; vertical-neutral copy. Summarises what we store, the lawful basis,
  * and the GDPR right to erasure (Settings → Delete my data).
@@ -36,7 +36,7 @@ export default function PrivacyPage() {
           <p className="mt-2 text-muted-foreground">
             When you create an account we store your email address, the profile
             details you choose to add (display name, avatar, timezone), and the
-            records you generate by using the service — your bookings, the
+            records you generate by using the service, your bookings, the
             businesses you follow, and reviews you leave or receive. Your password
             is handled by our authentication provider and is never visible to us.
           </p>
@@ -58,7 +58,7 @@ export default function PrivacyPage() {
           <h2 className="text-base font-semibold">Your privacy from other users</h2>
           <p className="mt-2 text-muted-foreground">
             Your account settings and private details remain yours. Other users
-            cannot open your profile and read your private information — public
+            cannot open your profile and read your private information, public
             surfaces show only what is meant to be public (such as a self-chosen
             display name on a review), never your email address or account
             settings.

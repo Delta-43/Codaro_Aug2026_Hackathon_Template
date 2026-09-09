@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -8,7 +8,7 @@
  * The customer's Services tab in the marketplace: the businesses they follow,
  * front and centre. A strip of the top 3 followed businesses sits at the top
  * (the currently-viewed one wears a pink aura halo); below it, a quick view of
- * that business — its profile with the bio clamped. From here a small back-stack
+ * that business, its profile with the bio clamped. From here a small back-stack
  * opens deeper views without leaving the tab:
  *   home  ──Show full bio──▶  full bio (back → home)
  *   home  ──View more──▶  all following  ──tap──▶  full bio (back → all → home)

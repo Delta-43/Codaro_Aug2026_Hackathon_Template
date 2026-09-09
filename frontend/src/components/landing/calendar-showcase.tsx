@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Calendar showcase — the calendar chapter on a liquid-glass plate, same as the
+ * Calendar showcase: the calendar chapter on a liquid-glass plate, same as the
  * other landing chapters, floating over the shared particle backdrop. A
  * synthetic cursor plays a short, one-time tour of the *real* app calendar:
  * it clicks Month and glides across a few open days, switches to Week then Day
@@ -110,7 +110,7 @@ function buildDensity(weeks: ReturnType<typeof monthMatrix>, month: number) {
   return map;
 }
 
-// A few simple example slots per day — enough to make the calendar look lived-in
+// A few simple example slots per day, enough to make the calendar look lived-in
 // for the tour: an open morning, a busy late-morning, a full noon, an open
 // afternoon.
 function buildAvailability(dates: string[]) {
@@ -324,7 +324,7 @@ export function CalendarShowcase() {
       el: Element | null,
       opts: { click?: boolean; hl?: boolean; hold?: number } = {},
     ) {
-      // Only ever aim at a real, still-mounted, in-plate target — never a
+      // Only ever aim at a real, still-mounted, in-plate target, never a
       // phantom, never an empty corner.
       if (!alive()) return;
       const at = aimAt(el);
@@ -364,7 +364,7 @@ export function CalendarShowcase() {
       await sleep(350, timerRef);
       if (!alive()) return;
 
-      // 1) Month — sweep a few open days.
+      // 1) Month, sweep a few open days.
       setStage(0);
       await point(await waitFor('[data-demo-view="Month"]'), { click: true });
       for (const d of sweepDates.slice(0, 3)) {
@@ -372,7 +372,7 @@ export function CalendarShowcase() {
         await point(q(`[aria-label="${d}"]`), { hl: true, hold: 200 });
       }
 
-      // 2) Week — light up the example slots.
+      // 2) Week, light up the example slots.
       if (!alive()) return;
       setStage(1);
       await point(q('[data-demo-view="Week"]'), { click: true });
@@ -383,7 +383,7 @@ export function CalendarShowcase() {
         await point(b, { hl: true, hold: 190 });
       }
 
-      // 3) Day — glide the times, then select one.
+      // 3) Day, glide the times, then select one.
       if (!alive()) return;
       await point(q('[data-demo-view="Day"]'), { click: true });
       setZoom("Day");
@@ -405,7 +405,7 @@ export function CalendarShowcase() {
         }
       }
 
-      // 4) Book — only once the selection landed and the real button is on
+      // 4) Book, only once the selection landed and the real button is on
       //    screen. The button only exists after a slot is picked, so the cursor
       //    never clicks it before it appears (and we never fake the confirm).
       if (!alive()) return;
@@ -418,7 +418,7 @@ export function CalendarShowcase() {
         }
       }
 
-      // 5) Done — hide the cursor, zoom the calendar out, reveal the three steps
+      // 5) Done, hide the cursor, zoom the calendar out, reveal the three steps
       //    underneath it (staggered via CSS). No loop; replays on re-entry.
       if (!alive()) return;
       setReady(false);
@@ -459,7 +459,7 @@ export function CalendarShowcase() {
         >
         <GlassPanel className="px-6 py-4 sm:px-10 sm:py-6">
           {/* Calendar on the glass; when the tour ends (or a visitor takes over)
-              the "three steps" note reveals underneath it — full-width plates so
+              the "three steps" note reveals underneath it, full-width plates so
               nothing crowds or overlaps. The calendar stays compact so the whole
               chapter still fits one screen. */}
           {/* Two columns from `lg`: the calendar is only 20rem wide, so on a
@@ -516,7 +516,7 @@ export function CalendarShowcase() {
         <div ref={viewsRef} className="min-h-[22rem]">
           {zoom === "Month" ? (
             // Narrower, centred month grid: its cells are aspect-square, so a
-            // narrower width makes the whole month shorter — bringing the plate
+            // narrower width makes the whole month shorter, bringing the plate
             // down to the same height as the Week/Day modes instead of towering
             // above them. Real layout (not a transform), so the tour cursor still
             // aims at the day cells correctly.
@@ -560,7 +560,7 @@ export function CalendarShowcase() {
           )}
         </div>
 
-        {/* Booking control — the real button design; appears once a slot is
+        {/* Booking control, the real button design; appears once a slot is
             picked, then flips to a confirmation, exactly like the app. */}
         {/* Tall enough for the confirmation panel, which is two lines and so
             taller than the button it replaces. Sized for the larger of the two
@@ -621,7 +621,7 @@ export function CalendarShowcase() {
         )}
           </div>
 
-          {/* "Book in three steps" — revealed under the calendar once the tour
+          {/* "Book in three steps", revealed under the calendar once the tour
               ends (or a visitor takes over). Grows in with the grid-rows trick;
               the heading, the bouncing down-arrow and each plate ease in one by
               one, Apple-style. Full-width interactive plates, stacked. */}

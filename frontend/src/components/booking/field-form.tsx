@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -7,9 +7,9 @@
 /**
  * A form built from CONFIG descriptors, not from hand-written inputs.
  *
- * Two v2 blocks describe fields the same way — `booking.subject.fields` (the
+ * Two v2 blocks describe fields the same way, `booking.subject.fields` (the
  * pet/vehicle/child a booking is about) and `metaFields.{entity}` (the
- * no-migration extension point) — and both were declared, validated on write by
+ * no-migration extension point), and both were declared, validated on write by
  * the backend, and rendered by nothing. A deployment could require a health
  * questionnaire or a purchase-order number and the app offered nowhere to type
  * it, so the only way to satisfy the field was curl.
@@ -71,7 +71,7 @@ export function FieldForm({
                 value={typeof value === "string" ? value : ""}
                 onChange={(e) => set(field.key, e.target.value || undefined)}
               >
-                <option value="">—</option>
+                <option value="">-</option>
                 {(field.options ?? []).map((option) => (
                   <option key={option} value={option}>
                     {option}
@@ -101,7 +101,7 @@ export function FieldForm({
 }
 
 /** Drop keys the user left empty, so an untouched optional field is absent from
- *  the request rather than sent as `""` — which a `select` validator would then
+ *  the request rather than sent as `""`, which a `select` validator would then
  *  reject as "not one of the allowed values". */
 export function pruneValues(values: FieldValues): FieldValues {
   const out: FieldValues = {};
@@ -116,7 +116,7 @@ export function pruneValues(values: FieldValues): FieldValues {
  *
  *  Deliberately the mirror image of `pruneValues`: a field counts as missing
  *  exactly when the value it holds is one `pruneValues` would drop from the
- *  request — so the button this gates is disabled precisely when the backend's
+ *  request, so the button this gates is disabled precisely when the backend's
  *  `required` check would 422, and never a keystroke longer. */
 export function missingRequired(
   fields: FieldDescriptor[],

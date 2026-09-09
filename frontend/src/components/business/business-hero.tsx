@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * The business profile header — the banner, the verified logo overlapping it,
+ * The business profile header: the banner, the verified logo overlapping it,
  * the name/tagline and the rating · city · vertical meta row. It lives here
  * rather than in the Profile tab because Settings shows the *same* header: the
  * owner edits the banner and logo on exactly the view a customer sees, instead
@@ -36,7 +36,7 @@ export function BusinessHero({
   scene: string;
   vocabLabel: string;
   /** The name's element. Settings already owns the page's <h1>, so it passes
-   *  "p" — same type, same styling, no second top-level heading. */
+   *  "p", same type, same styling, no second top-level heading. */
   titleAs?: "h1" | "p";
   /** Overlaid on the banner's top-right corner (cog, upload buttons…). */
   action?: ReactNode;

@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -7,10 +7,10 @@
 /**
  * Minimalist "are you sure?" gate. A compact centred card: title, supporting
  * copy, an optional summary of what's changing, and an inline Cancel / confirm
- * pair. `tone` only colours the confirm button — "destructive" (default) makes
+ * pair. `tone` only colours the confirm button, "destructive" (default) makes
  * it red for irreversible actions (delete, editing a live offer), "default"
  * keeps it neutral for reversible ones (sign out). The chrome stays light either
- * way — no warning banner, no full-bleed buttons.
+ * way, no warning banner, no full-bleed buttons.
  */
 import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";

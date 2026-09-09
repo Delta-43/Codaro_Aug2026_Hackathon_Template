@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -6,7 +6,7 @@
 
 /**
  * Day/night switch, shared by the landing nav pill and the docs header.
- * Renders the neutral icon until mounted — `resolvedTheme` is unknown during
+ * Renders the neutral icon until mounted: `resolvedTheme` is unknown during
  * SSR, so painting a definite icon first would flash the wrong one.
  */
 import { useEffect, useState } from "react";

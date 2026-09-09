@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -24,7 +24,7 @@ export function ConversationList({
   tz,
 }: {
   conversations: Conversation[];
-  /** Thread route prefix, e.g. "/messages" — rows link to `${basePath}/${id}`. */
+  /** Thread route prefix, e.g. "/messages", rows link to `${basePath}/${id}`. */
   basePath: string;
   tz: string;
 }) {

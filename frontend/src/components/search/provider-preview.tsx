@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Provider preview — discovery, not the full profile (that's Tab 2). Shows a
+ * Provider preview: discovery, not the full profile (that's Tab 2). Shows a
  * bio excerpt and service list with two actions: Follow (optimistic) and Open
  * (locks in and moves to Tab 2). Vocabulary: Follow applies to providers.
  */

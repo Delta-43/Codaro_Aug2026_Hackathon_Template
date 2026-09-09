@@ -1,8 +1,8 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""/resources — public reads + owner-gated writes, through the real endpoints.
+"""/resources, public reads + owner-gated writes, through the real endpoints.
 
 Reads are open; create/patch/analytics require the owner role (`require_owner`).
 The `auth` fixture stubs token verification and lets a test run as anon / client
@@ -398,7 +398,7 @@ def test_resource_bookings_sorted_by_start_desc(client, db, auth):
 
 
 def test_bad_metadata_type_carries_the_api_error_envelope(client, db, auth):
-    """The 422's `detail` must be the frontend ApiError envelope — the seam
+    """The 422's `detail` must be the frontend ApiError envelope, the seam
     reads `detail.code`, and a bare detail string rendered as a raw NETWORK
     error instead of the field-level message."""
     auth(role="owner")

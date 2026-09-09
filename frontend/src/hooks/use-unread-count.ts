@@ -1,20 +1,20 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Total unread messages across the current user's threads — the number the
+ * Total unread messages across the current user's threads, the number the
  * permanent Messaging nav button badges. Shell-agnostic (no AppProvider
  * dependency), so both the customer AppShell and the BusinessShell can call it.
  *
  * The count is refreshed on three signals, because no single one covers every
  * way you can read a thread:
- *  - **window focus** — returning to the tab after being away;
- *  - **route change** — SPA navigation fires no focus event, so leaving a thread
+ *  - **window focus**, returning to the tab after being away;
+ *  - **route change**, SPA navigation fires no focus event, so leaving a thread
  *    (back to the inbox or any other tab) would otherwise leave the badge stale;
- *  - **an explicit `unread-changed` event** — dispatched by the thread the moment
+ *  - **an explicit `unread-changed` event**, dispatched by the thread the moment
  *    it marks messages read, so the badge clears immediately even while you stay
  *    on the same page (e.g. the mobile bottom-bar badge).
  * Degrades to 0 on any error.
@@ -24,7 +24,7 @@ import { usePathname } from "next/navigation";
 import { getConversations } from "@/api";
 
 /** Window event the messaging thread fires after it marks a conversation read.
- *  Internal to this module — dispatch it via `notifyUnreadChanged()`. */
+ *  Internal to this module: dispatch it via `notifyUnreadChanged()`. */
 const UNREAD_CHANGED_EVENT = "arbor:unread-changed";
 
 /** Tell every mounted unread badge to refetch (call after marking read). */

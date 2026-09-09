@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -7,7 +7,7 @@
 These type ONLY the domain-agnostic fields the engine understands (`name`,
 `starts_at`, `client_email`, `capacity`, ...) plus a free-form
 `metadata: dict`. Domain-specific data rides in `metadata` and is validated
-separately by `app.meta` from `domain.config.json` at request time — so a
+separately by `app.meta` from `domain.config.json` at request time, so a
 pivot never needs a model change here.
 
 Routers build insert rows explicitly from these fields; a raw ``**payload``
@@ -35,7 +35,7 @@ class RepeatReq(CamelModel):
 
     `count` INCLUDES the first occurrence, so `count: 4` on a weekly pattern is
     the selected date plus three more. It is clamped to
-    `recurrence.maxOccurrences` server-side — the client never decides the
+    `recurrence.maxOccurrences` server-side, the client never decides the
     ceiling.
     """
 
@@ -44,7 +44,7 @@ class RepeatReq(CamelModel):
 
 
 class QuoteReq(CamelModel):
-    """POST /bookings/quote — price a selection WITHOUT committing it.
+    """POST /bookings/quote, price a selection WITHOUT committing it.
 
     The same envelope as `BookingCreateReq` minus the domain metadata, because
     the quote runs the identical resolve + price path the create does. The UI
@@ -61,9 +61,9 @@ class QuoteReq(CamelModel):
     # optional: a deployment declaring none sends none and prices exactly as
     # before.
     #
-    # party_bands  {bandKey: count} for `booking.party.composition` — priced as a
+    # party_bands  {bandKey: count} for `booking.party.composition`, priced as a
     #              weighted head count, and must add up to party_size.
-    # options      {optionKey: true | "choiceKey"} for `booking.options` — paid
+    # options      {optionKey: true | "choiceKey"} for `booking.options`, paid
     #              add-ons, resolved to breakdown lines server-side so the client
     #              can never name its own price.
     # subject      the pet/vehicle/child the booking is about
@@ -75,7 +75,7 @@ class QuoteReq(CamelModel):
 
 
 class BookingCreateReq(CamelModel):
-    """POST /bookings — the multi-slot, party-size booking envelope. Ownership
+    """POST /bookings, the multi-slot, party-size booking envelope. Ownership
     (userId/email) is derived from the token, never the body."""
 
     service_id: str
@@ -86,9 +86,9 @@ class BookingCreateReq(CamelModel):
     # optional: a deployment declaring none sends none and prices exactly as
     # before.
     #
-    # party_bands  {bandKey: count} for `booking.party.composition` — priced as a
+    # party_bands  {bandKey: count} for `booking.party.composition`, priced as a
     #              weighted head count, and must add up to party_size.
-    # options      {optionKey: true | "choiceKey"} for `booking.options` — paid
+    # options      {optionKey: true | "choiceKey"} for `booking.options`, paid
     #              add-ons, resolved to breakdown lines server-side so the client
     #              can never name its own price.
     # subject      the pet/vehicle/child the booking is about
@@ -109,7 +109,7 @@ class BookingCreateReq(CamelModel):
 
 
 class RescheduleReq(CamelModel):
-    """POST /bookings/{id}/reschedule — the new (possibly multi-) slot set."""
+    """POST /bookings/{id}/reschedule, the new (possibly multi-) slot set."""
 
     new_slot_ids: list[str]
 
@@ -120,7 +120,7 @@ class ReviewReq(CamelModel):
 
 
 class ClientReviewReq(CamelModel):
-    """POST /bookings/{id}/client-review — an owner rating the customer after a
+    """POST /bookings/{id}/client-review, an owner rating the customer after a
     completed booking (feeds the customer's reputation)."""
 
     rating: int
@@ -128,7 +128,7 @@ class ClientReviewReq(CamelModel):
 
 
 class MessageCreateReq(CamelModel):
-    """POST /conversations/{id}/messages — a single message. `sender_id` and the
+    """POST /conversations/{id}/messages, a single message. `sender_id` and the
     timestamps are stamped server-side from the token, never the body."""
 
     body: str
@@ -136,7 +136,7 @@ class MessageCreateReq(CamelModel):
 
 
 class ConversationCreateReq(CamelModel):
-    """POST /conversations — find-or-create a thread. The client path passes only
+    """POST /conversations, find-or-create a thread. The client path passes only
     `provider_id` (the caller is the customer). The owner path additionally
     passes `client_id` (the customer to reach out to); the router verifies the
     caller owns the provider before creating an owner-side thread."""
@@ -146,7 +146,7 @@ class ConversationCreateReq(CamelModel):
 
 
 class UserPatch(CamelModel):
-    """PATCH /me — a partial User. Only these keys are honored; role/verified
+    """PATCH /me, a partial User. Only these keys are honored; role/verified
     are not self-editable."""
 
     display_name: str | None = None
@@ -156,7 +156,7 @@ class UserPatch(CamelModel):
 
 
 class ProviderCreate(CamelModel):
-    """POST /providers (owner) — the presentational fields ride in metadata; the
+    """POST /providers (owner), the presentational fields ride in metadata; the
     router stamps owner_id from the token."""
 
     name: str
@@ -195,7 +195,7 @@ class ProviderUpdate(CamelModel):
 
 
 class ServiceCreate(CamelModel):
-    """POST /services (owner) — the per-service rules are real columns."""
+    """POST /services (owner), the per-service rules are real columns."""
 
     provider_id: str
     name: str
@@ -213,7 +213,7 @@ class ServiceCreate(CamelModel):
     #
     # None (not True) so an unset value stays UNSET. Defaulting to True stamped
     # every created service with an explicit metadata key, which `effective_auto_approve`
-    # checks first — making both a `timing.confirmation` override and a
+    # checks first, making both a `timing.confirmation` override and a
     # deployment-wide `request_approve` unreachable through the API.
     auto_approve: bool | None = None
     # Per-service config overrides, keyed by block name (`pricing`, `timing`,
@@ -251,8 +251,8 @@ class ServiceUpdate(CamelModel):
 
 
 # `CamelModel`, not `BaseModel`. These four were the only owner-side write
-# models still snake_case-only, so the frontend seam — which sends camelCase
-# everywhere — could create a provider and a service but not the resources and
+# models still snake_case-only, so the frontend seam, which sends camelCase
+# everywhere, could create a provider and a service but not the resources and
 # slots they need. `SlotCreate` 422'd on `resourceId`/`startsAt`, and
 # `ResourceCreate` silently ignored the unknown keys, which is worse: a
 # camelCase resource was created with the DEFAULT capacity rather than rejected.

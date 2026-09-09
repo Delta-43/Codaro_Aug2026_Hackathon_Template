@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -141,10 +141,10 @@ export function DocShell({
 /**
  * Owns both halves of moving around the page:
  *
- * - **scroll-spy** — an IntersectionObserver over a band just below the sticky
+ * - **scroll-spy**, an IntersectionObserver over a band just below the sticky
  *   header, so the highlight tracks the section being read rather than the one
  *   at the top of the document.
- * - **shortcuts** — one delegated click handler for every in-page `#hash` link
+ * - **shortcuts**, one delegated click handler for every in-page `#hash` link
  *   under the shell (sidebar, mobile chips, and cross-references inside the
  *   prose). It glides instead of jumping, flashes the heading it lands on, and
  *   syncs the URL with `replaceState` so copying the link works without
@@ -167,7 +167,7 @@ function useDocNavigation(sections: TocEntry[]) {
     const observer = new IntersectionObserver(
       (entries) => {
         if (pinnedRef.current) return;
-        // Track every section's visibility, then pick the topmost visible one —
+        // Track every section's visibility, then pick the topmost visible one,
         // a single entry can't tell us that on its own.
         const visible = entries.filter((e) => e.isIntersecting);
         if (!visible.length) return;
@@ -191,7 +191,7 @@ function useDocNavigation(sections: TocEntry[]) {
     let release: (() => void) | null = null;
 
     const onClick = (e: MouseEvent) => {
-      // Leave modified clicks alone — those are "open in a new tab".
+      // Leave modified clicks alone, those are "open in a new tab".
       if (e.defaultPrevented || e.button !== 0) return;
       if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
 

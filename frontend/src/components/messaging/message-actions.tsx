@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -6,11 +6,11 @@
 
 /**
  * The message action menu: Reply / Delete / More info. Opened by a long-press
- * (touch) or right-click (desktop) on a bubble — the gesture detection lives in
+ * (touch) or right-click (desktop) on a bubble, the gesture detection lives in
  * message-bubble; this component is the floating menu + the "More info" modal.
  *
  * The menu is an absolutely-positioned popover (modeled on the StatTile tooltip)
- * with a full-screen backdrop that catches an outside tap/click — one code path
+ * with a full-screen backdrop that catches an outside tap/click, one code path
  * that works as a right-click menu on desktop and a long-press menu on touch.
  * No dropdown primitive exists in the app, so it's built here.
  */
@@ -36,7 +36,7 @@ export function MessageActions({
   onClose: () => void;
   onReply?: (m: Message) => void;
   onDelete?: (m: Message) => void;
-  /** Which edge to anchor the menu to — matches the bubble's side. */
+  /** Which edge to anchor the menu to, matches the bubble's side. */
   align: "start" | "end";
 }) {
   const [info, setInfo] = useState(false);
@@ -104,7 +104,7 @@ export function MessageActions({
             value={
               message.deliveredAtUtc
                 ? `${formatDate(message.deliveredAtUtc, tz)} · ${formatTime(message.deliveredAtUtc, tz)}`
-                : "—"
+                : "-"
             }
           />
           <InfoRow

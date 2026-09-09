@@ -29,12 +29,12 @@ make checkseed # verify the data and the config agree
 `make reseed` builds its dataset from the loaded config rather than from a
 hardcoded vertical: `backend/seed_config.py` turns `domain.config.json` into the
 spec `seed_vertical()` consumes, so currency, timezone, slot duration, prices,
-cutoffs, min/max slots, slot capacity and — in single-tenant mode — the
+cutoffs, min/max slots, slot capacity and, in single-tenant mode, the
 provider's `public_code` all come from the pivot file. `pricing.tiers` become the
 catalogue (one service per tier); `terms` supply the nouns.
 
 Two things the config cannot supply are generated: prose (taglines,
-descriptions), and the names of marketplace businesses other than the flagship —
+descriptions), and the names of marketplace businesses other than the flagship,
 `domain.config.json` carries no directory of businesses. `POST /demo/vertical`
 still loads one of the three canned verticals from `seed_data.py` on purpose;
 that data will not match any pivot.
@@ -57,10 +57,10 @@ domain.config.json                      (this deployment's defaults)
 hard default in code                    (always safe, never null)
 ```
 
-- **Scalars** resolve through `rules.effective_service_rules()` — seven values
+- **Scalars** resolve through `rules.effective_service_rules()`, seven values
   (slot duration, min/max slots, cutoff, price, currency, booking model), each
   mapped to a service column and a dotted config path.
-- **Whole blocks** resolve through `rules.effective_service_config()` —
+- **Whole blocks** resolve through `rules.effective_service_config()`,
   `services.metadata.<block>` deep-merges over the global block.
 
 That second one is what makes a marketplace possible: two businesses on one
@@ -79,7 +79,7 @@ them editing `domain.config.json`.
 
 Overrides go through the **same validator as the global file**: an invalid block
 is a 422 on write, and (for seeded or hand-edited rows) is dropped in favour of
-the global block on read — per block, with a warning, so one bad block does not
+the global block on read, per block, with a warning, so one bad block does not
 poison the rest. `tenancy` is deliberately not overridable: commission and tenant
 verification are platform terms, not a business's to set.
 
@@ -126,12 +126,12 @@ Every block is per-service overridable. Types are shown with their defaults.
 | `tenantVerification` | `{required, credentials[]}` | off | Licence/KYC gating on the *business* side |
 | `commission` | `{enabled, rateBps, chargedOn}` | off | Platform cut, `booking` or `completion` |
 
-### `capabilities` — the on/off spine
+### `capabilities`, the on/off spine
 Ten booleans: `payments` `inventory` `waitlist` `quotes` `recurrence`
 `prerequisites` `entitlements` `cart` `reviews` `follows`. Defaults: `payments`,
 `reviews`, `follows` on; the rest off.
 
-A false capability is meant to hide the UI surface **and** refuse the write —
+A false capability is meant to hide the UI surface **and** refuse the write,
 not one without the other. `validate()` already enforces the one cross-check that
 matters: `capabilities.payments: false` requires `payments.flow: "none"`.
 
@@ -147,8 +147,8 @@ matters: `capabilities.payments: false` requires `payments.flow: "none"`.
 | `party.composition` | `[{key,label,priceFactor}]` \| null | `null` |
 | `party.matchResourceCapacity` | bool | `false` |
 | `sequence` | `{enabled,steps,minGapHours,maxGapHours}` | off |
-| `subject` | `{enabled,noun,fields[]}` | off — the booking is *about* a pet/vehicle/child |
-| `options` | `[{key,label,type,choices[]}]` | `[]` — add-ons that change price and can require a prerequisite |
+| `subject` | `{enabled,noun,fields[]}` | off, the booking is *about* a pet/vehicle/child |
+| `options` | `[{key,label,type,choices[]}]` | `[]`, add-ons that change price and can require a prerequisite |
 
 ### `pricing`
 The arithmetic, in order: **tier match → base → secondary → fees → caps → deposit**.
@@ -162,7 +162,7 @@ The arithmetic, in order: **tier match → base → secondary → fees → caps 
 | `tiers` | `[{key,label,amountMinorUnits,appliesWhen,validFrom,validUntil,quantityCap}]` | `[]` |
 | `chargePerPerson` | bool | `true` |
 | `caps` | `{perBookingMinorUnits, perDayMinorUnits}` | both null |
-| `fees` | `[{key,label,kind,...}]` — `flat` \| `percent` (rateBps) \| `distanceBand` (bands) | `[]` |
+| `fees` | `[{key,label,kind,...}]`, `flat` \| `percent` (rateBps) \| `distanceBand` (bands) | `[]` |
 | `deposit` | `{enabled,kind,value,refundable}` | off |
 
 `rate.per` quantities: `booking`→1, `slot`→slot count, `person`→head count,
@@ -170,17 +170,17 @@ The arithmetic, in order: **tier match → base → secondary → fees → caps 
 **started** units from the selection's span (half a day of storage is a day).
 
 `chargePerPerson: true` reproduces the v1 formula (`price × slots × party`);
-`false` is the shared-unit case — a tennis court costs the same for two players
+`false` is the shared-unit case, a tennis court costs the same for two players
 or four. `per: "person"` never double-counts.
 
 `tiers[].appliesWhen` clauses: `partySize`, `timeOfDay` (handles a window that
 wraps midnight), `zone`, `bookingIndex`, `subjectField`, `distanceKm`. **An
-unknown clause fails closed** — a typo must not widen a discount to everyone.
+unknown clause fails closed**, a typo must not widen a discount to everyone.
 
 > **Known mispricing.** A tier is matched once, against the booking's **start**
 > time, and applied to the whole booking. A 17:00-19:00 booking under a
 > 17:00-18:00 happy-hour tier bills entirely at the happy-hour rate. Time-banded
-> pricing that must *split* a booking across bands is not supported — see
+> pricing that must *split* a booking across bands is not supported, see
 > issue #83.
 
 A deposit clamps differently depending on `refundable`: non-refundable is a
@@ -189,7 +189,7 @@ prepayment and never exceeds the total; refundable is a bond and may.
 ### `payments`
 `flow` (`prepay|pay_on_site|invoice_after|split|none`), `payer`
 (`customer|third_party`), `schedule[]` (milestone payments), `billingCycle`,
-`noShowFee`, `usageMetered`, `adapter` (`manual` by default — no PSP exists here).
+`noShowFee`, `usageMetered`, `adapter` (`manual` by default, no PSP exists here).
 
 ### `inventory`
 `mode` (`none|finite|rentable|consumable|serialised`),
@@ -199,7 +199,7 @@ prepayment and never exceeds the total; refundable is a bond and may.
 ### `location`
 `modes[]` (`on_site|at_customer|remote|delivery|pickup`), `default`, **`timezone`**
 (the business's own IANA zone), `distanceUnit` (`km|mi`), `origin`
-(`{city,lat,lng}` — the point distances are measured from), `serviceArea`
+(`{city,lat,lng}`, the point distances are measured from), `serviceArea`
 (`radiusKm`, `travelBufferMinutes`, `feeBands`), `remote.meetingLinkMode`,
 `fulfilment` (`windowMinutes`, `cutoffHoursBefore`).
 
@@ -209,7 +209,7 @@ where `kind ∈ {id_check, licence, intake_form, waiver, membership, approval, c
 and `appliesTo ∈ {customer, tenant, subject}`.
 
 ### `timing`
-`confirmation` (`instant|request_approve` — the default behind each service's
+`confirmation` (`instant|request_approve`, the default behind each service's
 auto-approve toggle), `approvalWindowHours`, `leadTimeMinutes` (minimum notice),
 `waitlist`, `seasons[]`, `blackouts[]`, plus the five legacy keys
 (`slotDurationMinutes`, `maxBookingsPerSlot`, `cancellationWindowHours`,
@@ -217,12 +217,12 @@ auto-approve toggle), `approvalWindowHours`, `leadTimeMinutes` (minimum notice),
 
 ### `recurrence` · `entitlements` · `discovery`
 `recurrence`: `{enabled, patterns[], maxOccurrences, term{mode, noticePeriodDays}}`.
-`entitlements`: `{enabled, kind, plans[]}` — credits, memberships, passes.
+`entitlements`: `{enabled, kind, plans[]}`, credits, memberships, passes.
 `discovery`: `{mode: browse|reverse, facets{}, matching{}}`.
 
 ### `terms` · `copy` · `metaFields`
-`terms` is 17 nouns; `copy` is 10 strings. (v1's `theme` block — colour +
-radius — has been removed: the frontend owns its own palette, and a `theme` key
+`terms` is 17 nouns; `copy` is 10 strings. (v1's `theme` block, colour +
+radius, has been removed: the frontend owns its own palette, and a `theme` key
 left in an old pivot file is dropped at load rather than rejected.)
 `metaFields` maps six entities (`providers` `services` `resources` `slots`
 `bookings` `subjects`) to field descriptors:
@@ -237,7 +237,7 @@ left in an old pivot file is dropped at load rather than rejected.)
 Undeclared metadata keys always pass (that is the no-migration extension point);
 declared ones are strictly checked.
 
-## 5. The rules registry — the escape hatch
+## 5. The rules registry, the escape hatch
 
 `app/rules.py` holds an event → `{config key: validator}` map. Adding a
 validator plus a `timing` key makes a rule enforce; **deleting the config key
@@ -256,9 +256,9 @@ RULES = {
 
 `UNDISPATCHED` holds two validators that exist but are deliberately not wired:
 
-- `advanceBookingWindowDays` — the seed lays slots 56 days out while the config
+- `advanceBookingWindowDays`: the seed lays slots 56 days out while the config
   allows 30; enforcing it today would make half the demo calendar unbookable.
-- `maxBookingsPerSlot` — capacity is enforced upstream by `_resolve_selection`
+- `maxBookingsPerSlot`: capacity is enforced upstream by `_resolve_selection`
   and the `slot_occupancy` view, which understand party size and multi-slot
   holds. Re-registering it would re-apply `min(capacity, maxBookingsPerSlot)`
   and cap every shared-capacity slot at 1, breaking group bookings. There is a
@@ -267,7 +267,7 @@ RULES = {
 ## 6. What is actually wired
 
 The config is fully expressible and fully validated. **Enforcement is narrower
-than the schema**, on purpose — the schema went first so the roadmap has
+than the schema**, on purpose, the schema went first so the roadmap has
 somewhere to land. Do not assume a key does something because it validates.
 
 Enforced end to end today: `pricing.*` (the whole quote pipeline),
@@ -284,7 +284,7 @@ the table below, which lists what is wired end to end.
 
 1. Add it to `DEFAULTS` in `app/config_schema.py`. That alone makes it readable
    everywhere and per-service overridable.
-2. Add a `validate()` check **only if a wrong value would corrupt data** — a
+2. Add a `validate()` check **only if a wrong value would corrupt data**, a
    silly colour is not the validator's business, an invalid timezone is.
 3. Wire a reader. If you cannot yet, add it to the declared-only table in
    `backend/CLAUDE.md` with what it needs.

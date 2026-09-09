@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -6,11 +6,11 @@
 
 Each business rule is one key in ``domain.config.json`` `rules` plus one
 small validator here, wired into an event-keyed registry. A new constraint
-never needs a refactor — just a new config key, a ~4-line validator and one
+never needs a refactor, just a new config key, a ~4-line validator and one
 registry entry. Deleting a key from the config disables its rule with no code
 change: that is the pivot story.
 
-Routers call :func:`apply_rules(event, ctx)` — never a validator directly.
+Routers call :func:`apply_rules(event, ctx)`, never a validator directly.
 :func:`check_cancellation_window` / :func:`check_capacity` are thin wrappers
 kept for the test suite, which imports them by name; no router calls them.
 """
@@ -114,8 +114,8 @@ def _window_dates(window: dict) -> tuple[str, str]:
 def _local_date(ctx: dict) -> str:
     """The slot's date in the BUSINESS's timezone, as `YYYY-MM-DD`.
 
-    `timing.blackouts` and `timing.seasons` are written as local dates — a
-    business closing for Christmas closes on its own calendar, not on UTC's — so
+    `timing.blackouts` and `timing.seasons` are written as local dates, a
+    business closing for Christmas closes on its own calendar, not on UTC's, so
     comparing a UTC date would close the wrong day either side of midnight. The
     router passes the resolved zone; UTC is the fallback when it cannot.
     """
@@ -132,7 +132,7 @@ def _local_date(ctx: dict) -> str:
 
 
 def _blackouts(windows, ctx) -> None:
-    """`timing.blackouts` — dates the business is closed.
+    """`timing.blackouts`, dates the business is closed.
 
     Declared in v2, validated at load for shape, and enforced by nothing: a
     config could black out Christmas and the engine would take bookings all
@@ -152,7 +152,7 @@ def _blackouts(windows, ctx) -> None:
 
 
 def _seasons(windows, ctx) -> None:
-    """`timing.seasons` — the periods the business actually trades.
+    """`timing.seasons`, the periods the business actually trades.
 
     A declared season list is a statement that the business is OPEN then, which
     only means something if it is shut otherwise; a config with no seasons
@@ -205,7 +205,7 @@ def closure_reason(slot_starts_at: str | datetime, service: dict | None = None) 
 # Events a router may dispatch. An event with an empty map is a live extension
 # point: adding `"someNewKey": _some_validator` here plus the key under `timing`
 # in domain.config.json makes the rule enforce, and deleting the config key
-# disables it again — no router change either way. That is the escape hatch the
+# disables it again, no router change either way. That is the escape hatch the
 # root `CLAUDE.md` promises, and it is why this registry exists rather than a
 # pile of ifs.
 #
@@ -219,7 +219,7 @@ RULES = {
         # grid reached further than the config allowed, enforcing this made half
         # the seeded calendar unbookable, which is why it sat in UNDISPATCHED.
         "advanceBookingWindowDays": _advance_window,
-        # Both shipped in v2 and enforced nothing until now — exactly the
+        # Both shipped in v2 and enforced nothing until now, exactly the
         # "config key plus a validator" this registry exists for.
         "blackouts": _blackouts,
         "seasons": _seasons,
@@ -241,7 +241,7 @@ RULES = {
 # and cap every shared-capacity slot at the global default of 1, breaking group
 # bookings. The validator stays for `check_capacity()` and its tests.
 #
-# `cancellationWindowHours`: enforced, but by the OTHER path — the service
+# `cancellationWindowHours`: enforced, but by the OTHER path, the service
 # resolver maps it to `cancellationCutoffHours` (see `_SERVICE_RULE_MAP`) and the
 # cancel/reschedule routes call `within_cutoff()`. It sat under a
 # `"booking.change"` event that no router ever dispatches, so the registry
@@ -257,13 +257,13 @@ UNDISPATCHED = {
 
 def apply_rules(event: str, ctx: dict, timing: dict | None = None) -> None:
     """Run every configured validator for ``event``. Absent/None config keys
-    are skipped gracefully — deleting a key disables its rule.
+    are skipped gracefully, deleting a key disables its rule.
 
     Reads `timing` (the v2 home of these numbers). `config_schema.normalize`
     mirrors the same values into the deprecated `rules` block, so a v1 config
     file resolves identically.
 
-    ``timing`` is the RESOLVED block for the service being acted on — pass
+    ``timing`` is the RESOLVED block for the service being acted on, pass
     ``effective_service_config(service)["timing"]``. Reading the global block
     unconditionally made this the one resolver that skipped the service layer:
     `timing` is in `OVERRIDABLE_BLOCKS`, the write gate accepted a service's
@@ -297,7 +297,7 @@ def check_capacity(booked_count: int, capacity: int) -> None:
 # The new frontend models rules PER SERVICE (slot duration, min/max slots per
 # booking, cancellation cutoff, price/currency, booking model). A service's own
 # column wins; where it is null/absent, `domain.config.json` `rules` supplies the
-# global default — so config becomes "vocabulary + defaults" rather than "the
+# global default, so config becomes "vocabulary + defaults" rather than "the
 # rules". This is the single place that merge happens; routers read the resolved
 # dict, never raw service columns, so the fallback behaviour lives in one spot.
 
@@ -360,7 +360,7 @@ def effective_service_rules(service: dict | None) -> dict:
     cfg = get_config()
     # An EXPLICIT per-service override outranks the column. The columns are
     # `NOT NULL DEFAULT`, so resolving them first made every `timing` /
-    # `booking.duration` override permanently inert — accepted with a 200 by the
+    # `booking.duration` override permanently inert, accepted with a 200 by the
     # write gate and then silently ignored by `within_cutoff` and
     # `_resolve_selection`.
     declared = surviving_overrides(svc)
@@ -401,7 +401,7 @@ def _problems_by_block(declared: dict) -> dict[str, list[str]]:
     the blame off the error's leading path segment instead was wrong for exactly
     the cross-block violations `validate()` exists to catch: a service declaring
     `payments: {"flow": "prepay"}` on a `capabilities.payments: false` deployment
-    produces an error named `capabilities` — a block the service never declared,
+    produces an error named `capabilities`, a block the service never declared,
     so the bad `payments` block was KEPT and applied while the warning below
     claimed a fallback that never happened.
 
@@ -417,13 +417,13 @@ def _problems_by_block(declared: dict) -> dict[str, list[str]]:
 # Memoize the expensive half of override resolution. `_problems_by_block` runs
 # `validate()` twice per declared block, and the per-service resolvers
 # (`effective_service_config`/`_rules`/`_pricing`) each call `surviving_overrides`
-# for the SAME service while serializing a list or pricing a booking — so a row
+# for the SAME service while serializing a list or pricing a booking, so a row
 # with overrides paid that validation several times over.
 #
 # Keyed on the declared blocks; the cached value holds the `get_config()` object
 # it was computed against and is only reused while that object is still current
-# (`is` identity). Holding the reference means the config can't be freed — and
-# its id reused — while a cache entry lives, so this stays correct however the
+# (`is` identity). Holding the reference means the config can't be freed, and
+# its id reused, while a cache entry lives, so this stays correct however the
 # config is reset (`clear_config_cache` OR a bare `get_config.cache_clear()`): a
 # reload yields a new config object, the identity check fails, and the entry is
 # recomputed. The result is only ever READ downstream (every merge deep-copies
@@ -438,7 +438,7 @@ def surviving_overrides(service: dict | None) -> dict:
 
     Single source of truth for "which of this service's overrides actually
     apply", so the config resolver and the pricing resolver cannot disagree about
-    it — they did, and it silently zeroed prices (see effective_service_pricing).
+    it, they did, and it silently zeroed prices (see effective_service_pricing).
     """
     declared = service_overrides(service)
     if not declared:
@@ -471,7 +471,7 @@ def effective_service_config(service: dict | None) -> dict:
 
     Same precedence idea as `effective_service_rules`, lifted from single keys to
     whole blocks: `services.metadata.<block>` deep-merges over the global block.
-    This is what makes a marketplace work — two businesses on the same deployment
+    This is what makes a marketplace work, two businesses on the same deployment
     can price, gate and schedule completely differently without either of them
     touching `domain.config.json`.
 
@@ -479,7 +479,7 @@ def effective_service_config(service: dict | None) -> dict:
     validated at load; per-service overrides were not, so a bad block reached the
     pricing path unchecked. The write path (`POST`/`PATCH /services`) now rejects
     them outright, but seeded rows, direct DB edits and anything written before
-    that gate existed still have to be survivable — so a bad block falls back to
+    that gate existed still have to be survivable, so a bad block falls back to
     the global one and is logged, rather than 500-ing a customer's booking over a
     business's typo. Only the offending block is dropped; the rest still apply.
     """
@@ -503,7 +503,7 @@ def effective_service_pricing(service: dict | None) -> dict:
     # Read the SURVIVING block, not the raw metadata. Reading the raw one meant a
     # rejected `pricing` override still suppressed the legacy-column fold-in, so a
     # service with a typo'd block priced at the global default (0 by default)
-    # instead of its own `price_minor_units` — a silent zero-price bug.
+    # instead of its own `price_minor_units`, a silent zero-price bug.
     declared = surviving_overrides(svc).get("pricing") or {}
     pricing = _merge(get_config().get("pricing") or {}, declared)
 
@@ -538,13 +538,13 @@ def capability(name: str, service: dict | None = None) -> bool:
 
     The block was declared, validated and served from the very first v2 commit
     and read by nothing, so `capabilities.reviews: false` hid the button and left
-    the endpoint wide open — the exact "looks live, does nothing" failure the
+    the endpoint wide open, the exact "looks live, does nothing" failure the
     config's own audit map exists to prevent. Routers call this before the write;
     the surfaces that have no backend yet are listed as unbuilt in
     `scripts/check_pivots.py` rather than pretended to be gated here.
     """
     # Fail LOUD on an unknown name. `.get(name, True)` meant a typo in a gate
-    # (`capability("review", ...)`) silently permitted the write forever — the
+    # (`capability("review", ...)`) silently permitted the write forever, the
     # one failure mode a gate must not have.
     if name not in DEFAULTS["capabilities"]:
         raise KeyError(
@@ -568,17 +568,17 @@ def payment_state(metadata: dict | None, service: dict | None = None,
     rather than stored as a free-standing field, so it cannot drift out of sync
     with the config the way a persisted enum would after a pivot.
 
-      none         — the product carries no payment at all
-      not_required — cancelled/rejected: nothing is owed either way
-      paid         — settled (recorded via POST /bookings/{id}/pay)
-      deposit_due  — a deposit is owed now, the balance later
-      due          — the full amount is owed now (prepay / pay_on_site)
-      invoiced     — nothing owed at booking time; billed afterwards
+      none        , the product carries no payment at all
+      not_required, cancelled/rejected: nothing is owed either way
+      paid        , settled (recorded via POST /bookings/{id}/pay)
+      deposit_due , a deposit is owed now, the balance later
+      due         , the full amount is owed now (prepay / pay_on_site)
+      invoiced    , nothing owed at booking time; billed afterwards
     """
     md = metadata or {}
     payments_cfg = effective_service_config(service)["payments"] or {}
     flow = payments_cfg.get("flow") or "none"
-    # WHO settles it (`payments.payer`) — the customer, a third party (an estate,
+    # WHO settles it (`payments.payer`), the customer, a third party (an estate,
     # an insurer, an employer), or a split. It changes nothing about what is
     # owed, so it rides along with the amounts rather than gating them; the
     # client uses it to address the invoice to the right party.
@@ -625,7 +625,7 @@ def blocking_prerequisites(service: dict | None = None) -> list[dict]:
     """Prerequisites that must be satisfied before a booking may CONFIRM.
 
     `prerequisites` is a list, so it is not in OVERRIDABLE_BLOCKS and stays
-    global — `service` is accepted for symmetry and future per-service support.
+    global, `service` is accepted for symmetry and future per-service support.
 
     The block shipped in v2 and gated nothing: a config could declare a required
     committee approval or a licence check and the engine would confirm the
@@ -655,8 +655,8 @@ def entitlement_plan(plan_key: str, service: dict | None = None) -> dict | None:
     """The config's `entitlements.plans[]` entry for `plan_key`, or None.
 
     Plans live in `domain.config.json`, not the database, so a stored
-    entitlement row names its plan by key. A key that no longer resolves — the
-    plan was renamed or retired — yields None and the entitlement goes inert
+    entitlement row names its plan by key. A key that no longer resolves, the
+    plan was renamed or retired, yields None and the entitlement goes inert
     rather than erroring: history must survive a config edit.
     """
     if not plan_key:
@@ -674,7 +674,7 @@ def resolve_entitlement(rows: list[dict], service: dict | None = None,
     """Pick the entitlement that applies to a booking, resolved against config.
 
     `rows` are this customer's `entitlements` rows. Returns the engine-facing
-    shape `pricing.quote()` expects — `{key, label, discountBps, row, plan}` —
+    shape `pricing.quote()` expects, `{key, label, discountBps, row, plan}`,
     or None when the customer holds nothing that applies.
 
     Selection rules, in order:
@@ -731,7 +731,7 @@ def within_cutoff(slot_starts_at: str | datetime, cutoff_hours, now: datetime | 
 # `booking.party.composition`, `booking.options` and `booking.subject` shipped in
 # v2 and were read by nothing: the config could declare child pricing, paid
 # add-ons and a per-subject intake and the booking path ignored all three. The
-# pricing engine already accepts `person_units` and `subject` in its context —
+# pricing engine already accepts `person_units` and `subject` in its context,
 # nothing ever built them. These three turn a request body into exactly those
 # inputs, validating against the SERVICE's resolved `booking` block so a
 # per-service override is honoured like every other block.
@@ -752,7 +752,7 @@ def resolve_party_bands(
     `party.composition` gives each band a `priceFactor`, so three heads are not
     automatically three units of the rate: 2 adults + 1 child at 0.5 is 2.5.
     Returns `(person_units, normalised_bands)`, both None when the deployment
-    declares no composition or the caller sent none — in which case pricing
+    declares no composition or the caller sent none, in which case pricing
     falls back to the raw party size, exactly as before.
 
     The counts must add up to `partySize`, because both numbers reach the
@@ -793,7 +793,7 @@ def resolve_options(
 ) -> list[dict]:
     """Turn `{kitHire: true, mealPlan: "lunch"}` into priced add-on lines.
 
-    Each line is `{key, label, amountMinorUnits}` — the shape `pricing.quote()`
+    Each line is `{key, label, amountMinorUnits}`, the shape `pricing.quote()`
     adds to the subtotal, so an add-on is charged, shown in the breakdown, and
     covered by percentage fees and the deposit like any other part of the price.
 
@@ -825,7 +825,7 @@ def resolve_options(
             amount = int(choice.get("priceMinorUnits") or 0)
             lines.append({
                 "key": key,
-                "label": f"{label} — {choice.get('label') or choice.get('key')}",
+                "label": f"{label}, {choice.get('label') or choice.get('key')}",
                 "choice": choice.get("key"),
                 "amountMinorUnits": amount,
             })

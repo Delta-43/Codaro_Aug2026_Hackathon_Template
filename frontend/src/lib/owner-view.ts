@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /**
  * Adapters from the backend's owner shapes into the business-mode view shapes
  * the existing components consume (so the polished UI is reused verbatim, only
- * the data source changed — now 100% real `/owner/*` data).
+ * the data source changed, now 100% real `/owner/*` data).
  */
 import type { BookingView } from "@/lib/business-view";
 import type { OwnerBooking } from "@/types/domain";

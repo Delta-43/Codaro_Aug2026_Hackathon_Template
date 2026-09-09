@@ -242,7 +242,7 @@ Run `make` with no arguments for the full list.
 | [backend/CLAUDE.md](backend/CLAUDE.md), [frontend/CLAUDE.md](frontend/CLAUDE.md), [supabase/CLAUDE.md](supabase/CLAUDE.md) | Per-layer conventions |
 | [CHANGELOG.md](CHANGELOG.md) | What changed in each release |
 
-**API reference.** The backend generates its own, from the routers — start the
+**API reference.** The backend generates its own, from the routers, start the
 stack and open <http://localhost:8000/docs> (Swagger UI), <http://localhost:8000/redoc>,
 or fetch the spec at `/openapi.json`. There is no hand-written endpoint list to
 fall out of date.

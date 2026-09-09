@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -7,7 +7,7 @@
 /**
  * A bare bouncing arrow at the foot of the first chapter. Clicking it snaps to
  * the next chapter (its section's next sibling). Paired with the page's CSS
- * scroll-snap so a small scroll also flicks to the next plate. No label — just
+ * scroll-snap so a small scroll also flicks to the next plate. No label, just
  * the arrow.
  */
 import type { MouseEvent } from "react";

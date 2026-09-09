@@ -1,13 +1,13 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""/conversations — 1:1 messaging between a client and a provider's owner.
+"""/conversations, 1:1 messaging between a client and a provider's owner.
 
 One thread per (provider, client) pair; messages carry delivered/read receipts
 and a soft-delete. Offline, RLS is not simulated (the user client is the same
-in-memory store), so participant-scoping enforced purely by RLS — e.g. a
-non-participant reading someone else's thread — is covered by the live e2e
+in-memory store), so participant-scoping enforced purely by RLS, e.g. a
+non-participant reading someone else's thread, is covered by the live e2e
 suite, not here. What IS asserted offline: the router's own checks (owner-path
 403, empty body 400, sender-only delete, unknown-id 404), the serialized
 shapes, unread tallies, inbox ordering via the emulated `on_message_insert`
@@ -164,7 +164,7 @@ def test_inbox_lists_threads_with_unread_counts_most_recent_first(client, db, au
 
 def test_get_single_thread_carries_other_party_and_unread(client, db, auth):
     """Direct deep-link view. (A NON-participant 404 is RLS behaviour the
-    offline fake does not simulate — covered by the live suite.)"""
+    offline fake does not simulate, covered by the live suite.)"""
     _provider, conv = _client_thread(client, db, auth)
     auth(role="owner")
     client.post(f"/conversations/{conv['id']}/messages", json={"body": "hi"})

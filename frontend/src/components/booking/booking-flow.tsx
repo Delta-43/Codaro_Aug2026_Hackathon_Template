@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -44,7 +44,7 @@ export function BookingFlow({
   const { vertical, copy } = useApp();
   const router = useRouter();
   const isRange = service.maxSlotsPerBooking > 1;
-  /** `booking.granularity: "none"` — the customer picks no date at all. They
+  /** `booking.granularity: "none"`, the customer picks no date at all. They
    *  submit a request and the business assigns the date afterwards, announcing
    *  it through messaging. The calendar must never render in this mode. */
   const requestMode = service.granularity === "none";
@@ -58,7 +58,7 @@ export function BookingFlow({
   const [repeatCount, setRepeatCount] = useState(1);
   // The engine accepts one pattern per series, but the config may declare
   // several. Defaulting to the first and letting the customer change it is what
-  // makes `recurrence.patterns[1..]` reachable at all — they used to be dead.
+  // makes `recurrence.patterns[1..]` reachable at all, they used to be dead.
   const patterns = service.recurrence.enabled ? service.recurrence.patterns : [];
   const [repeatPattern, setRepeatPattern] = useState<string | null>(null);
   const pattern = repeatPattern ?? patterns[0] ?? null;
@@ -72,14 +72,14 @@ export function BookingFlow({
   const [options, setOptions] = useState<Record<string, string | boolean>>({});
   const [subject, setSubject] = useState<FieldValues>({});
   const [metaValues, setMetaValues] = useState<FieldValues>({});
-  // `booking.sequence` — the customer buys the course, not the first session.
+  // `booking.sequence`, the customer buys the course, not the first session.
   // Defaults ON where the config declares one: a sequence service that sold a
   // single session would be mis-sold, which is why the block exists.
   const [bookSequence, setBookSequence] = useState(true);
   const [rangeError, setRangeError] = useState<string | null>(null);
   // Request mode still needs a real slot: the DB requires `slot_id not null`,
   // so the flow resolves a PLACEHOLDER behind the customer's back. It is never
-  // presented as "their date" — that is the design, not an oversight.
+  // presented as "their date", that is the design, not an oversight.
   const [resolving, setResolving] = useState(requestMode);
   const [resolveError, setResolveError] = useState<string | null>(null);
   const [confirmError, setConfirmError] = useState<string | null>(null);
@@ -101,7 +101,7 @@ export function BookingFlow({
   const resolveFailedMessage = `Couldn't open an ${vertical.bookingNoun.toLowerCase()} request. Please try again.`;
 
   // Resolve the placeholder and go straight to confirm. Absolute-instant date
-  // maths only (a 30-day UTC window) — nothing here is a wall-clock date, so no
+  // maths only (a 30-day UTC window), nothing here is a wall-clock date, so no
   // timezone is involved.
   useEffect(() => {
     if (!requestMode) return;
@@ -170,7 +170,7 @@ export function BookingFlow({
   }
 
   /** Party bands and party size are two views of one number, and the server
-   *  rejects them when they disagree — so the bands drive the size. */
+   *  rejects them when they disagree, so the bands drive the size. */
   function changeBands(next: Record<string, number>) {
     setPartyBands(next);
     setPartySize(Math.max(1, Object.values(next).reduce((sum, n) => sum + n, 0)));
@@ -269,7 +269,7 @@ export function BookingFlow({
       const entry = await joinWaitlist(slot.id, partySize);
       setBanner(
         entry.peopleAhead
-          ? `You're on the waitlist — ${entry.peopleAhead} ahead of you.`
+          ? `You're on the waitlist, ${entry.peopleAhead} ahead of you.`
           : (copy.waitlistJoined ?? "You're on the waitlist."),
       );
     } catch (e) {
@@ -280,7 +280,7 @@ export function BookingFlow({
   function done() {
     setBooking(null);
     resetSelection();
-    // In request mode there is nothing to go back TO — no calendar, and
+    // In request mode there is nothing to go back TO, no calendar, and
     // re-entering "browse" would just resolve another placeholder forever. The
     // request now lives in the bookings list, so send them there.
     if (requestMode) {
@@ -344,7 +344,7 @@ export function BookingFlow({
       <div>
         {/* No calendar competes for the space here, so the unit gets a full
             banner rather than the compact thumbnail the date view uses. This
-            screen is otherwise a title and a status line — the photo is the
+            screen is otherwise a title and a status line, the photo is the
             only thing on it that shows what was chosen. */}
         <div className="mb-3">
           <MediaTile
@@ -393,7 +393,7 @@ export function BookingFlow({
     <div>
       {/* The unit the family just chose stays on screen while they pick a date.
           Without this the resource is a photo in a modal that closes and a name in
-          a subtitle — the picture never returns. Falls back to the service's own
+          a subtitle, the picture never returns. Falls back to the service's own
           tile when no single unit is bound ("any available"). */}
       <div className="mb-3 flex items-center gap-3">
         <MediaTile

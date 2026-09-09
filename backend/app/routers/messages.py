@@ -1,8 +1,8 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Messaging — 1:1 conversations between a client and a provider's owner.
+"""Messaging, 1:1 conversations between a client and a provider's owner.
 
 A conversation is one thread per (provider, client) pair; messages carry
 delivered/read receipts and a soft-delete. Every user-owned read/write goes
@@ -12,7 +12,7 @@ is used **only** for the cross-user display-name resolution RLS can't do (the
 provider's name/avatar, and the other participant's `user_metadata`).
 
 Identity always comes from the verified token (`user.id` / `user.email`), never
-the request body — mirroring `create_booking`. Live delivery is Supabase
+the request body, mirroring `create_booking`. Live delivery is Supabase
 Realtime (see the frontend hook), gated by the same RLS; this router owns the
 durable send/read/delete/list path.
 """
@@ -31,7 +31,7 @@ from app.clock import now_utc
 router = APIRouter(prefix="/conversations", tags=["messages"])
 
 
-# --- cross-user display resolution (service key — spans RLS boundaries) -----
+# --- cross-user display resolution (service key, spans RLS boundaries) -----
 
 
 def _provider_map(db, provider_ids) -> dict[str, dict]:
@@ -51,7 +51,7 @@ def _provider_map(db, provider_ids) -> dict[str, dict]:
 def _user_display(db, uid: str) -> dict:
     """{id, name, avatar_url} for an auth user, from user_metadata via the admin
     API. Degrades gracefully (the offline fake / a missing user → a safe
-    fallback) — the same best-effort stance as owner.py's client screening."""
+    fallback), the same best-effort stance as owner.py's client screening."""
     try:
         resp = db.auth.admin.get_user_by_id(uid)
         u = getattr(resp, "user", None) or resp
@@ -94,7 +94,7 @@ def _repoint_preview(uc, conversation_id: str, deleted_created_at: str) -> None:
     """Re-point a thread's inbox preview at the latest *surviving* message.
 
     `last_message_at`/`last_message_preview` are stamped by the `on_message_insert`
-    trigger, which — being an insert trigger — never fires on a soft delete. So
+    trigger, which, being an insert trigger, never fires on a soft delete. So
     deleting the newest message blanked it in the thread while the inbox went on
     displaying its text indefinitely: exactly the text the user asked to retract,
     left in the one view that summarises the conversation.
@@ -105,12 +105,12 @@ def _repoint_preview(uc, conversation_id: str, deleted_created_at: str) -> None:
     UPDATE, an unguarded write would overwrite their fresh preview with an older
     message and drag `last_message_at` backwards, sorting the thread below
     strictly less recent ones. Filtering on the value we believe we are replacing
-    makes the update a no-op in that case — and also when the deleted message was
+    makes the update a no-op in that case, and also when the deleted message was
     never the latest, which is the common case and needs no repoint at all.
 
     `last_message_at` is only rewritten when a surviving message supplies a new
     one. When every message in the thread is deleted the preview text must go, but
-    the timestamp carries *ordering*, not content — clearing it too would drop the
+    the timestamp carries *ordering*, not content, clearing it too would drop the
     thread to the bottom of the inbox and render it as "No messages yet", when it
     is a real conversation whose messages are all tombstones.
     """
@@ -151,7 +151,7 @@ def list_conversations(user: AuthUser = Depends(require_user)):
     # Unread = the other party's un-read, non-deleted messages, tallied per thread.
     # The predicate goes to PostgREST rather than being applied here: counting in
     # Python meant every read of the inbox dragged back *every message of every
-    # thread* — the whole history, to report a handful of integers.
+    # thread*, the whole history, to report a handful of integers.
     # Chunked: `convs` is fetch_all-paged, so a long-lived inbox can exceed
     # what one `.in_` request line holds.
     unread: dict[str, int] = {}
@@ -182,7 +182,7 @@ def list_conversations(user: AuthUser = Depends(require_user)):
 
 @router.get("/{conversation_id}")
 def get_conversation(conversation_id: str, user: AuthUser = Depends(require_user)):
-    """A single thread with its other party + unread count — what the thread view
+    """A single thread with its other party + unread count, what the thread view
     needs for its header on a direct deep-link (404s a non-participant)."""
     db = get_supabase()
     uc = get_user_client(user.token)
@@ -282,9 +282,9 @@ def delete_message(
 @router.post("")
 def start_conversation(payload: ConversationCreateReq, user: AuthUser = Depends(require_user)):
     """Find-or-create a thread with a provider. Two directions:
-      * **client** (default) — the caller is the customer: `client_id = me`,
+      * **client** (default), the caller is the customer: `client_id = me`,
         `owner_id` resolved from the provider.
-      * **owner** — the caller passes a `client_id` to reach out to; the caller
+      * **owner**: the caller passes a `client_id` to reach out to; the caller
         must own the provider (verified below), so `owner_id = me`.
     Idempotent on the (provider, client) pair either way."""
     db = get_supabase()
@@ -324,7 +324,7 @@ def start_conversation(payload: ConversationCreateReq, user: AuthUser = Depends(
             )
         except Exception as exc:
             # unique (provider_id, client_id): the thread exists but was
-            # invisible to the RLS-scoped find (null or STALE owner_id — the
+            # invisible to the RLS-scoped find (null or STALE owner_id, the
             # SELECT policy is a flat owner_id compare, so a re-owned provider's
             # old threads stay hidden until re-stamped). The service-key read/
             # write is deliberate repair: the row is RLS-invisible by

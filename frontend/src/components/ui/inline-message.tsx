@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -8,7 +8,7 @@ import { Children, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * An inline form/flow message — a validation error, a rule violation the
+ * An inline form/flow message: a validation error, a rule violation the
  * backend rejected, a wrong-portal notice.
  *
  * Two things it centralises:
@@ -21,24 +21,24 @@ import { cn } from "@/lib/utils";
  *
  * **It re-announces on a *new* message.** React reuses the DOM node when only
  * the text changes, so a second, different error would swap silently under a
- * still element — the user retries, gets a different rejection, and sees nothing
+ * still element, the user retries, gets a different rejection, and sees nothing
  * move. Keying on the message content remounts it, so the animation replays.
  *
  * It also carries the ARIA that four of the seven call sites had and three
  * didn't: an error is `role="alert"` (interrupts), a notice is `role="status"`
  * (waits its turn). `live` overrides that pairing for the case the tone can't
- * express — a message that is genuinely an error but is already on screen at
+ * express, a message that is genuinely an error but is already on screen at
  * first paint, where interrupting the reader announces nothing the user just
  * did.
  *
- * Visuals stay overridable via `className` — the booking flows sit on cards and
- * use `rounded-lg`, the login plate matches its `rounded-2xl` inputs — but the
+ * Visuals stay overridable via `className`, the booking flows sit on cards and
+ * use `rounded-lg`, the login plate matches its `rounded-2xl` inputs, but the
  * tint, padding and type scale come from here so they can't drift apart again.
  */
 /** A key that changes whenever the *text* of the message does.
  *
- *  Not just `typeof children === "string"`: a call site that interpolates —
- *  `<InlineMessage>Failed: {reason}</InlineMessage>` — hands over an array of
+ *  Not just `typeof children === "string"`: a call site that interpolates,
+ *  `<InlineMessage>Failed: {reason}</InlineMessage>`: hands over an array of
  *  children, which would key as `undefined` and silently lose the remount this
  *  component exists to guarantee. Flattening the text children covers that;
  *  element children have no text to compare, so they contribute a constant and

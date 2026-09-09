@@ -1,21 +1,21 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Business tab 3 — Messages. The permanent hub for everything conversational:
+ * Business tab 3: Messages. The permanent hub for everything conversational:
  * incoming booking requests to screen at the top (a request is the start of a
  * relationship), then the thread inbox below. The per-business "auto-approve"
  * switch flips every offer between manual review and instant confirmation
  * (persisted server-side); with it off, each request is approved or rejected by
  * hand against the real backend. Each card surfaces the client's screening
- * signals — membership length, past bookings with you, cancellations. Requests +
+ * signals, membership length, past bookings with you, cancellations. Requests +
  * actions are the real /owner + /bookings API.
  *
  * On a service whose `booking.granularity` is "none" the customer picks no date
- * at all — they describe what they need and the BUSINESS assigns the day. That
+ * at all, they describe what they need and the BUSINESS assigns the day. That
  * makes this screen, not the calendar, the place a date is chosen: each card
  * carries an <AssignDatePanel> that clears the blocking prerequisites, picks an
  * open date on the request's own resource, and announces it down the thread the
@@ -72,7 +72,7 @@ export default function MessagesPage() {
   // reported the success disappears with it.
   const [assignedNotes, setAssignedNotes] = useState<string[]>([]);
 
-  // Scoped to the active provider like the Services tab — the owner endpoints
+  // Scoped to the active provider like the Services tab, the owner endpoints
   // return every business the owner has, and the auto-approve master switch
   // below must never flip another business's offers. Keyed on the id, not the
   // object, so a provider refresh minting same-id objects doesn't refetch.
@@ -88,7 +88,7 @@ export default function MessagesPage() {
   }, [activeProviderId]);
 
   useEffect(() => {
-    // Back to the skeleton on a provider switch — never show business A's
+    // Back to the skeleton on a provider switch, never show business A's
     // requests under business B's header while the refetch is in flight.
     setLoading(true);
     void load();
@@ -97,7 +97,7 @@ export default function MessagesPage() {
   const autoApprove = services.length > 0 && services.every((s) => s.autoApprove);
   const pending = useMemo(() => requests.filter((r) => !decided[r.id]), [requests, decided]);
   // The request's own service supplies the subject-field labels and the
-  // prerequisite descriptors — both are per-service, so they're looked up by
+  // prerequisite descriptors, both are per-service, so they're looked up by
   // id rather than read off the global config.
   const serviceById = useMemo(
     () => new Map(services.map((s) => [s.id, s] as const)),
@@ -121,7 +121,7 @@ export default function MessagesPage() {
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Couldn't update auto-approve.");
     } finally {
-      // Refetch even on partial failure — some services may have flipped.
+      // Refetch even on partial failure, some services may have flipped.
       await load();
       setBusy(false);
     }
@@ -146,13 +146,13 @@ export default function MessagesPage() {
 
   return (
     <section className="space-y-4 py-2">
-      {/* Requests to screen — the top of every business relationship. */}
+      {/* Requests to screen, the top of every business relationship. */}
       <div className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-lg font-semibold tracking-tight">Requests</h1>
           <p className="text-sm text-muted-foreground">
             {autoApprove
-              ? `Auto-approve is on — new ${vocab.bookingNounPlural.toLowerCase()} are accepted automatically.`
+              ? `Auto-approve is on, new ${vocab.bookingNounPlural.toLowerCase()} are accepted automatically.`
               : `${pending.length} waiting on your decision.`}
           </p>
         </div>
@@ -163,7 +163,7 @@ export default function MessagesPage() {
 
       {assignedNotes.map((note, i) => (
         <InlineMessage key={`${note}-${i}`} tone="notice" className="rounded-2xl px-4 py-2.5">
-          Date assigned — {note}
+          Date assigned, {note}
         </InlineMessage>
       ))}
 
@@ -197,7 +197,7 @@ export default function MessagesPage() {
         </ul>
       )}
 
-      {/* Inbox — the business's conversations with its customers. */}
+      {/* Inbox, the business's conversations with its customers. */}
       <MessagingSection basePath="/owner/messages" />
     </section>
   );
@@ -255,7 +255,7 @@ function RequestCard({
   const browserTz = typeof Intl !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "UTC";
   const flagged = r.client.cancelledWithProvider > 0;
   const settled = decision;
-  // The customer never picked this date on a "none"-granularity service — it is
+  // The customer never picked this date on a "none"-granularity service, it is
   // the placeholder the request was parked on. Saying "wants 14:00 on Tuesday"
   // about a date nobody chose is a lie the owner would act on.
   const dateIsPlaceholder = service?.granularity === "none";
@@ -309,7 +309,7 @@ function RequestCard({
             <span className="inline-flex items-center gap-1">
               <Clock className="size-3.5" aria-hidden />{" "}
               {dateIsPlaceholder
-                ? "No date yet — awaiting assignment"
+                ? "No date yet, awaiting assignment"
                 : formatBookingWhen(r.startUtc, r.endUtc, browserTz)}
             </span>
             {partyNoun && r.partySize > 1 ? (

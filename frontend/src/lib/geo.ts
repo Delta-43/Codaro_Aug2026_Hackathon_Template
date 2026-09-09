@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -6,13 +6,13 @@
  * Distance for search results.
  *
  * The origin used to be a hardcoded Warsaw constant, which meant every user
- * anywhere saw distances measured from the demo's home city — and a pivot to a
+ * anywhere saw distances measured from the demo's home city, and a pivot to a
  * business in another country had no way to correct it. It now comes from the
  * pivot file (`location.origin` / `location.distanceUnit`), applied once at app
  * boot by `AppProvider`. The Warsaw values remain the fallback so the app still
  * renders if `/config` is unreachable.
  *
- * Swap the origin for the real device location when geolocation is wired — this
+ * Swap the origin for the real device location when geolocation is wired, this
  * is the one place that would need to change.
  */
 export type Point = { lat: number; lng: number };

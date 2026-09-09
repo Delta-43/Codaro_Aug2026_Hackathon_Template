@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -9,7 +9,7 @@ import { buttonVariants } from "@/components/ui/button";
 
 /**
  * A purposeful empty state: a line of copy plus a primary action. Used
- * wherever a data-driven view has nothing to show — never render blank.
+ * wherever a data-driven view has nothing to show, never render blank.
  * Navigation uses next/link styled with the button variants (client-side nav).
  */
 export function EmptyState({

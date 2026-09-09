@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * The business-mode shell — same responsive pattern and design language as the
+ * The business-mode shell, same responsive pattern and design language as the
  * customer AppShell (bottom tab bar under md, left drawer at md+), but a
  * completely different set of five tabs for the provider persona:
  *   Dashboard · Services · Requests · Calendar · Settings
@@ -128,7 +128,7 @@ export function BusinessShell({ children }: { children: ReactNode }) {
           className="group flex items-center gap-2 rounded-full py-1 pl-3 pr-1 transition-all hover:bg-primary/10 hover:text-primary"
           aria-label="Profile"
         >
-          {/* Name first, mark hard against the right edge — the corner is the
+          {/* Name first, mark hard against the right edge, the corner is the
               identity anchor, the label reads into it. */}
           <span className="max-w-[10rem] truncate text-base font-medium">{businessName}</span>
           {/* activeProvider comes from useOwner, so an avatar edit re-renders here. */}
@@ -142,7 +142,7 @@ export function BusinessShell({ children }: { children: ReactNode }) {
         </Link>
       </header>
 
-      {/* Mobile compact header — brand on the left (tapping it goes to the
+      {/* Mobile compact header, brand on the left (tapping it goes to the
           landing page), the business's own mark on the right. No page name up
           here: the bottom tab bar already says which tab you are on, and
           repeating it in a 48px bar crowded out the brand. Each page keeps its
@@ -159,7 +159,7 @@ export function BusinessShell({ children }: { children: ReactNode }) {
           <img src="/arbor-mark-7d.png" alt="" aria-hidden className="size-6 -translate-y-[9%]" />
           Arbor
         </Link>
-        {/* The phone's only door to the public profile — the desktop chip is
+        {/* The phone's only door to the public profile, the desktop chip is
             md-only and no bottom tab covers Profile, so on mobile that page had
             no link at all. Mark alone, no name: the bar has no room for one. */}
         <Link href="/owner/profile" aria-label="View your public profile" className="shrink-0">

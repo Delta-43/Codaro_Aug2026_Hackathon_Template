@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Profile picture control — the avatar plus a single white circular badge
+ * Profile picture control: the avatar plus a single white circular badge
  * overlaid on its bottom-right corner. The badge toggles by state: camera
  * icon + tap-to-upload when no photo is set, trash icon + tap-to-delete once
  * one is. Always visible (not hover-gated) so it works on touch.

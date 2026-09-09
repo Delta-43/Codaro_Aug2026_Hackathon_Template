@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -53,7 +53,7 @@ interface OwnerContextValue {
   providers: Provider[] | null;
   activeProvider: Provider | null;
   /** The live vertical's UI vocabulary (nouns/copy), with the pivot file's
-   *  `terms`/`copy` overlaid — the owner console must name things exactly as the
+   *  `terms`/`copy` overlaid, the owner console must name things exactly as the
    *  customer side does, so both read the same overlay. */
   vocab: VerticalConfig;
   vertical: VerticalId;
@@ -61,16 +61,16 @@ interface OwnerContextValue {
   scene: string;
   /** Global `capabilities.<name>` (default ON). Only a FALLBACK: the routers
    *  gate per service, so prefer `Service.capabilities` and use this when the
-   *  per-service value is unavailable — e.g. the services fetch failed. */
+   *  per-service value is unavailable, e.g. the services fetch failed. */
   capability: (name: string) => boolean;
-  /** `tenancy` — what this business is signed up to: whether it can onboard
+  /** `tenancy`, what this business is signed up to: whether it can onboard
    *  itself, what it must be verified with, and what the platform takes. All
    *  three were config-only and shown on no owner screen. */
   tenancyTerms: TenancyTerms;
-  /** `metaFields.{entity}` — the domain fields this deployment declares, so the
+  /** `metaFields.{entity}`, the domain fields this deployment declares, so the
    *  owner's own create/edit forms can offer what the backend already validates. */
   metaFields: MetaFields;
-  /** `pricing.currency` — the deployment's default currency for a first offer. */
+  /** `pricing.currency`, the deployment's default currency for a first offer. */
   currency: string;
   setActiveProviderId: (id: string) => void;
   refreshProviders: () => Promise<void>;
@@ -123,7 +123,7 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
         getMyProviders().catch(() => null),
         getActiveVertical().catch(() => "fleet" as VerticalId),
         // /config unreachable: leave everything ON and keep the static
-        // vocabulary — the backend still refuses whatever is actually disabled.
+        // vocabulary, the backend still refuses whatever is actually disabled.
         getPivotConfig().catch(() => FALLBACK_PIVOT_CONFIG),
       ]);
       if (cancelled) return;
@@ -133,7 +133,7 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
       applyPivot(pivot);
       if (pivot === FALLBACK_PIVOT_CONFIG || listRaw === null) {
         // A transient boot blip must not pin the fallbacks for the whole
-        // session — a first offer created from the fallback currency would be
+        // session, a first offer created from the fallback currency would be
         // persisted wrong, and a real owner would sit in the "no business"
         // state. One delayed retry; the backend stays the authority.
         setTimeout(() => {

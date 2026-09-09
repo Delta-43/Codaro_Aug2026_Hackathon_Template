@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -48,7 +48,7 @@ function VerifiedAvatar({
 }
 
 /** The business identity chip used across the owner UI: the uploaded provider
- *  avatar when one is set, else the on-brand generated scene — keeping the same
+ *  avatar when one is set, else the on-brand generated scene, keeping the same
  *  gold-ring + verified treatment either way, so every surface shows the same
  *  face. Callers pass the provider's `avatarUrl` (may be empty) and its `scene`. */
 export function BusinessBadge({
@@ -59,7 +59,7 @@ export function BusinessBadge({
   className,
 }: {
   avatarUrl?: string;
-  /** Only used if the uploaded logo fails to load — then it draws initials. */
+  /** Only used if the uploaded logo fails to load, then it draws initials. */
   name?: string;
   scene: string;
   size?: "sm" | "md" | "lg";

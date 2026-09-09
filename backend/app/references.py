@@ -1,11 +1,11 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """Human-facing booking references.
 
-The format lived twice — `routers/bookings.py` minted them for real bookings and
-`seed.py` minted them for demo rows — so the two could drift and seeded data
+The format lived twice, `routers/bookings.py` minted them for real bookings and
+`seed.py` minted them for demo rows, so the two could drift and seeded data
 would stop looking like the real thing.
 """
 from __future__ import annotations

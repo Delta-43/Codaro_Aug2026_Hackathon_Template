@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Compact appearance control for the Account header — a small, icon-only 3-way
+ * Compact appearance control for the Account header, a small, icon-only 3-way
  * segmented toggle (Light · Dark · Smart) with an "Appearance" caption above.
  *
  * Named apart from `components/theme-toggle.tsx`, which is a different control

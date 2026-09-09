@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Tab 4 — Bookings. Calendar + list merged into one panel: a month / week / day
+ * Tab 4: Bookings. Calendar + list merged into one panel: a month / week / day
  * calendar of the customer's own bookings on top (the counterparty is the
  * business, so it reads as "who I'm booked with"), then the Upcoming / Past
  * segmented list below. Both are backed by getBookings; tapping a calendar entry
@@ -74,7 +74,7 @@ export default function BookingsPage() {
     <section className="space-y-4 py-4">
       <h1 className="sr-only">{vertical.bookingNounPlural}</h1>
 
-      {/* Calendar of my bookings — marketplace only; single-business has its own
+      {/* Calendar of my bookings, marketplace only; single-business has its own
           Calendar tab, so this would be a redundant second calendar. */}
       {!singleBusiness ? (
         all.loading && !all.data ? (
@@ -127,7 +127,7 @@ export default function BookingsPage() {
             body={
               scope === "upcoming"
                 ? (copy.emptyStateBookings ??
-                  "Find a provider and book a time — it'll show up here.")
+                  "Find a provider and book a time, it'll show up here.")
                 : "Bookings you've completed or that have passed will appear here."
             }
             actionHref={scope === "upcoming" ? "/search" : undefined}

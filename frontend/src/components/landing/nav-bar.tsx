@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -86,7 +86,7 @@ export function NavBar() {
     if (el) el.scrollBy({ left: dir * el.clientWidth * 0.7, behavior: "smooth" });
   };
 
-  // Edge nudge chevrons — overlaid at the strip's ends (absolute), so they take
+  // Edge nudge chevrons, overlaid at the strip's ends (absolute), so they take
   // no layout width. Reserving width for them (the previous approach) shrank the
   // strip enough to make it "overflow" and show the chevrons even on wide/tablet
   // screens where the links comfortably fit.
@@ -96,7 +96,7 @@ export function NavBar() {
   return (
     <nav className="fixed inset-x-0 top-4 z-50 flex justify-center px-4">
       <div className="flex w-full max-w-4xl items-center gap-2 rounded-3xl border border-border/60 bg-background/70 px-4 py-2 shadow-sm backdrop-blur-xl">
-        {/* Far left — the platform name; clicking it glides back to the top of
+        {/* Far left, the platform name; clicking it glides back to the top of
             the landing page, like the section links scroll to their anchors. */}
         <ScrollTopLink className="flex shrink-0 origin-left items-center gap-1.5 text-base font-bold tracking-tight text-primary transition-transform duration-200 ease-out hover:scale-110">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -104,10 +104,10 @@ export function NavBar() {
           Arbor
         </ScrollTopLink>
 
-        {/* Middle — links, centred when they fit, horizontally scrollable when
+        {/* Middle, links, centred when they fit, horizontally scrollable when
             not. The nudge chevrons are overlaid at the strip's edges (absolute),
             so they never consume layout width and only render when the strip can
-            actually scroll — nothing shows on wide/tablet screens where the links
+            actually scroll, nothing shows on wide/tablet screens where the links
             fit, and the brand/Login never shift when the chevrons toggle. */}
         <div className="relative flex min-w-0 flex-1 items-center">
           <div
@@ -150,7 +150,7 @@ export function NavBar() {
           )}
         </div>
 
-        {/* Far right — primary button (pinned): Dashboard when signed in, else
+        {/* Far right, primary button (pinned): Dashboard when signed in, else
             Login. In a showcase-only build there is no app to sign in to, so it
             becomes the source link and ignores `signedIn` entirely: a stale
             Supabase session must not offer a Dashboard that redirects to `/`. */}

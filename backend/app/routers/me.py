@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -36,7 +36,7 @@ def get_me(user: AuthUser = Depends(require_user)):
 
 @router.get("/me/role")
 def get_my_role(user: AuthUser = Depends(require_user)):
-    """The caller's **trusted** engine role, resolved from `profiles` — the same
+    """The caller's **trusted** engine role, resolved from `profiles`, the same
     value `require_owner` gates on.
 
     The frontend used to derive this from the JWT's `user_metadata.role`, which
@@ -57,7 +57,7 @@ def get_my_role(user: AuthUser = Depends(require_user)):
 
 @router.delete("/me", status_code=204)
 def delete_me(user: AuthUser = Depends(require_user)):
-    """GDPR right to erasure — permanently remove every record tied to the
+    """GDPR right to erasure, permanently remove every record tied to the
     signed-in user and delete their auth account. Idempotent (a repeat call is a
     no-op). Runs the erasure with the service key; see `app.gdpr.erase_user`."""
     gdpr.erase_user(get_supabase(), user)
@@ -68,8 +68,8 @@ def delete_me(user: AuthUser = Depends(require_user)):
 def my_entitlements(user: AuthUser = Depends(require_user)):
     """What this customer holds, and what the deployment sells.
 
-    `plans` comes from `domain.config.json` (`entitlements.plans[]`) — the
-    catalogue — and `held` from the `entitlements` table. Returning both in one
+    `plans` comes from `domain.config.json` (`entitlements.plans[]`), the
+    catalogue, and `held` from the `entitlements` table. Returning both in one
     response lets the UI say "you are a Member" or "become a Member for X"
     without a second round trip and without the client knowing the config shape.
 
@@ -127,7 +127,7 @@ def my_reputation(user: AuthUser = Depends(require_user)):
     try:
         rows = db.table("client_reviews").select("*").eq("client_id", user.id).execute().data or []
     except Exception:
-        rows = []  # table not present yet (e.g. offline) — empty reputation
+        rows = []  # table not present yet (e.g. offline), empty reputation
     provider_ids = list({r["provider_id"] for r in rows if r.get("provider_id")})
     names: dict[str, str] = {}
     avatars: dict[str, str] = {}

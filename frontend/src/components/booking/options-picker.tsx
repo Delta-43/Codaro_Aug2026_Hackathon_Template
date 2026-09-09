@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * Paid extras — `booking.options`.
+ * Paid extras: `booking.options`.
  *
  * Declared in v2 and offered nowhere: a config could sell kit hire, a meal plan
  * or a photo package and the customer had no way to add one. The prices here are

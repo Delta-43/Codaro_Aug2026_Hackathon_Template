@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -17,7 +17,7 @@ from typing import Any, Optional
 
 from fastapi import HTTPException
 
-# ApiErrorCode union — keep in lockstep with frontend/src/api/errors.ts.
+# ApiErrorCode union, keep in lockstep with frontend/src/api/errors.ts.
 NOT_FOUND = "NOT_FOUND"
 SLOT_UNAVAILABLE = "SLOT_UNAVAILABLE"
 CAPACITY_EXCEEDED = "CAPACITY_EXCEEDED"

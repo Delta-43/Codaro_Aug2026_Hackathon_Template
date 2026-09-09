@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -21,7 +21,7 @@ import { DemoLogins } from "@/components/demo-logins";
 import { BusinessTag } from "@/components/business/business-tag";
 
 /**
- * Business sign-in — a dedicated page reached from "I'm a business!" on the main
+ * Business sign-in, a dedicated page reached from "I'm a business!" on the main
  * sign-in. Shares the exact glass-plate layout of the customer login page; the
  * only distinction is the gold "Business" chip next to the Arbor wordmark and the
  * owner-role auth behaviour.
@@ -48,7 +48,7 @@ function BusinessLoginForm() {
   // is sent to the customer app rather than refused. Only the *console* is
   // role-gated (`owner/layout.tsx`), which is the boundary that matters.
   //
-  // `safeNext` wins for either account type — AuthGate sends people here with
+  // `safeNext` wins for either account type, AuthGate sends people here with
   // the page they were reaching for (`?next=/bookings/x`), and dropping it for
   // customers would silently strand them somewhere they didn't ask for. The
   // role only picks the *fallback* home.
@@ -98,7 +98,7 @@ function BusinessLoginForm() {
               Arbor
             </Link>
             {/* The chip carries its own em-based drop onto the optical middle
-                of "Arbor" — nothing to nudge from out here. */}
+                of "Arbor", nothing to nudge from out here. */}
             <BusinessTag />
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
@@ -172,7 +172,7 @@ function BusinessLoginForm() {
 
         <DemoLogins disabled={busy} onError={setError} />
 
-        {/* Inverse of the customer page's "I'm a business!" — back to the
+        {/* Inverse of the customer page's "I'm a business!", back to the
             customer sign-in. */}
         <Link
           href="/login"

@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /**
  * Long-form prose primitives for /docs. The project has no typography plugin,
  * so headings/tables/code get their styling from these instead of a `prose`
- * class — server components, no client JS.
+ * class, server components, no client JS.
  */
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
@@ -26,7 +26,7 @@ export function Section({
 }) {
   return (
     // tabIndex: the TOC moves focus here after the glide, so keyboard and
-    // screen-reader users land where the scroll did. No ring — the heading
+    // screen-reader users land where the scroll did. No ring, the heading
     // flash already marks the arrival.
     <section
       id={id}

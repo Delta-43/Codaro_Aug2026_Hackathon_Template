@@ -1,8 +1,8 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Unit tests for `app.config_schema` — the v2 pivot-file resolver.
+"""Unit tests for `app.config_schema`, the v2 pivot-file resolver.
 
 Pure dict work: no Supabase, no FastAPI, no `domain.config.json` dependency
 beyond the two files this repo actually ships. Two jobs are pinned here.
@@ -11,7 +11,7 @@ beyond the two files this repo actually ships. Two jobs are pinned here.
 (`terms`/`rules`/`copy`/`theme`/`metaFields`, `theme` since dropped); v2 adds
 fifteen more blocks. A v1
 file must keep booting, and the two aliased pairs (`rules` <-> `timing`,
-`search` <-> `discovery`) must never be able to disagree — a reader on either
+`search` <-> `discovery`) must never be able to disagree, a reader on either
 path sees the same number.
 
 **validate()** is the "fail at the edit, not at the next booking" contract. This
@@ -66,7 +66,7 @@ def good() -> dict:
 
 
 # ======================================================================
-# normalize — defaults
+# normalize, defaults
 # ======================================================================
 
 
@@ -124,7 +124,7 @@ def test_normalize_partially_declared_terms_keep_the_default_vocabulary():
 
 
 def test_normalize_lists_replace_rather_than_merge():
-    """`pricing.tiers: [x]` means *those* tiers, not those plus the defaults —
+    """`pricing.tiers: [x]` means *those* tiers, not those plus the defaults,
     otherwise a pivot could never delete a default entry."""
     resolved = normalize(
         {
@@ -152,7 +152,7 @@ def test_normalize_does_not_mutate_the_defaults_or_the_input():
 
 
 def test_normalize_is_idempotent():
-    """Normalizing a normalized tree changes nothing — the endpoint, the CI
+    """Normalizing a normalized tree changes nothing, the endpoint, the CI
     validator and the reload path can each run it without drift."""
     for raw in ({}, json.loads(FIXTURE_CONFIG.read_text()), json.loads(REPO_CONFIG.read_text())):
         once = normalize(raw)
@@ -167,7 +167,7 @@ def test_the_shipped_config_file_is_a_normalize_fixpoint_and_valid():
 
 
 # ======================================================================
-# normalize — the rules <-> timing alias, in BOTH directions
+# normalize, the rules <-> timing alias, in BOTH directions
 # ======================================================================
 
 
@@ -211,7 +211,7 @@ def test_timing_keeps_its_own_v2_only_keys_alongside_the_aliases():
 
 
 # ======================================================================
-# normalize — the search <-> discovery facet alias
+# normalize, the search <-> discovery facet alias
 # ======================================================================
 
 
@@ -264,7 +264,7 @@ def test_search_and_discovery_facets_always_agree_on_the_shared_keys():
 
 
 # ======================================================================
-# normalize — tenancy.selfOnboarding
+# normalize, tenancy.selfOnboarding
 # ======================================================================
 
 
@@ -286,7 +286,7 @@ def test_an_explicit_self_onboarding_is_never_overwritten(declared):
 
 
 # ======================================================================
-# validate — reports EVERY problem at once
+# validate, reports EVERY problem at once
 # ======================================================================
 
 
@@ -295,7 +295,7 @@ def test_a_valid_config_reports_nothing():
 
 
 def test_validate_reports_all_problems_at_once():
-    """One round-trip through the validator must list every mistake — fixing a
+    """One round-trip through the validator must list every mistake, fixing a
     pivot file one 500 at a time is exactly the failure mode v2 removes."""
     cfg = normalize(
         {
@@ -411,7 +411,7 @@ def test_multi_tenancy_needs_no_provider_code():
 
 @pytest.mark.parametrize("flow", ["prepay", "pay_on_site", "invoice_after", "split"])
 def test_payments_disabled_with_a_live_payment_flow_is_rejected(flow):
-    """The UI would hide a step the API still enforces — a booking nobody can
+    """The UI would hide a step the API still enforces, a booking nobody can
     complete."""
     problems = validate(
         normalize({"capabilities": {"payments": False}, "payments": {"flow": flow}})
@@ -570,14 +570,14 @@ def test_an_empty_term_or_copy_string_is_rejected():
 
 
 # ======================================================================
-# validate — the list-of-descriptor blocks
+# validate, the list-of-descriptor blocks
 # ======================================================================
 #
 # `pricing.fees`, `pricing.deposit`, `payments.schedule`, `booking.options`,
 # `recurrence.patterns` and `entitlements.plans` are lists (or small objects) of
 # descriptors keyed by a `kind`/`type` string. An unrecognised value used to make
-# the entry evaluate to *nothing* at runtime — a fee that never charges, an
-# option that never renders — which is the exact silent-failure mode this
+# the entry evaluate to *nothing* at runtime, a fee that never charges, an
+# option that never renders, which is the exact silent-failure mode this
 # validator exists to prevent. Every one of them is now checked at load.
 
 
@@ -686,7 +686,7 @@ def test_every_bad_band_in_the_list_is_reported_with_its_index():
 
 def test_a_multi_band_distance_fee_with_a_null_catch_all_top_band_is_accepted():
     """`maxKm: null` is the deliberate open-ended top band, so a valid ladder
-    ends with one — `_int(..., allow_none=True)` on maxKm is what allows it."""
+    ends with one, `_int(..., allow_none=True)` on maxKm is what allows it."""
     fee = _fee(
         kind="distanceBand",
         bands=[
@@ -902,7 +902,7 @@ def test_an_unhashable_value_in_a_scalar_enum_position_is_a_load_error(raw, path
 
 
 def test_an_unhashable_enum_value_is_reported_alongside_every_other_problem():
-    """The guard must not short-circuit the pass — one edit session, one list."""
+    """The guard must not short-circuit the pass, one edit session, one list."""
     problems = validate(
         normalize(
             {
@@ -967,7 +967,7 @@ def test_a_satisfiable_party_range_is_accepted(minimum, maximum):
 
 
 def test_the_descriptor_checks_all_report_together():
-    """One pass, every problem — a hand-edited pivot file gets fixed once, not
+    """One pass, every problem, a hand-edited pivot file gets fixed once, not
     one failed request at a time."""
     problems = validate(
         normalize(
@@ -1003,22 +1003,23 @@ def test_the_descriptor_checks_all_report_together():
 # Some keys are in DEFAULTS but do not GATE anything yet: each would need
 # machinery this repo does not have (a cross-booking daily total, a payments
 # layer, a scheduled job). The point of this section is NOT to assert behaviour
-# they lack — it is to pin the *list*, so a dead key cannot be added quietly and
+# they lack, it is to pin the *list*, so a dead key cannot be added quietly and
 # so an enforced key can't be mistaken for one of them.
 #
 # The list used to be one bucket, checked with "no engine module reads this
 # key". That conflated two different properties:
 #
-#   ENFORCED — the engine gates behaviour on the key (refuses, prices, expires).
-#   READ     — the engine merely reads it to put it on the wire.
+#   ENFORCED, the engine gates behaviour on the key (refuses, prices, expires).
+#   READ    , the engine merely reads it to put it on the wire.
 #
 # A display-only key is READ but not ENFORCED, so the old check failed the
-# moment `timing.approvalWindowHours` was surfaced through `serialize_service`
-# — reporting a *feature* as a regression. The invariant that still has teeth is
+# moment `timing.approvalWindowHours` was surfaced through
+# `serialize_service`, reporting a *feature* as a regression. The invariant
+# that still has teeth is
 # the narrower one, so it is split in two here:
 #
-#   INERT          — neither enforced nor surfaced -> must have NO reader at all.
-#   SURFACED_ONLY  — read for display -> must have a reader, that reader must be
+#   INERT         , neither enforced nor surfaced -> must have NO reader at all.
+#   SURFACED_ONLY , read for display -> must have a reader, that reader must be
 #                    the declared wire path and nothing else, and the key must
 #                    still change no behaviour (pinned as real assertions below).
 #
@@ -1036,7 +1037,7 @@ INERT = {
 }
 
 # Read for DISPLAY only. Value is (leaf key, the exact module set allowed to
-# read it) — the module set is what makes this non-vacuous: wiring one of these
+# read it), the module set is what makes this non-vacuous: wiring one of these
 # into a gate means editing `bookings.py` / `pricing.py` / `rules.py`'s rule
 # dispatch, which grows the set and fails the test.
 SURFACED_ONLY = {
@@ -1067,7 +1068,7 @@ def _dig(tree: dict, path: str):
 
 
 # Modules that declare the config shape rather than act on it. Both name every
-# key by construction, so a mention in either is evidence of nothing —
+# key by construction, so a mention in either is evidence of nothing,
 # `config_schema.py` declares them in DEFAULTS, `config_models.py` as pydantic
 # fields. Excluding them is what keeps this scan a test of *enforcement*.
 _SHAPE_DECLARING_MODULES = {"config_schema.py", "config_models.py"}
@@ -1097,7 +1098,7 @@ def test_an_inert_key_is_read_by_no_engine_code(path, key):
     """The surviving half of the original invariant: a key that is neither
     enforced nor surfaced must have no reader anywhere in `backend/app`.
 
-    If this fails the key was wired up — good news, but move it to
+    If this fails the key was wired up, good news, but move it to
     SURFACED_ONLY (with its wire path) or out of the inventory entirely, and
     write the behaviour tests that now exist to be written."""
     assert _modules_reading(key) == set(), path
@@ -1166,7 +1167,7 @@ def test_the_doc_table_says_a_surfaced_key_is_surfaced_but_not_enforced(path):
 
 def test_the_approval_window_reaches_the_wire_and_gates_nothing():
     """`timing.approvalWindowHours` on `Service.approvalWindowHours`, and two
-    configs differing ONLY in that number serialize identically apart from it —
+    configs differing ONLY in that number serialize identically apart from it,
     the mechanical statement of "display only"."""
     from app.serialize import serialize_service
 
@@ -1182,7 +1183,7 @@ def test_the_approval_window_reaches_the_wire_and_gates_nothing():
 @pytest.mark.parametrize("payer", sorted(PAYERS))
 def test_the_payer_reaches_the_wire_and_changes_no_money(payer):
     """`payments.payer` on `Booking.payment.payer`. Who is billed must not move
-    a single amount or the payment state — if it ever does, it has become an
+    a single amount or the payment state, if it ever does, it has become an
     enforced key and needs its own behaviour tests."""
     from app.rules import payment_state
 

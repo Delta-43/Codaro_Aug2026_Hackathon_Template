@@ -1,4 +1,4 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -48,8 +48,8 @@ def slot_occupancy(resource_id: str | None = None):
 def _service_for_resource(db, resource_id: str) -> dict | None:
     """The service a slot's resource belongs to (`resources.metadata.service_id`).
 
-    Slot geometry is a per-service fact — `services.slot_duration_minutes` is a
-    column that exists for exactly this — but slot creation read the GLOBAL
+    Slot geometry is a per-service fact, `services.slot_duration_minutes` is a
+    column that exists for exactly this, but slot creation read the GLOBAL
     `timing` block, so neither that column nor a `metadata.timing` override
     affected the grid being laid down. Returns None when the resource is
     unlinked, and the global defaults then apply as before.
@@ -80,7 +80,7 @@ def create_slot(payload: SlotCreate, owner: AuthUser = Depends(require_owner)):
     validate_metadata("slots", payload.metadata)
 
     # The buffer-overlap check is the only slot.create rule that reads existing
-    # slots, and it is a no-op unless bufferMinutes is set — so only pay for the
+    # slots, and it is a no-op unless bufferMinutes is set, so only pay for the
     # lookup then, and PAGE it: past 1000 slots on a resource a bare `.execute()`
     # silently truncates, and the overlap check would miss a clash with any slot
     # beyond the first page (the same cap list_slots/occupancy already page around).

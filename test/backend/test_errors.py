@@ -1,8 +1,8 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Pure unit tests for `app.errors.api_error` — the typed-error factory that maps
+"""Pure unit tests for `app.errors.api_error`, the typed-error factory that maps
 the frontend's ApiError codes to HTTP statuses and wraps them in the
 `{code, message, details?}` envelope the frontend reads back."""
 

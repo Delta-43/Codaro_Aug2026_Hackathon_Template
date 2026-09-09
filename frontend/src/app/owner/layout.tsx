@@ -1,4 +1,4 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -11,12 +11,12 @@ import { OwnerProvider } from "@/context/owner-context";
 import { BusinessShell } from "@/components/business/business-shell";
 
 /**
- * Business mode — gated on the *owner* role (a separate persona from the
+ * Business mode: gated on the *owner* role (a separate persona from the
  * customer app, so it lives outside the (app) group and gets its own five-tab
  * shell). Anonymous → /login; a signed-in non-owner → /search.
  *
  * The role is the **trusted** one the backend resolves from `profiles`, not a
- * JWT claim — so what this gate shows and what the API allows can no longer
+ * JWT claim: so what this gate shows and what the API allows can no longer
  * disagree. It arrives a beat after the session, hence `roleReady`: treating
  * "not resolved yet" as "not an owner" would bounce a business out of business
  * mode on every page load.
@@ -26,7 +26,7 @@ import { BusinessShell } from "@/components/business/business-shell";
  * an established owner. That latch is no longer needed: the resolved role is
  * held in `AuthProvider` state that survives a token refresh (and a failed
  * re-check keeps the previous value), so `isOwner` has no flicker left to
- * absorb — and unlike the ref, that protection now survives navigation instead
+ * absorb, and unlike the ref, that protection now survives navigation instead
  * of resetting with the component.
  */
 export default function OwnerLayout({ children }: { children: ReactNode }) {
@@ -46,8 +46,8 @@ export default function OwnerLayout({ children }: { children: ReactNode }) {
         {settling
           ? "Loading…"
           : !session
-            ? "Sign in to continue — redirecting…"
-            : "Business access required — redirecting…"}
+            ? "Sign in to continue, redirecting…"
+            : "Business access required, redirecting…"}
       </div>
     );
   }

@@ -1,8 +1,8 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-"""Availability grouping + month density — the calendar's two read endpoints.
+"""Availability grouping + month density, the calendar's two read endpoints.
 
 Both group slots by *local* date in the viewer's timezone (from `?tz=`, else the
 signed-in user's `user_metadata.timezone`, else the business's own
@@ -33,19 +33,19 @@ def _viewer_tz(tz: str | None, user: AuthUser | None, load_service=lambda: None)
 
     The third step is new. Without it an anonymous visitor always saw days
     grouped in UTC, which silently shifts every evening slot into the next day
-    for a business east of Greenwich — the calendar looked wrong to exactly the
+    for a business east of Greenwich, the calendar looked wrong to exactly the
     people who had not logged in yet.
 
     "The business" means THIS service's business. Both endpoints here are already
     scoped to one `service_id`, and `location` is overridable per service, but the
-    global block was read regardless — so pricing honoured a tenant's timezone
+    global block was read regardless, so pricing honoured a tenant's timezone
     (`bookings._business_tz`) while the calendar next to it did not, and every
     marketplace tenant off the platform zone had its days grouped wrong."""
     name = tz or (user_metadata(user).get("timezone") if user else None)
     # Only reach for the service when the first two steps missed. `load_service`
     # is a thunk, not a row: passing the row meant the SELECT ran on every
-    # request, and the client never sends `?tz=`, so for any signed-in viewer —
-    # the whole `(app)` group is auth-gated — the row was fetched and discarded
+    # request, and the client never sends `?tz=`, so for any signed-in viewer,
+    # the whole `(app)` group is auth-gated, the row was fetched and discarded
     # on the two most interaction-heavy endpoints in the app.
     if not name:
         name = effective_service_config(load_service())["location"].get("timezone")
@@ -103,7 +103,7 @@ def availability(
     rids = _resource_ids(db, service_id, resource_id)
     if not rids:
         return []
-    # Date-bounded, so this is far less exposed than `/slots` — but a wide
+    # Date-bounded, so this is far less exposed than `/slots`, but a wide
     # range on a busy multi-resource service still passes 1000 rows, and a
     # truncated day reads as "no availability" rather than as an error.
     rows = fetch_all(

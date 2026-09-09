@@ -1,10 +1,10 @@
-# Arbor — a config-driven booking engine
+# Arbor: a config-driven booking engine
 # Copyright (C) 2026 Alban Billiette and the Arbor contributors
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 """e2e-suite fixtures.
 
-The live e2e tests mutate the *real* Supabase project — they can switch the
+The live e2e tests mutate the *real* Supabase project, they can switch the
 demo vertical and create/cancel bookings. Left alone, that leaves the project
 on whatever vertical the last test touched (e.g. stuck on `group`). This
 session-scoped, autouse teardown reseeds the default `fleet` vertical once the
@@ -37,7 +37,7 @@ def restore_default_vertical():
     is left clean regardless of what the tests switched it to."""
     yield
     if not _HAVE_LIVE_ENV:
-        # Live suite was skipped — nothing ran against Supabase, nothing to restore.
+        # Live suite was skipped, nothing ran against Supabase, nothing to restore.
         return
     try:
         import seed

@@ -1,11 +1,11 @@
-// Arbor — a config-driven booking engine
+// Arbor: a config-driven booking engine
 // Copyright (C) 2026 Alban Billiette and the Arbor contributors
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 "use client";
 
 /**
- * The basket — `capabilities.cart`.
+ * The basket: `capabilities.cart`.
  *
  * The capability shipped in v2 with nothing behind it in either half of the
  * stack: the config could turn a cart on and the app had no basket, no
@@ -19,7 +19,7 @@
  * Checkout therefore reports per-item outcomes and keeps the failures in the
  * basket for another try.
  *
- * Persisted to localStorage so a basket survives a tab change or a refresh —
+ * Persisted to localStorage so a basket survives a tab change or a refresh,
  * losing it on navigation is what makes a cart useless.
  */
 import {
@@ -49,7 +49,7 @@ export type CartItem = BookingShape & {
   partySize: number;
   metadata?: Record<string, unknown>;
   /** What the engine quoted when the item was added, for the basket total. A
-   *  re-quote happens at checkout — this is a display value, never a promise. */
+   *  re-quote happens at checkout, this is a display value, never a promise. */
   amountMinorUnits: number;
   currency: string;
 };
@@ -78,7 +78,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
   // Live view of the basket for the checkout loop: the callback's `items`
   // closure is a snapshot, so removals made while booking is in flight would
-  // otherwise still be booked. Also the re-entrancy latch — `busy` state
+  // otherwise still be booked. Also the re-entrancy latch, `busy` state
   // re-renders too late to stop a double press.
   const itemsRef = useRef(items);
   itemsRef.current = items;
@@ -99,7 +99,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
     } catch {
-      /* quota/private mode — the basket just does not survive the session */
+      /* quota/private mode, the basket just does not survive the session */
     }
   }, [items]);
 
@@ -108,7 +108,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       // The same slots twice is a mistake, not two bookings: the second would
       // be refused by the server for capacity it is itself holding. But a
       // re-add IS a changed intent (new party size / options), so it replaces
-      // the stored item rather than being silently ignored — EXCEPT while a
+      // the stored item rather than being silently ignored, EXCEPT while a
       // checkout is running: the stored intent is being booked as-is, and a
       // same-key replacement would be booked from the stale snapshot and then
       // silently purged by the reconcile. It no-ops instead.
@@ -137,7 +137,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
       // Sequential, not parallel: two items competing for the last place in the
       // same slot must lose one and keep one, and the server decides which.
       for (const item of itemsRef.current) {
-        // Removed (or replaced) while earlier items were booking — honor it.
+        // Removed (or replaced) while earlier items were booking, honor it.
         // Identity, not key: a same-key replacement is a different object and
         // must not cause this stale snapshot's params to be booked.
         if (!itemsRef.current.includes(item)) continue;
@@ -163,7 +163,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
           });
         }
       }
-      // Drop exactly the OBJECTS that were booked — identity, not key, so a
+      // Drop exactly the OBJECTS that were booked, identity, not key, so a
       // remove-then-re-add under a booked item's key survives (this run never
       // attempted it). Failures stay for another try too.
       setItems((prev) => prev.filter((i) => !bookedItems.has(i)));
