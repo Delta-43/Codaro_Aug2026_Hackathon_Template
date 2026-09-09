@@ -187,8 +187,15 @@ export function CalendarShowcase() {
       if (!natural) return;
       const avail = window.innerHeight - 56; // section py-6 + a small buffer
       const scale = Math.max(0.55, Math.min(1, avail / natural));
+      const h = Math.round(natural * scale);
+      // Sub-pixel churn from the ResizeObserver would otherwise re-render (and
+      // visibly nudge) the plate for changes nobody asked to see.
+      setFit((prev) =>
+        Math.abs(prev.scale - scale) < 0.005 && prev.h !== null && Math.abs(prev.h - h) < 2
+          ? prev
+          : { scale, h },
+      );
       scaleRef.current = scale;
-      setFit({ scale, h: Math.round(natural * scale) });
     };
     recompute();
     const ro = new ResizeObserver(recompute);
@@ -441,8 +448,15 @@ export function CalendarShowcase() {
           chapters, floating over the shared particle backdrop. Holds the real
           calendar and, once the tour ends (or a visitor takes over), the
           "Book in three steps" note beneath it. */}
-      <div className="mx-auto w-full max-w-4xl" style={{ height: fit.h ?? undefined }}>
-        <div ref={fitRef} className="origin-top" style={{ transform: `scale(${fit.scale})` }}>
+      <div
+        className="mx-auto w-full max-w-4xl transition-[height] duration-300 ease-out"
+        style={{ height: fit.h ?? undefined }}
+      >
+        <div
+          ref={fitRef}
+          className="origin-top transition-transform duration-300 ease-out"
+          style={{ transform: `scale(${fit.scale})` }}
+        >
         <GlassPanel className="px-6 py-4 sm:px-10 sm:py-6">
           {/* Calendar on the glass; when the tour ends (or a visitor takes over)
               the "three steps" note reveals underneath it — full-width plates so
@@ -493,7 +507,13 @@ export function CalendarShowcase() {
         </div>
 
         {/* Views */}
-        <div ref={viewsRef} className="min-h-[13rem]">
+        {/* Tall enough for Month, which is the tallest of the three: a 20rem
+            column of `aspect-square` cells is ~322px once the weekday header and
+            the openness legend are counted, and Day needs a touch more again. Without this the box sized to each
+            view in turn, so the plate jumped ~50px every time the tour switched
+            Month → Week → Day, and the fit-scale then rescaled the whole card on
+            top of that. Week and Day simply sit in a taller box. */}
+        <div ref={viewsRef} className="min-h-[22rem]">
           {zoom === "Month" ? (
             // Narrower, centred month grid: its cells are aspect-square, so a
             // narrower width makes the whole month shorter — bringing the plate
@@ -542,7 +562,10 @@ export function CalendarShowcase() {
 
         {/* Booking control — the real button design; appears once a slot is
             picked, then flips to a confirmation, exactly like the app. */}
-        <div className="mt-4 min-h-[3.25rem]">
+        {/* Tall enough for the confirmation panel, which is two lines and so
+            taller than the button it replaces. Sized for the larger of the two
+            states, or booking nudged the whole plate down by ~9px. */}
+        <div className="mt-4 min-h-[4.25rem]">
           {booked ? (
             <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/10 px-4 py-3">
               <span className="grid size-7 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground">
