@@ -6,9 +6,9 @@
 
 `provider -> service -> resource -> slot -> booking -> user`
 
-🏆 **First place, Track B (Booking and Resource Scheduling), at the Codaro x Google for Startups hackathon.**
+🏆 **First place on Track B (Booking and Resource Scheduling), and second overall, at the Codaro x Google for Startups hackathon.**
 
-[![1st place](https://img.shields.io/badge/%F0%9F%8F%86_1st_place-Codaro_x_Google_for_Startups-FFD700)](#team)
+[![1st on Track B, 2nd overall](https://img.shields.io/badge/%F0%9F%8F%86_1st_Track_B-2nd_overall-FFD700)](#team)
 [![CI](https://github.com/kaveOO/Arbor/actions/workflows/ci.yml/badge.svg)](https://github.com/kaveOO/Arbor/actions/workflows/ci.yml)
 [![Next.js 14](https://img.shields.io/badge/frontend-Next.js%2014-000000)](frontend/)
 [![FastAPI](https://img.shields.io/badge/backend-FastAPI-009688)](backend/)
@@ -262,7 +262,7 @@ the fix will come from your fork, not from here.
 ## Team
 
 Built at the Codaro x Google for Startups hackathon, where it took first place
-on Track B (Booking and Resource Scheduling).
+on Track B (Booking and Resource Scheduling) and second place overall.
 
 - [@kaveOO](https://github.com/kaveOO) (Alban Billiette)
 - [@Rysia](https://github.com/Rysia)

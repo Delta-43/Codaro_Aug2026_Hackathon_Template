@@ -68,7 +68,7 @@ export default async function Image() {
               color: "#fff",
             }}
           >
-            1st place, Track B
+            1st on Track B, 2nd overall
           </span>
           <span style={{ color: "rgba(255,255,255,0.55)" }}>
             Next.js · FastAPI · Supabase · AGPL-3.0
