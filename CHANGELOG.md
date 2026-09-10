@@ -34,8 +34,8 @@ the repository ships the engine and one generic config.
 ## [0.1.0], 2026-09-08
 
 First public release. Arbor was built at the Codaro x Google for Startups
-hackathon, where it won Track B (Booking and Resource Scheduling), and has been
-developed further since.
+hackathon, where it won Track B (Booking and Resource Scheduling) and placed
+second overall, and has been developed further since.
 
 ### Added
 

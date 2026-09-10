@@ -22,7 +22,7 @@ const FACTS = [
     icon: Award,
     stat: "1st place",
     title: "Track B, Codaro x Google for Startups",
-    body: "Booking and Resource Scheduling. Built over the length of the hackathon.",
+    body: "Booking and Resource Scheduling, and second overall. Built over the length of the hackathon.",
   },
   {
     icon: Layers,
